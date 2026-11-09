@@ -10,7 +10,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Lock, Thread
-from time import monotonic
+from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
@@ -154,6 +154,222 @@ def run_routine(period, default_script):
         lock.release()
 
 
+def set_lights(name, desired_state):
+    """Resolve Home Assistant lights before dispatch and verify their reported states."""
+    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
+    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
+    try:
+        parsed = urlsplit(url)
+        configured = (token and parsed.scheme in {"http", "https"} and parsed.hostname
+                      and not any((parsed.username, parsed.password, parsed.query, parsed.fragment)))
+    except ValueError:
+        configured = False
+    if not configured:
+        return "The Home Assistant connection isn't configured.", "not_configured"
+
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    opener = build_opener(ProxyHandler({}), NoRedirect())
+    try:
+        with opener.open(Request(f"{url}/api/states", headers=headers), timeout=1.5) as response:
+            inventory = json.loads(response.read(8 * 1024 * 1024))
+        if not isinstance(inventory, list):
+            raise ValueError("Expected a list of states")
+    except HTTPError as error:
+        error.close()
+        return "I couldn't read the lights from Home Assistant.", "unavailable"
+    except (OSError, ValueError):
+        return "I couldn't read the lights from Home Assistant.", "unavailable"
+
+    lights = {}
+    names = {}
+    for item in inventory:
+        entity_id = item.get("entity_id", "") if isinstance(item, dict) else ""
+        if not isinstance(entity_id, str) or not re.fullmatch(r"light\.[a-z0-9_]+", entity_id):
+            continue
+        attributes = item.get("attributes")
+        friendly = attributes.get("friendly_name") if isinstance(attributes, dict) else None
+        id_name = entity_id.removeprefix("light.").replace("_", " ")
+        label = friendly.strip() if isinstance(friendly, str) and friendly.strip() else id_name
+        lights[entity_id] = (label, item.get("state"))
+        for candidate in (entity_id, id_name, " ".join(label.casefold().split())):
+            names.setdefault(candidate, set()).add(entity_id)
+
+    areas = None
+
+    def resolve(target, state, *, use_area=False):
+        nonlocal areas
+        recovered = target.removeprefix(f"{state} ")
+        matches = names.get(target) or names.get(recovered)
+        if not matches and recovered in {"office light", "office lights"} and "light.study_light" in lights:
+            matches = {"light.study_light"}
+        if matches or not use_area or " " not in recovered:
+            return matches
+
+        if areas is None:
+            areas = {}
+            template = (
+                "{% set result = namespace(areas=[]) %}"
+                "{% for id in areas() %}"
+                "{% set result.areas = result.areas + [[area_name(id), area_entities(id)]] %}"
+                "{% endfor %}{{ result.areas | to_json }}"
+            )
+            request = Request(f"{url}/api/template", headers=headers,
+                              data=json.dumps({"template": template}).encode(), method="POST")
+            try:
+                with opener.open(request, timeout=1.5) as response:
+                    area_rows = json.loads(response.read(1024 * 1024))
+                for label, entities in area_rows:
+                    areas.setdefault(" ".join(label.casefold().split()), set()).update(entities)
+                if "master bedroom" in areas:
+                    areas.setdefault("bedroom", areas["master bedroom"])
+            except HTTPError as error:
+                error.close()
+            except (OSError, ValueError, TypeError, AttributeError):
+                areas.clear()
+
+        room_suffix = re.fullmatch(r"(.+?) in (?:the )?(.+)", recovered)
+        if room_suffix and room_suffix[2] in areas:
+            bare_name, area = room_suffix.groups()
+        else:
+            area = max((label for label in areas if recovered.startswith(label + " ")),
+                       key=len, default=None)
+            if area is None:
+                return None
+            bare_name = recovered[len(area) + 1:]
+        candidates = names.get(bare_name, set())
+        in_area = candidates & areas[area]
+        if in_area:
+            return in_area
+        # A unique light with no registered area can still have a spoken room qualifier.
+        if len(candidates) == 1 and not any(candidates & entities for entities in areas.values()):
+            return candidates
+        return None
+
+    # Prefer a full name, including names that contain "and".
+    targets = [name] if resolve(name, desired_state) else re.split(
+        r"\s*[,;]\s*|\s+(?:and then|as well as|and|then)\b\s*|\s+(?=turn (?:on|off)\b)",
+        name,
+    )
+    resolved_targets = []
+    skipped = []
+    direction = desired_state
+    for target in targets:
+        target = target.strip().removeprefix("the ")
+        if not target:
+            continue
+        explicit = re.fullmatch(r"turn (on|off)(?: (?:the )?(.+))?", target)
+        if explicit:
+            direction, target = explicit.groups()
+            if target is None:
+                continue
+        matches = resolve(target, direction, use_area=True)
+        if not matches:
+            words = target.split()
+            splits = []
+            for index in range(1, len(words)):
+                left = " ".join(words[:index])
+                right = " ".join(words[index:]).removeprefix("the ")
+                left_matches = resolve(left, direction, use_area=True)
+                right_matches = resolve(right, direction, use_area=True)
+                if left_matches and right_matches:
+                    splits.append(((left, left_matches), (right, right_matches)))
+            if len(splits) > 1:
+                skipped.append((f"I couldn't tell where to split {target}. Say 'and' between the light names.", "unresolved"))
+                continue
+            if splits:
+                resolved_targets.extend((part, ids, direction) for part, ids in splits[0])
+                continue
+        resolved_targets.append((target, matches, direction))
+
+    selected = {}
+    conflicts = set()
+    for target, matches, direction in resolved_targets:
+        if not matches:
+            skipped.append((f"I couldn't find a Home Assistant light called {target}.", "unresolved"))
+            continue
+        if len(matches) > 1:
+            options = ", ".join(sorted(matches))
+            skipped.append((f"More than one light matches {target}. Try one of these entity IDs: {options}.", "unresolved"))
+            continue
+        entity = next(iter(matches))
+        label, state = lights[entity]
+        if state not in ("on", "off"):
+            skipped.append((f"Home Assistant says {label} is unavailable.", "unavailable"))
+            continue
+        if entity in conflicts:
+            continue
+        if entity in selected and selected[entity][2] != direction:
+            del selected[entity]
+            conflicts.add(entity)
+            skipped.append((f"I heard both on and off for {label}. I left it alone.", "unresolved"))
+            continue
+        selected[entity] = (label, state, direction)
+
+    skipped_details = "".join(f" {message}" for message, _ in skipped)
+    if not selected:
+        return (skipped_details.strip(), skipped[0][1]) if skipped else (
+            "Tell me which lights to switch.", "unresolved"
+        )
+    pending = {}
+    verified = {direction: [] for _, _, direction in selected.values()}
+    for direction in verified:
+        entity_ids = [entity for entity, (_, state, goal) in selected.items()
+                      if goal == direction and state != goal]
+        verified[direction] = [label for label, state, goal in selected.values()
+                               if goal == direction and state == goal]
+        if not entity_ids:
+            continue
+        labels = ", ".join(selected[entity][0] for entity in entity_ids)
+        action = Request(
+            f"{url}/api/services/light/turn_{direction}",
+            data=json.dumps({"entity_id": entity_ids[0] if len(entity_ids) == 1 else entity_ids}).encode(),
+            headers=headers, method="POST",
+        )
+        try:
+            with opener.open(action, timeout=1):
+                pass
+        except HTTPError as error:
+            error.close()
+            skipped.append((f"Home Assistant returned HTTP {error.code} for {labels}.", "action_error"))
+            continue
+        except OSError:
+            skipped.append((f"I didn't get a response for {labels}.", "unverified"))
+            continue
+        pending.update({entity: direction for entity in entity_ids})
+
+    deadline = monotonic() + 3
+    last_reported = {}
+    while pending and monotonic() < deadline:
+        for entity, direction in tuple(pending.items()):
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                break
+            request = Request(f"{url}/api/states/{entity}", headers=headers)
+            try:
+                with opener.open(request, timeout=min(remaining, 0.5)) as response:
+                    last_reported[entity] = json.loads(response.read(65536))["state"]
+                    if last_reported[entity] == direction:
+                        verified[direction].append(selected[entity][0])
+                        del pending[entity]
+            except HTTPError as error:
+                error.close()
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+        if pending:
+            sleep(min(0.25, max(0, deadline - monotonic())))
+    for entity, direction in pending.items():
+        label = selected[entity][0]
+        state = last_reported.get(entity, "no state reported")
+        skipped.append((f"I couldn't confirm {label} is {direction} ({state}).", "unverified"))
+    confirmations = [
+        f"{', '.join(labels)} {'is' if len(labels) == 1 else 'are'} {direction}."
+        for direction, labels in verified.items() if labels
+    ]
+    reply = " ".join(confirmations + [message for message, _ in skipped])
+    outcome = ("partial" if confirmations else skipped[0][1]) if skipped else "confirmed"
+    return reply, outcome
+
+
 def converse(message, session_id, routine_reply=None):
     now = monotonic()
     while SESSIONS and now - next(iter(SESSIONS.values()))["at"] >= IDLE_SECONDS:
@@ -214,6 +430,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/":
             page = Path(__file__).with_name("index.html").read_bytes()
             self.send_body(200, page, "text/html; charset=utf-8")
+        elif self.path == "/logo.png":
+            self.send_body(200, Path(__file__).with_name("logo.png").read_bytes(), "image/png")
         elif self.path == "/health":
             self.send_json(200, {"status": "ok"})
         elif self.path == "/api/ha-status":
@@ -308,6 +526,14 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome, routine_status = run_routine("morning", GOOD_MORNING_SCRIPT)
         elif phrase in GOOD_NIGHT_PHRASES:
             routine_reply, outcome, routine_status = run_routine("night", GOOD_NIGHT_SCRIPT)
+        else:
+            light_command = (
+                re.fullmatch(r"turn (?P<state>on|off)(?:\s*[,;:]\s*|\s+)(?:the )?(?P<name>.+)", phrase)
+                or re.fullmatch(r"(?:turn )?(?:the )?(?P<name>.+) (?P<state>on|off)", phrase)
+            )
+            if light_command:
+                name, desired_state = light_command.group("name", "state")
+                routine_reply, outcome = set_lights(name, desired_state)
         with SESSION_LOCK:
             reply = converse(message, session_id, routine_reply)
             try:

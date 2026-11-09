@@ -17,14 +17,19 @@ header { display: flex; align-items: center; justify-content: space-between; fle
   gap: .7rem; min-height: 58px; padding: .5rem clamp(1rem, 3vw, 2rem); border-bottom: 1px solid #183341; }
 h1 { margin: 0; font: 700 clamp(1rem, 3vw, 1.5rem) ui-monospace, monospace; letter-spacing: .28em; }
 h1 small { font-size: .55em; letter-spacing: .08em; }
+.brand { display: flex; align-items: center; gap: .65rem; }
+.brand img { width: 38px; height: 38px; border-radius: 50%; }
 .mono, summary { font: .8rem ui-monospace, monospace; color: #a1ccdf; }
 summary, button { cursor: pointer; }
 button:disabled { cursor: default; }
 :focus-visible { outline: 2px solid #91e3ff; outline-offset: 4px; }
 .settings { position: relative; }
-.settings label { position: absolute; z-index: 1; right: 0; top: 1.5rem;
-  padding: .85rem; white-space: nowrap; background: #0b1a25; border: 1px solid #2a6379; border-radius: .5rem; }
-main { width: min(760px, calc(100% - 2rem)); margin: auto; text-align: center; padding-bottom: 2rem; }
+.settings-menu { position: absolute; z-index: 1; right: 0; top: calc(100% + .4rem);
+  display: grid; gap: .65rem; padding: .85rem; white-space: nowrap; background: #0b1a25;
+  border: 1px solid #2a6379; border-radius: .5rem; }
+.settings-menu button { color: #c7f7ff; background: #102635; border: 1px solid #315568;
+  border-radius: .35rem; padding: .45rem .6rem; font: inherit; text-align: left; }
+main { width: min(760px, calc(100% - 2rem)); margin: auto; text-align: center; padding-bottom: 3rem; }
 .voice-stage { min-height: clamp(230px, 54vh, 470px); display: grid; place-items: center; }
 #talk { width: clamp(130px, 24vw, 190px); aspect-ratio: 1; border: 1px solid #285267;
   border-radius: 50%; color: #b4dced; background: radial-gradient(circle at 48% 48%, #184860, #081722 74%);
@@ -43,15 +48,40 @@ form input { flex: 1; min-width: 0; color: #e7f7ff; background: transparent; bor
   font: 1rem ui-monospace, monospace; }
 form input::placeholder { color: #a1ccdf; }
 form button { color: #e7f7ff; background: #143347; border: 0; border-radius: .5rem; min-height: 44px; padding: .6rem .85rem; }
-.history { margin-top: 1rem; }
 .keyboard { margin-top: 1rem; }
 .keyboard form { margin-top: .65rem; }
-#chat { max-height: 16rem; overflow: auto; padding: 0; list-style: none; text-align: left; }
-#chat li { margin: .75rem 0; overflow-wrap: anywhere; }
+.history { width: min(900px, calc(100% - 2rem)); max-width: none; padding: 0;
+  text-align: left; color: #e7f7ff; background: #091621;
+  border: 1px solid #264656; border-radius: .75rem; }
+.history::backdrop { background: #03090dc4; }
+.history-heading { display: flex; align-items: center; justify-content: space-between;
+  gap: .75rem; padding: .75rem 1rem; border-bottom: 1px solid #264656; }
+.history-heading h2 { margin: 0; font-size: 1rem; }
+.history-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .65rem 1rem; }
+.history-toolbar p { flex: 1 1 13rem; margin: 0; }
+.history button, .history a { color: #c7f7ff; background: #102635; border: 1px solid #315568;
+  border-radius: .35rem; padding: .35rem .6rem; font: inherit; font-size: .8rem; }
+.history a { text-decoration: none; }
+.history button:hover, .history a:hover { background: #19394b; }
+#history-status { margin: .5rem 1rem; }
+#history-status:empty { margin: 0; }
+#chat { max-height: clamp(19rem, 58vh, 42rem); overflow: auto; margin: 0; padding: 0; list-style: none; }
+#chat li { display: grid; gap: .25rem; padding: .65rem 1rem; border-top: 1px solid #203747;
+  font-size: .9rem; overflow-wrap: anywhere; }
+.turn-status { color: #a1ccdf; font-size: .8rem; }
+#older-history { margin: .65rem 1rem; }
+@media (min-width: 680px) {
+  #chat li { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); column-gap: .85rem; }
+  .turn-meta { grid-column: 1 / -1; }
+  .turn-status { grid-column: 2; }
+}
 body { margin: clamp(5px, 1vw, 12px); min-height: calc(100vh - clamp(10px, 2vw, 24px));
   border: 1px solid #1d3d51; background-size: 32px 32px, 32px 32px, 100% 100%; }
 header { position: relative; background: #060d14a8; }
 h1 small { color: #62e7ff; border: 1px solid #388da2; border-radius: 3px; padding: .14rem .25rem; vertical-align: middle; }
+.connection { position: fixed; right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(max(.75rem, env(safe-area-inset-bottom)) + .5rem); padding: .35rem .55rem;
+  border-radius: .35rem; background: #060d14e6; }
 .connection::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: .5rem;
   border-radius: 50%; background: #7796a8; }
 .connection[data-state="connected"]::before { background: #62e7ff; box-shadow: 0 0 8px #62e7ff; }
@@ -85,17 +115,23 @@ main { width: min(600px, calc(100% - 2rem)); }
 form button { color: #07151f; background: #62e7ff; font-weight: 700; }
 </style>
 <header>
-  <h1>DECLAN <small>2.0</small></h1>
-  <span id="ha-status" class="mono connection" role="status">Checking Home Assistant…</span>
+  <div class="brand">
+    <img src="/logo.png" alt="" width="38" height="38">
+    <h1>DECLAN <small>2.0</small></h1>
+  </div>
   <details class="settings"><summary aria-label="Settings" title="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
       <path d="M3 6h7m4 0h7M3 12h12m4 0h2M3 18h3m4 0h11"/>
       <circle cx="12" cy="6" r="2"/><circle cx="17" cy="12" r="2"/><circle cx="8" cy="18" r="2"/>
     </svg>
   </summary>
-    <label><input id="spoken-replies" type="checkbox" checked> Speak voice replies</label>
+    <div class="settings-menu">
+      <label><input id="spoken-replies" type="checkbox" checked> Speak voice replies</label>
+      <button type="button" id="open-history" aria-haspopup="dialog">Conversation history</button>
+    </div>
   </details>
 </header>
+<span id="ha-status" class="mono connection" role="status">Checking Home Assistant…</span>
 <main>
   <div class="voice-stage"><div class="voice-core">
     <svg class="voice-rings" viewBox="0 0 320 320" aria-hidden="true">
@@ -126,15 +162,21 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
       <button>Send</button>
     </form>
   </details>
-  <details class="history" id="history"><summary>Conversation history</summary>
-    <p class="mono">Browser and Assist messages from the last 30 days</p>
-    <button type="button" id="refresh-history">Refresh</button>
-    <a href="/api/history/export" download>Export JSON</a>
+</main>
+  <dialog class="history" id="history" aria-labelledby="history-title">
+    <div class="history-heading">
+      <h2 id="history-title">Conversation history</h2>
+      <button type="button" id="close-history" autofocus>Close</button>
+    </div>
+    <div class="history-toolbar">
+      <p class="mono">Browser and Assist messages from the last 30 days</p>
+      <button type="button" id="refresh-history">Refresh</button>
+      <a href="/api/history/export" download>Export JSON</a>
+    </div>
     <p id="history-status" class="mono" role="status"></p>
     <ul id="chat" aria-label="Conversation"></ul>
     <button type="button" id="older-history" hidden>Load older messages</button>
-  </details>
-</main>
+  </dialog>
 <script>
 const haStatus = document.querySelector('#ha-status');
 const haStatusLabels = {
@@ -187,7 +229,7 @@ async function loadHistory(older = false) {
     for (const turn of turns) {
       const row = document.createElement('li');
       const meta = document.createElement('div');
-      meta.className = 'mono';
+      meta.className = 'mono turn-meta';
       meta.textContent = new Date(turn.created_at).toLocaleString() + ' · ' + (sources[turn.source] || 'Declan');
       if (turn.outcome) meta.textContent += ' · ' + turn.outcome.replaceAll('_', ' ');
       const message = document.createElement('div');
@@ -200,6 +242,7 @@ async function loadHistory(older = false) {
       row.append(meta, message, reply);
       if (turn.routine_status) {
         const routineStatus = document.createElement('div');
+        routineStatus.className = 'turn-status';
         routineStatus.textContent = 'Home Assistant Routine Status: ' + turn.routine_status;
         row.append(routineStatus);
       }
@@ -214,9 +257,14 @@ async function loadHistory(older = false) {
     loadingHistory = false;
   }
 }
-historyPanel.addEventListener('toggle', () => {
-  if (historyPanel.open) void loadHistory();
+const historySettings = document.querySelector('.settings');
+document.querySelector('#open-history').addEventListener('click', () => {
+  historySettings.open = false;
+  historyPanel.showModal();
+  void loadHistory();
 });
+historyPanel.addEventListener('close', () => historySettings.querySelector('summary').focus());
+document.querySelector('#close-history').addEventListener('click', () => historyPanel.close());
 document.querySelector('#refresh-history').addEventListener('click', () => void loadHistory());
 olderHistory.addEventListener('click', () => void loadHistory(true));
 const latestMessage = document.querySelector('#latest-message');
@@ -236,6 +284,8 @@ let busy = false;
 let handsFree = Boolean(recognition);
 let speaking = false;
 let restartTimer;
+let voiceSubmitTimer;
+let voiceTranscript = '';
 let meter = null;
 
 function drawPattern(samples) {
@@ -335,6 +385,8 @@ function startListening() {
 function pauseListening() {
   handsFree = false;
   clearTimeout(restartTimer);
+  clearTimeout(voiceSubmitTimer);
+  voiceTranscript = '';
   if (listening) recognition.abort();
   stopMeter();
   voiceStatus.textContent = 'Microphone paused.';
@@ -401,14 +453,42 @@ form.addEventListener('submit', event => {
 });
 if (recognition) {
   recognition.lang = 'en-GB';
+  recognition.continuous = true;
+  recognition.interimResults = true;
   recognition.onresult = event => {
     if (!handsFree || busy || speaking) return;
-    voiceStatus.textContent = '';
-    void sendMessage(event.results[event.resultIndex][0].transcript, true);
+    clearTimeout(voiceSubmitTimer);
+    let hasInterim = false;
+    for (let index = event.resultIndex; index < event.results.length; index++) {
+      const result = event.results[index];
+      if (result.isFinal) {
+        voiceTranscript = (voiceTranscript + ' ' + result[0].transcript.trim()).trim();
+      } else {
+        hasInterim = true;
+      }
+    }
+    if (hasInterim || !voiceTranscript) return;
+    const unfinished = /\b(?:and|as well as|then|in the)[\s,.!?]*$/i.test(voiceTranscript);
+    voiceStatus.textContent = unfinished ? 'Keep going. I’m listening.' : 'Listening.';
+    voiceSubmitTimer = setTimeout(() => {
+      const message = voiceTranscript;
+      voiceTranscript = '';
+      if (!handsFree || busy || speaking) return;
+      if (unfinished) {
+        add('You', message);
+        add('Declan', 'I only caught part of that. Please say the full command again.');
+        voiceStatus.textContent = 'Listening.';
+        return;
+      }
+      if (listening) recognition.abort();
+      void sendMessage(message, true);
+    }, unfinished ? 5000 : 1400);
   };
   recognition.onerror = event => {
     if (event.error === 'no-speech' || event.error === 'aborted') return;
     handsFree = false;
+    clearTimeout(voiceSubmitTimer);
+    voiceTranscript = '';
     if (event.error === 'not-allowed' || event.error === 'audio-capture') keyboard.open = true;
     voiceStatus.textContent = event.error === 'not-allowed'
       ? 'Allow microphone access in your browser, or type below.'
