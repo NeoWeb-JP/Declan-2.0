@@ -75,12 +75,13 @@ main { width: min(600px, calc(100% - 2rem)); }
 #voice-pattern { width: 73%; height: auto; }
 #voice-status { color: #62e7ff; letter-spacing: .3em; }
 #latest-reply { margin-bottom: 1.5rem; }
-.keyboard > summary { display: flex; align-items: center; gap: .6rem; text-align: left;
-  padding: .5rem; border: 1px solid #2a6379; border-radius: .7rem; background: #0a1621; }
-.keyboard > summary::after { content: '›'; margin-left: auto; color: #62e7ff; font-size: 1.3rem; }
-.keyboard[open] > summary::after { transform: rotate(90deg); }
-.key-icon { display: grid; place-items: center; width: 34px; height: 34px;
-  background: #143347; color: #62e7ff; border-radius: .5rem; font-size: 1.1rem; }
+.keyboard > summary { display: inline-flex; align-items: center; gap: .4rem; list-style: none;
+  padding: .5rem .75rem; border: 1px solid #264656; border-radius: .4rem; }
+.keyboard > summary::-webkit-details-marker { display: none; }
+.keyboard > summary:hover { color: #e7f7ff; background: #0a1621; }
+.keyboard .hide-keyboard, .keyboard[open] .show-keyboard { display: none; }
+.keyboard[open] .hide-keyboard { display: inline; }
+.key-icon { font-size: 1rem; }
 form button { color: #07151f; background: #62e7ff; font-weight: 700; }
 </style>
 <header>
@@ -115,7 +116,11 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
   </div>
   <p class="mono">Tap the orb to pause or resume listening</p>
   <details class="keyboard" id="keyboard">
-    <summary><span class="key-icon" aria-hidden="true">⌨</span> Use keyboard</summary>
+    <summary>
+      <span class="key-icon" aria-hidden="true">⌨</span>
+      <span class="show-keyboard">Use keyboard</span>
+      <span class="hide-keyboard">Hide keyboard</span>
+    </summary>
     <form>
       <input aria-label="Message" placeholder="Type a command or ask Declan" maxlength="1000" required>
       <button>Send</button>
@@ -134,6 +139,7 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
 const haStatus = document.querySelector('#ha-status');
 const haStatusLabels = {
   connected: 'Home Assistant connected',
+  assist_recent: 'Home Assistant Assist active recently',
   not_configured: 'Home Assistant not configured',
   authentication_failed: 'Home Assistant sign-in failed',
   disconnected: 'Home Assistant disconnected'
@@ -166,7 +172,7 @@ const historyStatus = document.querySelector('#history-status');
 const olderHistory = document.querySelector('#older-history');
 let historyCursor = null;
 let loadingHistory = false;
-const sources = {assist: 'Assist', browser_voice: 'Browser voice', browser_keyboard: 'Browser keyboard'};
+const sources = {assist: 'Assist', ha_sentence: 'Assist · Home Assistant routine', browser_voice: 'Browser voice', browser_keyboard: 'Browser keyboard'};
 
 async function loadHistory(older = false) {
   if (loadingHistory || (older && historyCursor === null)) return;
@@ -183,11 +189,20 @@ async function loadHistory(older = false) {
       const meta = document.createElement('div');
       meta.className = 'mono';
       meta.textContent = new Date(turn.created_at).toLocaleString() + ' · ' + (sources[turn.source] || 'Declan');
+      if (turn.outcome) meta.textContent += ' · ' + turn.outcome.replaceAll('_', ' ');
       const message = document.createElement('div');
       message.textContent = 'You: ' + turn.message;
       const reply = document.createElement('div');
-      reply.textContent = 'Declan: ' + turn.reply;
+      reply.textContent = 'Declan: ';
+      const replyText = document.createElement(turn.routine_status ? 'strong' : 'span');
+      replyText.textContent = turn.reply;
+      reply.append(replyText);
       row.append(meta, message, reply);
+      if (turn.routine_status) {
+        const routineStatus = document.createElement('div');
+        routineStatus.textContent = 'Home Assistant Routine Status: ' + turn.routine_status;
+        row.append(routineStatus);
+      }
       chat.append(row);
     }
     historyCursor = next;

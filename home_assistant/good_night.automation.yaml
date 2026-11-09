@@ -1,0 +1,39 @@
+alias: "Declan - Good Night"
+triggers:
+  - trigger: conversation
+    command:
+      - "good night"
+      - "good night Declan"
+      - "goodnight"
+      - "it's bedtime"
+      - "it’s bedtime"
+      - "time for bed"
+      - "shut the house down"
+      - "start the bedtime routine"
+conditions: []
+actions:
+  - action: script.declan_good_night_shared_local_routine
+    data: {}
+    response_variable: night_result
+    continue_on_error: true
+  - variables:
+      spoken_reply: >-
+        {% set result = night_result | default({}) %}
+        {% set greeting = (result.get('response') or result.get('speech'))
+           if result is mapping else none %}
+        {{ greeting if greeting is string and greeting | trim
+           else "Good night. I couldn't confirm the bedtime routine completed." }}
+      routine_confirmed: "{{ night_result is mapping and night_result.get('status') == 'success' }}"
+  - set_conversation_response: "{{ spoken_reply }}"
+  - event: declan_two_assist_reply
+    event_data:
+      message: "{{ trigger.sentence }}"
+      reply: "{{ spoken_reply }}"
+      session_id: "{{ trigger.user_input.conversation_id }}"
+      outcome: "{{ 'reported_success' if routine_confirmed else 'unverified' }}"
+      routine_status: >-
+        {% set result = night_result | default({}) %}
+        {{ (result.get('routine_status') if result is mapping else none)
+           or ('Home Assistant reports the routine completed.' if routine_confirmed
+           else 'Home Assistant did not confirm the bedtime routine completed.') }}
+mode: single

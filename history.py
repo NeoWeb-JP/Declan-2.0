@@ -25,6 +25,12 @@ def database():
                 reply TEXT NOT NULL
             )""")
             connection.execute("CREATE INDEX IF NOT EXISTS turns_created ON turns(created_at)")
+            connection.execute("BEGIN IMMEDIATE")
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(turns)")}
+            if "outcome" not in columns:
+                connection.execute("ALTER TABLE turns ADD COLUMN outcome TEXT")
+            if "routine_status" not in columns:
+                connection.execute("ALTER TABLE turns ADD COLUMN routine_status TEXT")
             connection.execute("DELETE FROM turns WHERE created_at < ?", (time() - RETENTION_SECONDS,))
             yield connection
     finally:
@@ -36,11 +42,20 @@ def prune():
         pass
 
 
-def record(session_id, source, message, reply):
+def has_recent_assist():
+    with database() as connection:
+        return connection.execute(
+            "SELECT 1 FROM turns WHERE source = ? AND created_at >= ? LIMIT 1",
+            ("assist", time() - 300),
+        ).fetchone() is not None
+
+
+def record(session_id, source, message, reply, outcome=None, routine_status=None):
     with database() as connection:
         connection.execute(
-            "INSERT INTO turns(created_at, session_id, source, message, reply) VALUES (?, ?, ?, ?, ?)",
-            (time(), session_id, source, message, reply),
+            "INSERT INTO turns(created_at, session_id, source, message, reply, outcome, routine_status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (time(), session_id, source, message, reply, outcome, routine_status),
         )
 
 

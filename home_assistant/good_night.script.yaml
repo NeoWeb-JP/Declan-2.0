@@ -1,0 +1,92 @@
+alias: Declan - Good Night - Shared Local Routine
+mode: single
+sequence:
+  - alias: Turn off all household lights
+    action: light.turn_off
+    target:
+      entity_id: all
+    continue_on_error: true
+  - alias: Allow lights to respond
+    delay:
+      seconds: 3
+  - alias: Retry any lights still on
+    repeat:
+      count: 3
+      sequence:
+        - variables:
+            remaining_lights: >-
+              {{ states.light | selectattr('state', 'eq', 'on')
+                 | map(attribute='entity_id') | list }}
+        - if:
+            - condition: template
+              value_template: "{{ remaining_lights | count > 0 }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ remaining_lights }}"
+              continue_on_error: true
+            - delay:
+                seconds: 2
+  - alias: Read household bedtime status
+    variables:
+      battery_state: "{{ states('sensor.vr3ukzkxzmj747298_battery') }}"
+      cable_state: "{{ states('binary_sensor.psl_157946_cable_status') }}"
+      hive_state: "{{ states('climate.home') }}"
+      hive_temperature: "{{ state_attr('climate.home', 'current_temperature') }}"
+      hive_target: "{{ state_attr('climate.home', 'temperature') }}"
+      hive_action: "{{ state_attr('climate.home', 'hvac_action') }}"
+  - alias: Generate personality-aware Good Night message
+    action: script.declan_personality_engine
+    data:
+      response_context: good_night
+    response_variable: goodnight_reply
+    continue_on_error: true
+  - alias: Add EV reminder if battery is low and unplugged
+    if:
+      - condition: template
+        value_template: >-
+          {{ is_number(battery_state) and 0 <= battery_state | float < 50
+             and cable_state == 'off' }}
+    then:
+      - action: script.declan_personality_engine
+        data:
+          response_context: good_night_ev_reminder
+        response_variable: ev_reply
+        continue_on_error: true
+  - alias: Verify lights and assemble bedtime reply
+    variables:
+      lights: "{{ states.light | list }}"
+      lights_still_on: >-
+        {{ states.light | selectattr('state', 'eq', 'on')
+           | map(attribute='name') | list }}
+      lights_unverified: >-
+        {{ states.light | rejectattr('state', 'in', ['on', 'off'])
+           | map(attribute='name') | list }}
+      final_message: >-
+        {{ (goodnight_reply | default({})).get('response') | default('Good night.', true) | trim }}
+        {% if is_number(battery_state) and 0 <= battery_state | float < 50
+              and cable_state == 'off' %}
+          One more thing. The Peugeot is at {{ battery_state | float | round(0) | int }}
+          percent and isn't plugged in.
+          {{ (ev_reply | default({})).get('response') | default('Please check the charging cable before bed.', true) | trim }}
+        {% endif %}
+        {% if is_number(hive_temperature) and hive_temperature | float < 16
+              and (hive_state == 'off' or
+                (hive_state == 'heat' and hive_action == 'idle'
+                 and is_number(hive_target) and hive_target | float <= hive_temperature | float)) %}
+          It's {{ hive_temperature | float | round(1) }} degrees indoors and the
+          heating isn't running. Even Finn might appreciate a blanket.
+        {% endif %}
+  - variables:
+      declan_local_result:
+        response: "{{ final_message | trim }}"
+        status: "{{ 'success' if lights and not lights_still_on and not lights_unverified else 'unverified' }}"
+        routine_status: >-
+          {% if not lights %}Home Assistant found no light entities to verify.
+          {% elif not lights_still_on and not lights_unverified %}Home Assistant reports all lights are off.
+          {% else %}
+            {% if lights_still_on %}Still on: {{ lights_still_on | join(', ') }}. {% endif %}
+            {% if lights_unverified %}Could not verify: {{ lights_unverified | join(', ') }}.{% endif %}
+          {% endif %}
+  - stop: Routine finished
+    response_variable: declan_local_result
