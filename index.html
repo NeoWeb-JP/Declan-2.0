@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Declan 2.0</title>
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; color: #e7f7ff; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; background-color: #060d14;
+  background-image: linear-gradient(#22475933 1px, transparent 1px),
+    linear-gradient(90deg, #22475933 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 42%, #123040 0%, transparent 54%);
+  background-size: 40px 40px, 40px 40px, 100% 100%;
+}
+header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: .7rem; min-height: 58px; padding: .5rem clamp(1rem, 3vw, 2rem); border-bottom: 1px solid #183341; }
+h1 { margin: 0; font: 700 clamp(1rem, 3vw, 1.5rem) ui-monospace, monospace; letter-spacing: .28em; }
+h1 small { font-size: .55em; letter-spacing: .08em; }
+.mono, summary { font: .8rem ui-monospace, monospace; color: #a1ccdf; }
+summary, button { cursor: pointer; }
+button:disabled { cursor: default; }
+:focus-visible { outline: 2px solid #91e3ff; outline-offset: 4px; }
+.settings { position: relative; }
+.settings label { position: absolute; z-index: 1; right: 0; top: 1.5rem;
+  padding: .85rem; white-space: nowrap; background: #0b1a25; border: 1px solid #2a6379; border-radius: .5rem; }
+main { width: min(760px, calc(100% - 2rem)); margin: auto; text-align: center; padding-bottom: 2rem; }
+.voice-stage { min-height: clamp(230px, 54vh, 470px); display: grid; place-items: center; }
+#talk { width: clamp(130px, 24vw, 190px); aspect-ratio: 1; border: 1px solid #285267;
+  border-radius: 50%; color: #b4dced; background: radial-gradient(circle at 48% 48%, #184860, #081722 74%);
+  box-shadow: 0 0 52px #369dcc22, inset 0 0 24px #07141d; font: 600 .78rem ui-monospace, monospace; }
+#talk:not(:disabled):hover, #talk[aria-pressed="true"] { border-color: #76dbff; box-shadow: 0 0 55px #48bfff55; }
+#talk { display: grid; place-content: center; justify-items: center; gap: .6rem; }
+#voice-pattern { width: 94px; height: 32px; }
+#talk[aria-pressed="false"] #voice-pattern { opacity: .4; }
+#voice-status { min-height: 1.25rem; margin: 0; letter-spacing: .15em; text-transform: uppercase; }
+#latest-message, #latest-reply { overflow-wrap: anywhere; }
+#latest-message { margin: .75rem 0 .5rem; font-size: clamp(1.2rem, 3vw, 1.55rem); }
+#latest-reply { min-height: 1.5rem; color: #a1ccdf; margin: 0 0 2rem; }
+form { display: flex; align-items: center; gap: .65rem; padding: .65rem;
+  border: 1px solid #2a6379; border-radius: .85rem; background: #0a1621; }
+form input { flex: 1; min-width: 0; color: #e7f7ff; background: transparent; border: 0; padding: .5rem;
+  font: 1rem ui-monospace, monospace; }
+form input::placeholder { color: #a1ccdf; }
+form button { color: #e7f7ff; background: #143347; border: 0; border-radius: .5rem; min-height: 44px; padding: .6rem .85rem; }
+.history { margin-top: 1rem; }
+.keyboard { margin-top: 1rem; }
+.keyboard form { margin-top: .65rem; }
+#chat { max-height: 16rem; overflow: auto; padding: 0; list-style: none; text-align: left; }
+#chat li { margin: .75rem 0; overflow-wrap: anywhere; }
+body { margin: clamp(5px, 1vw, 12px); min-height: calc(100vh - clamp(10px, 2vw, 24px));
+  border: 1px solid #1d3d51; background-size: 32px 32px, 32px 32px, 100% 100%; }
+header { position: relative; background: #060d14a8; }
+h1 small { color: #62e7ff; border: 1px solid #388da2; border-radius: 3px; padding: .14rem .25rem; vertical-align: middle; }
+.connection::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: .5rem;
+  border-radius: 50%; background: #7796a8; }
+.connection[data-state="connected"]::before { background: #62e7ff; box-shadow: 0 0 8px #62e7ff; }
+.connection[data-state="disconnected"]::before,
+.connection[data-state="authentication_failed"]::before { background: #ffb777; }
+.settings summary { display: grid; place-items: center; list-style: none; width: 38px; height: 38px;
+  border: 1px solid #24566c; border-radius: 10px; color: #66e7ff; background: #0a1621; }
+.settings summary::-webkit-details-marker { display: none; }
+.settings svg { width: 18px; }
+main { width: min(600px, calc(100% - 2rem)); }
+.voice-stage { min-height: clamp(255px, 56vh, 370px); padding: 1rem 0; }
+.voice-core { position: relative; width: clamp(216px, 46vw, 316px); aspect-ratio: 1;
+  display: grid; place-items: center; }
+.voice-rings { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
+  fill: none; color: #337b90; }
+.voice-rings .segments { stroke: #52b6ce; opacity: .45; transition: opacity .25s; }
+.voice-core:has(#talk[aria-pressed="true"]) .segments { opacity: .9; }
+#talk { z-index: 1; width: 48%; border-color: #5be0fa; color: #c7f7ff;
+  gap: 0; box-shadow: 0 0 38px #3bb4e128, inset 0 0 24px #07141d; }
+#talk-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+#voice-pattern { width: 73%; height: auto; }
+#voice-status { color: #62e7ff; letter-spacing: .3em; }
+#latest-reply { margin-bottom: 1.5rem; }
+.keyboard > summary { display: flex; align-items: center; gap: .6rem; text-align: left;
+  padding: .5rem; border: 1px solid #2a6379; border-radius: .7rem; background: #0a1621; }
+.keyboard > summary::after { content: '›'; margin-left: auto; color: #62e7ff; font-size: 1.3rem; }
+.keyboard[open] > summary::after { transform: rotate(90deg); }
+.key-icon { display: grid; place-items: center; width: 34px; height: 34px;
+  background: #143347; color: #62e7ff; border-radius: .5rem; font-size: 1.1rem; }
+form button { color: #07151f; background: #62e7ff; font-weight: 700; }
+</style>
+<header>
+  <h1>DECLAN <small>2.0</small></h1>
+  <span id="ha-status" class="mono connection" role="status">Checking Home Assistant…</span>
+  <details class="settings"><summary aria-label="Settings" title="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <path d="M3 6h7m4 0h7M3 12h12m4 0h2M3 18h3m4 0h11"/>
+      <circle cx="12" cy="6" r="2"/><circle cx="17" cy="12" r="2"/><circle cx="8" cy="18" r="2"/>
+    </svg>
+  </summary>
+    <label><input id="spoken-replies" type="checkbox" checked> Speak voice replies</label>
+  </details>
+</header>
+<main>
+  <div class="voice-stage"><div class="voice-core">
+    <svg class="voice-rings" viewBox="0 0 320 320" aria-hidden="true">
+      <circle cx="160" cy="160" r="157" stroke="currentColor" stroke-width="1.5" stroke-dasharray="1 6"/>
+      <circle cx="160" cy="160" r="142" stroke="currentColor" opacity=".55"/>
+      <circle class="segments" cx="160" cy="160" r="124" stroke-width="5.5" stroke-dasharray="65 16.16"/>
+      <circle cx="160" cy="160" r="101" stroke="currentColor" fill="#11384b55"/>
+    </svg>
+    <button id="talk" type="button" aria-pressed="false">
+    <canvas id="voice-pattern" width="188" height="145" aria-hidden="true"></canvas>
+    <span id="talk-label">Talk to Declan</span>
+    </button>
+  </div></div>
+  <p id="voice-status" class="mono" role="status"></p>
+  <div aria-live="polite" aria-atomic="true">
+    <p id="latest-message">How can I help?</p>
+    <p id="latest-reply"></p>
+  </div>
+  <p class="mono">Tap the orb to pause or resume listening</p>
+  <details class="keyboard" id="keyboard">
+    <summary><span class="key-icon" aria-hidden="true">⌨</span> Use keyboard</summary>
+    <form>
+      <input aria-label="Message" placeholder="Type a command or ask Declan" maxlength="1000" required>
+      <button>Send</button>
+    </form>
+  </details>
+  <details class="history" id="history"><summary>Conversation history</summary>
+    <p class="mono">Browser and Assist messages from the last 30 days</p>
+    <button type="button" id="refresh-history">Refresh</button>
+    <a href="/api/history/export" download>Export JSON</a>
+    <p id="history-status" class="mono" role="status"></p>
+    <ul id="chat" aria-label="Conversation"></ul>
+    <button type="button" id="older-history" hidden>Load older messages</button>
+  </details>
+</main>
+<script>
+const haStatus = document.querySelector('#ha-status');
+const haStatusLabels = {
+  connected: 'Home Assistant connected',
+  not_configured: 'Home Assistant not configured',
+  authentication_failed: 'Home Assistant sign-in failed',
+  disconnected: 'Home Assistant disconnected'
+};
+async function refreshHAStatus() {
+  let state = 'disconnected';
+  try {
+    const response = await fetch('/api/ha-status', {signal: AbortSignal.timeout(4500)});
+    if (response.ok) {
+      const result = await response.json();
+      if (Object.hasOwn(haStatusLabels, result.status)) state = result.status;
+    }
+  } catch {
+    // A failed connection check must never be shown as connected.
+  }
+  if (haStatus.dataset.state !== state) {
+    haStatus.dataset.state = state;
+    haStatus.textContent = haStatusLabels[state];
+  }
+  setTimeout(refreshHAStatus, 15000);
+}
+void refreshHAStatus();
+
+const form = document.querySelector('form');
+const input = form.querySelector('input');
+const button = form.querySelector('button');
+const chat = document.querySelector('#chat');
+const historyPanel = document.querySelector('#history');
+const historyStatus = document.querySelector('#history-status');
+const olderHistory = document.querySelector('#older-history');
+let historyCursor = null;
+let loadingHistory = false;
+const sources = {assist: 'Assist', browser_voice: 'Browser voice', browser_keyboard: 'Browser keyboard'};
+
+async function loadHistory(older = false) {
+  if (loadingHistory || (older && historyCursor === null)) return;
+  loadingHistory = true;
+  historyStatus.textContent = 'Loading history…';
+  try {
+    const query = older ? '?before=' + encodeURIComponent(historyCursor) : '';
+    const response = await fetch('/api/history' + query);
+    if (!response.ok) throw new Error('History could not be loaded.');
+    const {turns, next} = await response.json();
+    if (!older) chat.replaceChildren();
+    for (const turn of turns) {
+      const row = document.createElement('li');
+      const meta = document.createElement('div');
+      meta.className = 'mono';
+      meta.textContent = new Date(turn.created_at).toLocaleString() + ' · ' + (sources[turn.source] || 'Declan');
+      const message = document.createElement('div');
+      message.textContent = 'You: ' + turn.message;
+      const reply = document.createElement('div');
+      reply.textContent = 'Declan: ' + turn.reply;
+      row.append(meta, message, reply);
+      chat.append(row);
+    }
+    historyCursor = next;
+    olderHistory.hidden = next === null;
+    historyStatus.textContent = chat.children.length ? '' : 'No saved conversations yet.';
+  } catch {
+    historyStatus.textContent = 'History could not be loaded. Try Refresh.';
+  } finally {
+    loadingHistory = false;
+  }
+}
+historyPanel.addEventListener('toggle', () => {
+  if (historyPanel.open) void loadHistory();
+});
+document.querySelector('#refresh-history').addEventListener('click', () => void loadHistory());
+olderHistory.addEventListener('click', () => void loadHistory(true));
+const latestMessage = document.querySelector('#latest-message');
+const latestReply = document.querySelector('#latest-reply');
+const talk = document.querySelector('#talk');
+const keyboard = document.querySelector('#keyboard');
+const talkLabel = document.querySelector('#talk-label');
+const pattern = document.querySelector('#voice-pattern');
+const patternContext = pattern.getContext('2d');
+const voiceStatus = document.querySelector('#voice-status');
+const spokenReplies = document.querySelector('#spoken-replies');
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognition = Recognition ? new Recognition() : null;
+let sessionId = null;
+let listening = false;
+let busy = false;
+let handsFree = Boolean(recognition);
+let speaking = false;
+let restartTimer;
+let meter = null;
+
+function drawPattern(samples) {
+  if (!patternContext) return;
+  const {width, height} = pattern;
+  patternContext.clearRect(0, 0, width, height);
+  patternContext.strokeStyle = '#91e3ff';
+  patternContext.lineWidth = 4;
+  patternContext.lineCap = 'round';
+  patternContext.beginPath();
+  const bars = 19;
+  for (let i = 0; i < bars; i++) {
+    let peak = 0;
+    if (samples) {
+      const start = Math.floor(i * samples.length / bars);
+      const end = Math.floor((i + 1) * samples.length / bars);
+      for (let j = start; j < end; j++) {
+        peak = Math.max(peak, Math.abs(samples[j] - 128) / 128);
+      }
+    }
+    const envelope = Math.sin(Math.PI * (i + 1) / (bars + 1));
+    const halfBar = (2 + Math.min(1, peak * 3) * height * .43) * envelope;
+    const x = (i + 1) * width / (bars + 1);
+    patternContext.moveTo(x, height / 2 - halfBar);
+    patternContext.lineTo(x, height / 2 + halfBar);
+  }
+  patternContext.stroke();
+}
+
+function stopMeter() {
+  if (meter) {
+    const current = meter;
+    meter = null;
+    cancelAnimationFrame(current.frame);
+    current.stream?.getTracks().forEach(track => track.stop());
+    void current.audio.close().catch(() => {});
+  }
+  drawPattern();
+}
+
+async function startMeter() {
+  if (!window.AudioContext || !navigator.mediaDevices?.getUserMedia ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const current = {audio: new AudioContext(), stream: null, frame: 0};
+  meter = current;
+  try {
+    const resume = current.audio.resume();
+    void resume.catch(() => {});
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    if (meter !== current) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    current.stream = stream;
+    await resume;
+    if (meter !== current) return;
+    const analyser = current.audio.createAnalyser();
+    analyser.fftSize = 1024;
+    current.audio.createMediaStreamSource(stream).connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+    const render = () => {
+      analyser.getByteTimeDomainData(samples);
+      drawPattern(samples);
+      current.frame = requestAnimationFrame(render);
+    };
+    render();
+  } catch {
+    if (meter === current) stopMeter();
+  }
+}
+
+function updateControls() {
+  talk.disabled = !recognition;
+  talkLabel.textContent = handsFree ? 'Pause listening' : 'Resume listening';
+  talk.setAttribute('aria-pressed', String(listening));
+  button.disabled = busy || listening;
+}
+function scheduleListening() {
+  clearTimeout(restartTimer);
+  if (handsFree && !listening && !busy && !speaking) {
+    restartTimer = setTimeout(startListening, 350);
+  }
+}
+function startListening() {
+  if (!handsFree || listening || busy || speaking) return;
+  try {
+    recognition.start();
+    listening = true;
+    voiceStatus.textContent = 'Listening.';
+    void startMeter().catch(() => {});
+  } catch {
+    handsFree = false;
+    voiceStatus.textContent = 'Tap the orb to enable the microphone, or use the keyboard.';
+  }
+  updateControls();
+}
+function pauseListening() {
+  handsFree = false;
+  clearTimeout(restartTimer);
+  if (listening) recognition.abort();
+  stopMeter();
+  voiceStatus.textContent = 'Microphone paused.';
+  updateControls();
+}
+function add(speaker, text) {
+  if (speaker === 'You') {
+    latestMessage.textContent = text;
+    latestReply.textContent = '';
+  } else {
+    latestReply.textContent = speaker + ' · ' + text;
+  }
+}
+async function sendMessage(message, fromVoice = false) {
+  message = message.trim();
+  if (!message || busy) return;
+  if (message.length > 1000) {
+    add('Chat', 'Please keep the message under 1,000 characters.');
+    return;
+  }
+  add('You', message);
+  if (!fromVoice) input.value = '';
+  busy = true;
+  voiceStatus.textContent = 'Thinking…';
+  updateControls();
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message, session_id: sessionId, source: fromVoice ? 'voice' : 'keyboard'})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    sessionId = result.session_id;
+    add('Declan', result.reply);
+    if (historyPanel.open) void loadHistory();
+    if (result.history_saved === false) historyStatus.textContent = 'This message could not be saved.';
+    if (fromVoice && spokenReplies.checked && 'speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(result.reply);
+      utterance.lang = 'en-GB';
+      const finished = () => {
+        speaking = false;
+        scheduleListening();
+      };
+      utterance.onend = finished;
+      utterance.onerror = finished;
+      speaking = true;
+      window.speechSynthesis.speak(utterance);
+    }
+  } catch (error) {
+    speaking = false;
+    add('Chat', 'Could not get a reply. ' + error.message);
+  } finally {
+    busy = false;
+    if (voiceStatus.textContent === 'Thinking…') voiceStatus.textContent = '';
+    updateControls();
+    scheduleListening();
+    if (!fromVoice) input.focus();
+  }
+}
+form.addEventListener('submit', event => {
+  event.preventDefault();
+  if (!listening) void sendMessage(input.value);
+});
+if (recognition) {
+  recognition.lang = 'en-GB';
+  recognition.onresult = event => {
+    if (!handsFree || busy || speaking) return;
+    voiceStatus.textContent = '';
+    void sendMessage(event.results[event.resultIndex][0].transcript, true);
+  };
+  recognition.onerror = event => {
+    if (event.error === 'no-speech' || event.error === 'aborted') return;
+    handsFree = false;
+    if (event.error === 'not-allowed' || event.error === 'audio-capture') keyboard.open = true;
+    voiceStatus.textContent = event.error === 'not-allowed'
+      ? 'Allow microphone access in your browser, or type below.'
+      : 'Voice input could not complete. Try again or type below.';
+  };
+  recognition.onend = () => {
+    listening = false;
+    stopMeter();
+    if (voiceStatus.textContent === 'Listening.') voiceStatus.textContent = '';
+    updateControls();
+    scheduleListening();
+  };
+  talk.addEventListener('click', () => {
+    if (handsFree) {
+      pauseListening();
+      return;
+    }
+    handsFree = true;
+    startListening();
+    updateControls();
+  });
+  keyboard.addEventListener('toggle', () => {
+    if (keyboard.open && handsFree) pauseListening();
+  });
+  startListening();
+} else {
+  keyboard.open = true;
+  voiceStatus.textContent = 'Voice input is unavailable in this browser. You can type below.';
+}
+updateControls();
+drawPattern();
+</script>
+</html>

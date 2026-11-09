@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Declan 2.0",
+        "data": {
+          "url": "Declan server base URL",
+          "token": "Declan Assist shared secret"
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "Enter the HTTP or HTTPS base URL of the Declan server.",
+      "invalid_token": "Enter a shared secret of at least 32 characters."
+    },
+    "abort": {
+      "already_configured": "This Declan server is already configured."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+.data/
+__pycache__/
+
+.env
+.env.*
+*.sqlite3
+*.sqlite3-*
+declan-conversation-history*.json

@@ -1,0 +1,10 @@
+{
+  "domain": "declan_two",
+  "name": "Declan 2.0 Assist Bridge",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["conversation"],
+  "documentation": "https://github.com/NeoWeb-JP/Declan-2.0",
+  "iot_class": "local_polling",
+  "version": "0.1.0"
+}
