@@ -91,6 +91,48 @@ class LightingTests(TestCase):
         self.assertEqual(self.ha.entities["light.bedroom_lamp"]["state"], "off")
         self.assertEqual(self.ha.entities["light.lounge_lamp"]["state"], "on")
 
+    def test_exclusion_with_except_for_and_room_alias(self):
+        self.ha.entities["light.study_light"]["state"] = "on"
+        self.run_light("turn everything off except for the office", "confirmed")
+        self.assertEqual(self.ha.entities["light.study_light"]["state"], "on")
+        self.assertEqual(self.ha.entities["light.bedroom_lamp"]["state"], "off")
+        self.assertEqual(self.ha.entities["light.lounge_lamp"]["state"], "off")
+
+    def test_room_lights_confirmation_keeps_device_names_in_action_results(self):
+        for starting_state in ("on", "off"):
+            with self.subTest(starting_state=starting_state):
+                steps = []
+                reply, outcome = server.handle_light_request(
+                    "turn the lounge and the bedroom lights off", action_results=steps,
+                )
+                self.assertEqual(outcome, "confirmed", reply)
+                self.assertTrue(reply.startswith("Done. "), reply)
+                self.assertNotIn("Lounge Lamp", reply)
+                self.assertNotIn("Bedroom Lamp", reply)
+                self.assertEqual({step["status"] for step in steps}, {"confirmed"})
+
+    def test_mixed_room_actions_with_trailing_directions(self):
+        self.ha.entities["light.study_light"]["state"] = "on"
+        self.ha.entities["light.bedroom_lamp"]["state"] = "off"
+        self.run_light("turn the office off and the bedroom on", "confirmed")
+        self.assertEqual(self.ha.entities["light.study_light"]["state"], "off")
+        self.assertEqual(self.ha.entities["light.bedroom_lamp"]["state"], "on")
+
+    def test_room_off_dispatches_even_when_home_assistant_already_reports_off(self):
+        self.run_light("turn the office off and the bedroom on", "confirmed")
+        self.assertIn(("/api/services/light/turn_off", {"entity_id": "light.study_light"}), self.ha.calls)
+
+    def test_partial_room_reply_omits_device_list(self):
+        self.ha.entities["light.bedroom_lamp"]["state"] = "unavailable"
+        steps = []
+        reply, outcome = server.handle_light_request(
+            "turn the office off and the bedroom on", action_results=steps,
+        )
+        self.assertEqual(outcome, "partial", reply)
+        self.assertIn("I handled part of that.", reply)
+        self.assertNotIn("Bedroom Lamp", reply)
+        self.assertTrue(any(step["target"] == "Bedroom Lamp" and step["status"] == "skipped" for step in steps))
+
     def test_brightness_and_pronoun_follow_up(self):
         self.run_light("make the bedroom lamp darker and make the lounge lamp very bright", "confirmed")
         self.assertEqual(self.ha.entities["light.lounge_lamp"]["attributes"]["brightness"], 255)
@@ -99,6 +141,20 @@ class LightingTests(TestCase):
         self.run_light("turn it off", "confirmed", last_lights=("light.bedroom_lamp",))
         self.run_light("turn it on", "unresolved")
         self.run_light("set the bedroom lamp to 110 percent", "unresolved")
+
+    def test_spoken_lounge_dimming_uses_relative_brightness(self):
+        self.ha.areas[-1][0] = "Living Room"
+        lamp = self.ha.entities["light.lounge_lamp"]
+        for phrase, expected in (
+            ("dim the lights in the lounge by 20%", 30),
+            ("turn down the lights in the lounge", 20),
+            ("make it darker in the lounge", 10),
+        ):
+            with self.subTest(phrase=phrase):
+                self.run_light(phrase, "confirmed")
+                self.assertEqual(lamp["attributes"]["brightness"], round(expected * 255 / 100))
+        self.assertEqual(self.ha.entities["light.bedroom_lamp"]["attributes"]["brightness"], 128)
+        self.run_light("dim the lights in the lounge by 120 percent", "unresolved")
 
     def test_contextual_lights_status_and_preview(self):
         self.run_light("turn on some lights in here", "confirmed", origin_device="study-device")
@@ -148,7 +204,29 @@ class ServiceTests(TestCase):
             opener.open.side_effect = TimeoutError()
             self.assertEqual(server.search_media("where can i watch dune")[1], "unverified")
             with patch.dict(os.environ, {"DECLAN_MEDIA_SEARCH_AGENT": ""}):
+                opener.open.side_effect = None
+                opener.open.return_value = io.BytesIO(b"[]")
                 self.assertEqual(server.search_media("where can i watch dune")[1], "not_configured")
+
+    def test_media_search_discovers_only_an_unambiguous_local_agent(self):
+        environment = HA_ENV | {"DECLAN_MEDIA_SEARCH_AGENT": ""}
+        agents = ["conversation.house_voice"]
+        reply = {"service_response": {"response": {"speech": {"plain": {"speech": "Test result."}}}}}
+        with patch.dict(os.environ, environment), patch.object(server, "build_opener") as build:
+            opener = build.return_value
+            opener.open.side_effect = [io.BytesIO(json.dumps(value).encode()) for value in (agents, reply)]
+            self.assertEqual(server.search_media("where can i watch friends"), ("Test result.", "search_result"))
+            discovery = opener.open.call_args_list[0].args[0]
+            self.assertEqual(urlsplit(discovery.full_url).path, "/api/template")
+            self.assertIn("integration_entities('declan_local')", json.loads(discovery.data)["template"])
+            self.assertEqual(json.loads(opener.open.call_args.args[0].data), {
+                "agent_id": "conversation.house_voice", "text": "where can i watch friends",
+            })
+            agents.append("conversation.jarvis_local")
+            opener.reset_mock()
+            opener.open.side_effect = [io.BytesIO(json.dumps(agents).encode())]
+            self.assertEqual(server.search_media("where can i watch friends")[1], "not_configured")
+            self.assertEqual(opener.open.call_count, 1)
 
     def test_timer_output_requires_one_available_satellite(self):
         with patch.dict(os.environ, HA_ENV | {"DECLAN_BROWSER_TIMER_SATELLITE": "assist_satellite.kitchen"}), patch(

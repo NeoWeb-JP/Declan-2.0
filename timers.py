@@ -14,7 +14,7 @@ from urllib.request import Request
 
 
 DATABASE = Path(__file__).resolve().parent / ".data" / "timers.sqlite3"
-ALARM_INTERVAL = 8
+ALARM_INTERVAL = 30
 MAX_SECONDS = 24 * 60 * 60
 SMALL_NUMBERS = dict(zip(
     "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split(),
@@ -145,6 +145,8 @@ def describe(timer, now):
         return f"{label} has {format_duration(math.ceil(timer['deadline'] - now))} left"
     if timer["last_alarm_ok"] == 0:
         return f"{label}, expired, but I couldn't confirm its alarm was delivered"
+    if timer["last_alarm_ok"] is None:
+        return f"{label} has expired. Its alarm hasn't been confirmed yet"
     return f"{label}, expired and awaiting acknowledgement"
 
 
@@ -161,8 +163,9 @@ def handle(phrase, opener, *, satellite=None, device=None, browser=False):
     duration_first = re.fullmatch(r"set (?:a |an )?(.+?) timer", creation_text) if not creation else None
     query = re.fullmatch(r"how much time is (?:left )?on " + TARGET, phrase)
     removal = re.fullmatch(r"(cancel|stop|acknowledge) " + TARGET, phrase)
+    adjustment = re.fullmatch(r"(increase|decrease) (?:the time on )?" + TARGET + r" by (?P<amount>.+)", phrase)
     list_all = phrase in {"what timers are running", "list timers", "list my timers"}
-    if not (creation or duration_first or query or removal or list_all):
+    if not (creation or duration_first or query or removal or adjustment or list_all):
         return None
     try:
         if creation or duration_first:
@@ -194,7 +197,10 @@ def handle(phrase, opener, *, satellite=None, device=None, browser=False):
                     return f"There's already a timer named {name} in {output[1]}. Use a different name.", "unresolved"
             return f"Set {name} for {format_duration(duration)}. Alarm output: {output[1]}.", "timer_set"
 
-        match = query or removal
+        amount = duration_seconds(adjustment["amount"]) if adjustment else None
+        if adjustment and amount is None:
+            return "Give me a duration between one second and 24 hours.", "unresolved"
+        match = query or removal or adjustment
         name = timer_name(match["target"]) if match else ""
         room = match["room"] if match else None
         now = time()
@@ -204,16 +210,32 @@ def handle(phrase, opener, *, satellite=None, device=None, browser=False):
             matches = [timer for timer in timers
                        if (not name or timer["name"].casefold() == name.casefold())
                        and (not room or timer["room"].casefold() == room.casefold())]
+            if adjustment and name and not room and not matches:
+                matches = [timer for timer in timers if timer["room"].casefold() == name.casefold()]
             if not matches:
                 return "I couldn't find a matching timer." if name or room else "There are no timers.", "no_timer"
-            if name and len(matches) > 1 or removal and len(matches) > 1:
+            if len(matches) > 1 and (name or removal or adjustment):
                 options = ". ".join(describe(timer, now) for timer in matches)
                 return f"Which timer do you mean? {options}.", "unresolved"
-            if not removal:
+            if not (removal or adjustment):
                 return ". ".join(describe(timer, now) for timer in matches) + ".", "timer_status"
             timer = matches[0]
             expired = timer["deadline"] <= now
             named_timer = timer_label(timer["name"])
+            if adjustment:
+                if expired:
+                    return f"The {named_timer} in {timer['room']} has already expired.", "unresolved"
+                increase = adjustment[1] == "increase"
+                deadline = timer["deadline"] + (amount if increase else -amount)
+                if deadline - now > MAX_SECONDS:
+                    return "A timer can't have more than 24 hours left.", "unresolved"
+                deadline = max(now, deadline)
+                db.execute("UPDATE timers SET deadline = ?, next_alarm = ?, last_alarm_ok = NULL WHERE id = ?",
+                           (deadline, deadline, timer["id"]))
+                remaining = math.ceil(deadline - now)
+                label = f"The {named_timer} in {timer['room']}"
+                return (f"{label} now has {format_duration(remaining)} left." if remaining
+                        else f"{label} is due now."), "timer_adjusted"
             if removal[1] == "cancel" and expired:
                 return f"{timer['name']} has already expired. Say stop the {named_timer} to silence its alarm.", "unresolved"
             if removal[1] != "cancel" and not expired:
@@ -237,12 +259,19 @@ def ring_due(opener):
     with database() as db:
         if db.execute("SELECT 1 FROM timers WHERE id = ? AND deadline = ?", (timer["id"], timer["deadline"])).fetchone() is None:
             return
-    media = os.environ.get("DECLAN_TIMER_ALARM_MEDIA_ID", "media-source://media_source/local/declan_timer.wav").strip()
+    media = os.environ.get("DECLAN_TIMER_ALARM_MEDIA_ID", "").strip()
+    target = {"entity_id": timer["satellite"]}
     try:
+        if media.startswith("media-source://"):
+            try:
+                ha_json(opener, "/api/services/assist_satellite/announce",
+                        data={**target, "media_id": media, "preannounce": False}, timeout=7)
+            except ValueError:
+                media = ""
         if not media.startswith("media-source://"):
-            raise ValueError("Timer alarm requires a Home Assistant media source")
-        ha_json(opener, "/api/services/assist_satellite/announce",
-                data={"entity_id": timer["satellite"], "media_id": media, "preannounce": False}, timeout=4)
+            ha_json(opener, "/api/services/assist_satellite/announce",
+                    data={**target, "message": f"Your {timer_label(timer['name'])} is up.", "preannounce": True},
+                    timeout=7)
         delivered = True
     except (OSError, ValueError):
         delivered = False

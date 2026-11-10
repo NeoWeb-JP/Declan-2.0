@@ -231,19 +231,45 @@ def search_media(phrase):
     if len(title) > 200 or re.search(r"\b(?:and|then)\s+(?:turn|switch|dim|brighten|set|start|stop|unlock|lock|open|play)\b", title):
         return "Please ask for the film or show separately from any device commands.", "unresolved"
     agent = os.environ.get("DECLAN_MEDIA_SEARCH_AGENT", "").strip()
-    if not re.fullmatch(r"conversation\.(?:declan_local|jarvis_local)(?:_[a-z0-9]+)*", agent):
+    if agent and not re.fullmatch(r"conversation\.[a-z0-9_]+", agent):
         return "The Declan Local media search agent isn't configured.", "not_configured"
-    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
-    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
+    connection = ha_device_connection()
+    if connection is None:
+        return "The Home Assistant connection isn't configured.", "not_configured"
+    url, headers, opener = connection
+    if not re.fullmatch(r"conversation\.(?:declan_local|jarvis_local)(?:_[a-z0-9]+)*", agent):
+        template = (
+            "{% set local = integration_entities('declan_local') + integration_entities('jarvis_local') %}"
+            "{{ states.conversation | rejectattr('state', 'eq', 'unavailable') "
+            "| map(attribute='entity_id') | select('in', local) | list | to_json }}"
+        )
+        request = Request(f"{url}/api/template", headers=headers,
+                          data=json.dumps({"template": template}).encode())
+        try:
+            with opener.open(request, timeout=1.5) as response:
+                entities = json.loads(response.read(65536))
+            if not isinstance(entities, list):
+                raise ValueError("Expected a list of conversation entities")
+        except (OSError, ValueError) as error:
+            if isinstance(error, HTTPError):
+                error.close()
+            return "I couldn't check Home Assistant for the Declan Local media search agent.", "unavailable"
+        candidates = {
+            entity for entity in entities if isinstance(entity, str)
+            and re.fullmatch(r"conversation\.[a-z0-9_]+", entity)
+        }
+        if agent and agent not in candidates:
+            return "The configured media search agent isn't available in Declan Local.", "not_configured"
+        if not agent:
+            if not candidates:
+                return "I couldn't find an active Declan Local conversation agent in Home Assistant.", "not_configured"
+            if len(candidates) > 1:
+                return "I found multiple Declan Local agents. Set DECLAN_MEDIA_SEARCH_AGENT to the one you use for media search.", "not_configured"
+            agent = candidates.pop()
     try:
-        parsed = urlsplit(url)
-        if (not token or parsed.scheme not in {"http", "https"} or not parsed.hostname
-                or parsed.username or parsed.password or parsed.query or parsed.fragment):
-            return "The Home Assistant connection isn't configured.", "not_configured"
         request = Request(f"{url}/api/services/conversation/process?return_response",
                           data=json.dumps({"agent_id": agent, "text": f"where can i watch {title}"}).encode(),
-                          headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
-        opener = build_opener(ProxyHandler({}), NoRedirect())
+                          headers=headers)
         with opener.open(request, timeout=18) as response:
             payload = json.loads(response.read(1024 * 1024))["service_response"]["response"]
         reply = payload["speech"]["plain"]["speech"]
@@ -256,50 +282,115 @@ def search_media(phrase):
     return "I couldn't get a title search result from Declan Local.", "unverified"
 
 
-def launch_movie_app(opener, url, token, remote, app):
+def launch_movie_app(connection, remote, app):
     label, command = app
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    url, headers, opener = connection
     try:
         with opener.open(Request(f"{url}/api/states/{remote}", headers=headers), timeout=1.5) as response:
             state = json.loads(response.read(65536))["state"]
         if state in ("unknown", "unavailable"):
             return "skipped", f"The remote is unavailable. I didn't send the {label} command."
-        request = Request(f"{url}/api/services/remote/send_command", headers=headers,
-                          data=json.dumps({"entity_id": remote, "command": f"app:{command}"}).encode())
-        with opener.open(request, timeout=3):
-            pass
+        for remote_command in ("KEY_HOME", f"app:{command}"):
+            request = Request(f"{url}/api/services/remote/send_command", headers=headers,
+                              data=json.dumps({"entity_id": remote, "command": remote_command}).encode())
+            with opener.open(request, timeout=3):
+                pass
+            if remote_command == "KEY_HOME":
+                sleep(2)
     except HTTPError as error:
         error.close()
         return "failed", f"Home Assistant rejected the {label} launch request."
     except (OSError, ValueError, KeyError, TypeError):
         return "unverified", f"I couldn't confirm whether Home Assistant accepted the {label} launch request."
-    return "unverified", f"I sent the command to open {label}. I couldn't verify the app is on screen."
+    return "sent", f"Home Assistant accepted the command to open {label}."
+
+
+def discover_movie_entities(connection, room, *, script, remote, needs_remote):
+    inventory, error = read_ha_inventory(connection)
+    if error:
+        return script, remote, "I couldn't read the Home Assistant entity list."
+    room_names = {"lounge": ("lounge", "living room"), "bedroom": ("bedroom", "master bedroom")}
+    areas = read_ha_areas(connection) if needs_remote and not remote else {}
+    area_members = set().union(*(areas.get(name, set()) for name in room_names[room]))
+    candidates = {"script": set(), "remote": set()}
+    for row in inventory:
+        if not isinstance(row, dict):
+            continue
+        entity = row.get("entity_id")
+        if not isinstance(entity, str) or not re.fullmatch(r"(?:script|remote)\.[a-z0-9_]+", entity):
+            continue
+        domain, object_id = entity.split(".", 1)
+        attrs = row.get("attributes") or {}
+        names = [" ".join(re.findall(r"[a-z0-9]+", name.casefold()))
+                 for name in (object_id, attrs.get("friendly_name", ""))
+                 if isinstance(name, str)]
+        named_rooms = {key for key, labels in room_names.items()
+                       if any(re.search(rf"\b{label}\b", name) for label in labels for name in names)}
+        if named_rooms - {room}:
+            continue
+        if domain == "script" and not script:
+            if not named_rooms and room != "lounge":
+                continue
+            for name in names:
+                for label in sorted(room_names[room], key=len, reverse=True):
+                    name = re.sub(rf"\b{label}\b", "", name)
+                if re.fullmatch(r"(?:declan )?movie time shared local routine(?: \d+)?", " ".join(name.split())):
+                    candidates["script"].add(entity)
+        elif domain == "remote" and needs_remote and not remote:
+            assigned = any(entity in members for members in areas.values())
+            in_room = entity in area_members if assigned else room in named_rooms
+            if in_room and any("projector" in name.split() for name in names):
+                candidates["remote"].add(entity)
+    for domain, configured, label in (("script", script, "Movie Time script"), ("remote", remote, "projector remote")):
+        if configured or (domain == "remote" and not needs_remote):
+            continue
+        matches = candidates[domain]
+        if len(matches) != 1:
+            setting = ("DECLAN_BEDROOM_MOVIE" if room == "bedroom" else "DECLAN_MOVIE") + "_" + domain.upper()
+            detail = "found more than one" if matches else "couldn't find a"
+            return script, remote, f"I {detail} {label} for the {room}. Set {setting} to the exact entity ID."
+        if domain == "script":
+            script = next(iter(matches))
+        else:
+            remote = next(iter(matches))
+    return script, remote, None
+
+
+def verify_legacy_lounge_start(connection, script):
+    inventory, error = read_ha_inventory(connection)
+    if error:
+        return "Home Assistant didn't return the lounge device states."
+    entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
+    if entities.get(script, {}).get("state") != "off":
+        return "Home Assistant hasn't confirmed the Movie Time script is off."
+    if entities.get("switch.projector_power_socket", {}).get("state") != "on":
+        return "The projector power socket hasn't reported that it's on."
+    return None
 
 
 def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None):
     """Call the configured Home Assistant routine once and read its result."""
     salutation = "Movie Time." if movie_action else f"Good {period}."
     lock = ROUTINE_LOCKS["movie_bedroom" if movie_action and movie_room == "bedroom" else period]
-    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
-    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
+    connection = ha_device_connection()
+    if connection is None:
+        return f"{salutation} The Home Assistant connection isn't configured.", "not_configured", None
+    url, headers, opener = connection
     movie_prefix = "DECLAN_BEDROOM_MOVIE" if movie_room == "bedroom" else "DECLAN_MOVIE"
     setting = f"{movie_prefix}_SCRIPT" if movie_action else f"DECLAN_GOOD_{period.upper()}_SCRIPT"
     default_script = {"morning": GOOD_MORNING_SCRIPT, "night": GOOD_NIGHT_SCRIPT}.get(period, "")
     script = os.environ.get(setting, default_script).strip()
     remote = os.environ.get(f"{movie_prefix}_REMOTE", "").strip() if movie_app else ""
+    if movie_action and (not script or (movie_app and not remote)):
+        script, remote, error = discover_movie_entities(
+            connection, movie_room, script=script, remote=remote, needs_remote=bool(movie_app),
+        )
+        if error:
+            return f"{salutation} {error}", "not_configured", None
     if movie_app and not re.fullmatch(r"remote\.[a-z0-9_]+", remote):
         return f"I don't have a compatible app remote configured for the {movie_room}.", "not_configured", None
-    try:
-        parsed = urlsplit(url)
-        configured = (
-            token and parsed.scheme in {"http", "https"} and parsed.hostname
-            and not any((parsed.username, parsed.password, parsed.query, parsed.fragment))
-            and re.fullmatch(r"script\.[a-z0-9_]+", script)
-        )
-    except ValueError:
-        configured = False
-    if not configured:
-        return f"{salutation} The Home Assistant connection or routine script isn't configured.", "not_configured", None
+    if not re.fullmatch(r"script\.[a-z0-9_]+", script):
+        return f"{salutation} The routine script isn't configured.", "not_configured", None
     if not lock.acquire(blocking=False):
         return f"The {period} routine request is already in progress.", "busy", None
     try:
@@ -316,10 +407,9 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
         request = Request(
             f"{url}/api/services/script/{service}?return_response",
             data=json.dumps(parameters).encode(),
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
-        opener = build_opener(ProxyHandler({}), NoRedirect())
         try:
             with opener.open(request, timeout={"morning": 8, "night": 20, "movie": 55}[period]) as response:
                 payload = json.loads(response.read(65536))
@@ -332,18 +422,38 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
         except (OSError, ValueError):
             return f"{salutation} I couldn't confirm the routine completed. Check its Home Assistant trace.", "unverified", None
         result = payload.get("service_response") if isinstance(payload, dict) else None
+        if movie_action and isinstance(result, dict) and set(result) == {script}:
+            result = result[script]
         if movie_action or (isinstance(result, dict) and "schema_version" in result):
             reply, outcome, detail = format_routine_result(result, request_id, script, period, movie_action, action_results)
             if movie_app:
-                if outcome == "reported_success":
-                    status, note = launch_movie_app(opener, url, token, remote, movie_app)
-                    outcome = "partial"
+                legacy_result = result is None or (isinstance(result, dict)
+                    and result.get("schema_version") in (None, 1)
+                    and result.get("request_id") in (None, "", request_id)
+                    and result.get("routine_id") in (None, "", script)
+                    and result.get("outcome") in (None, "success")
+                    and result.get("status") in (None, "success")
+                    and (not result.get("request_id") or not result.get("routine_id")))
+                legacy_start = legacy_result and movie_room == "lounge" and movie_action == "start"
+                if outcome == "reported_success" or legacy_start:
+                    sleep(7)
+                readiness_error = verify_legacy_lounge_start(connection, script) if legacy_start else None
+                legacy_ready = legacy_start and readiness_error is None
+                if outcome == "reported_success" or legacy_ready:
+                    if legacy_ready:
+                        detail = "Home Assistant shows Movie Time has finished and the lounge projector socket is on."
+                        reply = add_sass("Starting Movie Time.", "movie_start", read_guest_mode())
+                        outcome = "partial"
+                    status, note = launch_movie_app(connection, remote, movie_app)
                 else:
-                    status, note = "skipped", f"I didn't try to open {movie_app[0]} because Movie Time wasn't confirmed."
+                    status, note = "skipped", readiness_error or detail or "Movie Time wasn't confirmed."
+                    if readiness_error:
+                        reply, detail = f"{salutation} {readiness_error}", readiness_error
                 if action_results is not None:
-                    action_results.append({"target": movie_app[0], "action": "open_app", "status": status, "detail": note})
-                reply = f"{reply} {note}"
-                detail = f"{detail} {note}" if detail else note
+                    action_results.append({
+                        "target": movie_app[0], "action": "open_app", "status": status, "entity_id": remote,
+                        "detail": f"{note} Remote: {remote}. Command: app:{movie_app[1]}.",
+                    })
             return reply, outcome, detail
         status = result.get("status") if isinstance(result, dict) else None
         steps = result.get("steps") if isinstance(result, dict) else None
@@ -403,6 +513,9 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
     salutation = "Movie Time." if movie_action else f"Good {period}."
     if (not isinstance(result, dict) or result.get("schema_version") != 1
             or result.get("request_id") != request_id or result.get("routine_id") != routine_id):
+        if movie_action:
+            detail = "Home Assistant didn't return a Movie Time result that matched this request."
+            return f"{salutation} {detail}", "unverified", detail
         return f"{salutation} I couldn't verify the result of this run.", "unverified", None
     outcome = result.get("outcome")
     resolved = result.get("resolved_action")
@@ -426,7 +539,9 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
         outcome = "partial"
     if outcome == "success":
         guest_mode = result.get("guest_mode")
-        category = f"movie_{resolved if movie_action == 'toggle' else movie_action}" if movie_action else f"good_{period}"
+        if movie_action:
+            salutation = "Starting Movie Time." if resolved == "start" else "Ending Movie Time."
+        category = f"movie_{resolved}" if movie_action else f"good_{period}"
         reply = add_sass(salutation, category, guest_mode)
         bedtime = result.get("bedtime")
         if period == "night" and guest_mode == "off" and isinstance(bedtime, dict):
@@ -455,11 +570,17 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
         details.append("I couldn't confirm " + ", ".join(incomplete[:8]) + ".")
     detail = " ".join(details) or ("Home Assistant reported a failure." if outcome == "failed"
                                    else "I couldn't confirm the routine completed.")
-    return f"{salutation} {detail}", outcome if outcome in ("partial", "failed") else "unverified", detail
+    reply = f"{salutation} {detail}"
+    if movie_action and outcome == "partial" and resolved in ("start", "end"):
+        intro = "Starting Movie Time." if resolved == "start" else "Ending Movie Time."
+        reply = add_sass(intro, f"movie_{resolved}", result.get("guest_mode"))
+    return reply, outcome if outcome in ("partial", "failed") else "unverified", detail
 
 
 def parse_light_command(phrase):
     separator = r"\s+(?:and then|as well as|and|then)\s+(?=(?:turn|make)\s)"
+    if re.match(r"turn (?!on\b|off\b)", phrase):
+        separator += r"|(?:(?<= on)|(?<= off))\s+(?:and then|as well as|and|then)\s+"
     if phrase.startswith("make "):
         separator += r"|(?:(?<= darker)|(?<= lighter)|(?<= brighter)|(?<= very bright))\s+(?:and then|as well as|and|then)\s+"
     clauses = re.split(separator, phrase)
@@ -470,7 +591,7 @@ def parse_light_command(phrase):
         if relative:
             targets.append((relative[1], "brighter" if relative[2] == "lighter" else relative[2]))
             continue
-        exception = re.fullmatch(r"turn (?:everything|all lights) off except (?:the )?(.+)", clause)
+        exception = re.fullmatch(r"turn (?:everything|all lights) off except (?:for )?(?:the )?(.+)", clause)
         if exception:
             targets.append(("everything except " + exception[1], "off"))
             continue
@@ -494,6 +615,13 @@ def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_
     preview = re.match(r"^(?:preview|dry[ -]run)\b[ ,:]*", phrase)
     if preview:
         phrase = phrase[preview.end():]
+    room_adjustment = re.fullmatch(r"make it (darker|lighter|brighter|very bright) in (.+)", phrase)
+    turn_adjustment = re.fullmatch(r"turn (down|up) ((?:the )?(?:all )?lights(?: in .+)?)", phrase)
+    if room_adjustment:
+        phrase = f"make the lights in {room_adjustment[2]} {room_adjustment[1]}"
+    elif turn_adjustment:
+        direction = "darker" if turn_adjustment[1] == "down" else "brighter"
+        phrase = f"make {turn_adjustment[2]} {direction}"
     if phrase.endswith(" in here"):
         contextual = phrase.removesuffix(" in here")
         if re.fullmatch(r"make it (?:darker|lighter|brighter|very bright)", contextual):
@@ -525,7 +653,9 @@ def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_
     if corrected and re.search(r"(?:^|\s)(?:and|then|as well as|in the|except(?: the)?)$", parts[-1]):
         return "Please finish the corrected light command.", "unresolved"
     brightness = None
+    relative_step = 10
     dimming = re.fullmatch(r"(?:set|dim) (?:the )?(.+?) to\s+([+-]?\d+)\s*(?:percent|per cent|%)", parts[-1])
+    adjustment = re.fullmatch(r"(dim|brighten) (?:the )?(.+?) by\s+([+-]?\d+)\s*(?:percent|per cent|%)", parts[-1])
     if dimming:
         brightness = int(dimming[2])
         if not 0 <= brightness <= 100:
@@ -533,6 +663,11 @@ def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_
         if re.search(r"\bturn (?:on|off)\b", dimming[1]):
             return "Please give the brightness and on/off changes as separate commands.", "unresolved"
         command = dimming[1], "on" if brightness else "off"
+    elif adjustment:
+        relative_step = int(adjustment[3])
+        if not 1 <= relative_step <= 100:
+            return "Please choose a brightness change from 1 to 100 percent.", "unresolved"
+        command = adjustment[2], "darker" if adjustment[1] == "dim" else "brighter"
     else:
         command = parse_light_command(parts[-1])
     if corrected and command is None:
@@ -549,7 +684,7 @@ def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_
             return "Please give me a lighting command to preview.", "unresolved"
         return None
     return set_lights(*command, brightness=brightness or None, preview=bool(preview),
-                      require_all=corrected, action_results=action_results)
+                      require_all=corrected, action_results=action_results, relative_step=relative_step)
 
 
 def ha_device_connection():
@@ -611,6 +746,12 @@ def read_ha_areas(connection, origin=None):
             areas.setdefault(" ".join(label.casefold().split()), set()).update(entities)
         if "master bedroom" in areas:
             areas.setdefault("bedroom", areas["master bedroom"])
+        if "study" in areas:
+            areas.setdefault("office", areas["study"])
+        if "living room" in areas:
+            areas.setdefault("lounge", areas["living room"])
+        elif "lounge" in areas:
+            areas.setdefault("living room", areas["lounge"])
         return areas
     except HTTPError as error:
         error.close()
@@ -619,7 +760,7 @@ def read_ha_areas(connection, origin=None):
     return {}
 
 
-def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False,
+def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
     """Resolve Home Assistant lights before dispatch and verify their reported states."""
     connection = ha_device_connection()
@@ -807,6 +948,7 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
             action_results.append(step)
 
     selected = {}
+    room_off_entities = set()
     conflicts = set()
     for target, matches, direction in resolved_targets:
         if not matches:
@@ -840,7 +982,7 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
                     record_action(label, direction, "skipped", entity=entity, detail=reason)
                     skipped.append((f"I left {label} alone ({reason}).", "unavailable"))
                     continue
-                change = -10 if direction == "darker" else 10
+                change = -relative_step if direction == "darker" else relative_step
                 percent = min(100, max(1, round(level * 100 / 255) + change))
                 goal = "on"
             if entity in conflicts:
@@ -853,6 +995,8 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
                 continue
             selected[entity] = (label, state, goal)
             target_levels[entity] = percent
+            if direction == "off" and target in room_targets and not target.startswith("everything except "):
+                room_off_entities.add(entity)
 
     skipped_details = "".join(f" {message}" for message, _ in skipped)
     if not selected:
@@ -884,7 +1028,8 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
     already_set = set()
     for entity, (label, state, direction) in selected.items():
-        if matches_goal(state, direction, levels.get(entity), target_levels[entity]):
+        # Reassert an explicit room shutdown even if HA already reports the lights off.
+        if entity not in room_off_entities and matches_goal(state, direction, levels.get(entity), target_levels[entity]):
             already_set.add(entity)
             record_action(label, direction, "already_set", entity=entity)
     dispatch_deadline = monotonic() + 1.75
@@ -968,7 +1113,12 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
     ]
     reply = " ".join(confirmations + [message for message, _ in skipped])
     outcome = ("partial" if confirmations else skipped[0][1]) if skipped else "confirmed"
+    if outcome == "partial" and room_targets:
+        reply = add_sass("I handled part of that. Some lighting changes couldn't be confirmed.",
+                         "partial_lighting", guest_mode)
     if outcome == "confirmed":
+        if room_targets:
+            reply = "Done."
         directions = {direction for direction, _ in verified}
         percents = {percent for _, percent in verified if percent is not None}
         if len(already_set) == len(selected):
@@ -1040,14 +1190,29 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self, status, data):
         self.send_body(status, json.dumps(data).encode(), "application/json")
 
+    def spotify_settings(self, body=None):
+        try:
+            if body is not None:
+                music.save_spotify_credentials(body.get("client_id"), body.get("client_secret"))
+                source = "saved"
+            else:
+                _, source = music.spotify_credentials()
+        except (OSError, ValueError) as error:
+            if body is not None and isinstance(error, ValueError):
+                self.send_json(400, {"error": "Enter both a valid Spotify Client ID and Client Secret."})
+            else:
+                self.send_json(503, {"error": "Spotify settings are unavailable."})
+            return
+        self.send_json(200, {"source": source})
+
     def do_GET(self):
         if self.client_address[0] != "127.0.0.1":
             self.send_json(403, {"error": "Local access only."})
             return
-        if self.path.startswith("/api/history") and self.headers.get("Host") not in {
+        if (self.path.startswith("/api/history") or self.path == "/api/settings/spotify") and self.headers.get("Host") not in {
             f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"
         }:
-            self.send_json(403, {"error": "Open history from the local Declan address."})
+            self.send_json(403, {"error": "Use the local Declan address."})
             return
         if self.path == "/":
             page = Path(__file__).with_name("index.html").read_bytes()
@@ -1058,6 +1223,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, {"status": "ok"})
         elif self.path == "/api/ha-status":
             self.send_json(200, {"status": home_assistant_status(), "release_version": RELEASE_VERSION})
+        elif self.path == "/api/settings/spotify":
+            self.spotify_settings()
         elif self.path == "/api/history/export":
             try:
                 turns = history.recent(limit=None)
@@ -1092,7 +1259,7 @@ class Handler(BaseHTTPRequestHandler):
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path != "/api/chat":
+        elif self.path not in {"/api/chat", "/api/settings/spotify"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif self.client_address[0] != "127.0.0.1":
@@ -1102,7 +1269,7 @@ class Handler(BaseHTTPRequestHandler):
             f"http://127.0.0.1:{self.server.server_port}",
             f"http://localhost:{self.server.server_port}",
         }:
-            self.send_json(403, {"error": "Send chat from the local Declan page."})
+            self.send_json(403, {"error": "Send requests from the local Declan page."})
             return
         if self.headers.get_content_type() != "application/json":
             self.send_json(415, {"error": "Send application/json."})
@@ -1113,6 +1280,11 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
+            if self.path == "/api/settings/spotify":
+                if not isinstance(body, dict):
+                    raise ValueError
+                self.spotify_settings(body)
+                return
             message = body["message"].strip()
             session_id = body.get("session_id")
             if not 0 < len(message) <= 1000:
@@ -1120,7 +1292,9 @@ class Handler(BaseHTTPRequestHandler):
             if session_id is not None and (not isinstance(session_id, str) or len(session_id) > 64):
                 raise ValueError
         except (ValueError, TypeError, KeyError, AttributeError):
-            self.send_json(400, {"error": "Send a message of 1 to 1,000 characters."})
+            detail = ("Send valid Spotify settings." if self.path == "/api/settings/spotify"
+                      else "Send a message of 1 to 1,000 characters.")
+            self.send_json(400, {"error": detail})
             return
         if self.path == "/api/assist/history":
             spoken_reply = body.get("reply")
@@ -1186,7 +1360,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         if timer_result:
             routine_reply, outcome = timer_result
-            if outcome in ("timer_set", "timer_cancelled", "timer_stopped"):
+            if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
             lighting_context = ()
@@ -1245,6 +1419,11 @@ class Handler(BaseHTTPRequestHandler):
                                  and item.get("entity_id") == GUEST_MODE_ENTITY), None
                             )
                             routine_reply = add_sass(routine_reply, "device_status", guest_mode)
+            elif music_control := music.parse_control(phrase):
+                routine_reply, outcome = music.control(
+                    music_control, ha_device_connection(), read_ha_inventory,
+                    origin=origin_device or satellite, read_areas=read_ha_areas, assist=source == "assist",
+                )
             elif music_command := music.parse(phrase):
                 routine_reply, outcome = music.play(music_command, ha_device_connection(), read_ha_inventory)
             else:

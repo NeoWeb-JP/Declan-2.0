@@ -36,12 +36,13 @@ function browser(t, {voice = false, microphone = false} = {}) {
     return {ok: !response.error, json: async () => response};
   };
   const element = selector => window.document.querySelector(selector);
-  const dialog = element('#history');
-  dialog.showModal = () => { dialog.open = true; };
-  dialog.close = () => {
-    dialog.open = false;
-    dialog.dispatchEvent(new window.Event('close'));
-  };
+  for (const dialog of window.document.querySelectorAll('dialog')) {
+    dialog.showModal = () => { dialog.open = true; };
+    dialog.close = () => {
+      dialog.open = false;
+      dialog.dispatchEvent(new window.Event('close'));
+    };
+  }
   const canvas = {clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() { drawing.push(true); }};
   window.HTMLCanvasElement.prototype.getContext = () => microphone ? canvas : null;
   if (voice) {
@@ -91,6 +92,29 @@ function browser(t, {voice = false, microphone = false} = {}) {
     },
   };
 }
+
+test('Spotify credentials are entered locally and cleared after saving', async t => {
+  const ui = browser(t);
+  ui.responses.set('/api/settings/spotify', {source: 'environment'});
+  ui.element('#open-spotify').click();
+  await flush();
+  assert.equal(ui.element('#spotify-settings').open, true);
+  assert.match(ui.element('#spotify-status').textContent, /launch environment/);
+  const form = ui.element('#spotify-form');
+  const secret = form.elements.client_secret;
+  assert.equal(secret.type, 'password');
+  assert.equal(secret.value, '');
+  form.elements.client_id.value = 'test-id';
+  secret.value = 'test-secret';
+  ui.responses.set('/api/settings/spotify', {source: 'saved'});
+  form.dispatchEvent(new form.ownerDocument.defaultView.Event('submit', {cancelable: true}));
+  await flush();
+  assert.equal(ui.calls.at(-1).options.method, 'POST');
+  assert.equal(secret.value, '');
+  assert.match(ui.element('#spotify-status').textContent, /next Spotify search/);
+  ui.element('#close-spotify').click();
+  assert.equal(ui.element('#spotify-settings').open, false);
+});
 
 test('shows build information and reports a disconnected Home Assistant', async t => {
   const ui = browser(t);

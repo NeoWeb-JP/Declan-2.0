@@ -63,8 +63,23 @@ class CoreTests(TestCase):
         self.assertEqual(device_status.describe("projector", "on", inventory)[1], "unresolved")
         inventory.extend({"entity_id": entity, "state": "on", "attributes": {"friendly_name": "Lamp"}}
                          for entity in ("light.bedroom", "light.lounge"))
-        self.assertIn("Which device", device_status.describe("lamp", "on", inventory)[0])
+        reply, outcome, _ = device_status.describe("lamp", "on", inventory)
+        self.assertEqual(outcome, "unresolved")
+        self.assertIn("Which room?", reply)
+        self.assertNotIn("light.", reply)
         self.assertEqual(device_status.parse("what about the lamp", device_status.SCREEN), ("lamp", None))
+
+    def test_on_off_question_prefers_lamp_but_honours_explicit_switch(self):
+        inventory = [
+            {"entity_id": "light.master_bedroom_queen_lamp", "state": "on",
+             "attributes": {"friendly_name": "Queen Lamp"}},
+            {"entity_id": "switch.queen_lamp", "state": "off",
+             "attributes": {"friendly_name": "Queen Lamp"}},
+        ]
+        self.assertEqual(device_status.describe("queen lamp", "on", inventory),
+                         ("Queen Lamp is on.", "confirmed", "light.master_bedroom_queen_lamp"))
+        self.assertEqual(device_status.describe("switch.queen_lamp", "on", inventory),
+                         ("Queen Lamp is off.", "confirmed", "switch.queen_lamp"))
 
     def test_mixed_light_commands_do_not_become_a_routine(self):
         phrase = "turn on the fairy lights and turn off the office light"

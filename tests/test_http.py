@@ -18,6 +18,7 @@ class APITests(TestCase):
     def setUp(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
         self.enterContext(patch.object(server.history, "DATABASE", directory / "history.sqlite3"))
+        self.enterContext(patch.object(server.music, "SPOTIFY_SETTINGS", directory / "spotify-settings.json"))
         self.enterContext(patch.object(server, "SESSIONS", server.OrderedDict()))
         self.enterContext(patch.object(server, "read_guest_mode", return_value="off"))
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": "test"}))
@@ -55,6 +56,21 @@ class APITests(TestCase):
         self.assertTrue(self.request("/logo.png")[1].startswith(b"\x89PNG"))
         self.assertEqual(json.loads(self.request("/health")[1]), {"status": "ok"})
         self.assertEqual(self.request("/unknown")[0], 404)
+
+    def test_spotify_settings_rotate_without_exposing_credentials(self):
+        path = "/api/settings/spotify"
+        headers = {"Origin": self.origin, "Content-Type": "application/json"}
+        first = {"client_id": "first-id", "client_secret": "first-secret"}
+        second = {"client_id": "second-id", "client_secret": "second-secret"}
+        with patch.dict(server.os.environ, {"DECLAN_SPOTIFY_CLIENT_ID": "env-id",
+                                            "DECLAN_SPOTIFY_CLIENT_SECRET": "env-secret"}):
+            self.assertEqual(json.loads(self.request(path)[1]), {"source": "environment"})
+            self.assertEqual(self.request(path, body=first, headers=headers | {"Origin": "http://other.test"})[0], 403)
+            self.assertEqual(self.request(path, body={"client_id": "first-id"}, headers=headers)[0], 400)
+            self.assertEqual(self.request(path, body=first, headers=headers)[0], 200)
+            self.assertEqual(self.request(path, body=second, headers=headers)[0], 200)
+            self.assertEqual(json.loads(self.request(path)[1]), {"source": "saved"})
+            self.assertEqual(server.music.spotify_credentials(), (("second-id", "second-secret"), "saved"))
 
     def test_rejects_unauthenticated_and_invalid_posts(self):
         self.assertEqual(self.request("/api/assist", body={"message": "hello"})[0], 401)
@@ -118,6 +134,12 @@ class APITests(TestCase):
             response = self.ask("Move the music everywhere", path="/api/assist")
         self.assertEqual(response["outcome"], "confirmed")
         self.assertEqual(play.call_args.args[0], ("everywhere", None, "spotify"))
+
+    def test_room_music_stop_routes_to_transport_control(self):
+        with patch.object(server.music, "control", return_value=("Stopped playback in the bedroom.", "confirmed")) as control:
+            response = self.ask("Stop music in the bedroom", path="/api/chat")
+        self.assertEqual(response["outcome"], "confirmed")
+        self.assertEqual(control.call_args.args[0], ("media_stop", "bedroom"))
 
 
 class StartupTests(TestCase):

@@ -3,6 +3,8 @@
 import json
 import os
 import re
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from threading import Lock
 from time import monotonic, sleep
 from urllib.error import HTTPError
@@ -17,6 +19,12 @@ PLAYERS = {
 }
 ACTIVE = {"playing", "buffering", "paused"}
 STOPPED = {"idle", "off", "standby", "on"}
+CONTROLS = {
+    "stop": "media_stop", "pause": "media_pause",
+    "continue": "media_play", "resume": "media_play", "play": "media_play",
+    "skip": "media_next_track", "next": "media_next_track",
+    "previous": "media_previous_track", "go back": "media_previous_track",
+}
 HANDOFF = Lock()
 FAVOURITE_TRACK = "https://open.spotify.com/track/0JkIre0YxNmKGMU5V7ZiDx"
 SPOTIFY_PRESETS = {
@@ -28,16 +36,46 @@ SPOTIFY_REFERENCE = re.compile(
     r"(track|album|artist|playlist)[/:]([A-Za-z0-9]{22})/?(?:\?[^\s#]*)?"
 )
 spotify_token = None
+SPOTIFY_SETTINGS = Path(__file__).with_name(".data") / "spotify-settings.json"
 
 
 class SpotifyNotConfigured(Exception):
     """Spotify search needs its own application credentials."""
 
 
+def spotify_credentials():
+    try:
+        saved = json.loads(SPOTIFY_SETTINGS.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        credentials = tuple(os.environ.get(key, "").strip()
+                            for key in ("DECLAN_SPOTIFY_CLIENT_ID", "DECLAN_SPOTIFY_CLIENT_SECRET"))
+        return credentials, "environment" if all(credentials) else "unconfigured"
+    if not isinstance(saved, dict):
+        raise ValueError("Invalid Spotify settings")
+    credentials = (saved.get("client_id"), saved.get("client_secret"))
+    if not all(isinstance(value, str) and value for value in credentials):
+        raise ValueError("Invalid Spotify settings")
+    return credentials, "saved"
+
+
+def save_spotify_credentials(client_id, client_secret):
+    if not all(isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", value.strip())
+               for value in (client_id, client_secret)):
+        raise ValueError("Enter both the Spotify Client ID and Client Secret.")
+    SPOTIFY_SETTINGS.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temp = NamedTemporaryFile(mode="w", encoding="utf-8", dir=SPOTIFY_SETTINGS.parent, delete=False)
+    temp_path = Path(temp.name)
+    try:
+        with temp:
+            json.dump({"client_id": client_id.strip(), "client_secret": client_secret.strip()}, temp)
+        temp_path.replace(SPOTIFY_SETTINGS)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 def spotify_search(opener, title, artist, types):
     global spotify_token
-    credentials = tuple(os.environ.get(key, "").strip()
-                        for key in ("DECLAN_SPOTIFY_CLIENT_ID", "DECLAN_SPOTIFY_CLIENT_SECRET"))
+    credentials, _ = spotify_credentials()
     if not all(credentials):
         raise SpotifyNotConfigured
     now = monotonic()
@@ -102,6 +140,105 @@ def request(connection, path, data=None, *, timeout=None):
             return json.load(response)
         if path == "/api/template":
             return response.read().decode().strip()
+
+
+def parse_control(phrase):
+    match = re.fullmatch(
+        r"(stop|pause|continue|resume|play|skip|next|previous|go back)"
+        r"(?: (?:the |this )?(music|playback|playing|spotify|radio|track|song|next track|next song|previous track|previous song))?"
+        r"(?: (?:in (?:the )?)?(bedroom|master bedroom|kitchen|everywhere))?",
+        phrase,
+    )
+    if not match:
+        return None
+    verb, subject, room = match.groups()
+    if verb == "play" and subject not in {"music", "playback", "next track", "next song", "previous track", "previous song"}:
+        return None
+    action = CONTROLS[subject.split()[0] if verb == "play" and subject.startswith(("next ", "previous ")) else verb]
+    return action, room.removeprefix("master ") if room else None
+
+
+def control(command, connection, read_inventory, *, origin=None, read_areas=None, assist=False):
+    action, room = command
+    if connection is None:
+        return "The Home Assistant connection isn't configured.", "not_configured"
+    if not HANDOFF.acquire(blocking=False):
+        return "A music request is already in progress.", "busy"
+    location = "on the music player"
+    deadline = monotonic() + 5
+    try:
+        inventory, error = read_inventory(connection)
+        if error:
+            return "I couldn't check the music players.", error
+        players = {row["entity_id"]: row for row in inventory
+                   if isinstance(row, dict) and row.get("entity_id") in PLAYERS.values()}
+        group = PLAYERS["everywhere"]
+        grouped = players.get(group, {})
+        members = ((grouped.get("attributes") or {}).get("group_members") or []
+                   if grouped.get("state") in ACTIVE else [])
+        if room is None and assist:
+            areas = read_areas(connection, origin) if origin else {}
+            room = next((name for name in areas if name in {"bedroom", "kitchen"}), None)
+            if room is None:
+                return "Which room should I control?", "unresolved"
+        if room is None:
+            active = [name for name, entity in PLAYERS.items()
+                      if (entity == group or entity not in members)
+                      and players.get(entity, {}).get("state") in ACTIVE]
+            if len(active) != 1:
+                return "Which room should I control?", "unresolved"
+            room = active[0]
+        entity = PLAYERS[room]
+        location = "everywhere" if room == "everywhere" else f"in the {room}"
+        player = players.get(entity, {})
+        state = player.get("state")
+        if state in (None, "unavailable", "unknown"):
+            return f"The music player {location} is unavailable.", "unavailable"
+        if entity != group and entity in members:
+            return "That player is part of Everywhere. Say Everywhere to control the group.", "unresolved"
+        target_states = {"media_stop": STOPPED, "media_pause": {"paused"}, "media_play": {"playing"}}
+        expected = target_states.get(action)
+        if expected and state in expected:
+            label = {"media_stop": "stopped", "media_pause": "paused", "media_play": "playing"}[action]
+            return f"Playback is already {label} {location}.", "confirmed"
+        if action != "media_play" and state not in ACTIVE:
+            return f"There's no active playback {location}.", "unavailable"
+        before = player.get("attributes") or {}
+        timed_out = False
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            return f"I ran out of time checking the player {location}.", "unverified"
+        try:
+            request(connection, "/api/services/media_player/" + action, {"entity_id": entity},
+                    timeout=min(remaining, 2.5))
+        except TimeoutError:
+            # The command may already be running in Home Assistant.
+            timed_out = True
+
+        def verify(current):
+            if expected:
+                return current.get("state") in expected
+            after = current.get("attributes") or {}
+            return current.get("state") in {"playing", "paused"} and any(
+                after.get(key) and after[key] != before.get(key) for key in ("media_content_id", "media_title")
+            )
+
+        attempts = 12 if timed_out else 8 if action == "media_pause" else 4
+        if wait_for(connection, entity, verify, attempts=attempts, deadline=deadline):
+            result = {"media_stop": "Stopped playback", "media_pause": "Paused playback",
+                      "media_play": "Resumed playback", "media_next_track": "Skipped to the next track",
+                      "media_previous_track": "Went to the previous track"}[action]
+            return f"{result} {location}.", "confirmed"
+        if timed_out:
+            return f"Home Assistant took too long to respond, and I couldn't verify playback {location}.", "unverified"
+        return f"I sent the playback command {location}, but couldn't verify the result.", "unverified"
+    except HTTPError as error:
+        error.close()
+        return f"Home Assistant returned an error for the playback command {location}.", "unverified"
+    except (OSError, ValueError):
+        return f"I couldn't verify the playback command {location}.", "unverified"
+    finally:
+        HANDOFF.release()
 
 
 def spotify_id(player):
@@ -171,12 +308,18 @@ def matches_track(player, title, artist):
             and (not artist or str(attributes.get("media_artist") or "").casefold() == artist.casefold()))
 
 
-def wait_for(connection, player, predicate, *, attempts=4):
+def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
     for attempt in range(attempts):
         if attempt:
-            sleep(1)
+            delay = 1 if deadline is None else min(1, deadline - monotonic())
+            if delay <= 0:
+                return False
+            sleep(delay)
+        timeout = 1 if deadline is None else min(1, deadline - monotonic())
+        if timeout <= 0:
+            return False
         try:
-            state = request(connection, "/api/states/" + player, timeout=1)
+            state = request(connection, "/api/states/" + player, timeout=timeout)
         except TimeoutError:
             continue
         if predicate(state):

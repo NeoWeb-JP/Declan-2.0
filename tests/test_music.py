@@ -3,6 +3,8 @@
 import io
 import json
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
@@ -32,12 +34,15 @@ class MusicTests(unittest.TestCase):
             "DECLAN_SPOTIFY_CLIENT_SECRET": "test-secret",
         }))
         self.enterContext(patch.object(music, "spotify_token", None))
+        folder = self.enterContext(TemporaryDirectory())
+        self.enterContext(patch.object(music, "SPOTIFY_SETTINGS", Path(folder) / "spotify-settings.json"))
         self.enterContext(patch.object(music, "sleep"))
 
     def open(self, request, timeout):
         if request.full_url == "https://accounts.spotify.com/api/token":
             self.spotify_tokens += 1
-            self.assertEqual(parse_qs(request.data.decode())["client_id"], ["test-client"])
+            credentials = parse_qs(request.data.decode())
+            self.assertIn(credentials["client_id"][0], {"test-client", "new-client"})
             return io.BytesIO(b'{"access_token":"test-token","expires_in":3600}')
         if request.full_url.startswith("https://api.spotify.com/v1/search?"):
             self.assertEqual(request.get_header("Authorization"), "Bearer test-token")
@@ -71,6 +76,10 @@ class MusicTests(unittest.TestCase):
         if path.endswith("/media_stop"):
             if self.stop_works:
                 player["state"] = "idle"
+        elif path.endswith("/media_pause"):
+            player["state"] = "paused"
+        elif path.endswith(("/media_next_track", "/media_previous_track")):
+            player["attributes"] = {**self.track, "media_content_id": path.rsplit("/", 1)[1]}
         elif path.endswith("/transfer_queue"):
             source = self.players[data["source_player"]]
             player.update(state="playing", attributes=source["attributes"])
@@ -87,6 +96,92 @@ class MusicTests(unittest.TestCase):
 
     def play(self, phrase):
         return music.play(music.parse(phrase), ("http://ha", {}, self), lambda _: (list(self.players.values()), None))
+
+    def control(self, phrase, **kwargs):
+        return music.control(music.parse_control(phrase), ("http://ha", {}, self),
+                             lambda _: (list(self.players.values()), None), **kwargs)
+
+    def test_room_music_controls_pause_resume_skip_previous_and_stop(self):
+        for phrase, action in (
+            ("pause the music in the bedroom", "media_pause"),
+            ("continue playing in the bedroom", "media_play"),
+            ("skip this song in the bedroom", "media_next_track"),
+            ("play the previous track in the bedroom", "media_previous_track"),
+            ("stop music in the bedroom", "media_stop"),
+        ):
+            with self.subTest(phrase=phrase):
+                reply, outcome = self.control(phrase)
+                self.assertEqual(outcome, "confirmed", reply)
+                self.assertEqual(self.calls[-1], (action, {"entity_id": self.bedroom}))
+
+    def test_unqualified_assist_stop_only_controls_the_originating_room(self):
+        areas = lambda connection, origin: {"master bedroom": set(), "bedroom": set()}
+        self.players[self.kitchen].update(state="playing", attributes=self.track)
+        self.assertEqual(self.control("stop", origin="satellite", read_areas=areas, assist=True)[1], "confirmed")
+        self.assertEqual(self.calls, [("media_stop", {"entity_id": self.bedroom})])
+        self.assertEqual(self.players[self.kitchen]["state"], "playing")
+
+    def test_assist_pause_confirms_a_late_state_update_without_resending(self):
+        original_open = self.open
+        for timed_out in (False, True):
+            with self.subTest(timed_out=timed_out):
+                self.players[self.bedroom]["state"] = "playing"
+                self.calls.clear()
+                reads = 0
+
+                def delayed_pause(request, timeout):
+                    nonlocal reads
+                    if request.full_url.endswith("/media_pause"):
+                        response = original_open(request, timeout)
+                        self.players[self.bedroom]["state"] = "playing"
+                        if timed_out:
+                            raise TimeoutError
+                        return response
+                    if request.data is None and request.full_url.endswith(self.bedroom):
+                        reads += 1
+                        if reads == 6:
+                            self.players[self.bedroom]["state"] = "paused"
+                    return original_open(request, timeout)
+
+                with patch.object(self, "open", side_effect=delayed_pause):
+                    reply, outcome = self.control("pause music in the bedroom", assist=True)
+                self.assertEqual((reply, outcome), ("Paused playback in the bedroom.", "confirmed"))
+                self.assertEqual(self.calls, [("media_pause", {"entity_id": self.bedroom})])
+
+    def test_pause_returns_within_its_budget_when_player_never_reports_paused(self):
+        now = 100
+        original_open = self.open
+
+        def advance(seconds):
+            nonlocal now
+            now += seconds
+
+        def slow_player(request, timeout):
+            if request.full_url.endswith("/media_pause"):
+                original_open(request, timeout)
+                self.players[self.bedroom]["state"] = "playing"
+                advance(timeout)
+                raise TimeoutError
+            advance(timeout)
+            return original_open(request, timeout)
+
+        with patch.object(self, "open", side_effect=slow_player), patch.object(
+            music, "monotonic", side_effect=lambda: now
+        ), patch.object(music, "sleep", side_effect=advance):
+            reply, outcome = self.control("pause music in the bedroom", assist=True)
+        self.assertEqual(outcome, "unverified")
+        self.assertIn("took too long", reply)
+        self.assertLessEqual(now, 105)
+        self.assertEqual(self.calls, [("media_pause", {"entity_id": self.bedroom})])
+
+    def test_ambiguous_or_grouped_room_commands_do_not_stop_other_outputs(self):
+        self.players[self.kitchen].update(state="playing", attributes=self.track)
+        self.assertEqual(self.control("stop")[1], "unresolved")
+        self.players[self.group].update(state="playing", attributes={"group_members": [self.bedroom, self.kitchen]})
+        self.assertEqual(self.control("stop music in the bedroom")[1], "unresolved")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.control("stop music everywhere")[1], "confirmed")
+        self.assertEqual(self.calls, [("media_stop", {"entity_id": self.group})])
 
     def test_same_track_moves_without_searching_then_moves_everywhere(self):
         self.assertEqual(self.play("play coward of the county by kenny rogers in the kitchen")[1], "confirmed")
@@ -262,6 +357,13 @@ class MusicTests(unittest.TestCase):
         self.assertIn("Spotify search is being rate limited", self.play("play country music in the kitchen")[0])
         self.assertEqual(self.calls, [])
         self.assertEqual(self.players[self.bedroom]["state"], "playing")
+
+    def test_saving_credentials_replaces_the_cached_token_on_next_search(self):
+        music.spotify_search(self, "Dolly Parton", "", ("artist",))
+        music.save_spotify_credentials("new-client", "new-secret")
+        music.spotify_search(self, "Dolly Parton", "", ("artist",))
+        self.assertEqual(self.spotify_tokens, 2)
+        self.assertEqual(music.spotify_token[0], ("new-client", "new-secret"))
 
     def test_artist_request_verifies_the_reported_artist_of_the_new_track(self):
         self.search_results = {"artists": [{"name": "Dolly Parton", "id": "32vWCbZh0xZ4o9gkz4PsEU"}]}

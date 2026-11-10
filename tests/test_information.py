@@ -132,10 +132,31 @@ class TimerAndHistoryTests(TestCase):
             timers.ring_due(None)
             self.assertEqual(announce.call_count, 2)
             self.assertEqual(announce.call_args.kwargs["data"]["entity_id"], "assist_satellite.kitchen")
+            self.assertTrue(announce.call_args.kwargs["data"]["preannounce"])
+            self.assertIn("timer is up", announce.call_args.kwargs["data"]["message"])
             self.assertEqual(timers.handle("stop my timer", None)[1], "timer_stopped")
             self.now += timers.ALARM_INTERVAL
             timers.ring_due(None)
             self.assertEqual(announce.call_count, 2)
+
+    def test_timer_adjustment_uses_remaining_time_and_reschedules_alarm(self):
+        self.output.return_value = ("assist_satellite.bedroom", "Master Bedroom")
+        timers.handle("set a five minute timer", None)
+        self.now += 60
+        reply, outcome = timers.handle("decrease the time on the master bedroom timer by two minutes", None)
+        self.assertEqual(outcome, "timer_adjusted")
+        self.assertIn("2 minutes left", reply)
+        reply, outcome = timers.handle("increase my five minute timer in the master bedroom by one minute", None)
+        self.assertEqual(outcome, "timer_adjusted")
+        self.assertIn("3 minutes left", reply)
+        with patch.object(timers, "ha_json", return_value=[]) as announce:
+            self.now += 120
+            timers.ring_due(None)
+            announce.assert_not_called()
+            self.assertEqual(timers.handle("decrease my timer by two minutes", None)[1], "timer_adjusted")
+            timers.ring_due(None)
+            announce.assert_called_once()
+            self.assertEqual(timers.handle("increase my timer by one minute", None)[1], "unresolved")
 
     def test_history_records_routine_evidence_and_paginates(self):
         history.record("session", "assist", "good morning", "Morning", "partial", "Dining lights unverified",

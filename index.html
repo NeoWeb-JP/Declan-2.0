@@ -129,6 +129,7 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
     <div class="settings-menu">
       <label><input id="spoken-replies" type="checkbox" checked> Speak voice replies</label>
       <button type="button" id="open-history" aria-haspopup="dialog">Conversation history</button>
+      <button type="button" id="open-spotify" aria-haspopup="dialog">Spotify settings</button>
     </div>
   </details>
 </header>
@@ -177,6 +178,18 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
     <p id="history-status" class="mono" role="status"></p>
     <ul id="chat" aria-label="Conversation"></ul>
     <button type="button" id="older-history" hidden>Load older messages</button>
+  </dialog>
+  <dialog class="history" id="spotify-settings" aria-labelledby="spotify-settings-title">
+    <div class="history-heading">
+      <h2 id="spotify-settings-title">Spotify search credentials</h2>
+      <button type="button" id="close-spotify">Close</button>
+    </div>
+    <form id="spotify-form" class="history-toolbar" autocomplete="off">
+      <label>Client ID <input name="client_id" maxlength="256" required></label>
+      <label>Client Secret <input name="client_secret" type="password" maxlength="256" required></label>
+      <button type="submit">Save credentials</button>
+      <p id="spotify-status" class="mono" role="status"></p>
+    </form>
   </dialog>
 <script>
 const haStatus = document.querySelector('#ha-status');
@@ -244,19 +257,21 @@ async function loadHistory(older = false) {
       replyText.textContent = turn.reply;
       reply.append(replyText);
       row.append(meta, message, reply);
+      const movieDetails = turn.routine_status && /^(?:(?:Starting|Ending) )?Movie Time\./.test(turn.reply);
+      let routineStatus;
       if (turn.routine_status) {
-        const routineStatus = document.createElement('div');
+        routineStatus = document.createElement('div');
         routineStatus.className = 'turn-status';
         routineStatus.textContent = 'Home Assistant Routine Status: ' + turn.routine_status;
-        row.append(routineStatus);
+        if (!movieDetails) row.append(routineStatus);
       }
-      if (turn.action_results?.length) {
+      if (turn.action_results?.length || movieDetails) {
         const actions = document.createElement('details');
         actions.className = 'turn-status';
         const title = document.createElement('summary');
         title.textContent = 'Action results';
         const list = document.createElement('ul');
-        for (const step of turn.action_results) {
+        for (const step of turn.action_results ?? []) {
           const entry = document.createElement('li');
           const action = step.action ? step.action.replaceAll('_', ' ') + ' ' : '';
           const detail = step.detail ? ' (' + step.detail + ')' : '';
@@ -264,7 +279,9 @@ async function loadHistory(older = false) {
             step.status.replaceAll('_', ' ') + detail;
           list.append(entry);
         }
-        actions.append(title, list);
+        actions.append(title);
+        if (movieDetails) actions.append(routineStatus);
+        if (turn.action_results?.length) actions.append(list);
         row.append(actions);
       }
       if (turn.phrase_suggestion) {
@@ -292,6 +309,51 @@ document.querySelector('#open-history').addEventListener('click', () => {
 });
 historyPanel.addEventListener('close', () => historySettings.querySelector('summary').focus());
 document.querySelector('#close-history').addEventListener('click', () => historyPanel.close());
+const spotifyPanel = document.querySelector('#spotify-settings');
+const spotifyForm = document.querySelector('#spotify-form');
+const spotifyStatus = document.querySelector('#spotify-status');
+document.querySelector('#open-spotify').addEventListener('click', async () => {
+  historySettings.open = false;
+  spotifyPanel.showModal();
+  spotifyStatus.textContent = 'Checking saved credentials…';
+  try {
+    const response = await fetch('/api/settings/spotify');
+    if (!response.ok) throw new Error();
+    const {source} = await response.json();
+    spotifyStatus.textContent = {
+      saved: 'Credentials saved on this computer.',
+      environment: 'Using credentials from the launch environment.',
+      unconfigured: 'Spotify search has no credentials yet.'
+    }[source];
+  } catch {
+    spotifyStatus.textContent = 'Could not read Spotify settings.';
+  }
+});
+document.querySelector('#close-spotify').addEventListener('click', () => spotifyPanel.close());
+spotifyPanel.addEventListener('close', () => {
+  spotifyForm.reset();
+  historySettings.querySelector('summary').focus();
+});
+spotifyForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const save = spotifyForm.querySelector('button[type="submit"]');
+  save.disabled = true;
+  try {
+    const response = await fetch('/api/settings/spotify', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.fromEntries(new FormData(spotifyForm)))
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    spotifyForm.reset();
+    spotifyStatus.textContent = 'Saved. The next Spotify search will use these credentials.';
+  } catch (error) {
+    spotifyStatus.textContent = error.message || 'Could not save Spotify settings.';
+  } finally {
+    save.disabled = false;
+  }
+});
 document.querySelector('#refresh-history').addEventListener('click', () => void loadHistory());
 olderHistory.addEventListener('click', () => void loadHistory(true));
 const latestMessage = document.querySelector('#latest-message');

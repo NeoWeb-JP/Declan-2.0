@@ -54,9 +54,19 @@ def describe(name, requested, inventory):
             candidates[fallback] = name.capitalize()
     if not candidates:
         return f"I couldn't find a Home Assistant device called {name}.", "unresolved", None
+    if name in candidates:
+        candidates = {name: candidates[name]}
+    elif requested in {"on", "off"}:
+        lights = {entity: label for entity, label in candidates.items() if entity.startswith("light.")}
+        if lights:
+            candidates = lights
     if len(candidates) > 1:
-        labels = ", ".join(sorted(f"{label} ({entity})" for entity, label in candidates.items()))
-        return f"Which device did you mean? I found {labels}.", "unresolved", None
+        labels = sorted(set(candidates.values()), key=str.casefold)
+        if len(labels) == 1:
+            reply = f"Which device did you mean? More than one is named {labels[0]}. Which room?"
+        else:
+            reply = f"Which device did you mean? I found {', '.join(labels)}."
+        return reply, "unresolved", None
     entity = next(iter(candidates))
     _, state, attrs = devices[entity]
     label = candidates[entity]

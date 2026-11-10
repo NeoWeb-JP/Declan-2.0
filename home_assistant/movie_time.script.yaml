@@ -78,12 +78,11 @@ sequence:
               - 255
               - 105
               - 180
-          - delay: 00:00:05
+          - delay: "00:00:05"
           - action: media_player.turn_on
             continue_on_error: true
             target:
               entity_id: media_player.toptro_vg03f3_037f0808_television
-          - delay: 00:00:02
     default:
       - action: cover.set_cover_position
         continue_on_error: true
@@ -121,20 +120,21 @@ sequence:
             continue_on_error: true
             target:
               entity_id: switch.projector_power_socket
-  - alias: Wait for the screen to report the requested position
+  - alias: Briefly check that the screen is moving toward its target
     wait_template: >-
       {% set position = state_attr('cover.living_room_projector_screen', 'current_position') %}
-      {{ states('cover.living_room_projector_screen') not in ['unknown', 'unavailable', 'opening', 'closing']
-         and is_number(position) and (position | float - (83 if starting else 0)) | abs <= 2 }}
-    timeout: "00:00:30"
+      {% set state = states('cover.living_room_projector_screen') %}
+      {% set target_position = 83 if starting else 0 %}
+      {{ state not in ['unknown', 'unavailable'] and is_number(position) and (
+           (position | float - target_position) | abs <= 2 or
+           (position | float - target_position) | abs < (screen_position | float - target_position) | abs) }}
+    timeout: "00:00:05"
     continue_on_timeout: true
   - variables:
       movie_steps: >-
         {% set screen = 'cover.living_room_projector_screen' %}
-        {% set position = state_attr(screen, 'current_position') %}
         {% set checks = [
-          ('Projector screen', screen, states(screen) not in ['unknown', 'unavailable', 'opening', 'closing']
-            and is_number(position) and (position | float - (83 if starting else 0)) | abs <= 2),
+          ('Projector screen', screen, wait.completed),
           ('Projector power socket', 'switch.projector_power_socket',
             is_state('switch.projector_power_socket', 'on' if starting else 'off')),
           ('Projector media player', 'media_player.toptro_vg03f3_037f0808_television',
