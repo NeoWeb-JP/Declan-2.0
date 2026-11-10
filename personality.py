@@ -5,6 +5,14 @@ from threading import Lock
 
 
 LINES = {
+    "dinner_requested": (
+        ("If anyone asks what's for dinner, point them at the plate, my bru.",
+         "The table is accepting arrivals. It isn't taking excuses.",
+         "Finn would like you to know he's been ready for hours."),
+        ("Time to make your way to the table.",
+         "See you at the table.",
+         "Hope everyone's hungry."),
+    ),
     "guest_inactive": (
         ("Jaco and Edd hold the mortgage, Tux holds the throne, Finn holds a tennis ball, and I hold this circus together.",
          "Technically you two are in charge. Tux is willing to let you believe that.",

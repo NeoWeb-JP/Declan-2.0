@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 from time import monotonic
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -95,6 +95,29 @@ class APITests(TestCase):
         self.assertEqual(len(json.loads(self.request("/api/history/export")[1])["turns"]), 2)
         self.assertEqual(self.request("/api/history?before=0")[0], 400)
         self.assertEqual(self.request("/api/history", headers={"Host": "other.invalid"})[0], 403)
+
+    def test_dinner_phrases_send_one_ha_request_and_save_the_spoken_reply(self):
+        opener = Mock()
+        opener.open.return_value = io.BytesIO(b"[]")
+        connection = ("http://ha.invalid", {}, opener)
+        with patch.object(server, "ha_device_connection", return_value=connection):
+            for phrase in {*server.DINNER_PHRASES, "it’s dinner time"}:
+                opener.open.reset_mock()
+                opener.open.return_value = io.BytesIO(b"[]")
+                result = self.ask(phrase + "!", path="/api/assist")
+                self.assertEqual(result["outcome"], "requested")
+                self.assertIn("I've asked Home Assistant to announce dinner.", result["reply"])
+                opener.open.assert_called_once()
+                request = opener.open.call_args.args[0]
+                self.assertEqual(request.full_url, "http://ha.invalid/api/services/script/turn_on")
+                self.assertEqual(json.loads(request.data), {"entity_id": "script.declan_dinner_is_served_2"})
+                self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
+
+            opener.open.reset_mock()
+            opener.open.side_effect = TimeoutError
+            result = self.ask("dinner time", path="/api/assist")
+            self.assertEqual(result["outcome"], "unverified")
+            opener.open.assert_called_once()
 
     def test_guest_commands_record_the_reply_returned_to_assist(self):
         with patch.object(server, "guest_assignment", return_value=("Guest reply.", "confirmed")) as guest:

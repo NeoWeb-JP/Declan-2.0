@@ -38,6 +38,11 @@ RELEASE_VERSION = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
 if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION) or len(RELEASE_VERSION) > 40:
     RELEASE_VERSION = None
 RELEASE_VERSION = updates.installed_version(RELEASE_VERSION)
+DINNER_SCRIPT = "script.declan_dinner_is_served_2"
+DINNER_PHRASES = {
+    "dinner is served", "it's dinner time", "time for dinner",
+    "announce dinner", "start dinner time", "dinner time",
+}
 GUEST_MODE_ENTITY = "input_boolean.guest_mode"
 GUEST_REGISTER_ENTITY = "input_text.guests_in_charge"
 GUEST_COMMANDS = {
@@ -715,6 +720,27 @@ def ha_device_connection():
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     opener = build_opener(ProxyHandler({}), NoRedirect())
     return url, headers, opener
+
+
+def start_dinner(connection):
+    if connection is None:
+        return "The Home Assistant connection isn't configured.", "not_configured"
+    url, headers, opener = connection
+    request = Request(
+        f"{url}/api/services/script/turn_on", headers=headers,
+        data=json.dumps({"entity_id": DINNER_SCRIPT}).encode(), method="POST",
+    )
+    try:
+        with opener.open(request, timeout=2):
+            pass
+    except HTTPError as error:
+        error.close()
+        if 400 <= error.code < 500:
+            return "Home Assistant rejected the dinner announcement request.", "unavailable"
+        return "I couldn't confirm that Home Assistant accepted the dinner announcement request.", "unverified"
+    except OSError:
+        return "I couldn't confirm that Home Assistant accepted the dinner announcement request.", "unverified"
+    return add_sass("I've asked Home Assistant to announce dinner.", "dinner_requested", read_guest_mode()), "requested"
 
 
 def guest_assignment(operation, connection):
@@ -1541,6 +1567,8 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
+        elif phrase.replace("’", "'") in DINNER_PHRASES:
+            routine_reply, outcome = start_dinner(ha_device_connection())
         elif phrase in GUEST_COMMANDS:
             routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
