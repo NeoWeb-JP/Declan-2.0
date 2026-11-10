@@ -43,26 +43,8 @@ sequence:
       entity_id: light.kitchen_kitchen_switch_light_1
     data:
       transition: 3
-  - alias: Find active music players
-    variables:
-      active_music_players: >-
-        {{ states.media_player | selectattr('state', 'in', ['playing', 'paused', 'buffering'])
-           | selectattr('entity_id', 'in', integration_entities('music_assistant'))
-           | map(attribute='entity_id') | list }}
-  - alias: Stop active Music Assistant playback
-    if:
-      - condition: template
-        value_template: "{{ active_music_players | count > 0 }}"
-    then:
-      - action: media_player.media_stop
-        continue_on_error: true
-        target:
-          entity_id: "{{ active_music_players }}"
-  - alias: Play dinner playlist through Music Assistant
-    action: music_assistant.play_media
-    target:
-      entity_id: media_player.kitchen_declan_voice_assistant
+  - alias: Ask Declan to pick romantic dinner music
+    action: conversation.process
     data:
-      media_type: playlist
-      media_id: https://open.spotify.com/playlist/37i9dQZF1DXbm6HfkbMtFZ
-      enqueue: replace
+      agent_id: conversation.declan_2_0
+      text: Play romantic dinner music in the kitchen
