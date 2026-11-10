@@ -155,6 +155,7 @@ def parse_movie_request(phrase):
 
 
 def select_routine(phrase, origin):
+    phrase = phrase.removeprefix("run ").removeprefix("the ")
     if phrase in GOOD_MORNING_PHRASES:
         return "morning", {}
     if phrase in GOOD_NIGHT_PHRASES:
@@ -177,6 +178,39 @@ def select_routine(phrase, origin):
         "movie_room": "bedroom" if room in ("bedroom", "master bedroom") else "lounge",
         "requested_app": app,
     }
+
+
+def select_routine_turn(phrase, origin):
+    for join in re.finditer(r"(?:,\s*|\s+)(?:and then|and|then) (?=turn |make |set |dim |play )", phrase):
+        follow_on = phrase[join.end():]
+        if follow_on.startswith("play ") and parse_movie_request(phrase[:join.start()].removeprefix("run ")):
+            continue
+        if routine := select_routine(phrase[:join.start()], origin):
+            return routine, follow_on
+    routine = select_routine(phrase, origin)
+    return (routine, None) if routine else None
+
+
+def execute_routine(selection, action_results):
+    period, options = selection
+    if options is None:
+        return "Which room do you mean for Movie Time?", "unresolved", None
+    options = options.copy()
+    requested_app = options.pop("requested_app", None)
+    app = MOVIE_APPS.get(requested_app)
+    if requested_app and (not app or options.get("movie_action") != "start"):
+        return "Please name a supported app with an explicit start Movie Time command.", "unresolved", None
+    return run_routine(period, movie_app=app, action_results=action_results, **options)
+
+
+def chained_outcome(routine, lighting):
+    if routine == "reported_success" and lighting == "confirmed":
+        return "reported_success"
+    if routine in {"reported_success", "partial"} or lighting in {"confirmed", "partial"}:
+        return "partial"
+    if "unverified" in (routine, lighting):
+        return "unverified"
+    return routine if routine == lighting else "failed"
 
 
 def search_media(phrase):
@@ -1148,20 +1182,32 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
-        elif routine := select_routine(phrase, origin_device or satellite):
+        elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
             lighting_context = ()
-            period, options = routine
-            if options is None:
-                routine_reply, outcome = "Which room do you mean for Movie Time?", "unresolved"
-            else:
-                requested_app = options.pop("requested_app", None)
-                app = MOVIE_APPS.get(requested_app)
-                if requested_app and (not app or options.get("movie_action") != "start"):
-                    routine_reply, outcome = "Please name a supported app with an explicit start Movie Time command.", "unresolved"
+            routine, follow_on = routine_turn
+            routine_reply, outcome, routine_status = execute_routine(routine, action_results)
+            if follow_on:
+                light_steps = []
+                if follow_on.startswith("play "):
+                    follow_reply, follow_outcome = "Music playback isn't available in Declan yet.", "unavailable"
                 else:
-                    routine_reply, outcome, routine_status = run_routine(
-                        period, movie_app=app, action_results=action_results, **options
+                    follow_result = handle_light_request(
+                        follow_on, action_results=light_steps, last_lights=last_lights,
+                        origin_device=origin_device or satellite,
                     )
+                    follow_reply, follow_outcome = follow_result or (
+                        "I couldn't understand the lighting command after the routine.", "unresolved"
+                    )
+                action_results.extend(light_steps)
+                if follow_outcome == "confirmed" and scope is not None and len(light_steps) < 200:
+                    lighting_context = tuple(dict.fromkeys(
+                        step["entity_id"] for step in light_steps
+                        if step["status"] in ("confirmed", "already_set") and "entity_id" in step
+                    ))
+                if routine_status and routine_status not in routine_reply:
+                    routine_reply += f" {routine_status}"
+                routine_reply += f" {follow_reply}"
+                outcome = chained_outcome(outcome, follow_outcome)
         else:
             information_phrase, clarification = conditions.follow_up(phrase, last_information)
             condition_result = conditions.handle(information_phrase, opener) if not clarification else None

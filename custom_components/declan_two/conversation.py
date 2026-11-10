@@ -37,7 +37,7 @@ class DeclanTwoAgent(conversation.ConversationEntity):
                 },
                 headers={"Authorization": f"Bearer {self._token}"},
                 allow_redirects=False,
-                timeout=aiohttp.ClientTimeout(total=65, sock_connect=3),
+                timeout=aiohttp.ClientTimeout(total=75, sock_connect=3),
             ) as result:
                 if result.status != 200:
                     raise ValueError("Declan rejected the request")
