@@ -76,7 +76,7 @@ function browser(t, {voice = false, microphone = false, browserRecognition = fal
   if (browserRecognition) element('#use-assist-stt').checked = false;
   window.eval(script + '\n//# sourceURL=' + pathToFileURL(scriptPath).href);
   return {
-    calls, responses, element, recognition, spoken, drawing,
+    calls, responses, element, recognition, spoken, drawing, window,
     recordSamples: values => capture.onaudioprocess({inputBuffer: {getChannelData: () => values}}),
     microphoneStopped: () => streamStopped && audioClosed,
     async tick(delay) {
@@ -179,6 +179,37 @@ test('history opens, renders routine evidence, and loads an older page', async t
   assert.match(ui.element('#history-status').textContent, /History could not be loaded/);
   ui.element('#close-history').click();
   assert.equal(ui.element('#history').open, false);
+});
+
+test('clearing history requires confirmation and resets the history list', async t => {
+  const ui = browser(t);
+  ui.responses.set('/api/history', {turns: [{
+    created_at: '2026-11-10T08:00:00Z', source: 'assist', message: 'hello', reply: 'Hello.',
+  }], next: 42});
+  ui.element('#open-history').click();
+  await flush();
+
+  ui.window.confirm = () => false;
+  ui.element('#clear-history').click();
+  assert.equal(ui.calls.filter(call => call.url === '/api/history/clear').length, 0);
+  assert.equal(ui.element('#chat').children.length, 1);
+
+  ui.window.confirm = () => true;
+  ui.responses.set('/api/history/clear', {error: 'Offline'});
+  ui.element('#clear-history').click();
+  await flush();
+  assert.equal(ui.element('#chat').children.length, 1);
+  assert.match(ui.element('#history-status').textContent, /could not be cleared/);
+
+  ui.responses.set('/api/history/clear', {deleted: 1});
+  ui.element('#clear-history').click();
+  await flush();
+  const request = ui.calls.at(-1);
+  assert.equal(request.options.method, 'POST');
+  assert.deepEqual(JSON.parse(request.options.body), {confirm: true});
+  assert.equal(ui.element('#chat').children.length, 0);
+  assert.equal(ui.element('#older-history').hidden, true);
+  assert.match(ui.element('#history-status').textContent, /history cleared/);
 });
 
 function transcript(recognition, text, isFinal = true) {

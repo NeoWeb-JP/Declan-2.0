@@ -73,6 +73,12 @@ def prune():
         pass
 
 
+def clear():
+    """Remove all saved conversation turns in one transaction."""
+    with database() as connection:
+        return connection.execute("DELETE FROM turns").rowcount
+
+
 def has_recent_assist():
     with database() as connection:
         return connection.execute(

@@ -96,6 +96,21 @@ class APITests(TestCase):
         self.assertEqual(self.request("/api/history?before=0")[0], 400)
         self.assertEqual(self.request("/api/history", headers={"Host": "other.invalid"})[0], 403)
 
+    def test_clear_history_requires_local_confirmation(self):
+        self.ask("hello")
+        server.history.record("assist-session", "assist", "Time?", "It is noon.")
+        path = "/api/history/clear"
+        local = {"Origin": self.origin, "Content-Type": "application/json"}
+        self.assertEqual(self.request(path, body={"confirm": True},
+                                      headers={**local, "Origin": "https://other.invalid"})[0], 403)
+        self.assertEqual(self.request(path, body={"confirm": False}, headers=local)[0], 400)
+        self.assertEqual(len(server.history.recent()), 2)
+        status, body = self.request(path, body={"confirm": True}, headers=local)
+        self.assertEqual((status, json.loads(body)), (200, {"deleted": 2}))
+        self.assertEqual(json.loads(self.request("/api/history/export")[1])["turns"], [])
+        self.ask("hello again")
+        self.assertEqual(len(server.history.recent()), 1)
+
     def test_conversation_expiry_and_weather_scope(self):
         session = self.ask("My name is Test Person")["session_id"]
         self.assertIn("Test Person", self.ask("What's my name?", session)["reply"])

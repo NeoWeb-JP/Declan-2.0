@@ -1353,7 +1353,7 @@ class Handler(BaseHTTPRequestHandler):
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif self.client_address[0] != "127.0.0.1":
@@ -1377,6 +1377,17 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
+            if self.path == "/api/history/clear":
+                if not isinstance(body, dict) or body.get("confirm") is not True:
+                    self.send_json(400, {"error": "Confirm before clearing conversation history."})
+                    return
+                try:
+                    deleted = history.clear()
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Conversation history could not be cleared."})
+                    return
+                self.send_json(200, {"deleted": deleted})
+                return
             if self.path == "/api/updates":
                 try:
                     updates.queue(body.get("version") if isinstance(body, dict) else None, RELEASE_VERSION)
@@ -1398,6 +1409,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError
         except (ValueError, TypeError, KeyError, AttributeError):
             detail = ("Send valid Spotify settings." if self.path == "/api/settings/spotify"
+                      else "Send valid history confirmation." if self.path == "/api/history/clear"
                       else "Send a message of 1 to 1,000 characters.")
             self.send_json(400, {"error": detail})
             return

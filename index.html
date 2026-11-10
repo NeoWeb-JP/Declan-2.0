@@ -59,6 +59,8 @@ form button { color: #e7f7ff; background: #143347; border: 0; border-radius: .5r
 .history-heading h2 { margin: 0; font-size: 1rem; }
 .history-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .65rem 1rem; }
 .history-toolbar p { flex: 1 1 13rem; margin: 0; }
+#clear-history { color: #fff; background: #9e2835; border-color: #ec7c87; }
+#clear-history:hover:not(:disabled) { background: #b52e3d; }
 .history button, .history a { color: #c7f7ff; background: #102635; border: 1px solid #315568;
   border-radius: .35rem; padding: .35rem .6rem; font: inherit; font-size: .8rem; }
 .history a { text-decoration: none; }
@@ -177,6 +179,7 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
       <p class="mono">Browser and Assist messages from the last 30 days</p>
       <button type="button" id="refresh-history">Refresh</button>
       <a href="/api/history/export" download>Export JSON</a>
+      <button type="button" id="clear-history">Clear History</button>
     </div>
     <p id="history-status" class="mono" role="status"></p>
     <ul id="chat" aria-label="Conversation"></ul>
@@ -324,6 +327,7 @@ const chat = document.querySelector('#chat');
 const historyPanel = document.querySelector('#history');
 const historyStatus = document.querySelector('#history-status');
 const olderHistory = document.querySelector('#older-history');
+const clearHistory = document.querySelector('#clear-history');
 let historyCursor = null;
 let loadingHistory = false;
 const sources = {assist: 'Assist', ha_sentence: 'Assist · Home Assistant routine', browser_voice: 'Browser voice', browser_keyboard: 'Browser keyboard'};
@@ -331,6 +335,7 @@ const sources = {assist: 'Assist', ha_sentence: 'Assist · Home Assistant routin
 async function loadHistory(older = false) {
   if (loadingHistory || (older && historyCursor === null)) return;
   loadingHistory = true;
+  clearHistory.disabled = true;
   historyStatus.textContent = 'Loading history…';
   try {
     const query = older ? '?before=' + encodeURIComponent(historyCursor) : '';
@@ -414,6 +419,7 @@ async function loadHistory(older = false) {
     historyStatus.textContent = 'History could not be loaded. Try Refresh.';
   } finally {
     loadingHistory = false;
+    clearHistory.disabled = false;
   }
 }
 const historySettings = document.querySelector('.settings');
@@ -471,6 +477,32 @@ spotifyForm.addEventListener('submit', async event => {
 });
 document.querySelector('#refresh-history').addEventListener('click', () => void loadHistory());
 olderHistory.addEventListener('click', () => void loadHistory(true));
+clearHistory.addEventListener('click', async () => {
+  if (loadingHistory || !window.confirm(
+    'Permanently delete all saved Declan conversations, including Browser and Assist history?'
+  )) return;
+
+  loadingHistory = true;
+  clearHistory.disabled = true;
+  historyStatus.textContent = 'Clearing history.';
+  try {
+    const response = await fetch('/api/history/clear', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({confirm: true}),
+    });
+    if (!response.ok) throw new Error('Clear failed');
+    chat.replaceChildren();
+    historyCursor = null;
+    olderHistory.hidden = true;
+    historyStatus.textContent = 'Conversation history cleared.';
+  } catch {
+    historyStatus.textContent = 'History could not be cleared. Try again.';
+  } finally {
+    loadingHistory = false;
+    clearHistory.disabled = false;
+  }
+});
 const latestMessage = document.querySelector('#latest-message');
 const latestReply = document.querySelector('#latest-reply');
 const talk = document.querySelector('#talk');
