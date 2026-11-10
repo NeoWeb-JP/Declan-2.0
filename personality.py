@@ -5,6 +5,28 @@ from threading import Lock
 
 
 LINES = {
+    "sexy_time_start": (
+        ("I've set the mood. Let's see if either of you can follow through, my bru.",
+         "The lights are doing all the flirting. Try to keep up.",
+         "I've made it look seductive in here. The two of you are still a work in progress.",
+         "The playlist has stamina. I hope that's contagious.",
+         "If you spend longer picking a track than flirting, I am turning the big light back on.",
+         "I dimmed the lights. There are limits to what flattering lighting can do."),
+        ("The bedroom scene is ready.",
+         "The lights and playlist are ready.",
+         "The room is set."),
+    ),
+    "sexy_time_end": (
+        ("Well, that was efficient. I'll let you decide if that's a compliment.",
+         "The mood lighting is off. Your performance review is mercifully private.",
+         "Back to normal. The lamps have agreed to sign an NDA.",
+         "The playlist had another forty minutes in it. Ambitious, in hindsight.",
+         "The lights are back on. If anyone asks, you were reorganising the pillows.",
+         "And that's a wrap. The soundtrack carried the production, my bru."),
+        ("The bedroom is back to its usual setting.",
+         "The bedroom scene has ended.",
+         "Everything is back to normal."),
+    ),
     "dinner_announcement": (
         ("Dinner is served, gentlemen. Abandon your screens and pretend to be civilised.",
          "Jaco has prepared dinner. Edd, your presence and appreciation are now required.",

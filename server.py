@@ -38,6 +38,11 @@ RELEASE_VERSION = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
 if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION) or len(RELEASE_VERSION) > 40:
     RELEASE_VERSION = None
 RELEASE_VERSION = updates.installed_version(RELEASE_VERSION)
+SEXY_TIME_COMMANDS = {
+    "sexy time": "start", "start sexy time": "start", "activate sexy time": "start",
+    "end sexy time": "end", "stop sexy time": "end",
+}
+SEXY_TIME_LOCK = Lock()
 DINNER_SCRIPT = "script.declan_dinner_is_served_2"
 DINNER_PHRASES = {
     "dinner is served", "it's dinner time", "time for dinner", "it's time for dinner",
@@ -720,6 +725,54 @@ def ha_device_connection():
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     opener = build_opener(ProxyHandler({}), NoRedirect())
     return url, headers, opener
+
+
+def run_sexy_time(operation, connection):
+    if connection is None:
+        return "The Home Assistant connection isn't configured.", "not_configured"
+    if not SEXY_TIME_LOCK.acquire(blocking=False):
+        return "I'm still handling the previous Sexy Time request.", "busy"
+    try:
+        url, headers, opener = connection
+        request = Request(
+            f"{url}/api/services/script/declan_sexy_time?return_response", headers=headers,
+            data=json.dumps({"operation": operation}).encode(), method="POST",
+        )
+        try:
+            with opener.open(request, timeout=8) as response:
+                payload = json.loads(response.read(65536))
+        except HTTPError as error:
+            error.close()
+            return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified"
+        except (OSError, ValueError):
+            return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified"
+
+        result = payload.get("service_response") if isinstance(payload, dict) else None
+        if isinstance(result, dict) and set(result) == {"script.declan_sexy_time"}:
+            result = result["script.declan_sexy_time"]
+        if not isinstance(result, dict) or result.get("operation") != operation:
+            return "I couldn't verify the bedroom routine's result.", "unverified"
+
+        lighting_ok = result.get("lighting_ok") is True
+        if operation == "end":
+            music_ok = result.get("music_stopped") is True
+            if lighting_ok and music_ok:
+                return add_sass("Bedroom lights restored and music stopped.", "sexy_time_end", read_guest_mode()), "confirmed"
+            lighting = "The bedroom lights are restored." if lighting_ok else "I couldn't verify the bedroom lights."
+            playback = "The music has stopped." if music_ok else "I couldn't verify that the bedroom music stopped."
+            return f"{lighting} {playback}", "partial" if lighting_ok or music_ok else "unverified"
+
+        if not lighting_ok:
+            return "I couldn't verify the bedroom lights, so I held off on the playlist.", "unverified"
+        reply, outcome = music.play(("bedroom", "sexy time music", "spotify"), connection, read_ha_inventory)
+        if outcome == "confirmed":
+            return add_sass("Bedroom lights set and music playing.", "sexy_time_start", read_guest_mode()), "confirmed"
+        reply = f"The bedroom lights are set. {reply}"
+        if outcome == "partial":
+            reply = add_sass(reply, "sexy_time_start", read_guest_mode())
+        return reply, "partial"
+    finally:
+        SEXY_TIME_LOCK.release()
 
 
 def start_dinner(connection):
@@ -1572,6 +1625,8 @@ class Handler(BaseHTTPRequestHandler):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
         elif phrase.replace("’", "'") in DINNER_PHRASES:
             routine_reply, outcome = start_dinner(ha_device_connection())
+        elif phrase in SEXY_TIME_COMMANDS:
+            routine_reply, outcome = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection())
         elif phrase in GUEST_COMMANDS:
             routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):

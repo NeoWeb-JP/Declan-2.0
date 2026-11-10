@@ -97,6 +97,28 @@ class APITests(TestCase):
         self.assertEqual(self.request("/api/history?before=0")[0], 400)
         self.assertEqual(self.request("/api/history", headers={"Host": "other.invalid"})[0], 403)
 
+    def test_sexy_time_calls_ha_and_uses_declan_music_and_history(self):
+        opener = Mock()
+        connection = ("http://ha.invalid", {}, opener)
+        with patch.object(server, "ha_device_connection", return_value=connection), patch.object(
+            server.music, "play", return_value=("Playback started.", "confirmed")
+        ) as play:
+            for phrase, operation in server.SEXY_TIME_COMMANDS.items():
+                opener.open.return_value = io.BytesIO(json.dumps({"service_response": {
+                    "operation": operation, "lighting_ok": True, "music_stopped": operation == "end",
+                }}).encode())
+                result = self.ask(phrase, path="/api/assist")
+                self.assertEqual(result["outcome"], "confirmed")
+                self.assertEqual(json.loads(opener.open.call_args.args[0].data), {"operation": operation})
+                self.assertIn(result["reply"].split(". ", 1)[1], LINES[f"sexy_time_{operation}"][0])
+                self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
+            self.assertEqual(play.call_count, 3)
+            play.assert_called_with(("bedroom", "sexy time music", "spotify"), connection, server.read_ha_inventory)
+
+            opener.open.return_value = io.BytesIO(b'{"service_response":{"operation":"start","lighting_ok":false}}')
+            self.assertEqual(self.ask("sexy time", path="/api/assist")["outcome"], "unverified")
+            self.assertEqual(play.call_count, 3)
+
     def test_dinner_phrases_send_one_ha_request_and_save_the_spoken_reply(self):
         opener = Mock()
         opener.open.return_value = io.BytesIO(b"[]")

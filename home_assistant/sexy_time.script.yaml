@@ -1,0 +1,77 @@
+alias: Declan - Sexy Time Controller
+description: Set or restore the bedroom lights, set the starting volume, and stop bedroom music on end.
+mode: queued
+max: 5
+fields:
+  operation:
+    name: Operation
+    default: start
+    selector:
+      select:
+        options: [start, end]
+sequence:
+  - variables:
+      op: "{{ operation | default('start') }}"
+      player: media_player.bedroom_declan_voice_assistant
+  - if: "{{ op not in ['start', 'end'] }}"
+    then:
+      - stop: Unknown Sexy Time operation.
+        error: true
+  - action: light.turn_on
+    target:
+      entity_id:
+        - light.master_bedroom_fairy_lights
+        - light.master_bedroom_queen_lamp
+  - action: "light.turn_{{ 'off' if op == 'start' else 'on' }}"
+    target:
+      entity_id: light.master_bedroom_bedroom_lamp
+  - choose:
+      - conditions: "{{ op == 'start' }}"
+        sequence:
+          - action: light.turn_on
+            target:
+              entity_id: light.master_bedroom_main_light
+            data:
+              brightness_pct: 50
+              rgb_color: [255, 0, 255]
+          - action: media_player.volume_set
+            target:
+              entity_id: "{{ player }}"
+            data:
+              volume_level: 0.2
+            continue_on_error: true
+    default:
+      - action: light.turn_on
+        target:
+          entity_id: light.master_bedroom_main_light
+        data:
+          brightness_pct: 50
+          color_temp_kelvin: 3000
+      - action: media_player.media_stop
+        target:
+          entity_id: "{{ player }}"
+        continue_on_error: true
+  - wait_template: >-
+      {{ is_state('light.master_bedroom_fairy_lights', 'on')
+         and is_state('light.master_bedroom_queen_lamp', 'on')
+         and is_state('light.master_bedroom_main_light', 'on')
+         and is_state('light.master_bedroom_bedroom_lamp', 'off' if op == 'start' else 'on')
+         and (op == 'start' or states(player) in ['idle', 'off', 'standby']) }}
+    timeout: "00:00:03"
+    continue_on_timeout: true
+  - variables:
+      result:
+        operation: "{{ op }}"
+        lighting_ok: >-
+          {{ is_state('light.master_bedroom_fairy_lights', 'on')
+             and is_state('light.master_bedroom_queen_lamp', 'on')
+             and is_state('light.master_bedroom_main_light', 'on')
+             and is_state('light.master_bedroom_bedroom_lamp', 'off' if op == 'start' else 'on') }}
+        music_stopped: "{{ op == 'end' and states(player) in ['idle', 'off', 'standby'] }}"
+  - if: "{{ result.lighting_ok }}"
+    then:
+      - action: "input_boolean.turn_{{ 'on' if op == 'start' else 'off' }}"
+        target:
+          entity_id: input_boolean.declan_sexy_time_active
+  - stop: Bedroom routine complete.
+    response_variable: result
