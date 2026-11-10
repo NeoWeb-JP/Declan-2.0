@@ -24,7 +24,7 @@ import music
 import timers
 import updates
 import web_stt
-from personality import add_sass
+from personality import add_sass, choose_line
 
 
 SESSIONS = OrderedDict()
@@ -40,7 +40,7 @@ if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION)
 RELEASE_VERSION = updates.installed_version(RELEASE_VERSION)
 DINNER_SCRIPT = "script.declan_dinner_is_served_2"
 DINNER_PHRASES = {
-    "dinner is served", "it's dinner time", "time for dinner",
+    "dinner is served", "it's dinner time", "time for dinner", "it's time for dinner",
     "announce dinner", "start dinner time", "dinner time",
 }
 GUEST_MODE_ENTITY = "input_boolean.guest_mode"
@@ -726,9 +726,12 @@ def start_dinner(connection):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
     url, headers, opener = connection
+    announcement = choose_line("dinner_announcement", read_guest_mode())
     request = Request(
         f"{url}/api/services/script/turn_on", headers=headers,
-        data=json.dumps({"entity_id": DINNER_SCRIPT}).encode(), method="POST",
+        data=json.dumps({
+            "entity_id": DINNER_SCRIPT, "variables": {"dinner_message": announcement},
+        }).encode(), method="POST",
     )
     try:
         with opener.open(request, timeout=2):
@@ -740,7 +743,7 @@ def start_dinner(connection):
         return "I couldn't confirm that Home Assistant accepted the dinner announcement request.", "unverified"
     except OSError:
         return "I couldn't confirm that Home Assistant accepted the dinner announcement request.", "unverified"
-    return add_sass("I've asked Home Assistant to announce dinner.", "dinner_requested", read_guest_mode()), "requested"
+    return announcement, "requested"
 
 
 def guest_assignment(operation, connection):

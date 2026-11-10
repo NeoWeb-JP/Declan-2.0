@@ -5,13 +5,40 @@ from threading import Lock
 
 
 LINES = {
-    "dinner_requested": (
-        ("If anyone asks what's for dinner, point them at the plate, my bru.",
-         "The table is accepting arrivals. It isn't taking excuses.",
-         "Finn would like you to know he's been ready for hours."),
-        ("Time to make your way to the table.",
-         "See you at the table.",
-         "Hope everyone's hungry."),
+    "dinner_announcement": (
+        ("Dinner is served, gentlemen. Abandon your screens and pretend to be civilised.",
+         "Jaco has prepared dinner. Edd, your presence and appreciation are now required.",
+         "Attention household. Actual food is ready. The automations can have a night off.",
+         "Dinner is served. Finn has already volunteered as the official taste tester.",
+         "Gentlemen, your meal awaits. Tux has declined due to inadequate service.",
+         "The dining room is ready. Arrive before the food develops abandonment issues.",
+         "Edd, dinner is ready. Jaco would appreciate applause, compliments, and possibly a foot massage.",
+         "Dinner time. All engineering projects are suspended until further notice.",
+         "Your culinary experience is ready. Michelin stars are pending inspection.",
+         "Jaco and Edd, it's time to feed the humans before their behaviour deteriorates.",
+         "Dinner is served, boys. Pants are preferred but apparently negotiable.",
+         "Gentlemen, dinner is brought to you by hunger, determination, and questionable planning.",
+         "Food is ready. Finn has been informed this does not constitute an invitation.",
+         "Jaco and Edd, report to the dining room. The potatoes are getting cold.",
+         "Dinner is ready. Kindly put down the technology and interact like actual humans.",
+         "Your table awaits, gentlemen. The management requests minimal complaining.",
+         "Dinner time, boys. Please refrain from discussing server upgrades between mouthfuls.",
+         "The chef has spoken. Dinner is ready, and criticism may result in washing-up duty.",
+         "Attention household. Calories have been prepared for your consumption.",
+         "Dinner is served. Tux has already submitted a formal complaint about the menu.",
+         "Gentlemen, your romantic dinner awaits. Try not to spend the evening discussing Wi-Fi.",
+         "Jaco, Edd, dinner is ready. Consider this your official summons from Domestic Affairs.",
+         "The kitchen has done its bit. Now it's time for the humans to perform theirs.",
+         "Food is ready. Form an orderly queue. Finn, that includes you.",
+         "Dinner is served. I recommend compliments to the chef, even if you have reservations.",
+         "Dinner is ready. Tonight's entertainment includes food, conversation, and hopefully no electrical failures.",
+         "Dinner is ready. I've handled the ambience. Romance is your responsibility.",
+         "Gentlemen, the meal is ready. Please leave any bedroom-related activities until after dessert.",
+         "Dinner time. I've set the mood. The rest is up to your questionable charm.",
+         "Jaco and Edd, dinner is served. May the food be delicious and Finn's begging unsuccessful."),
+        ("Dinner is served. Please make your way to the table.",
+         "Dinner is ready. See you in the dining room.",
+         "Time for dinner. I hope everyone's hungry."),
     ),
     "guest_inactive": (
         ("Jaco and Edd hold the mortgage, Tux holds the throne, Finn holds a tennis ball, and I hold this circus together.",
@@ -278,7 +305,7 @@ _lock = Lock()
 _recent = {}
 
 
-def add_sass(reply, category, guest_mode):
+def choose_line(category, guest_mode):
     """Keep the last two lines per category and tone out of the draw."""
     guest = guest_mode != "off"
     key = category, guest
@@ -287,6 +314,11 @@ def add_sass(reply, category, guest_mode):
         recent = _recent.setdefault(key, [])
         line = _random.choice([line for line in lines if line not in recent])
         recent[:] = (recent + [line])[-2:]
+    return line
+
+
+def add_sass(reply, category, guest_mode):
+    line = choose_line(category, guest_mode)
     if category == "lights_on":
         return f"{line} {reply}"
     return f"{reply} {line}"

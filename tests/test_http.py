@@ -12,6 +12,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import server
+from personality import LINES
 
 
 class APITests(TestCase):
@@ -106,11 +107,14 @@ class APITests(TestCase):
                 opener.open.return_value = io.BytesIO(b"[]")
                 result = self.ask(phrase + "!", path="/api/assist")
                 self.assertEqual(result["outcome"], "requested")
-                self.assertIn("I've asked Home Assistant to announce dinner.", result["reply"])
+                self.assertIn(result["reply"], LINES["dinner_announcement"][0])
                 opener.open.assert_called_once()
                 request = opener.open.call_args.args[0]
                 self.assertEqual(request.full_url, "http://ha.invalid/api/services/script/turn_on")
-                self.assertEqual(json.loads(request.data), {"entity_id": "script.declan_dinner_is_served_2"})
+                self.assertEqual(json.loads(request.data), {
+                    "entity_id": "script.declan_dinner_is_served_2",
+                    "variables": {"dinner_message": result["reply"]},
+                })
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
 
             opener.open.reset_mock()
