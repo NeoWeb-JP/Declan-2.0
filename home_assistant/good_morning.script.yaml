@@ -1,5 +1,12 @@
 alias: Declan - Good Morning - Shared Local Routine
 mode: single
+fields:
+  request_id:
+    selector:
+      text: {}
+  routine_id:
+    selector:
+      text: {}
 sequence:
   - alias: Turn on lounge wall lights
     action: light.turn_on
@@ -11,11 +18,6 @@ sequence:
       entity_id: light.dining_room
     data:
       brightness_pct: 10
-  - alias: Generate Good Morning response
-    action: script.declan_personality_engine
-    data:
-      response_context: good_morning
-    response_variable: declan_reply
   - alias: Wait for both lights to report the requested states
     wait_template: >-
       {% set brightness = state_attr('light.dining_room', 'brightness') %}
@@ -33,9 +35,13 @@ sequence:
            and brightness is number and 23 <= brightness <= 28 }}
   - variables:
       declan_local_result:
-        response: >-
-          {{ declan_reply.response | default(
-             'Good morning. Your morning routine has been activated.', true) }}
+        schema_version: 1
+        request_id: "{{ request_id | default('') }}"
+        routine_id: "{{ routine_id | default('') }}"
+        outcome: >-
+          {{ 'success' if wall_lights_confirmed and dining_lights_confirmed
+             else 'partial' if wall_lights_confirmed or dining_lights_confirmed else 'unknown' }}
+        guest_mode: "{{ states('input_boolean.guest_mode') }}"
         status: "{{ 'success' if wall_lights_confirmed and dining_lights_confirmed else 'unverified' }}"
         steps:
           lounge_wall_lights: "{{ 'confirmed' if wall_lights_confirmed else 'unverified' }}"

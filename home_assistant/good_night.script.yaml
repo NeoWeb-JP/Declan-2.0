@@ -1,5 +1,12 @@
 alias: Declan - Good Night - Shared Local Routine
 mode: single
+fields:
+  request_id:
+    selector:
+      text: {}
+  routine_id:
+    selector:
+      text: {}
 sequence:
   - alias: Turn off all household lights
     action: light.turn_off
@@ -35,25 +42,7 @@ sequence:
       hive_temperature: "{{ state_attr('climate.home', 'current_temperature') }}"
       hive_target: "{{ state_attr('climate.home', 'temperature') }}"
       hive_action: "{{ state_attr('climate.home', 'hvac_action') }}"
-  - alias: Generate personality-aware Good Night message
-    action: script.declan_personality_engine
-    data:
-      response_context: good_night
-    response_variable: goodnight_reply
-    continue_on_error: true
-  - alias: Add EV reminder if battery is low and unplugged
-    if:
-      - condition: template
-        value_template: >-
-          {{ is_number(battery_state) and 0 <= battery_state | float < 50
-             and cable_state == 'off' }}
-    then:
-      - action: script.declan_personality_engine
-        data:
-          response_context: good_night_ev_reminder
-        response_variable: ev_reply
-        continue_on_error: true
-  - alias: Verify lights and assemble bedtime reply
+  - alias: Verify lights and prepare bedtime facts
     variables:
       lights: "{{ states.light | list }}"
       lights_still_on: >-
@@ -62,24 +51,38 @@ sequence:
       lights_unverified: >-
         {{ states.light | rejectattr('state', 'in', ['on', 'off'])
            | map(attribute='name') | list }}
-      final_message: >-
-        {{ (goodnight_reply | default({})).get('response') | default('Good night.', true) | trim }}
-        {% if is_number(battery_state) and 0 <= battery_state | float < 50
-              and cable_state == 'off' %}
-          One more thing. The Peugeot is at {{ battery_state | float | round(0) | int }}
-          percent and isn't plugged in.
-          {{ (ev_reply | default({})).get('response') | default('Please check the charging cable before bed.', true) | trim }}
-        {% endif %}
-        {% if is_number(hive_temperature) and hive_temperature | float < 16
-              and (hive_state == 'off' or
-                (hive_state == 'heat' and hive_action == 'idle'
-                 and is_number(hive_target) and hive_target | float <= hive_temperature | float)) %}
-          It's {{ hive_temperature | float | round(1) }} degrees indoors and the
-          heating isn't running. Even Finn might appreciate a blanket.
-        {% endif %}
   - variables:
       declan_local_result:
-        response: "{{ final_message | trim }}"
+        schema_version: 1
+        request_id: "{{ request_id | default('') }}"
+        routine_id: "{{ routine_id | default('') }}"
+        outcome: >-
+          {{ 'success' if lights and not lights_still_on and not lights_unverified
+             else 'partial' if lights | selectattr('state', 'eq', 'off') | list else 'unknown' }}
+        guest_mode: "{{ states('input_boolean.guest_mode') }}"
+        bedtime:
+          battery_percent: >-
+            {{ battery_state | float | round(0) | int
+               if is_state('input_boolean.guest_mode', 'off')
+               and is_number(battery_state) and 0 <= battery_state | float < 50
+               and cable_state == 'off' else none }}
+          indoor_temperature: >-
+            {{ hive_temperature | float | round(1)
+               if is_state('input_boolean.guest_mode', 'off')
+               and is_number(hive_temperature) and hive_temperature | float < 16
+               and (hive_state == 'off' or
+                 (hive_state == 'heat' and hive_action == 'idle'
+                  and is_number(hive_target) and hive_target | float <= hive_temperature | float))
+               else none }}
+        steps: >-
+          {% set observed = namespace(steps=[]) %}
+          {% for light in lights[:200] %}
+            {% set observed.steps = observed.steps + [dict(
+              target=light.name, entity_id=light.entity_id, action='turn_off',
+              status='confirmed' if light.state == 'off' else 'unverified',
+              detail=light.state)] %}
+          {% endfor %}
+          {{ observed.steps }}
         status: "{{ 'success' if lights and not lights_still_on and not lights_unverified else 'unverified' }}"
         routine_status: >-
           {% if not lights %}Home Assistant found no light entities to verify.

@@ -26,6 +26,7 @@ async def async_setup_entry(hass, entry):
                     "session_id": event.data.get("session_id"),
                     "outcome": event.data.get("outcome"),
                     "routine_status": event.data.get("routine_status"),
+                    "steps": event.data.get("steps"),
                 },
                 headers={"Authorization": f"Bearer {entry.data['token']}"},
                 allow_redirects=False,

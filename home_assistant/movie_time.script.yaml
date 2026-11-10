@@ -1,0 +1,180 @@
+alias: Declan - Movie Time - Shared Local Routine
+mode: single
+fields:
+  requested_action:
+    required: true
+    selector:
+      select:
+        options:
+          - start
+          - end
+          - toggle
+  request_id:
+    selector:
+      text: {}
+  routine_id:
+    selector:
+      text: {}
+sequence:
+  - variables:
+      screen_state: "{{ states('cover.living_room_projector_screen') }}"
+      screen_position: "{{ state_attr('cover.living_room_projector_screen', 'current_position') }}"
+      direction: >-
+        {% set requested = requested_action | default('') %}
+        {% set position = state_attr('cover.living_room_projector_screen', 'current_position') %}
+        {% if requested in ['start', 'end'] %}{{ requested }}
+        {% elif requested == 'toggle' and is_number(position) %}
+          {% if 0 <= position | float <= 5 %}start
+          {% elif 81 <= position | float <= 85 %}end
+          {% else %}unknown{% endif %}
+        {% else %}unknown{% endif %}
+  - variables:
+      starting: "{{ direction | trim == 'start' }}"
+  - if:
+      - condition: template
+        value_template: >-
+          {{ direction | trim not in ['start', 'end']
+             or screen_state in ['unknown', 'unavailable', 'opening', 'closing']
+             or not is_number(screen_position) }}
+    then:
+      - variables:
+          movie_result:
+            schema_version: 1
+            request_id: "{{ request_id | default('') }}"
+            routine_id: "{{ routine_id | default('') }}"
+            outcome: "{{ 'busy' if screen_state in ['opening', 'closing'] else 'unknown' }}"
+            reason_code: "{{ 'screen_moving' if screen_state in ['opening', 'closing'] else 'screen_position_unverified' }}"
+            steps: []
+      - stop: Movie Time could not start safely
+        response_variable: movie_result
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ starting }}"
+        sequence:
+          - action: switch.turn_on
+            continue_on_error: true
+            target:
+              entity_id: switch.projector_power_socket
+          - action: cover.set_cover_position
+            continue_on_error: true
+            target:
+              entity_id: cover.living_room_projector_screen
+            data:
+              position: 83
+          - action: light.turn_off
+            continue_on_error: true
+            target:
+              entity_id:
+              - light.lounge_spotlights
+              - light.living_room_wall_lights
+          - action: light.turn_on
+            continue_on_error: true
+            target:
+              entity_id: light.lightsaber
+            data:
+              brightness_pct: 40
+              rgb_color:
+              - 255
+              - 105
+              - 180
+          - delay: 00:00:05
+          - action: media_player.turn_on
+            continue_on_error: true
+            target:
+              entity_id: media_player.toptro_vg03f3_037f0808_television
+          - delay: 00:00:02
+    default:
+      - action: cover.set_cover_position
+        continue_on_error: true
+        target:
+          entity_id: cover.living_room_projector_screen
+        data:
+          position: 0
+      - action: light.turn_off
+        continue_on_error: true
+        target:
+          entity_id: light.lightsaber
+      - action: media_player.turn_off
+        continue_on_error: true
+        target:
+          entity_id: media_player.toptro_vg03f3_037f0808_television
+      - action: light.turn_on
+        continue_on_error: true
+        target:
+          entity_id:
+          - light.lounge_spotlights
+          - light.living_room_wall_lights
+        data:
+          brightness_pct: 20
+      - wait_template: >-
+          {{ states('media_player.toptro_vg03f3_037f0808_television') in ['off', 'standby'] }}
+        timeout: "00:00:08"
+        continue_on_timeout: true
+      - variables:
+          movie_player_end_state: "{{ states('media_player.toptro_vg03f3_037f0808_television') }}"
+      - if:
+          - condition: template
+            value_template: "{{ movie_player_end_state in ['off', 'standby'] }}"
+        then:
+          - action: switch.turn_off
+            continue_on_error: true
+            target:
+              entity_id: switch.projector_power_socket
+  - alias: Wait for the screen to report the requested position
+    wait_template: >-
+      {% set position = state_attr('cover.living_room_projector_screen', 'current_position') %}
+      {{ states('cover.living_room_projector_screen') not in ['unknown', 'unavailable', 'opening', 'closing']
+         and is_number(position) and (position | float - (83 if starting else 0)) | abs <= 2 }}
+    timeout: "00:00:30"
+    continue_on_timeout: true
+  - variables:
+      movie_steps: >-
+        {% set screen = 'cover.living_room_projector_screen' %}
+        {% set position = state_attr(screen, 'current_position') %}
+        {% set checks = [
+          ('Projector screen', screen, states(screen) not in ['unknown', 'unavailable', 'opening', 'closing']
+            and is_number(position) and (position | float - (83 if starting else 0)) | abs <= 2),
+          ('Projector power socket', 'switch.projector_power_socket',
+            is_state('switch.projector_power_socket', 'on' if starting else 'off')),
+          ('Projector media player', 'media_player.toptro_vg03f3_037f0808_television',
+            (states('media_player.toptro_vg03f3_037f0808_television') in ['on', 'idle', 'playing', 'paused', 'buffering']
+              if starting else movie_player_end_state in ['off', 'standby']))
+        ] %}
+        {% set result = namespace(steps=[]) %}
+        {% for label, entity, confirmed in checks %}
+          {% set result.steps = result.steps + [dict(target=label, entity_id=entity, required=true,
+             status='confirmed' if confirmed else 'unverified',
+             detail=movie_player_end_state if not starting and entity.startswith('media_player.') else states(entity))] %}
+        {% endfor %}
+        {% for entity, expected_on, percent in [
+          ('light.lounge_spotlights', not starting, 20),
+          ('light.living_room_wall_lights', not starting, 20),
+          ('light.lightsaber', starting, 40)] %}
+          {% set brightness = state_attr(entity, 'brightness') %}
+          {% set confirmed = is_state(entity, 'off') if not expected_on else
+            (is_state(entity, 'on') and is_number(brightness)
+              and (brightness | float - (percent * 255 / 100)) | abs <= 2) %}
+          {% if confirmed and starting and entity == 'light.lightsaber' %}
+            {% set rgb = state_attr(entity, 'rgb_color') %}
+            {% set confirmed = rgb is sequence and rgb | count == 3
+                and (rgb[0] - 255) | abs <= 8 and (rgb[1] - 105) | abs <= 8 and (rgb[2] - 180) | abs <= 8 %}
+          {% endif %}
+          {% set result.steps = result.steps + [dict(target=state_attr(entity, 'friendly_name') or entity,
+             entity_id=entity, required=true, status='confirmed' if confirmed else 'unverified',
+             detail=states(entity))] %}
+        {% endfor %}
+        {{ result.steps }}
+  - variables:
+      movie_result:
+        schema_version: 1
+        request_id: "{{ request_id | default('') }}"
+        routine_id: "{{ routine_id | default('') }}"
+        guest_mode: "{{ states('input_boolean.guest_mode') }}"
+        resolved_action: "{{ direction | trim }}"
+        outcome: >-
+          {% set verified = movie_steps | selectattr('status', 'eq', 'confirmed') | list | count %}
+          {{ 'success' if verified == movie_steps | count else 'partial' if verified else 'unknown' }}
+        steps: "{{ movie_steps }}"
+  - stop: Movie Time checks finished
+    response_variable: movie_result

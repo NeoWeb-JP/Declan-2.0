@@ -1,4 +1,5 @@
 """Local retention and export for Declan chat turns."""
+import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -31,6 +32,10 @@ def database():
                 connection.execute("ALTER TABLE turns ADD COLUMN outcome TEXT")
             if "routine_status" not in columns:
                 connection.execute("ALTER TABLE turns ADD COLUMN routine_status TEXT")
+            if "action_results" not in columns:
+                connection.execute("ALTER TABLE turns ADD COLUMN action_results TEXT")
+            if "phrase_suggestion" not in columns:
+                connection.execute("ALTER TABLE turns ADD COLUMN phrase_suggestion TEXT")
             connection.execute("DELETE FROM turns WHERE created_at < ?", (time() - RETENTION_SECONDS,))
             yield connection
     finally:
@@ -50,12 +55,14 @@ def has_recent_assist():
         ).fetchone() is not None
 
 
-def record(session_id, source, message, reply, outcome=None, routine_status=None):
+def record(session_id, source, message, reply, outcome=None, routine_status=None, action_results=None,
+           phrase_suggestion=None):
     with database() as connection:
         connection.execute(
-            "INSERT INTO turns(created_at, session_id, source, message, reply, outcome, routine_status) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (time(), session_id, source, message, reply, outcome, routine_status),
+            "INSERT INTO turns(created_at, session_id, source, message, reply, outcome, routine_status, "
+            "action_results, phrase_suggestion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (time(), session_id, source, message, reply, outcome, routine_status,
+             json.dumps(action_results) if action_results else None, phrase_suggestion),
         )
 
 
@@ -74,4 +81,5 @@ def recent(before=None, limit=50):
         turns = [dict(row) for row in connection.execute(query, args)]
     for turn in turns:
         turn["created_at"] = datetime.fromtimestamp(turn["created_at"], timezone.utc).isoformat()
+        turn["action_results"] = json.loads(turn["action_results"]) if turn["action_results"] else []
     return turns

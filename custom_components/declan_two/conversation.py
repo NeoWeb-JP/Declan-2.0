@@ -28,10 +28,16 @@ class DeclanTwoAgent(conversation.ConversationEntity):
             session = async_get_clientsession(self.hass)
             async with session.post(
                 self._url,
-                json={"message": user_input.text, "session_id": session_id},
+                json={
+                    "message": user_input.text,
+                    "session_id": session_id,
+                    "device_id": user_input.device_id,
+                    "satellite_id": getattr(user_input, "satellite_id", None),
+                    "user_id": user_input.context.user_id,
+                },
                 headers={"Authorization": f"Bearer {self._token}"},
                 allow_redirects=False,
-                timeout=aiohttp.ClientTimeout(total=8),
+                timeout=aiohttp.ClientTimeout(total=65, sock_connect=3),
             ) as result:
                 if result.status != 200:
                     raise ValueError("Declan rejected the request")
