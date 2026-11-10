@@ -113,14 +113,25 @@ class APITests(TestCase):
                 self.assertEqual(request.full_url,
                                  "http://ha.invalid/api/services/script/declan_sexy_time_controller?return_response")
                 self.assertEqual(json.loads(request.data), {"operation": operation})
-                self.assertIn(result["reply"].split(". ", 1)[1], LINES[f"sexy_time_{operation}"][0])
+                self.assertIn(result["reply"], LINES[f"sexy_time_{operation}"][0])
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
             self.assertEqual(play.call_count, 3)
             play.assert_called_with(("bedroom", "sexy time music", "spotify"), connection, server.read_ha_inventory)
 
+            play.return_value = ("Home Assistant took too long to respond.", "unverified")
+            opener.open.return_value = io.BytesIO(b'{"service_response":{"operation":"start","lighting_ok":true}}')
+            result = self.ask("sexy time", path="/api/assist")
+            self.assertEqual(result["outcome"], "partial")
+            self.assertIn(result["reply"], LINES["sexy_time_start"][0])
+            self.assertNotIn("Home Assistant", result["reply"])
+            turn = server.history.recent(limit=1)[0]
+            self.assertEqual(turn["reply"], result["reply"])
+            self.assertIn("Home Assistant took too long", turn["routine_status"])
+            play.reset_mock()
+
             opener.open.return_value = io.BytesIO(b'{"service_response":{"operation":"start","lighting_ok":false}}')
             self.assertEqual(self.ask("sexy time", path="/api/assist")["outcome"], "unverified")
-            self.assertEqual(play.call_count, 3)
+            play.assert_not_called()
 
     def test_dinner_phrases_send_one_ha_request_and_save_the_spoken_reply(self):
         opener = Mock()
@@ -160,7 +171,7 @@ class APITests(TestCase):
     def test_teach_and_forget_a_missed_voice_intention(self):
         path = "/api/history/intents"
         headers = {"Origin": self.origin, "Content-Type": "application/json"}
-        with patch.object(server, "run_sexy_time", return_value=("End routine.", "confirmed")) as routine:
+        with patch.object(server, "run_sexy_time", return_value=("End routine.", "confirmed", None)) as routine:
             self.assertEqual(self.ask("End 60 time.", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             turn = json.loads(self.request("/api/history")[1])["turns"][0]
             self.assertTrue(turn["teachable"])

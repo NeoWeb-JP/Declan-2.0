@@ -732,9 +732,9 @@ def ha_device_connection():
 
 def run_sexy_time(operation, connection):
     if connection is None:
-        return "The Home Assistant connection isn't configured.", "not_configured"
+        return "The Home Assistant connection isn't configured.", "not_configured", None
     if not SEXY_TIME_LOCK.acquire(blocking=False):
-        return "I'm still handling the previous Sexy Time request.", "busy"
+        return "I'm still handling the previous Sexy Time request.", "busy", None
     try:
         url, headers, opener = connection
         request = Request(
@@ -746,34 +746,32 @@ def run_sexy_time(operation, connection):
                 payload = json.loads(response.read(65536))
         except HTTPError as error:
             error.close()
-            return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified"
+            return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified", None
         except (OSError, ValueError):
-            return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified"
+            return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified", None
 
         result = payload.get("service_response") if isinstance(payload, dict) else None
         if isinstance(result, dict) and set(result) == {SEXY_TIME_SCRIPT}:
             result = result[SEXY_TIME_SCRIPT]
         if not isinstance(result, dict) or result.get("operation") != operation:
-            return "I couldn't verify the bedroom routine's result.", "unverified"
+            return "I couldn't verify the bedroom routine's result.", "unverified", None
 
         lighting_ok = result.get("lighting_ok") is True
         if operation == "end":
             music_ok = result.get("music_stopped") is True
-            if lighting_ok and music_ok:
-                return add_sass("Bedroom lights restored and music stopped.", "sexy_time_end", read_guest_mode()), "confirmed"
-            lighting = "The bedroom lights are restored." if lighting_ok else "I couldn't verify the bedroom lights."
+            if lighting_ok:
+                detail = None if music_ok else "Bedroom lights restored. Bedroom music stop could not be verified."
+                return choose_line("sexy_time_end", read_guest_mode()), "confirmed" if music_ok else "partial", detail
             playback = "The music has stopped." if music_ok else "I couldn't verify that the bedroom music stopped."
-            return f"{lighting} {playback}", "partial" if lighting_ok or music_ok else "unverified"
+            return f"I couldn't verify the bedroom lights. {playback}", "partial" if music_ok else "unverified", None
 
         if not lighting_ok:
-            return "I couldn't verify the bedroom lights, so I held off on the playlist.", "unverified"
+            return "I couldn't verify the bedroom lights, so I held off on the playlist.", "unverified", None
         reply, outcome = music.play(("bedroom", "sexy time music", "spotify"), connection, read_ha_inventory)
+        spoken = choose_line("sexy_time_start", read_guest_mode())
         if outcome == "confirmed":
-            return add_sass("Bedroom lights set and music playing.", "sexy_time_start", read_guest_mode()), "confirmed"
-        reply = f"The bedroom lights are set. {reply}"
-        if outcome == "partial":
-            reply = add_sass(reply, "sexy_time_start", read_guest_mode())
-        return reply, "partial"
+            return spoken, "confirmed", None
+        return spoken, "partial", f"Bedroom lights set. {reply}"
     finally:
         SEXY_TIME_LOCK.release()
 
@@ -1656,7 +1654,7 @@ class Handler(BaseHTTPRequestHandler):
         elif phrase.replace("’", "'") in DINNER_PHRASES:
             routine_reply, outcome = start_dinner(ha_device_connection())
         elif phrase in SEXY_TIME_COMMANDS:
-            routine_reply, outcome = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection())
+            routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection())
         elif phrase in GUEST_COMMANDS:
             routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
@@ -1751,7 +1749,7 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError, sqlite3.Error):
                 target = None
             if target in SEXY_TIME_COMMANDS:
-                routine_reply, outcome = run_sexy_time(SEXY_TIME_COMMANDS[target], ha_device_connection())
+                routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[target], ha_device_connection())
             elif target in DINNER_PHRASES:
                 routine_reply, outcome = start_dinner(ha_device_connection())
             elif target in GUEST_COMMANDS:
