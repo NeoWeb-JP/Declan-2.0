@@ -85,9 +85,9 @@ h1 small { color: #62e7ff; border: 1px solid #388da2; border-radius: 3px; paddin
   border-radius: .35rem; background: #060d14e6; }
 .connection::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: .5rem;
   border-radius: 50%; background: #7796a8; }
-.connection[data-state="connected"]::before { background: #62e7ff; box-shadow: 0 0 8px #62e7ff; }
-.connection[data-state="disconnected"]::before,
-.connection[data-state="authentication_failed"]::before { background: #ffb777; }
+.connection:has([data-state="connected"])::before { background: #62e7ff; box-shadow: 0 0 8px #62e7ff; }
+.connection:has([data-state="disconnected"])::before,
+.connection:has([data-state="authentication_failed"])::before { background: #ffb777; }
 .settings summary { display: grid; place-items: center; list-style: none; width: 38px; height: 38px;
   border: 1px solid #24566c; border-radius: 10px; color: #66e7ff; background: #0a1621; }
 .settings summary::-webkit-details-marker { display: none; }
@@ -134,7 +134,9 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
     </div>
   </details>
 </header>
-<span id="ha-status" class="mono connection" role="status">Checking Home Assistant…</span>
+<div class="mono connection"><span id="ha-status" role="status">Checking Home Assistant.</span>
+  <button id="open-updates" type="button" aria-haspopup="dialog">Updates</button>
+</div>
 <main>
   <div class="voice-stage"><div class="voice-core">
     <svg class="voice-rings" viewBox="0 0 320 320" aria-hidden="true">
@@ -192,6 +194,16 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
       <p id="spotify-status" class="mono" role="status"></p>
     </form>
   </dialog>
+<dialog class="history" id="updates" aria-labelledby="updates-title">
+  <div class="history-heading"><h2 id="updates-title">Declan updates</h2>
+    <button id="close-updates" type="button">Close</button></div>
+  <div class="history-toolbar">
+    <button id="check-updates" type="button">Check for updates</button>
+    <label>Release <select id="update-version" disabled></select></label>
+    <button id="install-update" type="button" disabled>Install selected release</button>
+  </div>
+  <p id="update-status" class="mono" role="status"></p>
+</dialog>
 <script>
 const haStatus = document.querySelector('#ha-status');
 const haStatusLabels = {
@@ -222,6 +234,88 @@ async function refreshHAStatus() {
   setTimeout(refreshHAStatus, 15000);
 }
 void refreshHAStatus();
+
+const updatesPanel = document.querySelector('#updates');
+const checkUpdates = document.querySelector('#check-updates');
+const updateVersion = document.querySelector('#update-version');
+const installUpdate = document.querySelector('#install-update');
+const updateStatus = document.querySelector('#update-status');
+
+document.querySelector('#open-updates').addEventListener('click', () => {
+  updatesPanel.showModal();
+  checkUpdates.click();
+});
+document.querySelector('#close-updates').addEventListener('click', () => updatesPanel.close());
+
+async function watchUpdate(version) {
+  updateStatus.textContent = `Preparing ${version}. Declan will restart automatically.`;
+  const deadline = Date.now() + 8 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      const response = await fetch('/api/updates/status', {signal: AbortSignal.timeout(4000)});
+      if (response.status === 404 && (await fetch('/health', {signal: AbortSignal.timeout(4000)})).ok) {
+        location.reload();
+        return;
+      }
+      if (!response.ok) continue;
+      const result = await response.json();
+      if (result.current === version) {
+        location.reload();
+        return;
+      }
+      if (result.state === 'failed') {
+        updateStatus.textContent = 'Update failed during preparation. The current build is still running.';
+        return;
+      }
+    } catch {
+      // The service can be briefly unreachable while systemd restarts it.
+    }
+  }
+  updateStatus.textContent = 'Could not verify the restart. Check the Declan service log.';
+}
+
+checkUpdates.addEventListener('click', async () => {
+  checkUpdates.disabled = updateVersion.disabled = installUpdate.disabled = true;
+  updateStatus.textContent = 'Checking GitHub…';
+  try {
+    const response = await fetch('/api/updates');
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    if (!result.enabled) {
+      updateStatus.textContent = 'Updates are not enabled on this installation.';
+    } else if (['installing', 'restarting'].includes(result.state)) {
+      await watchUpdate(result.version);
+    } else {
+      const versions = result.versions.filter(version => version !== result.current);
+      updateVersion.replaceChildren(...versions.map(version => new Option(version, version)));
+      updateVersion.disabled = installUpdate.disabled = !versions.length;
+      updateStatus.textContent = versions.length ? `Running ${result.current || 'a development build'}.` : 'No other tagged releases found.';
+    }
+  } catch (error) {
+    updateStatus.textContent = error.message;
+  } finally {
+    checkUpdates.disabled = false;
+  }
+});
+
+installUpdate.addEventListener('click', async () => {
+  const version = updateVersion.value;
+  if (!version) return;
+  checkUpdates.disabled = updateVersion.disabled = installUpdate.disabled = true;
+  try {
+    const response = await fetch('/api/updates', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({version})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    await watchUpdate(version);
+  } catch (error) {
+    updateStatus.textContent = error.message;
+  } finally {
+    checkUpdates.disabled = false;
+  }
+});
 
 const form = document.querySelector('form');
 const input = form.querySelector('input');

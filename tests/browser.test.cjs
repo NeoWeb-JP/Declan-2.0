@@ -234,6 +234,23 @@ test('Assist microphone sends audio then submits the returned transcript once', 
   assert.match(ui.element('#voice-status').textContent, /Listening with Assist/);
 });
 
+test('updates list allows selecting an older release', async t => {
+  const ui = browser(t);
+  ui.responses.set('/api/updates', {enabled: true, state: 'idle', current: '0.1.2', versions: ['0.1.3', '0.1.2', '0.1.1']});
+  ui.element('#open-updates').click();
+  await flush();
+  assert.deepEqual(Array.from(ui.element('#update-version').options, option => option.value), ['0.1.3', '0.1.1']);
+  ui.element('#update-version').value = '0.1.1';
+  ui.element('#install-update').click();
+  await flush();
+  const requests = ui.calls.filter(call => call.url === '/api/updates');
+  assert.deepEqual(JSON.parse(requests[1].options.body), {version: '0.1.1'});
+  assert.match(ui.element('#update-status').textContent, /restart automatically/);
+  ui.responses.set('/api/updates/status', {state: 'failed'});
+  assert.equal(await ui.tick(2000), true);
+  assert.match(ui.element('#update-status').textContent, /current build is still running/);
+});
+
 test('incomplete voice commands never reach the server', async t => {
   const ui = browser(t, {voice: true});
   transcript(ui.recognition, 'turn on the kitchen and');

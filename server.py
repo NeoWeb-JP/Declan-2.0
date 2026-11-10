@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import sqlite3
+import subprocess
 from collections import OrderedDict
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -21,6 +22,7 @@ import device_status
 import history
 import music
 import timers
+import updates
 import web_stt
 from personality import add_sass
 
@@ -35,6 +37,7 @@ ASSIST_PORT = 52737
 RELEASE_VERSION = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
 if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION) or len(RELEASE_VERSION) > 40:
     RELEASE_VERSION = None
+RELEASE_VERSION = updates.installed_version(RELEASE_VERSION)
 GUEST_MODE_ENTITY = "input_boolean.guest_mode"
 NAME_PATTERN = re.compile(r"my name is ([^\W\d_][\w '\u2019-]{0,39})", re.I)
 CHAT_COMMANDS = {
@@ -1258,7 +1261,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.client_address[0] != "127.0.0.1":
             self.send_json(403, {"error": "Local access only."})
             return
-        if (self.path.startswith("/api/history") or self.path == "/api/settings/spotify") and self.headers.get("Host") not in {
+        if (self.path.startswith("/api/history") or self.path in {"/api/settings/spotify", "/api/updates", "/api/updates/status"}) and self.headers.get("Host") not in {
             f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"
         }:
             self.send_json(403, {"error": "Use the local Declan address."})
@@ -1272,6 +1275,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, {"status": "ok"})
         elif self.path == "/api/ha-status":
             self.send_json(200, {"status": home_assistant_status(), "release_version": RELEASE_VERSION})
+        elif self.path == "/api/updates/status":
+            self.send_json(200, {**updates.status(), "current": RELEASE_VERSION})
+        elif self.path == "/api/updates":
+            try:
+                self.send_json(200, {**updates.status(), "current": RELEASE_VERSION, "versions": updates.check()})
+            except (OSError, subprocess.SubprocessError):
+                self.send_json(503, {"error": "Couldn't check GitHub for releases."})
         elif self.path == "/api/settings/spotify":
             self.spotify_settings()
         elif self.path == "/api/history/export":
@@ -1343,7 +1353,7 @@ class Handler(BaseHTTPRequestHandler):
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif self.client_address[0] != "127.0.0.1":
@@ -1367,6 +1377,14 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
+            if self.path == "/api/updates":
+                try:
+                    updates.queue(body.get("version") if isinstance(body, dict) else None, RELEASE_VERSION)
+                except ValueError as error:
+                    self.send_json(409, {"error": str(error)})
+                    return
+                self.send_json(202, {"status": "installing"})
+                return
             if self.path == "/api/settings/spotify":
                 if not isinstance(body, dict):
                     raise ValueError
@@ -1614,6 +1632,9 @@ def main():
                 webbrowser.open(url + "/")
             while worker.is_alive():
                 worker.join(timeout=0.5)
+                if updates.RESTART.is_set():
+                    print("Restarting Declan to activate the selected release.", flush=True)
+                    raise SystemExit(75)
                 try:
                     timers.ring_due(opener)
                 except (OSError, sqlite3.Error):
