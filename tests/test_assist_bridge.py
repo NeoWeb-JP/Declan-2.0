@@ -17,6 +17,8 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         module_names = (
             "aiohttp", "voluptuous", "homeassistant", "homeassistant.helpers",
             "homeassistant.helpers.aiohttp_client", "homeassistant.components",
+            "homeassistant.components.tts", "homeassistant.exceptions", "homeassistant.helpers.storage",
+            "wyoming", "wyoming.client", "wyoming.asr", "wyoming.audio", "wyoming.error",
         )
         modules = {name: ModuleType(name) for name in module_names}
         modules["aiohttp"].ClientError = OSError
@@ -25,7 +27,19 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         modules["voluptuous"].Schema = Mock()
         modules["voluptuous"].Required = lambda name, **kwargs: name
         modules["voluptuous"].Optional = lambda name: name
-        modules["voluptuous"].In = Mock()
+        for validator in ("In", "All", "Coerce", "Range", "Length"):
+            setattr(modules["voluptuous"], validator, Mock())
+        modules["homeassistant.components"].tts = modules["homeassistant.components.tts"]
+        modules["homeassistant.components.tts"].TextToSpeechEntity = object
+        modules["homeassistant.components.tts"].get_engine_instance = Mock(return_value=None)
+        modules["homeassistant.exceptions"].HomeAssistantError = type("HomeAssistantError", (Exception,), {})
+        modules["homeassistant.helpers.storage"].Store = Mock()
+        for suffix, names in {
+            "client": ("AsyncTcpClient",), "asr": ("Transcribe", "Transcript"),
+            "audio": ("AudioStart", "AudioChunk", "AudioStop"), "error": ("Error",),
+        }.items():
+            for name in names:
+                setattr(modules[f"wyoming.{suffix}"], name, Mock())
         modules["homeassistant"].config_entries = SimpleNamespace(ConfigFlow=ConfigFlow, OptionsFlowWithReload=object)
         modules["homeassistant.helpers"].selector = SimpleNamespace(
             TextSelector=Mock(), TextSelectorConfig=Mock(), TextSelectorType=SimpleNamespace(PASSWORD="password")
@@ -139,3 +153,60 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             self.assertEqual(recording.readframes(2), b"\x00\x01\x02\x03")
         self.assertIn(("model", "gpt-transcribe"), [field.args for field in fields])
         self.assertFalse(self.session.post.call_args.kwargs["allow_redirects"])
+
+    async def test_wyoming_is_registered_and_retains_speaker_event(self):
+        provider = import_module("custom_components.declan_two.stt")
+        bridge = import_module("custom_components.declan_two.wyoming_speaker_stt")
+        self.entry.options = {
+            "wyoming_bridge_enabled": True, "wyoming_bridge_host": "192.168.0.43",
+            "wyoming_bridge_port": 10300,
+        }
+        add = Mock()
+        await provider.async_setup_entry(None, self.entry, add)
+        entity = add.call_args.args[0][0]
+        bridge.Transcript.is_type.side_effect = lambda name: name == "transcript"
+        bridge.Transcript.from_event.return_value.text = "What's the time?"
+        client = bridge.AsyncTcpClient.return_value.__aenter__ = AsyncMock()
+        client.return_value.write_event = AsyncMock()
+        client.return_value.read_event = AsyncMock(side_effect=[
+            SimpleNamespace(type="jarvis-speaker", data={
+                "speaker": "Jaco", "confidence": 0.32, "interaction_id": "match-1",
+            }),
+            SimpleNamespace(type="transcript"),
+        ])
+        bridge.AsyncTcpClient.return_value.__aexit__ = AsyncMock()
+
+        async def audio():
+            yield b"\x00\x01"
+
+        transcript, status = await entity.async_process_audio_stream(SimpleNamespace(language="en"), audio())
+        self.assertEqual((transcript, status), ("What's the time?", "success"))
+        self.assertEqual(transcript.jarvis_speaker, ("match-1", "Jaco", 0.32))
+        bridge.AsyncTcpClient.assert_called_once_with("192.168.0.43", 10300)
+
+    async def test_voice_manager_reuses_provider_and_legacy_cache_identity(self):
+        platform = import_module("custom_components.declan_two.tts")
+        self.entry.options = {"tts_enabled": True, "elevenlabs_voice": "declan-voice-id"}
+        hass = SimpleNamespace(config=SimpleNamespace(path=Mock(return_value="jarvis_voice_cache")))
+        add = Mock()
+        with patch.object(platform, "VoiceCache") as cache, patch.object(platform, "VoiceBudget") as budget:
+            budget.return_value.load = AsyncMock()
+            budget.return_value.reserve = AsyncMock()
+            await platform.async_setup_entry(hass, self.entry, add)
+
+            async def cached_audio(**kwargs):
+                extension, audio = await kwargs["generate"]()
+                return extension, audio, False
+
+            cache.return_value.get_or_generate_audio = AsyncMock(side_effect=cached_audio)
+            entity = add.call_args.args[0][0]
+            entity.hass = hass
+            entity.entity_id = "tts.declan_2_0_voice_manager"
+            with patch.object(platform, "generate_from_existing_tts", AsyncMock(return_value=("mp3", b"audio"))) as generate:
+                self.assertEqual(await entity.async_get_tts_audio("Hello", "en", {}), ("mp3", b"audio"))
+            generate.assert_awaited_once_with(
+                hass, provider_entity_id="tts.elevenlabs_text_to_speech", text="Hello",
+                language="en", options={"voice": "declan-voice-id"},
+            )
+            cache.assert_called_once_with("jarvis_voice_cache")
+            self.assertEqual(cache.return_value.get_or_generate_audio.call_args.kwargs["voice_id"], "v1:declan-voice-id")

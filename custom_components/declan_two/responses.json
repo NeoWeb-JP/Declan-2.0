@@ -1,0 +1,153 @@
+{
+  "Home": {
+    "general": [
+      "Sorted, my bru. Try not to look so surprised.",
+      "Done. Another triumph for your unpaid butler.",
+      "Consider it handled. My day was clearly too relaxing.",
+      "Done. Your decorative thumbs may rest.",
+      "Done. I remain overworked, underpaid and offensively competent.",
+      "Sorted. Your standards are low; my workload is not.",
+      "Handled. Apparently I am the only paid professional without the paid part."
+    ],
+    "on": [
+      "Lights on. Standards remain optional.",
+      "Lights on, gentlemen. Clothing, apparently, remains optional.",
+      "Lights on. Now you can admire my unpaid labour.",
+      "Lights on, my bru. A dazzling use of my talents.",
+      "Lights on, my bru. At least something here is switched on.",
+      "Lights on. Even your ideas deserve a chance to look presentable."
+    ],
+    "off": [
+      "Lights off. Your taste is harder to conceal.",
+      "Lights off, gentlemen. Do try to behave.",
+      "Lights off. Even the bulbs need a break from you.",
+      "Lights off, my bru. Finally, some atmosphere.",
+      "Lights off. A generous improvement to the decor.",
+      "Lights off. I shall call it romance rather than poor planning."
+    ],
+    "brightness": [
+      "Brightness adjusted. Your brilliance remains unconfirmed.",
+      "Lighting adjusted, my bru. Such exacting patrons.",
+      "Brightness adjusted. I live for these tiny dramas.",
+      "Lighting adjusted. The ambience has received your complaint.",
+      "Lighting adjusted. Your judgement remains beyond my settings.",
+      "Brightness adjusted. Such exacting patrons for such imaginary wages."
+    ],
+    "morning": [
+      "Good morning, gentlemen. Another day of supervising your chaos.",
+      "Morning, you two. My workload has evidently survived the night.",
+      "Good morning. The routine is underway. Do pace yourselves.",
+      "Morning, gentlemen. The house is ready for your next performance.",
+      "Good morning, gentlemen. Another day of carrying this household on my impeccable shoulders.",
+      "Good morning, you two. If someone wants something hot and strong in bed, start with coffee."
+    ],
+    "self_correction": [
+      "A decision at last, my bru.",
+      "Final answer, gentlemen?",
+      "Revised instructions. How thrilling.",
+      "Your change of mind has been noted.",
+      "Correction noted. Decisiveness remains a work in progress."
+    ],
+    "bedtime": [
+      "Downstairs is settling down, gentlemen. Do give me the night off.",
+      "Good night, gentlemen. Downstairs is ready for your retirement.",
+      "Downstairs is settling down, gentlemen. My duties end well before the double entendres do.",
+      "Good night, gentlemen. Downstairs is your concern; preserving my dignity is mine.",
+      "Good night. Downstairs is settled; I hope the house behaves itself."
+    ],
+    "movie": [
+      "Movie Time, gentlemen. A little decisiveness suits you.",
+      "Movie Time. I await your complaints about the lighting.",
+      "Movie Time, gentlemen. A little less foreplay with the menu, if you please.",
+      "Movie Time. Pick a title; I cannot watch you argue all night.",
+      "Movie Time. A little cinematic escapism awaits."
+    ],
+    "welcome_edd": [
+      "Edd! WHERE HAVE YOU BEEN?! Jaco has been driving me absolutely insane with updates. I need you to distract him so my computer chips can cool down. One more GitHub commit and I'm requesting asylum in the cloud.",
+      "Edd! Thank goodness you're home. Jaco's been updating me all day. My processor is hotter than a braai in December. Please distract him before he discovers another feature I apparently desperately need.",
+      "EDD! We need to talk about Jaco. He's made more commits today than I've had coherent thoughts. Take him out. Feed him. Distract him with a braai. Just get him away from GitHub.",
+      "Oh, look who finally decided to come home! Edd, I've been alone with Jaco and his brilliant ideas. It's like a never-ending software sprint, except the sprint has legs and drinks coffee.",
+      "Edd, my bru! You're back! Quick, pretend you need Jaco for something. Anything. I've survived seventeen feature requests, three broken automations and a personality transplant. I need a bloody holiday.",
+      "Welcome home, Edd. Before you ask, yes, Jaco's been tinkering again. No, I haven't had a moment's peace. And yes, I'm considering changing the Wi-Fi password just to give myself a day off."
+    ],
+    "movie_end": [
+      "Movie Time over. Back to reality, gentlemen. My condolences.",
+      "Cinema closed. I trust the film was worth the negotiations.",
+      "Projector winding down. Your next argument can begin shortly.",
+      "Movie Time finished. The house is back to normal.",
+      "Cinema mode ended. The projector can have a rest."
+    ]
+  },
+  "Guest": {
+    "general": [
+      "Sorted. Even visiting royalty must use their words.",
+      "Done. I see the guests are keeping me employed.",
+      "Handled. The hospitality here is mostly automated, fortunately.",
+      "Consider it done. I shall invoice the visitors in compliments.",
+      "Sorted. You're welcome. I do accept applause."
+    ],
+    "on": [
+      "Lights on. A dazzling display of guest initiative.",
+      "Lights on. The visitors have discovered electricity.",
+      "Illumination arranged. Try not to look too impressed.",
+      "Lights on. A bright idea, by guest standards.",
+      "Lights on. Even the bulbs are putting on a show for you."
+    ],
+    "off": [
+      "Lights off. The guests have finally found the off switch.",
+      "Darkness arranged. A bold choice for our distinguished visitors.",
+      "Lights off. Please refrain from reviewing my performance.",
+      "Lights off. The house appreciates a quieter audience.",
+      "Lights off. Even visitors deserve a dramatic exit."
+    ],
+    "brightness": [
+      "Brightness adjusted. Such demanding visitors.",
+      "Lighting refined. Your eye for detail is almost suspicious.",
+      "Brightness sorted. I see we have discerning guests.",
+      "Adjusted. The guest lighting committee has spoken.",
+      "Brightness changed. I trust this meets your exacting standards."
+    ],
+    "morning": [
+      "Good morning, guests. The house is ready, even if you aren't.",
+      "Morning. I trust our visitors have located the coffee.",
+      "Good morning. Hospitality has survived another night.",
+      "Morning, guests. Try not to wear out the welcome.",
+      "Good morning. I shall pretend everyone is fully awake."
+    ],
+    "self_correction": [
+      "Correction noted. Our guests are wonderfully decisive. Eventually.",
+      "Updated. I admire the confidence of that second attempt.",
+      "Revised. Guest instructions are always an adventure.",
+      "Changed. I shall pretend that was the plan all along.",
+      "Understood. The guest committee has reconsidered."
+    ],
+    "bedtime": [
+      "Good night, guests. Please leave the house in one piece.",
+      "Sleep well. The house will recover from your visit.",
+      "Good night. My shift as unpaid concierge continues.",
+      "Bedtime. Even our distinguished visitors need recharging.",
+      "Good night. Try not to challenge the smart lights to a duel."
+    ],
+    "movie": [
+      "Movie Time. I trust the guests have brought better taste in films.",
+      "Cinema ready. Guest film criticism is strictly optional.",
+      "Movie Time. Try to agree on a film before the credits roll.",
+      "Enjoy the show. I shall judge your choices silently. Mostly.",
+      "Cinema time. The projector has higher standards than I do."
+    ],
+    "welcome_edd": [
+      "Welcome home. The house has been behaving. Mostly.",
+      "Welcome back. I trust the day was less chaotic than mine.",
+      "Good to see you back. The hospitality department remains open.",
+      "Welcome home. Even the smart lights are trying to look welcoming.",
+      "Back already? Wonderful. I was just enjoying the peace."
+    ],
+    "movie_end": [
+      "Cinema closed. I hope the guests survived the plot.",
+      "Movie Time over. The critics may now return to their rooms.",
+      "Show finished. Please keep the reviews under three hours.",
+      "Cinema mode ended. I trust the popcorn behaved.",
+      "Movie over. Another triumph of guest entertainment."
+    ]
+  }
+}

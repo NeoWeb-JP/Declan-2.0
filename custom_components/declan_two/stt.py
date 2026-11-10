@@ -30,7 +30,11 @@ def pcm_to_wav(raw: bytes, *, sample_rate: int = 16000) -> bytes:
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    """Only expose cloud STT after an API key is explicitly configured."""
+    """Expose the configured speech engines independently."""
+    if entry.options.get("wyoming_bridge_enabled") and entry.options.get("wyoming_bridge_host"):
+        from .wyoming_speaker_stt import DeclanWyomingVoiceBridge
+
+        async_add_entities([DeclanWyomingVoiceBridge(entry)])
     if entry.options.get("openai_stt_enabled") and entry.options.get("openai_stt_api_key"):
         async_add_entities([DeclanOpenAISTT(hass, entry)])
 

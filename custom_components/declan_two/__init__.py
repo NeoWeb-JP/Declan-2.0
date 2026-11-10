@@ -7,7 +7,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["conversation", "stt"]
+PLATFORMS = ["conversation", "stt", "tts"]
 
 
 async def async_setup_entry(hass, entry):

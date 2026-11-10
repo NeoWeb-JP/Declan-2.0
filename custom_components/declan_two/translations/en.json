@@ -20,11 +20,21 @@
   "options": {
     "step": {
       "init": {
-        "title": "Declan 2.0 speech recognition",
+        "title": "Declan 2.0 voice settings",
         "data": {
           "openai_stt_enabled": "Enable OpenAI transcription",
           "openai_stt_model": "OpenAI transcription model",
-          "openai_stt_api_key": "OpenAI API key"
+          "openai_stt_api_key": "OpenAI API key",
+          "wyoming_bridge_enabled": "Enable Wyoming speaker recognition",
+          "wyoming_bridge_host": "VoicePipeline host",
+          "wyoming_bridge_port": "VoicePipeline Wyoming port",
+          "tts_enabled": "Enable Declan 2.0 Voice Manager",
+          "primary_tts": "Primary text-to-speech entity",
+          "elevenlabs_voice": "ElevenLabs voice",
+          "cache_enabled": "Save and reuse generated speech",
+          "cache_revision": "Voice cache revision",
+          "category_fallback": "Use a saved equivalent reply when the provider fails",
+          "primary_daily_character_limit": "Daily primary character limit (UTC; 0 means unlimited)"
         },
         "data_description": {
           "openai_stt_api_key": "Leave blank to keep the existing key. Required when enabling transcription for the first time."
@@ -32,7 +42,9 @@
       }
     },
     "error": {
-      "openai_key_required": "Enter an OpenAI API key to enable transcription."
+      "openai_key_required": "Enter an OpenAI API key to enable transcription.",
+      "wyoming_host_required": "Enter the VoicePipeline host to enable Wyoming recognition.",
+      "invalid_tts_provider": "Enter the entity ID of your speech provider, such as tts.elevenlabs_text_to_speech."
     }
   }
 }
