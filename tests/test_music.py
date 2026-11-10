@@ -4,6 +4,7 @@ import io
 import json
 import unittest
 from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 import music
@@ -15,19 +16,56 @@ class MusicTests(unittest.TestCase):
         self.players = {entity: {"entity_id": entity, "state": "idle", "attributes": {}}
                         for entity in music.PLAYERS.values()}
         self.bedroom, self.kitchen, self.group = (music.PLAYERS[room] for room in ("bedroom", "kitchen", "everywhere"))
-        self.track = {"media_content_id": "spotify--account://track/example",
+        self.track = {"media_content_id": "spotify--account://track/0JkIre0YxNmKGMU5V7ZiDx",
                       "media_title": "Coward of the County", "media_artist": "Kenny Rogers"}
         self.players[self.bedroom].update(state="playing", attributes=self.track)
         self.calls = []
+        self.searches = []
+        self.search_results = None
+        self.spotify_tokens = 0
+        self.spotify_throttled = False
         self.stop_works = True
         self.throttled = False
+        self.play_response = None
+        self.enterContext(patch.dict(music.os.environ, {
+            "DECLAN_SPOTIFY_PRESETS": "{}", "DECLAN_SPOTIFY_CLIENT_ID": "test-client",
+            "DECLAN_SPOTIFY_CLIENT_SECRET": "test-secret",
+        }))
+        self.enterContext(patch.object(music, "spotify_token", None))
         self.enterContext(patch.object(music, "sleep"))
 
     def open(self, request, timeout):
+        if request.full_url == "https://accounts.spotify.com/api/token":
+            self.spotify_tokens += 1
+            self.assertEqual(parse_qs(request.data.decode())["client_id"], ["test-client"])
+            return io.BytesIO(b'{"access_token":"test-token","expires_in":3600}')
+        if request.full_url.startswith("https://api.spotify.com/v1/search?"):
+            self.assertEqual(request.get_header("Authorization"), "Bearer test-token")
+            query = parse_qs(urlsplit(request.full_url).query)
+            types = query["type"][0].split(",")
+            term = query["q"][0]
+            self.searches.append({"media_type": types, "q": term})
+            if self.spotify_throttled:
+                raise HTTPError(request.full_url, 429, "Too Many Requests", {}, None)
+            result = self.search_results
+            if result is None:
+                result = {"tracks": [{"name": term, "id": "0123456789AbCdEfGhIjKl"}]}
+            payload = {key: {"items": [
+                {"name": item["name"], "id": item.get("id", "0123456789AbCdEfGhIjKl")} for item in items
+            ]} for key, items in result.items()}
+            return io.BytesIO(json.dumps(payload).encode())
         path = request.full_url.removeprefix("http://ha")
         if request.data is None:
             return io.BytesIO(json.dumps(self.players[path.rsplit("/", 1)[1]]).encode())
         data = json.loads(request.data)
+        if path == "/api/template":
+            return io.BytesIO(b"music-assistant-entry")
+        if path.endswith("/search?return_response"):
+            self.searches.append(data)
+            result = self.search_results
+            if result is None:
+                result = {"tracks": [{"name": data["name"], "uri": "spotify://track/selected"}]}
+            return io.BytesIO(json.dumps({"service_response": result}).encode())
         self.calls.append((path.rsplit("/", 1)[1], data))
         player = self.players[data["entity_id"]]
         if path.endswith("/media_stop"):
@@ -41,8 +79,10 @@ class MusicTests(unittest.TestCase):
             player["state"] = "playing"
         elif self.throttled:
             raise HTTPError(request.full_url, 429, "Too Many Requests", {}, None)
+        elif self.play_response:
+            self.play_response(player, data)
         else:
-            player.update(state="playing", attributes={**self.track, "media_title": data["media_id"]})
+            player.update(state="playing", attributes={**self.track, "media_content_id": data["media_id"]})
         return io.BytesIO(b"[]")
 
     def play(self, phrase):
@@ -55,6 +95,7 @@ class MusicTests(unittest.TestCase):
             ("transfer_queue", {"entity_id": self.kitchen, "source_player": self.bedroom, "auto_play": True}),
             ("transfer_queue", {"entity_id": self.group, "source_player": self.kitchen, "auto_play": True}),
         ])
+        self.assertEqual(self.searches, [])
 
     def test_new_track_waits_for_stop_and_never_retries_rate_limit(self):
         self.stop_works = False
@@ -82,6 +123,66 @@ class MusicTests(unittest.TestCase):
         self.assertIn("stopped the previous Spotify stream and started islands in the stream in the kitchen", reply)
         self.assertEqual([action for action, _ in self.calls], ["media_stop", "play_media"])
 
+    def test_slow_response_can_still_confirm_a_requested_track_without_retrying(self):
+        def start_then_timeout(player, data):
+            player.update(state="playing", attributes={**self.track, "media_content_id": data["media_id"]})
+            raise TimeoutError
+
+        self.play_response = start_then_timeout
+        self.assertEqual(self.play("play islands in the stream in the kitchen")[1], "confirmed")
+        self.assertEqual([action for action, _ in self.calls], ["media_stop", "play_media"])
+
+    def test_genre_request_reports_playback_without_claiming_genre_was_verified(self):
+        def start_then_timeout(player, data):
+            player.update(state="playing", attributes={
+                **self.track, "media_content_id": "spotify--account://track/another",
+            })
+            raise TimeoutError
+
+        self.play_response = start_then_timeout
+        self.search_results = {"playlists": [{"name": "Country Music", "uri": "spotify://playlist/country"}]}
+        reply, outcome = self.play("play country music in the bedroom")
+        self.assertEqual(outcome, "partial")
+        self.assertIn("Spotify started playing in the bedroom", reply)
+        self.assertIn("couldn't verify the requested selection", reply)
+        self.assertEqual([action for action, _ in self.calls], ["media_stop", "play_media"])
+        self.assertEqual(self.calls[0][1]["entity_id"], self.bedroom)
+
+    def test_playlist_can_start_after_the_original_verification_window(self):
+        self.players[self.bedroom]["state"] = "idle"
+        self.search_results = {"playlists": [{"name": "Country Music", "id": "4Jb4PDWREzNnbZcOHPcZPy"}]}
+        reads = 0
+        original_open = self.open
+
+        def delayed_playback(request, timeout):
+            nonlocal reads
+            if request.full_url.endswith("/play_media"):
+                original_open(request, timeout)
+                self.players[self.bedroom]["state"] = "buffering"
+                raise TimeoutError
+            if request.data is None and request.full_url.endswith(self.bedroom):
+                reads += 1
+                if reads == 6:
+                    self.players[self.bedroom].update(state="playing", attributes=self.track)
+            return original_open(request, timeout)
+
+        with patch.object(self, "open", side_effect=delayed_playback):
+            reply, outcome = self.play("play country music in the bedroom")
+        self.assertEqual(outcome, "partial")
+        self.assertIn("Spotify started playing in the bedroom", reply)
+        self.assertEqual([action for action, _ in self.calls], ["play_media"])
+
+    def test_timed_out_request_does_not_claim_playback_restarted(self):
+        def time_out(player, data):
+            raise TimeoutError
+
+        self.play_response = time_out
+        self.search_results = {"playlists": [{"name": "Country Music", "uri": "spotify://playlist/country"}]}
+        reply, outcome = self.play("play country music in the bedroom")
+        self.assertEqual(outcome, "unverified")
+        self.assertIn("took too long", reply)
+        self.assertEqual([action for action, _ in self.calls], ["media_stop", "play_media"])
+
     def test_paused_destination_resumes_and_unknown_destination_is_ignored(self):
         self.players[self.bedroom]["state"] = "paused"
         self.assertEqual(self.play("move the music to the bedroom")[1], "confirmed")
@@ -89,5 +190,103 @@ class MusicTests(unittest.TestCase):
         self.assertEqual([action for action, _ in self.calls], ["media_play"])
         self.assertIsNone(music.parse("play music in the garage"))
         with patch.object(server, "ha_device_connection", return_value=None):
-            self.assertEqual(music.play(("kitchen", "track"), server.ha_device_connection(), None)[1],
+            self.assertEqual(music.play(("kitchen", "track", "spotify"), server.ha_device_connection(), None)[1],
                              "not_configured")
+
+    def test_spotify_default_never_falls_back_to_radio(self):
+        self.search_results = {"radio": [{"name": "Country Music", "uri": "tunein://radio/station"}]}
+        self.assertEqual(self.play("play country music in the kitchen")[1], "unavailable")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.players[self.bedroom]["state"], "playing")
+        self.assertEqual(self.searches[0]["media_type"], ["playlist"])
+
+    def test_explicit_radio_searches_stations_and_leaves_other_rooms_alone(self):
+        self.search_results = {"radio": [
+            {"name": "Heart London", "uri": "radiobrowser://radio/other"},
+            {"name": "Heart London", "uri": "tunein://radio/heart"},
+        ]}
+        self.assertEqual(self.play("play heart london in the kitchen on tunein")[1], "confirmed")
+        self.assertEqual(self.calls, [("play_media", {
+            "entity_id": self.kitchen, "media_id": "tunein://radio/heart", "media_type": "radio", "enqueue": "play",
+        })])
+        self.assertEqual(self.searches[0]["media_type"], ["radio"])
+        self.assertEqual(self.players[self.bedroom]["state"], "playing")
+        self.assertEqual(music.parse("play heart london on tunein in the kitchen"),
+                         ("kitchen", "heart london", "tunein"))
+        self.assertEqual(music.parse("play radio heart london in the bedroom"),
+                         ("bedroom", "heart london", "radio"))
+
+    def test_search_timeout_keeps_previous_stream_playing(self):
+        with patch.object(music, "search_media", side_effect=TimeoutError):
+            reply, outcome = self.play("play country music in the kitchen")
+        self.assertEqual(outcome, "unverified")
+        self.assertIn("search took too long", reply)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.players[self.bedroom]["state"], "playing")
+
+    def test_saved_favourite_bypasses_search_and_matches_the_spotify_track_id(self):
+        self.players[self.bedroom]["state"] = "idle"
+
+        def start_track(player, data):
+            player.update(state="playing", attributes=self.track)
+
+        self.play_response = start_track
+        reply, outcome = self.play("play coward of the county by kenny rogers in the bedroom")
+        self.assertEqual(outcome, "confirmed", reply)
+        self.assertEqual(self.searches, [])
+        self.assertEqual(self.calls[0][1]["media_id"], music.FAVOURITE_TRACK)
+
+    def test_configured_country_playlist_bypasses_search(self):
+        playlist = "https://open.spotify.com/playlist/0123456789AbCdEfGhIjKl"
+        self.players[self.bedroom]["state"] = "idle"
+        with patch.dict(music.os.environ, {"DECLAN_SPOTIFY_PRESETS": json.dumps({"Country Music": playlist + "?si=sample"})}):
+            self.play("play country music in the bedroom")
+        self.assertEqual(self.searches, [])
+        self.assertEqual(self.calls[0][1]["media_id"], playlist)
+        self.assertEqual(self.calls[0][1]["media_type"], "playlist")
+
+    def test_saved_favourite_does_not_override_a_different_artist(self):
+        self.play("play coward of the county by a different artist in the bedroom")
+        self.assertIn('artist:"a different artist"', self.searches[0]["q"])
+
+    def test_direct_spotify_search_reuses_token_and_passes_artist_url(self):
+        self.search_results = {"artists": [{"name": "Dolly Parton", "id": "32vWCbZh0xZ4o9gkz4PsEU"}]}
+        self.play("play dolly parton in the bedroom")
+        self.play("play dolly parton in the bedroom")
+        self.assertEqual(self.spotify_tokens, 1)
+        self.assertEqual(self.calls[1][1]["media_id"], "https://open.spotify.com/artist/32vWCbZh0xZ4o9gkz4PsEU")
+        self.assertEqual(self.calls[1][1]["media_type"], "artist")
+
+    def test_spotify_rate_limit_preserves_playback(self):
+        self.spotify_throttled = True
+        self.assertIn("Spotify search is being rate limited", self.play("play country music in the kitchen")[0])
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.players[self.bedroom]["state"], "playing")
+
+    def test_artist_request_verifies_the_reported_artist_of_the_new_track(self):
+        self.search_results = {"artists": [{"name": "Dolly Parton", "id": "32vWCbZh0xZ4o9gkz4PsEU"}]}
+
+        for artist, expected in (("Norah Jones", "partial"), ("Dolly Parton", "confirmed")):
+            with self.subTest(artist=artist):
+                self.players[self.bedroom].update(state="playing", attributes=self.track)
+
+                def start_track(player, data):
+                    player.update(state="playing", attributes={
+                        "media_content_id": "spotify--account://track/another",
+                        "media_title": "A song", "media_artist": artist,
+                    })
+
+                self.play_response = start_track
+                reply, outcome = self.play("play dolly parton in the bedroom")
+                self.assertEqual(outcome, expected)
+                if expected == "confirmed":
+                    self.assertIn("Dolly Parton is playing in the bedroom", reply)
+
+    def test_missing_spotify_credentials_do_not_block_saved_links(self):
+        self.players[self.bedroom]["state"] = "idle"
+        with patch.dict(music.os.environ, {"DECLAN_SPOTIFY_CLIENT_SECRET": ""}):
+            self.assertEqual(self.play("play country music in the bedroom")[1], "not_configured")
+            self.assertEqual(self.calls, [])
+            self.play("play coward of the county in the bedroom")
+        self.assertEqual(self.calls[0][1]["media_id"], music.FAVOURITE_TRACK)
+        self.assertEqual(self.spotify_tokens, 0)

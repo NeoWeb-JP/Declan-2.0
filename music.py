@@ -1,10 +1,12 @@
 """Route one household Spotify stream through Music Assistant."""
 
 import json
+import os
 import re
 from threading import Lock
-from time import sleep
+from time import monotonic, sleep
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import Request
 
 
@@ -16,29 +18,90 @@ PLAYERS = {
 ACTIVE = {"playing", "buffering", "paused"}
 STOPPED = {"idle", "off", "standby", "on"}
 HANDOFF = Lock()
+FAVOURITE_TRACK = "https://open.spotify.com/track/0JkIre0YxNmKGMU5V7ZiDx"
+SPOTIFY_PRESETS = {
+    "coward of the county": FAVOURITE_TRACK,
+    "coward of the county by kenny rogers": FAVOURITE_TRACK,
+}
+SPOTIFY_REFERENCE = re.compile(
+    r"(?:https://open\.spotify\.com/|spotify(?:--[\w-]+)?://|spotify:)"
+    r"(track|album|artist|playlist)[/:]([A-Za-z0-9]{22})/?(?:\?[^\s#]*)?"
+)
+spotify_token = None
+
+
+class SpotifyNotConfigured(Exception):
+    """Spotify search needs its own application credentials."""
+
+
+def spotify_search(opener, title, artist, types):
+    global spotify_token
+    credentials = tuple(os.environ.get(key, "").strip()
+                        for key in ("DECLAN_SPOTIFY_CLIENT_ID", "DECLAN_SPOTIFY_CLIENT_SECRET"))
+    if not all(credentials):
+        raise SpotifyNotConfigured
+    now = monotonic()
+    if spotify_token is None or spotify_token[0] != credentials or spotify_token[2] <= now:
+        data = urlencode(dict(zip(("client_id", "client_secret"), credentials))
+                         | {"grant_type": "client_credentials"}).encode()
+        token_request = Request("https://accounts.spotify.com/api/token", data=data,
+                                headers={"Content-Type": "application/x-www-form-urlencoded"})
+        with opener.open(token_request, timeout=4) as response:
+            token = json.load(response)
+        access_token = token.get("access_token")
+        if not isinstance(access_token, str) or not access_token:
+            raise ValueError("Spotify did not return an access token")
+        spotify_token = (credentials, access_token, now + max(0, int(token.get("expires_in", 0)) - 30))
+    query = f'track:"{title}" artist:"{artist}"' if artist else title
+    params = urlencode({"q": query, "type": ",".join(types), "market": "GB", "limit": 5})
+    search_request = Request("https://api.spotify.com/v1/search?" + params,
+                             headers={"Authorization": f"Bearer {spotify_token[1]}"})
+    try:
+        with opener.open(search_request, timeout=8) as response:
+            results = json.load(response)
+    except HTTPError as error:
+        if error.code == 401:
+            spotify_token = None
+        raise
+    return [(f"https://open.spotify.com/{kind}/{item['id']}", kind, item["name"])
+            for kind in types for item in (results.get(f"{kind}s", {}).get("items") or [])
+            if isinstance(item, dict) and isinstance(item.get("name"), str)
+            and re.fullmatch(r"[A-Za-z0-9]{22}", str(item.get("id", "")))]
 
 
 def parse(phrase):
+    phrase = re.sub(r" on (spotify|radio|tunein)( in (?:the )?(?:bedroom|master bedroom|kitchen|everywhere))$",
+                    r"\2 on \1", phrase)
     match = re.fullmatch(
         r"(?:(?:move|transfer) (?:the )?music(?: to (?:the )?| )|"
-        r"play (?:(.+?) in (?:the )?|(.+?) (?=everywhere(?: on spotify)?$)))"
-        r"(bedroom|master bedroom|kitchen|everywhere)(?: on spotify)?",
+        r"play (?:(.+?) in (?:the )?|(.+?) (?=everywhere\b)))"
+        r"(bedroom|master bedroom|kitchen|everywhere)(?: on (spotify|radio|tunein))?",
         phrase,
     )
     if not match:
         return None
-    title, group_title, room = match.groups()
+    title, group_title, room, provider = match.groups()
     title = title or group_title
+    if provider is None and title:
+        station = re.fullmatch(r"radio (.+)|(.+) radio", title)
+        if station:
+            title = station[1] or station[2]
+            provider = "radio"
     if title in {"music", "the music", "this", "this music"}:
         title = None
-    return room.removeprefix("master "), title
+    return room.removeprefix("master "), title, provider or "spotify"
 
 
-def request(connection, path, data=None):
+def request(connection, path, data=None, *, timeout=None):
     url, headers, opener = connection
     body = json.dumps(data).encode() if data is not None else None
-    with opener.open(Request(url + path, data=body, headers=headers), timeout=4) as response:
-        return json.load(response) if data is None else None
+    search = path.endswith("/search?return_response")
+    with opener.open(Request(url + path, data=body, headers=headers),
+                     timeout=timeout if timeout is not None else 10 if search else 4) as response:
+        if data is None or search:
+            return json.load(response)
+        if path == "/api/template":
+            return response.read().decode().strip()
 
 
 def spotify_id(player):
@@ -48,24 +111,81 @@ def spotify_id(player):
     return None
 
 
+def media_key(uri):
+    match = SPOTIFY_REFERENCE.fullmatch(uri or "")
+    if match:
+        return f"spotify://{match[1]}/{match[2]}"
+    return re.sub(r"^spotify(?:--[^:]+)?://", "spotify://", uri or "")
+
+
+def saved_spotify_selection(title, artist):
+    phrase = f"{title} by {artist}" if artist else title
+    try:
+        configured = json.loads(os.environ.get("DECLAN_SPOTIFY_PRESETS", "{}"))
+    except json.JSONDecodeError:
+        configured = {}
+    presets = SPOTIFY_PRESETS.copy()
+    if isinstance(configured, dict):
+        presets.update({" ".join(name.casefold().split()): link for name, link in configured.items()
+                        if isinstance(link, str) and SPOTIFY_REFERENCE.fullmatch(link.strip())})
+    link = presets.get(phrase)
+    if link:
+        match = SPOTIFY_REFERENCE.fullmatch(link.strip())
+        return f"https://open.spotify.com/{match[1]}/{match[2]}", match[1], title
+    return None
+
+
+def search_media(connection, destination, title, artist, provider):
+    if provider == "spotify":
+        types = (("track",) if artist else ("playlist",) if title.endswith(" music")
+                 else ("track", "album", "artist", "playlist"))
+        options = spotify_search(connection[2], title, artist, types)
+        return next((item for item in options if item[2].casefold() == title.casefold()),
+                    options[0] if options else None)
+    entry = request(connection, "/api/template", {
+        "template": "{{ config_entry_id(" + json.dumps(destination) + ") or '' }}",
+    })
+    if not entry:
+        return None
+    data = {"config_entry_id": entry, "name": title, "media_type": ["radio"], "limit": 5}
+    payload = request(connection, "/api/services/music_assistant/search?return_response", data)
+    results = payload.get("service_response") or {}
+    options = []
+    for item in results.get("radio") or []:
+        uri = item.get("uri") or ""
+        name = item.get("name") or ""
+        if provider == "tunein" and not re.match(r"^tunein(?:--[^:]+)?://radio/", uri):
+            mapping = next((m for m in item.get("provider_mappings") or []
+                            if m.get("provider_domain") == "tunein" and m.get("item_id")
+                            and m.get("available", True)), None)
+            uri = f"tunein://radio/{mapping['item_id']}" if mapping else ""
+        if uri and name:
+            options.append((uri, "radio", name))
+    return next((item for item in options if item[2].casefold() == title.casefold()),
+                options[0] if options else None)
+
+
 def matches_track(player, title, artist):
     attributes = player.get("attributes") or {}
     return (str(attributes.get("media_title") or "").casefold() == title.casefold()
             and (not artist or str(attributes.get("media_artist") or "").casefold() == artist.casefold()))
 
 
-def wait_for(connection, player, predicate):
-    for attempt in range(4):
+def wait_for(connection, player, predicate, *, attempts=4):
+    for attempt in range(attempts):
         if attempt:
             sleep(1)
-        state = request(connection, "/api/states/" + player)
+        try:
+            state = request(connection, "/api/states/" + player, timeout=1)
+        except TimeoutError:
+            continue
         if predicate(state):
             return True
     return False
 
 
 def play(command, connection, read_inventory):
-    room, title = command
+    room, title, provider = command
     destination = PLAYERS[room]
     location = "everywhere" if room == "everywhere" else f"in the {room}"
     if connection is None:
@@ -81,6 +201,8 @@ def play(command, connection, read_inventory):
                    if isinstance(row, dict) and row.get("entity_id") in PLAYERS.values()}
         if players.get(destination, {}).get("state") in (None, "unknown", "unavailable"):
             return f"The Music Assistant player {location} is unavailable.", "unavailable"
+        previous_state = players[destination]["state"]
+        previous_track = (players[destination].get("attributes") or {}).get("media_content_id")
         streams = {entity: player for entity, player in players.items()
                    if player.get("state") in ACTIVE and spotify_id(player)}
         group = PLAYERS["everywhere"]
@@ -93,38 +215,98 @@ def play(command, connection, read_inventory):
             return "I found more than one active Spotify queue and couldn't tell which one to move.", "unverified"
         source = next(iter(streams), None)
         artist = ""
-        if title and " by " in title:
+        if title and provider == "spotify" and " by " in title:
             title, _, artist = title.rpartition(" by ")
-        move = title is None or bool(source and matches_track(streams[source], title, artist))
+        saved = saved_spotify_selection(title, artist) if title and provider == "spotify" else None
+        same_track = source and (
+            media_key(spotify_id(streams[source])) == media_key(saved[0]) if saved
+            else title and matches_track(streams[source], title, artist)
+        )
+        move = provider == "spotify" and (title is None or same_track)
+        if provider != "spotify" and title is None:
+            return "Tell me which radio station to play.", "unavailable"
         if title is None and source is None:
             return "I couldn't find an active Spotify queue. Tell me what to play.", "unavailable"
         if move and source == destination and streams[source]["state"] == "playing":
             return f"Spotify is already playing {location}.", "confirmed"
-        if move and source == destination:
-            request(connection, "/api/services/media_player/media_play", {"entity_id": destination})
-        elif move:
-            request(connection, "/api/services/music_assistant/transfer_queue",
-                    {"entity_id": destination, "source_player": source, "auto_play": True})
+        if move:
+            if source == destination:
+                path = "/api/services/media_player/media_play"
+                data = {"entity_id": destination}
+            else:
+                path = "/api/services/music_assistant/transfer_queue"
+                data = {"entity_id": destination, "source_player": source, "auto_play": True}
         else:
-            if source and source != destination:
+            try:
+                selection = saved or search_media(connection, destination, title, artist, provider)
+            except SpotifyNotConfigured:
+                return "Spotify search isn't configured. Saved Spotify links can still play.", "not_configured"
+            except HTTPError as error:
+                if provider != "spotify":
+                    raise
+                error.close()
+                detail = ("Spotify search is being rate limited." if error.code == 429
+                          else f"Spotify search returned HTTP {error.code}.")
+                return f"{detail} I haven't changed playback.", "unverified"
+            except TimeoutError:
+                return "The search took too long. I haven't changed playback.", "unverified"
+            if selection is None:
+                source_name = {"spotify": "Spotify", "radio": "radio", "tunein": "TuneIn"}[provider]
+                return f"I couldn't find {title} on {source_name}.", "unavailable"
+            uri, kind, selected_name = selection
+            if provider == "spotify" and source:
                 request(connection, "/api/services/media_player/media_stop", {"entity_id": source})
                 if not wait_for(connection, source, lambda player: player.get("state") in STOPPED):
                     return "I couldn't confirm Spotify stopped on the previous player. I didn't start another stream.", "unverified"
                 stopped = True
-            data = {"entity_id": destination, "media_id": title, "enqueue": "play"}
-            if artist:
-                data.update(artist=artist, media_type="track")
-            request(connection, "/api/services/music_assistant/play_media", data)
-        if wait_for(connection, destination, lambda player: (
-            player.get("state") == "playing" and spotify_id(player) and (
-                spotify_id(player) == spotify_id(streams[source]) if move
-                else matches_track(player, title, artist)
-            )
-        )):
+                if source == destination:
+                    previous_state = "idle"
+            data = {"entity_id": destination, "media_id": uri, "media_type": kind, "enqueue": "play"}
+            path = "/api/services/music_assistant/play_media"
+        timed_out = False
+        try:
+            request(connection, path, data)
+        except TimeoutError:
+            # Home Assistant can finish the command after our request times out.
+            timed_out = True
+
+        observed_playback = False
+
+        def verify(player):
+            nonlocal observed_playback
+            attributes = player.get("attributes") or {}
+            track = spotify_id(player) if provider == "spotify" else attributes.get("media_content_id")
+            if player.get("state") != "playing" or not track:
+                return False
+            if provider != "spotify" and spotify_id(player):
+                return False
+            if previous_state != "playing" or track != previous_track:
+                observed_playback = True
+            if move:
+                return media_key(track) == media_key(spotify_id(streams[source]))
+            if media_key(track) == media_key(uri):
+                return True
+            if kind == "artist":
+                reported_artist = attributes.get("media_artist") or ""
+                return observed_playback and reported_artist.casefold() == selected_name.casefold()
+            return not saved and kind == "track" and matches_track(player, selected_name, artist)
+
+        playback_source = "Spotify" if provider == "spotify" else "Radio"
+        # Music Assistant may still be retrying Spotify or expanding a playlist
+        # after the playback POST times out. Only poll state, never resend it.
+        if wait_for(connection, destination, verify, attempts=12 if timed_out else 4):
+            if not move and kind == "artist":
+                prefix = "I stopped the previous Spotify stream. " if stopped else ""
+                return f"{prefix}{selected_name} is playing {location}.", "confirmed"
             if stopped:
                 return f"I stopped the previous Spotify stream and started {title} {location}.", "confirmed"
-            return f"Spotify is playing {location}.", "confirmed"
+            return f"{playback_source} is playing {location}.", "confirmed"
         prefix = "I stopped the previous Spotify stream. " if stopped else ""
+        if observed_playback:
+            return (f"{prefix}{playback_source} started playing {location}, but I couldn't verify the requested selection.",
+                    "partial")
+        if timed_out:
+            return f"{prefix}Home Assistant took too long to respond, and I couldn't verify playback {location}.", "unverified"
         return f"{prefix}I sent the music request {location}, but couldn't verify playback.", "unverified"
     except HTTPError as error:
         error.close()

@@ -117,7 +117,7 @@ class APITests(TestCase):
         with patch.object(server.music, "play", return_value=("Spotify is playing everywhere.", "confirmed")) as play:
             response = self.ask("Move the music everywhere", path="/api/assist")
         self.assertEqual(response["outcome"], "confirmed")
-        self.assertEqual(play.call_args.args[0], ("everywhere", None))
+        self.assertEqual(play.call_args.args[0], ("everywhere", None, "spotify"))
 
 
 class StartupTests(TestCase):
