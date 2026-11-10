@@ -1395,11 +1395,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.send_json(200, {"source": source})
 
+    def has_ingress_access(self):
+        token = os.environ.get("DECLAN_INGRESS_TOKEN", "")
+        supplied = self.headers.get("X-Declan-Ingress-Token", "")
+        return (len(token) >= 32 and token != os.environ.get("DECLAN_ASSIST_TOKEN", "")
+                and secrets.compare_digest(supplied.encode(), token.encode()))
+
     def do_GET(self):
-        if self.client_address[0] != "127.0.0.1":
+        ingress = self.has_ingress_access()
+        if not ingress and self.client_address[0] != "127.0.0.1":
             self.send_json(403, {"error": "Local access only."})
             return
-        if (self.path.startswith("/api/history") or self.path in {"/api/settings/spotify", "/api/updates", "/api/updates/status"}) and self.headers.get("Host") not in {
+        if not ingress and (
+            self.path.startswith("/api/history")
+            or self.path in {"/api/settings/spotify", "/api/updates", "/api/updates/status"}
+        ) and self.headers.get("Host") not in {
             f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"
         }:
             self.send_json(403, {"error": "Use the local Declan address."})
@@ -1502,13 +1512,12 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents"}:
             self.send_json(404, {"error": "Not found."})
             return
-        elif self.client_address[0] != "127.0.0.1":
-            self.send_json(403, {"error": "Local access only."})
-            return
-        elif self.headers.get("Origin") not in {
-            f"http://127.0.0.1:{self.server.server_port}",
-            f"http://localhost:{self.server.server_port}",
-        }:
+        elif not self.has_ingress_access() and (
+            self.client_address[0] != "127.0.0.1" or self.headers.get("Origin") not in {
+                f"http://127.0.0.1:{self.server.server_port}",
+                f"http://localhost:{self.server.server_port}",
+            }
+        ):
             self.send_json(403, {"error": "Send requests from the local Declan page."})
             return
         if self.path == "/api/stt":

@@ -1,0 +1,20 @@
+name: Declan 2.0 Web
+version: "1.0.0"
+slug: declan_ingress
+description: Open the Proxmox-hosted Declan web interface inside Home Assistant.
+url: https://github.com/NeoWeb-JP/Declan-2.0
+arch:
+  - amd64
+  - aarch64
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:robot
+panel_title: Declan 2.0
+panel_admin: true
+options:
+  declan_url: http://192.168.0.55:52737
+  ingress_token: ""
+schema:
+  declan_url: url
+  ingress_token: password

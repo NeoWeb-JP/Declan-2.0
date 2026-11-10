@@ -9,9 +9,11 @@ from time import monotonic
 from unittest import TestCase
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 import server
+from declan_ingress import proxy
 from personality import LINES
 
 
@@ -46,6 +48,42 @@ class APITests(TestCase):
                                                "Authorization": "Bearer test"})
         self.assertEqual(status, 200, result)
         return json.loads(result)
+
+    def test_home_assistant_ingress_enforces_both_boundaries(self):
+        token = "x" * 64
+        self.enterContext(patch.dict(server.os.environ, {"DECLAN_INGRESS_TOKEN": token}))
+        self.enterContext(patch.object(proxy, "SUPERVISOR_ADDRESS", "127.0.0.1"))
+        gateway = self.enterContext(proxy.ThreadingHTTPServer(("127.0.0.1", 0), proxy.ProxyHandler))
+        gateway.target = urlsplit(self.origin)
+        gateway.ingress_token = token
+        worker = Thread(target=gateway.serve_forever, daemon=True)
+        worker.start()
+        self.addCleanup(worker.join)
+        self.addCleanup(gateway.shutdown)
+        origin = f"http://127.0.0.1:{gateway.server_port}"
+
+        def request(path, *, body=None, site=None):
+            headers = {"Content-Type": "application/json"}
+            if site:
+                headers["Sec-Fetch-Site"] = site
+            data = json.dumps(body).encode() if body is not None else None
+            try:
+                with urlopen(Request(origin + path, data=data, headers=headers), timeout=4) as response:
+                    return response.status, response.read()
+            except HTTPError as error:
+                with error:
+                    return error.code, error.read()
+
+        self.assertIn(b"./logo.png", request("/")[1])
+        self.assertEqual(request("/api/chat", body={"message": "hello"}, site="cross-site")[0], 403)
+        self.assertEqual(request("/api/assist", body={"message": "hello"}, site="same-origin")[0], 404)
+        self.assertEqual(self.request("/api/chat", body={"message": "hello"}, headers={
+            "X-Declan-Ingress-Token": "wrong", "Content-Type": "application/json",
+        })[0], 403)
+        self.assertEqual(request("/api/chat", body={"message": "hello"}, site="same-origin")[0], 200)
+        self.assertEqual(json.loads(request("/api/history")[1])["turns"][0]["message"], "hello")
+        with patch.object(proxy, "SUPERVISOR_ADDRESS", "192.0.2.1"):
+            self.assertEqual(request("/")[0], 403)
 
     def test_status_and_assets(self):
         with patch.object(server, "RELEASE_VERSION", "v1.2.3"), patch.object(

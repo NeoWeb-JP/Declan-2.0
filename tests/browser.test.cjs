@@ -12,8 +12,9 @@ mkdirSync(path.dirname(scriptPath), {recursive: true});
 writeFileSync(scriptPath, script);
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function browser(t, {voice = false, microphone = false, browserRecognition = false} = {}) {
-  const {window} = new JSDOM(html, {runScripts: 'outside-only', url: 'http://localhost:8765'});
+function browser(t, {voice = false, microphone = false, browserRecognition = false, ingress = false} = {}) {
+  const prefix = ingress ? '/api/hassio_ingress/test' : '';
+  const {window} = new JSDOM(html, {runScripts: 'outside-only', url: 'http://localhost:8765' + prefix + '/'});
   t.after(() => window.close());
   const pending = new Map();
   const calls = [];
@@ -31,6 +32,9 @@ function browser(t, {voice = false, microphone = false, browserRecognition = fal
   };
   window.clearTimeout = id => pending.delete(id);
   window.fetch = async (url, options) => {
+    const resolved = new URL(url, window.location.href);
+    assert.ok(resolved.pathname.startsWith(prefix + '/'), 'Request escaped the Ingress path');
+    url = resolved.pathname.slice(prefix.length) + resolved.search;
     calls.push({url, options});
     const response = responses.get(url) ?? {status: 'connected', release_version: 'v1.2.3'};
     if (response instanceof Error) throw response;
@@ -238,6 +242,16 @@ test('history teaches a missed voice command without sending a chat command', as
   await flush();
   assert.deepEqual(JSON.parse(ui.calls.at(-1).options.body), {forget: 'end 60 time'});
   assert.equal(ui.element('#learned-intents').hidden, true);
+});
+
+test('Ingress keeps assets and history requests under the panel path', async t => {
+  const ui = browser(t, {ingress: true});
+  ui.responses.set('/api/history', {turns: [], next: null});
+  ui.element('#open-history').click();
+  await flush();
+  assert.match(ui.element('#history-status').textContent, /No saved conversations/);
+  assert.match(ui.element('a[download]').href, /\/api\/hassio_ingress\/test\/api\/history\/export$/);
+  assert.match(ui.element('img').src, /\/api\/hassio_ingress\/test\/logo.png$/);
 });
 
 function transcript(recognition, text, isFinal = true) {

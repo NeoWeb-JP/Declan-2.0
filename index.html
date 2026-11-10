@@ -119,7 +119,7 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
 </style>
 <header>
   <div class="brand">
-    <img src="/logo.png" alt="" width="38" height="38">
+    <img src="./logo.png" alt="" width="38" height="38">
     <h1>DECLAN <small>2.0</small></h1>
   </div>
   <details class="settings"><summary aria-label="Settings" title="Settings">
@@ -178,7 +178,7 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
     <div class="history-toolbar">
       <p class="mono">Browser and Assist messages from the last 30 days</p>
       <button type="button" id="refresh-history">Refresh</button>
-      <a href="/api/history/export" download>Export JSON</a>
+      <a href="./api/history/export" download>Export JSON</a>
       <button type="button" id="clear-history">Clear History</button>
     </div>
     <p id="history-status" class="mono" role="status"></p>
@@ -224,7 +224,7 @@ let buildLabel = '';
 async function refreshHAStatus() {
   let state = 'disconnected';
   try {
-    const response = await fetch('/api/ha-status', {signal: AbortSignal.timeout(4500)});
+    const response = await fetch('./api/ha-status', {signal: AbortSignal.timeout(4500)});
     if (response.ok) {
       const result = await response.json();
       if (Object.hasOwn(haStatusLabels, result.status)) state = result.status;
@@ -260,7 +260,7 @@ async function watchUpdate(version) {
   while (Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 2000));
     try {
-      const response = await fetch('/api/updates/status', {signal: AbortSignal.timeout(4000)});
+      const response = await fetch('./api/updates/status', {signal: AbortSignal.timeout(4000)});
       if (response.status === 404 && (await fetch('/health', {signal: AbortSignal.timeout(4000)})).ok) {
         location.reload();
         return;
@@ -286,7 +286,7 @@ checkUpdates.addEventListener('click', async () => {
   checkUpdates.disabled = updateVersion.disabled = installUpdate.disabled = true;
   updateStatus.textContent = 'Checking GitHub…';
   try {
-    const response = await fetch('/api/updates');
+    const response = await fetch('./api/updates');
     const result = await response.json();
     if (!response.ok) throw new Error(result.error);
     if (!result.enabled) {
@@ -311,7 +311,7 @@ installUpdate.addEventListener('click', async () => {
   if (!version) return;
   checkUpdates.disabled = updateVersion.disabled = installUpdate.disabled = true;
   try {
-    const response = await fetch('/api/updates', {
+    const response = await fetch('./api/updates', {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({version})
     });
     const result = await response.json();
@@ -337,7 +337,7 @@ let loadingHistory = false;
 const sources = {assist: 'Assist', ha_sentence: 'Assist · Home Assistant routine', browser_voice: 'Browser voice', browser_keyboard: 'Browser keyboard'};
 
 async function updateLearnedIntent(change) {
-  const response = await fetch('/api/history/intents', {
+  const response = await fetch('./api/history/intents', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(change),
@@ -414,7 +414,7 @@ async function loadHistory(older = false) {
   historyStatus.textContent = 'Loading history…';
   try {
     const query = older ? '?before=' + encodeURIComponent(historyCursor) : '';
-    const response = await fetch('/api/history' + query);
+    const response = await fetch('./api/history' + query);
     if (!response.ok) throw new Error('History could not be loaded.');
     const {turns, next, teachable_intents: targets, learned_intents: aliases} = await response.json();
     if (aliases) renderLearnedIntents(aliases);
@@ -515,7 +515,7 @@ document.querySelector('#open-spotify').addEventListener('click', async () => {
   spotifyPanel.showModal();
   spotifyStatus.textContent = 'Checking saved credentials…';
   try {
-    const response = await fetch('/api/settings/spotify');
+    const response = await fetch('./api/settings/spotify');
     if (!response.ok) throw new Error();
     const {source} = await response.json();
     spotifyStatus.textContent = {
@@ -537,7 +537,7 @@ spotifyForm.addEventListener('submit', async event => {
   const save = spotifyForm.querySelector('button[type="submit"]');
   save.disabled = true;
   try {
-    const response = await fetch('/api/settings/spotify', {
+    const response = await fetch('./api/settings/spotify', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(Object.fromEntries(new FormData(spotifyForm)))
@@ -563,7 +563,7 @@ clearHistory.addEventListener('click', async () => {
   clearHistory.disabled = true;
   historyStatus.textContent = 'Clearing history.';
   try {
-    const response = await fetch('/api/history/clear', {
+    const response = await fetch('./api/history/clear', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({confirm: true}),
@@ -738,7 +738,7 @@ async function sendMessage(message, fromVoice = false) {
   voiceStatus.textContent = 'Thinking…';
   updateControls();
   try {
-    const response = await fetch('/api/chat', {
+    const response = await fetch('./api/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({message, session_id: sessionId, source: fromVoice ? 'voice' : 'keyboard'})
@@ -757,7 +757,7 @@ async function sendMessage(message, fromVoice = false) {
       speaking = true;
       let audioUrl;
       try {
-        const voice = await fetch('/api/tts', {
+        const voice = await fetch('./api/tts', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({message: result.reply})
@@ -814,7 +814,7 @@ async function finishAssistRecording(recording) {
   voiceStatus.textContent = 'Transcribing with Assist.';
   updateControls();
   try {
-    const response = await fetch('/api/stt', {
+    const response = await fetch('./api/stt', {
       method: 'POST',
       headers: {'Content-Type': 'application/octet-stream'},
       body: recording.pcm.buffer.slice(0, recording.length * 2)
