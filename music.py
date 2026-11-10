@@ -34,6 +34,10 @@ SPOTIFY_PRESETS = {
     "coward of the county": FAVOURITE_TRACK,
     "coward of the county by kenny rogers": FAVOURITE_TRACK,
 }
+SPOTIFY_PLAYLIST_FALLBACKS = {
+    "romantic dinner music": ("https://open.spotify.com/playlist/37i9dQZF1DXbm6HfkbMtFZ", "playlist", "Feel Good Dinner"),
+    "sexy time music": ("https://open.spotify.com/playlist/0mQbGXAlmsI3T2Vyfa0IVd", "playlist", "Sexy Time"),
+}
 SPOTIFY_REFERENCE = re.compile(
     r"(?:https://open\.spotify\.com/|spotify(?:--[\w-]+)?://|spotify:)"
     r"(track|album|artist|playlist)[/:]([A-Za-z0-9]{22})/?(?:\?[^\s#]*)?"
@@ -525,7 +529,14 @@ def play(command, connection, read_inventory):
             try:
                 selection = saved or search_media(connection, destination, title, artist, provider)
             except SpotifyNotConfigured:
-                return "Spotify search isn't configured. Saved Spotify links can still play.", "not_configured"
+                selection = SPOTIFY_PLAYLIST_FALLBACKS.get(title) if not artist else None
+                if selection is None:
+                    return "Spotify search isn't configured. Saved Spotify links can still play.", "not_configured"
+                if PREFERENCES.exists():
+                    with preference_db() as db:
+                        if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0",
+                                      (media_key(selection[0]),)).fetchone():
+                            return "The saved playlist is on your do-not-play list.", "unavailable"
             except HTTPError as error:
                 if provider != "spotify":
                     raise

@@ -146,6 +146,22 @@ class MusicTests(unittest.TestCase):
         music.skip_blocked_tracks(connection, inventory)
         self.assertEqual(self.calls[-1], ("media_next_track", {"entity_id": self.bedroom}))
 
+    def test_routine_playlists_use_saved_links_when_search_is_unconfigured(self):
+        with patch.dict(music.os.environ, {"DECLAN_SPOTIFY_CLIENT_ID": "", "DECLAN_SPOTIFY_CLIENT_SECRET": ""}):
+            for room, title, playlist_id in (
+                ("kitchen", "romantic dinner music", "37i9dQZF1DXbm6HfkbMtFZ"),
+                ("bedroom", "sexy time music", "0mQbGXAlmsI3T2Vyfa0IVd"),
+            ):
+                with self.subTest(title=title):
+                    self.calls.clear()
+                    self.players[self.kitchen].update(state="idle", attributes={})
+                    self.players[self.bedroom].update(state="playing", attributes=self.track)
+                    music.play((room, title, "spotify"), ("http://ha", {}, self), lambda _: (list(self.players.values()), None))
+                    self.assertEqual([action for action, _ in self.calls], ["media_stop", "play_media"])
+                    self.assertEqual(self.calls[-1][1]["media_id"], "https://open.spotify.com/playlist/" + playlist_id)
+                    self.assertEqual(self.calls[-1][1]["entity_id"], music.PLAYERS[room])
+            self.assertEqual(self.spotify_tokens, 0)
+
     def test_genre_requests_avoid_the_previous_playlist(self):
         self.search_results = {"playlists": [
             {"name": "Country One", "id": "A" * 22}, {"name": "Country Two", "id": "B" * 22},
@@ -446,3 +462,4 @@ class MusicTests(unittest.TestCase):
             self.play("play coward of the county in the bedroom")
         self.assertEqual(self.calls[0][1]["media_id"], music.FAVOURITE_TRACK)
         self.assertEqual(self.spotify_tokens, 0)
+
