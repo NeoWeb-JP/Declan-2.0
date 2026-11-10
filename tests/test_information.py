@@ -158,6 +158,18 @@ class TimerAndHistoryTests(TestCase):
             announce.assert_called_once()
             self.assertEqual(timers.handle("increase my timer by one minute", None)[1], "unresolved")
 
+    def test_history_shows_confident_assist_matches_and_keeps_uncertain_matches_unknown(self):
+        for source, confidence in (("assist", 0.9), ("assist", 0.4), ("browser_voice", 0.99)):
+            history.record("session", source, "question", "answer", speaker={
+                "name": "Ed", "confidence": confidence, "interaction_id": "match-123",
+            })
+        browser, uncertain, confident = history.recent()
+        self.assertIsNone(browser["speaker_match"])
+        self.assertEqual(uncertain["speaker_match"]["name"], "Unknown")
+        self.assertEqual(confident["speaker_match"], {
+            "name": "Edd", "confidence": 0.9, "interaction_id": "match-123",
+        })
+
     def test_history_records_routine_evidence_and_paginates(self):
         history.record("session", "assist", "good morning", "Morning", "partial", "Dining lights unverified",
                        [{"target": "Dining lights", "status": "unverified"}])

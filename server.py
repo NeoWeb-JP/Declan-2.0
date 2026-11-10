@@ -1589,7 +1589,7 @@ class Handler(BaseHTTPRequestHandler):
                 session["failed_light_phrase"] = {"text": message, "scope": scope, "actions": actions}
             try:
                 history.record(reply["session_id"], source, message, reply["reply"], outcome, routine_status,
-                               action_results, phrase_suggestion)
+                               action_results, phrase_suggestion, speaker=body.get("speaker") if source == "assist" else None)
                 if action_results:
                     reply["action_results"] = action_results
             except (OSError, sqlite3.Error):

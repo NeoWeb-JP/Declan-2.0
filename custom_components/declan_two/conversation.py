@@ -29,6 +29,14 @@ class DeclanTwoAgent(conversation.ConversationEntity):
         response = intent.IntentResponse(language=user_input.language)
         session_id = user_input.conversation_id
         error_reply = None
+        speaker = getattr(user_input.text, "jarvis_speaker", None)
+        speaker_data = {}
+        if isinstance(speaker, tuple) and len(speaker) == 3:
+            interaction_id, name, confidence = speaker
+            if isinstance(interaction_id, str) and isinstance(name, str) and type(confidence) in (int, float) and 0 <= confidence <= 1:
+                speaker_data = {"speaker": {"interaction_id": interaction_id, "name": name, "confidence": confidence}}
+        elif hasattr(user_input.text, "jarvis_speaker"):
+            speaker_data = {"speaker": {}}
         try:
             session = async_get_clientsession(self.hass)
             async with session.post(
@@ -39,6 +47,7 @@ class DeclanTwoAgent(conversation.ConversationEntity):
                     "device_id": user_input.device_id,
                     "satellite_id": getattr(user_input, "satellite_id", None),
                     "user_id": user_input.context.user_id,
+                    **speaker_data,
                 },
                 headers={"Authorization": f"Bearer {self._token}"},
                 allow_redirects=False,

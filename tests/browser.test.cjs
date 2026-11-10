@@ -152,10 +152,11 @@ test('keyboard chat retains the session and shows send errors', async t => {
 test('history opens, renders routine evidence, and loads an older page', async t => {
   const ui = browser(t);
   ui.responses.set('/api/history', {turns: [{
-    created_at: '2026-11-10T08:00:00Z', source: 'ha_sentence', outcome: 'partial',
+    created_at: '2026-11-10T08:00:00Z', source: 'assist', outcome: 'partial',
     message: 'good morning', reply: 'Morning.', routine_status: 'Dining lights unverified.',
     action_results: [{action: 'turn_on', target: 'Dining lights', status: 'unverified', detail: 'unavailable'}],
     phrase_suggestion: 'run good morning',
+    speaker_match: {name: 'Unknown', confidence: 0.34, interaction_id: 'match-123'},
   }], next: 42});
   ui.responses.set('/api/history?before=42', {turns: [{
     created_at: '2026-11-09T08:00:00Z', source: 'browser_voice', message: 'hello', reply: 'Hello.',
@@ -166,6 +167,8 @@ test('history opens, renders routine evidence, and loads an older page', async t
   assert.match(ui.element('#chat').textContent, /Home Assistant Routine Status/);
   assert.match(ui.element('#chat').textContent, /turn on Dining lights: unverified \(unavailable\)/);
   assert.match(ui.element('#chat').textContent, /Possible rephrase/);
+  assert.match(ui.element('#chat').textContent, /Speaker match: Unknown \(34% confidence\)/);
+  assert.match(ui.element('#chat').textContent, /VoicePipeline interaction: match-123/);
   ui.element('#older-history').click();
   await flush();
   assert.equal(ui.element('#chat').children.length, 2);

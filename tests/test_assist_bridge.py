@@ -1,9 +1,11 @@
 """Test the bridge against a fake Home Assistant host and HTTP client."""
 
 from importlib import import_module
+from io import BytesIO
 from types import ModuleType, SimpleNamespace
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
+import wave
 
 
 class AssistBridgeTests(IsolatedAsyncioTestCase):
@@ -19,9 +21,12 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         modules = {name: ModuleType(name) for name in module_names}
         modules["aiohttp"].ClientError = OSError
         modules["aiohttp"].ClientTimeout = Mock()
+        self.form = modules["aiohttp"].FormData = Mock()
         modules["voluptuous"].Schema = Mock()
-        modules["voluptuous"].Required = lambda name: name
-        modules["homeassistant"].config_entries = SimpleNamespace(ConfigFlow=ConfigFlow)
+        modules["voluptuous"].Required = lambda name, **kwargs: name
+        modules["voluptuous"].Optional = lambda name: name
+        modules["voluptuous"].In = Mock()
+        modules["homeassistant"].config_entries = SimpleNamespace(ConfigFlow=ConfigFlow, OptionsFlowWithReload=object)
         modules["homeassistant.helpers"].selector = SimpleNamespace(
             TextSelector=Mock(), TextSelectorConfig=Mock(), TextSelectorType=SimpleNamespace(PASSWORD="password")
         )
@@ -31,6 +36,10 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         )
         modules["homeassistant.components"].conversation = SimpleNamespace(
             ConversationEntity=object, ConversationResult=SimpleNamespace
+        )
+        modules["homeassistant.components"].stt = SimpleNamespace(
+            SpeechToTextEntity=object, SpeechResult=lambda text, result: (text, result),
+            SpeechResultState=SimpleNamespace(SUCCESS="success", ERROR="error"),
         )
         self.session = Mock()
         self.request = self.session.post.return_value = MagicMock()
@@ -59,6 +68,15 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertEqual(self.session.post.call_args.kwargs["json"]["satellite_id"], "assist_satellite.bedroom")
         self.assertFalse(self.session.post.call_args.kwargs["allow_redirects"])
         self.intent.IntentResponse.return_value.async_set_speech.assert_called_once_with("Morning")
+        self.assertNotIn("speaker", self.session.post.call_args.kwargs["json"])
+        class SpeakerTranscript(str):
+            jarvis_speaker = ("match-123", "Ed", 0.91)
+
+        user_input.text = SpeakerTranscript("good morning")
+        await agent.async_process(user_input)
+        self.assertEqual(self.session.post.call_args.kwargs["json"]["speaker"], {
+            "interaction_id": "match-123", "name": "Ed", "confidence": 0.91,
+        })
         self.response.json.return_value = {"reply": 42, "session_id": "wrong"}
         result = await agent.async_process(user_input)
         self.assertEqual(result.conversation_id, "old")
@@ -91,3 +109,33 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                          {"token": "invalid_token"})
         self.assertEqual((await flow.async_step_user({"url": "http://declan.invalid/", "token": "x" * 32}))["url"],
                          "http://declan.invalid")
+
+    async def test_openai_options_require_and_preserve_the_key(self):
+        flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
+        flow.config_entry = SimpleNamespace(options={})
+        flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
+        flow.async_create_entry = Mock(side_effect=lambda **kwargs: kwargs["data"])
+        settings = {"openai_stt_enabled": True, "openai_stt_model": "gpt-transcribe"}
+        self.assertEqual(await flow.async_step_init(settings), {"openai_stt_api_key": "openai_key_required"})
+        saved = await flow.async_step_init({**settings, "openai_stt_api_key": "test-key"})
+        flow.config_entry.options = saved
+        self.assertEqual(await flow.async_step_init(settings), saved)
+
+    async def test_openai_entity_sends_pcm_as_wav_and_returns_transcript(self):
+        provider = import_module("custom_components.declan_two.stt")
+        self.entry.options = {"openai_stt_api_key": "test-key", "openai_stt_enabled": True}
+        add = Mock()
+        await provider.async_setup_entry(None, self.entry, add)
+        entity = add.call_args.args[0][0]
+        self.response.json.return_value = {"text": " What's the time? "}
+
+        async def audio():
+            yield b"\x00\x01\x02\x03"
+
+        self.assertEqual(await entity.async_process_audio_stream(None, audio()), ("What's the time?", "success"))
+        fields = self.form.return_value.add_field.call_args_list
+        with wave.open(BytesIO(fields[0].args[1]), "rb") as recording:
+            self.assertEqual((recording.getframerate(), recording.getnchannels(), recording.getsampwidth()), (16000, 1, 2))
+            self.assertEqual(recording.readframes(2), b"\x00\x01\x02\x03")
+        self.assertIn(("model", "gpt-transcribe"), [field.args for field in fields])
+        self.assertFalse(self.session.post.call_args.kwargs["allow_redirects"])

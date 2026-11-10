@@ -7,10 +7,11 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 
 _LOGGER = logging.getLogger(__name__)
+PLATFORMS = ["conversation", "stt"]
 
 
 async def async_setup_entry(hass, entry):
-    await hass.config_entries.async_forward_entry_setups(entry, ["conversation"])
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def record_assist_reply(event):
         message = event.data.get("message")
@@ -42,4 +43,4 @@ async def async_setup_entry(hass, entry):
 
 
 async def async_unload_entry(hass, entry):
-    return await hass.config_entries.async_unload_platforms(entry, ["conversation"])
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

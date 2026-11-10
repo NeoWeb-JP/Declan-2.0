@@ -16,5 +16,23 @@
     "abort": {
       "already_configured": "This Declan server is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Declan 2.0 speech recognition",
+        "data": {
+          "openai_stt_enabled": "Enable OpenAI transcription",
+          "openai_stt_model": "OpenAI transcription model",
+          "openai_stt_api_key": "OpenAI API key"
+        },
+        "data_description": {
+          "openai_stt_api_key": "Leave blank to keep the existing key. Required when enabling transcription for the first time."
+        }
+      }
+    },
+    "error": {
+      "openai_key_required": "Enter an OpenAI API key to enable transcription."
+    }
   }
 }

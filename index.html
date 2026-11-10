@@ -345,13 +345,27 @@ async function loadHistory(older = false) {
       meta.textContent = new Date(turn.created_at).toLocaleString() + ' · ' + (sources[turn.source] || 'Declan');
       if (turn.outcome) meta.textContent += ' · ' + turn.outcome.replaceAll('_', ' ');
       const message = document.createElement('div');
-      message.textContent = 'You: ' + turn.message;
+      message.textContent = (turn.speaker_match?.name || 'You') + ': ' + turn.message;
       const reply = document.createElement('div');
       reply.textContent = 'Declan: ';
       const replyText = document.createElement(turn.routine_status ? 'strong' : 'span');
       replyText.textContent = turn.reply;
       reply.append(replyText);
       row.append(meta, message, reply);
+      if (turn.speaker_match) {
+        const match = turn.speaker_match;
+        const details = document.createElement('details');
+        details.className = 'turn-status';
+        const summary = document.createElement('summary');
+        const confidence = typeof match.confidence === 'number'
+          ? `${Math.round(match.confidence * 100)}% confidence` : 'no confidence score';
+        summary.textContent = `Speaker match: ${match.name} (${confidence})`;
+        const reference = document.createElement('div');
+        reference.textContent = match.interaction_id
+          ? `VoicePipeline interaction: ${match.interaction_id}` : 'No VoicePipeline interaction ID was supplied.';
+        details.append(summary, reference);
+        row.append(details);
+      }
       const movieDetails = turn.routine_status && /^(?:(?:Starting|Ending) )?Movie Time\./.test(turn.reply);
       let routineStatus;
       if (turn.routine_status) {
