@@ -157,6 +157,27 @@ class APITests(TestCase):
                 turn = server.history.recent(limit=1)[0]
                 self.assertEqual((turn["source"], turn["reply"]), ("assist", result["reply"]))
 
+    def test_teach_and_forget_a_missed_voice_intention(self):
+        path = "/api/history/intents"
+        headers = {"Origin": self.origin, "Content-Type": "application/json"}
+        with patch.object(server, "run_sexy_time", return_value=("End routine.", "confirmed")) as routine:
+            self.assertEqual(self.ask("End 60 time.", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
+            turn = json.loads(self.request("/api/history")[1])["turns"][0]
+            self.assertTrue(turn["teachable"])
+            correction = {"turn_id": turn["id"], "target": "end sexy time"}
+            self.assertEqual(self.request(path, body=correction, headers={**headers, "Origin": "https://else.invalid"})[0], 403)
+            self.assertEqual(self.request(path, body={**correction, "target": "arbitrary service"}, headers=headers)[0], 400)
+            self.assertEqual(self.request(path, body=correction, headers=headers)[0], 200)
+            routine.assert_not_called()
+
+            self.assertEqual(self.ask("END  60 TIME!", path="/api/assist")["reply"], "End routine.")
+            self.assertEqual(routine.call_args.args[0], "end")
+            self.assertEqual(server.history.recent(limit=1)[0]["message"], "END  60 TIME!")
+            self.assertEqual(self.ask("end 61 time", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
+            self.assertEqual(self.request(path, body={"forget": "end 60 time"}, headers=headers)[0], 200)
+            self.assertEqual(self.ask("end 60 time", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
+            routine.assert_called_once()
+
     def test_clear_history_requires_local_confirmation(self):
         self.ask("hello")
         server.history.record("assist-session", "assist", "Time?", "It is noon.")

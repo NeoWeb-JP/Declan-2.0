@@ -58,6 +58,8 @@ GUEST_COMMANDS = {
     "our guests have left": "clear",
     "clear the guests in charge": "clear",
 }
+TEACHABLE_INTENTS = ("start sexy time", "end sexy time", "dinner time", "who is in charge", "the guests have left")
+UNMATCHED_REPLY = "I didn't catch what you wanted me to do. Could you say it another way?"
 NAME_PATTERN = re.compile(r"my name is ([^\W\d_][\w '\u2019-]{0,39})", re.I)
 CHAT_COMMANDS = {
     "what's my name": "recall_name", "what is my name": "recall_name",
@@ -1353,7 +1355,7 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
         reply = f"Hello, {state['name']}." if state["name"] else "Hello. I'm Declan."
         reply = add_sass(reply, "greeting", guest_mode)
     else:
-        reply = "I didn't catch what you wanted me to do. Could you say it another way?"
+        reply = UNMATCHED_REPLY
     state.update(last=message, at=now)
     if lighting_context is not None:
         state["lighting_context"] = lighting_context
@@ -1439,13 +1441,21 @@ class Handler(BaseHTTPRequestHandler):
                 if before is not None and not 0 < before < 2**63:
                     raise ValueError
                 turns = history.recent(before, limit=51)
+                aliases = history.learned_intents() if before is None else None
+                for turn in turns:
+                    turn["teachable"] = (turn["source"] in {"assist", "browser_voice"} and not turn["outcome"]
+                                         and turn["reply"] == UNMATCHED_REPLY
+                                         and 0 < len(history.normalize_phrase(turn["message"])) <= 120)
             except ValueError:
                 self.send_json(400, {"error": "Invalid history cursor."})
                 return
             except (OSError, sqlite3.Error):
                 self.send_json(503, {"error": "Conversation history is unavailable."})
                 return
-            self.send_json(200, {"turns": turns[:50], "next": turns[49]["id"] if len(turns) > 50 else None})
+            self.send_json(200, {
+                "turns": turns[:50], "next": turns[49]["id"] if len(turns) > 50 else None,
+                "teachable_intents": TEACHABLE_INTENTS, "learned_intents": aliases,
+            })
         else:
             self.send_json(404, {"error": "Not found."})
 
@@ -1491,7 +1501,7 @@ class Handler(BaseHTTPRequestHandler):
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif self.client_address[0] != "127.0.0.1":
@@ -1515,6 +1525,25 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
+            if self.path == "/api/history/intents":
+                try:
+                    if not isinstance(body, dict):
+                        raise ValueError("Send an intent correction or removal.")
+                    if set(body) == {"forget"} and isinstance(body["forget"], str) and 0 < len(body["forget"]) <= 120:
+                        history.forget_intent(body["forget"])
+                    elif (set(body) == {"turn_id", "target"} and type(body["turn_id"]) is int
+                          and 0 < body["turn_id"] < 2**63 and body["target"] in TEACHABLE_INTENTS):
+                        history.teach_intent(body["turn_id"], body["target"], UNMATCHED_REPLY)
+                    else:
+                        raise ValueError("Choose a missed voice command and a supported intent.")
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                    return
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Intent corrections are unavailable."})
+                    return
+                self.send_json(200, {"saved": True})
+                return
             if self.path == "/api/history/clear":
                 if not isinstance(body, dict) or body.get("confirm") is not True:
                     self.send_json(400, {"error": "Confirm before clearing conversation history."})
@@ -1613,7 +1642,7 @@ class Handler(BaseHTTPRequestHandler):
         lighting_context = None
         status_target = None
         information_context = None
-        phrase = " ".join(message.casefold().strip(" .?!").split())
+        phrase = history.normalize_phrase(message)
         opener = build_opener(ProxyHandler({}), NoRedirect())
         timer_result = timers.handle(
             phrase, opener,
@@ -1716,6 +1745,17 @@ class Handler(BaseHTTPRequestHandler):
             guest_mode = read_guest_mode()
             if CHAT_COMMANDS.get(chat_kind) == "time":
                 information_context = ("time", None, None)
+        elif routine_reply is None and source in {"assist", "browser_voice"} and len(phrase) <= 120:
+            try:
+                target = history.learned_intent(phrase)
+            except (OSError, sqlite3.Error):
+                target = None
+            if target in SEXY_TIME_COMMANDS:
+                routine_reply, outcome = run_sexy_time(SEXY_TIME_COMMANDS[target], ha_device_connection())
+            elif target in DINNER_PHRASES:
+                routine_reply, outcome = start_dinner(ha_device_connection())
+            elif target in GUEST_COMMANDS:
+                routine_reply, outcome = guest_assignment(GUEST_COMMANDS[target], ha_device_connection())
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             failed_phrase = previous.get("failed_light_phrase") if previous else None

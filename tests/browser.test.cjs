@@ -212,6 +212,34 @@ test('clearing history requires confirmation and resets the history list', async
   assert.match(ui.element('#history-status').textContent, /history cleared/);
 });
 
+test('history teaches a missed voice command without sending a chat command', async t => {
+  const ui = browser(t);
+  const page = {
+    turns: [{
+      id: 42, created_at: '2026-11-10T08:00:00Z', source: 'assist',
+      message: 'End 60 time.', reply: 'Please rephrase.', teachable: true,
+    }],
+    next: null, teachable_intents: ['end sexy time'], learned_intents: {},
+  };
+  ui.responses.set('/api/history', page);
+  ui.responses.set('/api/history/intents', {saved: true});
+  ui.element('#open-history').click();
+  await flush();
+  assert.match(ui.element('#chat').textContent, /Teach intention/);
+  ui.element('#chat select').value = 'end sexy time';
+  ui.responses.set('/api/history', {...page, learned_intents: {'end 60 time': 'end sexy time'}});
+  ui.element('#chat form button').click();
+  await flush();
+  const saved = ui.calls.find(call => call.url === '/api/history/intents');
+  assert.deepEqual(JSON.parse(saved.options.body), {turn_id: 42, target: 'end sexy time'});
+  assert.equal(ui.calls.some(call => call.url === '/api/chat'), false);
+  assert.match(ui.element('#learned-intent-list').textContent, /end 60 time.*end sexy time/);
+  ui.element('#learned-intent-list button').click();
+  await flush();
+  assert.deepEqual(JSON.parse(ui.calls.at(-1).options.body), {forget: 'end 60 time'});
+  assert.equal(ui.element('#learned-intents').hidden, true);
+});
+
 function transcript(recognition, text, isFinal = true) {
   const result = [{transcript: text}];
   result.isFinal = isFinal;

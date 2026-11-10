@@ -182,6 +182,10 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
       <button type="button" id="clear-history">Clear History</button>
     </div>
     <p id="history-status" class="mono" role="status"></p>
+    <details class="turn-status" id="learned-intents" hidden>
+      <summary>Learned intentions</summary>
+      <ul id="learned-intent-list"></ul>
+    </details>
     <ul id="chat" aria-label="Conversation"></ul>
     <button type="button" id="older-history" hidden>Load older messages</button>
   </dialog>
@@ -332,6 +336,77 @@ let historyCursor = null;
 let loadingHistory = false;
 const sources = {assist: 'Assist', ha_sentence: 'Assist · Home Assistant routine', browser_voice: 'Browser voice', browser_keyboard: 'Browser keyboard'};
 
+async function updateLearnedIntent(change) {
+  const response = await fetch('/api/history/intents', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(change),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Could not save the intention.');
+}
+
+function renderLearnedIntents(aliases) {
+  const list = document.querySelector('#learned-intent-list');
+  list.replaceChildren();
+  for (const [phrase, target] of Object.entries(aliases)) {
+    const item = document.createElement('li');
+    item.textContent = `“${phrase}” → “${target}” `;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Forget';
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await updateLearnedIntent({forget: phrase});
+        delete aliases[phrase];
+        renderLearnedIntents(aliases);
+        historyStatus.textContent = 'Intention forgotten.';
+      } catch (error) {
+        historyStatus.textContent = error.message;
+        button.disabled = false;
+      }
+    });
+    item.append(button);
+    list.append(item);
+  }
+  document.querySelector('#learned-intents').hidden = !list.children.length;
+}
+
+function teachIntentionControl(turn, targets) {
+  const details = document.createElement('details');
+  details.className = 'turn-status';
+  const summary = document.createElement('summary');
+  summary.textContent = 'Teach intention';
+  const form = document.createElement('form');
+  const label = document.createElement('label');
+  label.textContent = 'When I say this, run ';
+  const select = document.createElement('select');
+  select.required = true;
+  select.add(new Option('Choose a command', ''));
+  for (const target of targets) select.add(new Option(target, target));
+  label.append(select);
+  const save = document.createElement('button');
+  save.textContent = 'Save correction';
+  form.append(label, save);
+  details.append(summary, form);
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!select.value) return;
+    save.disabled = true;
+    try {
+      await updateLearnedIntent({turn_id: turn.id, target: select.value});
+      await loadHistory();
+      historyStatus.textContent = 'Intention saved for next time.';
+    } catch (error) {
+      historyStatus.textContent = error.message;
+    } finally {
+      save.disabled = false;
+    }
+  });
+  return details;
+}
+
 async function loadHistory(older = false) {
   if (loadingHistory || (older && historyCursor === null)) return;
   loadingHistory = true;
@@ -341,7 +416,8 @@ async function loadHistory(older = false) {
     const query = older ? '?before=' + encodeURIComponent(historyCursor) : '';
     const response = await fetch('/api/history' + query);
     if (!response.ok) throw new Error('History could not be loaded.');
-    const {turns, next} = await response.json();
+    const {turns, next, teachable_intents: targets, learned_intents: aliases} = await response.json();
+    if (aliases) renderLearnedIntents(aliases);
     if (!older) chat.replaceChildren();
     for (const turn of turns) {
       const row = document.createElement('li');
@@ -410,6 +486,7 @@ async function loadHistory(older = false) {
         suggestion.textContent = 'Possible rephrase (review only): “' + turn.phrase_suggestion + '” → “' + turn.message + '”';
         row.append(suggestion);
       }
+      if (turn.teachable && targets?.length) row.append(teachIntentionControl(turn, targets));
       chat.append(row);
     }
     historyCursor = next;

@@ -73,6 +73,49 @@ def prune():
         pass
 
 
+def _intent_table(connection):
+    connection.execute("CREATE TABLE IF NOT EXISTS learned_intents (phrase TEXT PRIMARY KEY, target TEXT NOT NULL)")
+
+
+def normalize_phrase(text):
+    return " ".join(text.casefold().strip(" .?!").split())
+
+
+def learned_intents():
+    with database() as connection:
+        _intent_table(connection)
+        return dict(connection.execute("SELECT phrase, target FROM learned_intents ORDER BY phrase"))
+
+
+def learned_intent(phrase):
+    with database() as connection:
+        _intent_table(connection)
+        row = connection.execute("SELECT target FROM learned_intents WHERE phrase = ?", (phrase,)).fetchone()
+        return row[0] if row else None
+
+
+def teach_intent(turn_id, target, unmatched_reply):
+    with database() as connection:
+        turn = connection.execute(
+            "SELECT message FROM turns WHERE id = ? AND source IN ('assist', 'browser_voice') "
+            "AND outcome IS NULL AND reply = ?", (turn_id, unmatched_reply),
+        ).fetchone()
+        phrase = normalize_phrase(turn[0]) if turn else ""
+        if not 0 < len(phrase) <= 120:
+            raise ValueError("Choose a missed voice command from history (up to 120 characters).")
+        _intent_table(connection)
+        connection.execute(
+            "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) "
+            "ON CONFLICT(phrase) DO UPDATE SET target = excluded.target", (phrase, target),
+        )
+
+
+def forget_intent(phrase):
+    with database() as connection:
+        _intent_table(connection)
+        connection.execute("DELETE FROM learned_intents WHERE phrase = ?", (phrase,))
+
+
 def clear():
     """Remove all saved conversation turns in one transaction."""
     with database() as connection:
