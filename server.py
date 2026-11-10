@@ -39,6 +39,14 @@ if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION)
     RELEASE_VERSION = None
 RELEASE_VERSION = updates.installed_version(RELEASE_VERSION)
 GUEST_MODE_ENTITY = "input_boolean.guest_mode"
+GUEST_REGISTER_ENTITY = "input_text.guests_in_charge"
+GUEST_COMMANDS = {
+    "who is in charge": "check",
+    "who is looking after the house": "check",
+    "the guests have left": "clear",
+    "our guests have left": "clear",
+    "clear the guests in charge": "clear",
+}
 NAME_PATTERN = re.compile(r"my name is ([^\W\d_][\w '\u2019-]{0,39})", re.I)
 CHAT_COMMANDS = {
     "what's my name": "recall_name", "what is my name": "recall_name",
@@ -707,6 +715,53 @@ def ha_device_connection():
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     opener = build_opener(ProxyHandler({}), NoRedirect())
     return url, headers, opener
+
+
+def guest_assignment(operation, connection):
+    if connection is None:
+        return "I couldn't reach Home Assistant to check Guest Mode or the guest register.", "unavailable"
+    url, headers, opener = connection
+
+    def request(path, data=None):
+        body = json.dumps(data).encode() if data is not None else None
+        try:
+            with opener.open(Request(url + path, headers=headers, data=body), timeout=1.5) as response:
+                return json.loads(response.read(8192))
+        except HTTPError as error:
+            error.close()
+        except (OSError, ValueError):
+            pass
+        return None
+
+    def read_state(entity):
+        payload = request(f"/api/states/{entity}")
+        state = payload.get("state") if isinstance(payload, dict) else None
+        if not isinstance(state, str) or state.strip().casefold() in {"unknown", "unavailable"}:
+            return None
+        return state.strip()
+
+    if operation == "clear":
+        request("/api/services/input_text/set_value", {"entity_id": GUEST_REGISTER_ENTITY, "value": ""})
+        names = read_state(GUEST_REGISTER_ENTITY)
+        # Keep Guest Mode in place until the register is verified empty.
+        if names != "":
+            return "I couldn't verify that the guest register was cleared, so I left Guest Mode alone.", "unverified"
+        request("/api/services/input_boolean/turn_off", {"entity_id": GUEST_MODE_ENTITY})
+        if read_state(GUEST_MODE_ENTITY) != "off":
+            return "I cleared the guest register, but couldn't verify that Guest Mode is off.", "partial"
+        return add_sass("I cleared the guest register and turned off Guest Mode.", "guest_cleared", "off"), "confirmed"
+
+    mode = read_state(GUEST_MODE_ENTITY)
+    names = read_state(GUEST_REGISTER_ENTITY)
+    if mode not in {"on", "off"} or names is None:
+        return "I couldn't read Guest Mode or the guest register.", "unavailable"
+    if mode == "on":
+        if names:
+            return f"Currently in charge: {names}. Guest Mode is on.", "confirmed"
+        return "Guest Mode is on, but nobody is listed in the guest register.", "confirmed"
+    if names:
+        return f"Guest Mode is off, but the guest register still lists {names}.", "confirmed"
+    return add_sass("Guest Mode is off. The house is back in your hands.", "guest_inactive", mode), "confirmed"
 
 
 def render_web_voice(message):
@@ -1486,6 +1541,8 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
+        elif phrase in GUEST_COMMANDS:
+            routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
             lighting_context = ()
             routine, follow_on = routine_turn

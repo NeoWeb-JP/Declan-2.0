@@ -27,6 +27,7 @@ class FakeHomeAssistant:
             light("lounge_lamp", "on", brightness=128), light("lounge_group", "on", entity_id=["light.lounge_lamp"]),
             light("broken_light", "unavailable"),
             {"entity_id": "input_boolean.guest_mode", "state": "off"},
+            {"entity_id": "input_text.guests_in_charge", "state": ""},
         ]
         self.entities = {entry["entity_id"]: entry for entry in entities}
         self.areas = [["Study", ["light.study_light"]], ["Bedroom", ["light.bedroom_lamp", "light.fairy_lights"]],
@@ -49,6 +50,10 @@ class FakeHomeAssistant:
             result = self.areas[:1] if "area_id(" in data["template"] else self.areas
         elif path == "/api/":
             result = {"message": "API running."}
+        elif path in {"/api/services/input_text/set_value", "/api/services/input_boolean/turn_off"}:
+            if self.apply:
+                self.entities[data["entity_id"]]["state"] = data.get("value", "off")
+            result = []
         elif path.startswith("/api/services/light/"):
             if self.apply:
                 entities = data["entity_id"]
@@ -270,3 +275,40 @@ class ServiceTests(TestCase):
             opener.open.side_effect = HTTPError("http://ha.invalid", 403, "Forbidden", {}, None)
             with self.assertRaisesRegex(ValueError, "rejected"):
                 timers.resolve_output(opener, None, "device")
+
+
+class GuestAssignmentTests(TestCase):
+    def setUp(self):
+        self.ha = FakeHomeAssistant()
+        self.connection = ("http://ha.invalid", {}, self.ha)
+        self.mode = self.ha.entities[server.GUEST_MODE_ENTITY]
+        self.register = self.ha.entities[server.GUEST_REGISTER_ENTITY]
+
+    def test_check_is_read_only_and_uses_personality_only_when_inactive(self):
+        reply, outcome = server.guest_assignment("check", self.connection)
+        self.assertEqual(outcome, "confirmed")
+        self.assertIn("Guest Mode is off.", reply)
+        self.assertIn("Tux", reply)
+        self.mode["state"] = "on"
+        self.register["state"] = "Mike and Kathy"
+        self.assertEqual(server.guest_assignment("check", self.connection),
+                         ("Currently in charge: Mike and Kathy. Guest Mode is on.", "confirmed"))
+        self.register["state"] = "unavailable"
+        self.assertEqual(server.guest_assignment("check", self.connection)[1], "unavailable")
+        self.assertTrue(all(data is None for _, data in self.ha.calls))
+
+    def test_clear_verifies_register_before_turning_off_guest_mode(self):
+        self.mode["state"] = "on"
+        self.register["state"] = "Mike and Kathy"
+        self.ha.apply = False
+        self.assertEqual(server.guest_assignment("clear", self.connection)[1], "unverified")
+        self.assertNotIn("/api/services/input_boolean/turn_off", [path for path, _ in self.ha.calls])
+
+        self.ha.apply = True
+        self.ha.fail = "/api/services/input_boolean/turn_off"
+        self.assertEqual(server.guest_assignment("clear", self.connection)[1], "partial")
+        self.assertEqual((self.register["state"], self.mode["state"]), ("", "on"))
+
+        self.ha.fail = None
+        self.assertEqual(server.guest_assignment("clear", self.connection)[1], "confirmed")
+        self.assertEqual((self.register["state"], self.mode["state"]), ("", "off"))

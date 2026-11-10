@@ -5,6 +5,22 @@ from threading import Lock
 
 
 LINES = {
+    "guest_inactive": (
+        ("Jaco and Edd hold the mortgage, Tux holds the throne, Finn holds a tennis ball, and I hold this circus together.",
+         "Technically you two are in charge. Tux is willing to let you believe that.",
+         "Jaco and Edd are on the paperwork. Tux has veto power and Finn has the ball."),
+        ("The usual household arrangements apply.",
+         "There is no active guest assignment.",
+         "The household is back to its usual arrangements."),
+    ),
+    "guest_cleared": (
+        ("The guest register is clean. The rest of the house is your problem, my bru.",
+         "Tux has resumed his ceremonial duties. You two can handle the actual work.",
+         "The house is yours again. I trust you'll use that authority irresponsibly."),
+        ("The guest handover is complete.",
+         "The household is back to its usual arrangements.",
+         "The guest assignment has ended."),
+    ),
     "device_status": (
         ("I polled the device, my bru. It took less effort than finding the remote.",
          "Status checked. My CPU will need a moment to recover from all that excitement.",

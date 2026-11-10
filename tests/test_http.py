@@ -96,6 +96,15 @@ class APITests(TestCase):
         self.assertEqual(self.request("/api/history?before=0")[0], 400)
         self.assertEqual(self.request("/api/history", headers={"Host": "other.invalid"})[0], 403)
 
+    def test_guest_commands_record_the_reply_returned_to_assist(self):
+        with patch.object(server, "guest_assignment", return_value=("Guest reply.", "confirmed")) as guest:
+            for phrase, operation in server.GUEST_COMMANDS.items():
+                result = self.ask(phrase + "?", path="/api/assist")
+                self.assertEqual(result["reply"], "Guest reply.")
+                self.assertEqual(guest.call_args.args[0], operation)
+                turn = server.history.recent(limit=1)[0]
+                self.assertEqual((turn["source"], turn["reply"]), ("assist", result["reply"]))
+
     def test_clear_history_requires_local_confirmation(self):
         self.ask("hello")
         server.history.record("assist-session", "assist", "Time?", "It is noon.")
