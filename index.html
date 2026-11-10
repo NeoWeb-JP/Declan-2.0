@@ -363,7 +363,13 @@ async function loadHistory(older = false) {
         const reference = document.createElement('div');
         reference.textContent = match.interaction_id
           ? `VoicePipeline interaction: ${match.interaction_id}` : 'No VoicePipeline interaction ID was supplied.';
-        details.append(summary, reference);
+        details.append(summary);
+        if (match.candidate && typeof match.confidence === 'number') {
+          const candidate = document.createElement('div');
+          candidate.textContent = `VoicePipeline candidate: ${match.candidate} (${Math.round(match.confidence * 100)}%)`;
+          details.append(candidate);
+        }
+        details.append(reference);
         row.append(details);
       }
       const movieDetails = turn.routine_status && /^(?:(?:Starting|Ending) )?Movie Time\./.test(turn.reply);

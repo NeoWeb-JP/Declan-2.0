@@ -25,9 +25,13 @@ def speaker_match(value):
         match["interaction_id"] = interaction_id
     if type(confidence) in (int, float) and 0 <= confidence <= 1:
         match["confidence"] = confidence
-        if confidence >= SPEAKER_THRESHOLD and isinstance(name, str) and re.fullmatch(r"[^\W\d_][\w '\u2019-]{0,39}", name):
+        if isinstance(name, str) and re.fullmatch(r"[^\W\d_][\w '\u2019-]{0,39}", name):
             if name.casefold() not in {"unknown", "unidentified", "none"}:
-                match["name"] = "Edd" if name.casefold() == "ed" else name
+                display_name = "Edd" if name.casefold() == "ed" else name
+                if confidence >= SPEAKER_THRESHOLD:
+                    match["name"] = display_name
+                else:
+                    match["candidate"] = display_name
     return match
 
 

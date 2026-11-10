@@ -165,7 +165,9 @@ class TimerAndHistoryTests(TestCase):
             })
         browser, uncertain, confident = history.recent()
         self.assertIsNone(browser["speaker_match"])
-        self.assertEqual(uncertain["speaker_match"]["name"], "Unknown")
+        self.assertEqual(uncertain["speaker_match"], {
+            "name": "Unknown", "candidate": "Edd", "confidence": 0.4, "interaction_id": "match-123",
+        })
         self.assertEqual(confident["speaker_match"], {
             "name": "Edd", "confidence": 0.9, "interaction_id": "match-123",
         })
