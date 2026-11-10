@@ -19,6 +19,7 @@ import webbrowser
 import conditions
 import device_status
 import history
+import music
 import timers
 from personality import add_sass
 
@@ -134,19 +135,24 @@ MOVIE_APPS = {
     "paramount plus": ("Paramount+", "Paramount+"),
     "paramount+": ("Paramount+", "Paramount+"),
 }
+MOVIE_ROOMS = r"lounge|living room|bedroom|master bedroom|here"
 
 
 def parse_movie_request(phrase):
+    shortcut = re.fullmatch(rf"(?:open|launch) (.+?) in (?:the )?({MOVIE_ROOMS})", phrase)
+    if shortcut and shortcut[1] in MOVIE_APPS:
+        app, room = shortcut.groups()
+        return "start", room, app
     match = re.fullmatch(
         r"(?:(start|turn on|end|stop|turn off|toggle) )?(?:movie time|cinema time|cinema mode)"
-        r"(?: in (?:the )?(lounge|living room|bedroom|master bedroom|here))?(?: and open (.+))?",
+        rf"(?: in (?:the )?({MOVIE_ROOMS}))?(?: and (?:open|launch) (.+))?",
         phrase,
     )
     if not match:
         return None
     verb, room, app = match.groups()
     if app:
-        app_room = re.fullmatch(r"(.+?) in (?:the )?(lounge|living room|bedroom|master bedroom|here)", app)
+        app_room = re.fullmatch(rf"(.+?) in (?:the )?({MOVIE_ROOMS})", app)
         if app_room and room is None:
             app, room = app_room.groups()
     direction = ("start" if verb in ("start", "turn on") else
@@ -1189,7 +1195,11 @@ class Handler(BaseHTTPRequestHandler):
             if follow_on:
                 light_steps = []
                 if follow_on.startswith("play "):
-                    follow_reply, follow_outcome = "Music playback isn't available in Declan yet.", "unavailable"
+                    command = music.parse(follow_on)
+                    follow_reply, follow_outcome = (
+                        music.play(command, ha_device_connection(), read_ha_inventory) if command
+                        else ("Tell me where to play the music.", "unresolved")
+                    )
                 else:
                     follow_result = handle_light_request(
                         follow_on, action_results=light_steps, last_lights=last_lights,
@@ -1235,6 +1245,8 @@ class Handler(BaseHTTPRequestHandler):
                                  and item.get("entity_id") == GUEST_MODE_ENTITY), None
                             )
                             routine_reply = add_sass(routine_reply, "device_status", guest_mode)
+            elif music_command := music.parse(phrase):
+                routine_reply, outcome = music.play(music_command, ha_device_connection(), read_ha_inventory)
             else:
                 media_result = search_media(phrase)
                 if media_result:

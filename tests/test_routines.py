@@ -58,20 +58,36 @@ class RoutineTests(TestCase):
                 self.assertEqual("14 degrees" in reply, guest == "off")
 
     def test_movie_app_launch_requires_verified_routine(self):
+        selection = server.select_routine("open netflix in the lounge", "bedroom-satellite")
+        self.assertEqual(selection, ("movie", {
+            "movie_action": "start", "movie_room": "lounge", "requested_app": "netflix",
+        }))
         self.respond(lambda data: self.confirmed(data, outcome="partial", resolved_action="start"))
         steps = []
-        reply, outcome, _ = server.run_routine("movie", movie_action="start",
-                                               movie_app=server.MOVIE_APPS["netflix"], action_results=steps)
+        reply, outcome, _ = server.execute_routine(selection, steps)
         self.assertEqual(outcome, "partial")
         self.assertEqual(steps[-1]["status"], "skipped")
         self.assertEqual(len(self.calls), 1)
         server.routine_last_attempts.clear()
         self.respond(lambda data: self.confirmed(data, resolved_action="start"))
-        reply, outcome, _ = server.run_routine("movie", movie_action="start",
-                                               movie_app=server.MOVIE_APPS["netflix"], action_results=steps)
+        reply, outcome, _ = server.execute_routine(selection, steps)
         self.assertEqual(outcome, "partial")
         self.assertIn("couldn't verify the app is on screen", reply)
+        self.assertEqual(json.loads(self.calls[-3].data)["requested_action"], "start")
         self.assertEqual(json.loads(self.calls[-1].data)["command"], "app:netflix")
+
+    def test_open_shortcut_requires_known_app_and_room(self):
+        self.assertIsNone(server.parse_movie_request("open the blinds in the lounge"))
+        self.assertIsNone(server.parse_movie_request("open netflix in the kitchen"))
+        self.assertIsNone(server.parse_movie_request("open netflix"))
+        self.assertEqual(server.parse_movie_request("open prime video in the bedroom"),
+                         ("start", "bedroom", "prime video"))
+
+    def test_launch_is_an_alias_for_open(self):
+        for phrase in ("launch netflix in the lounge", "start movie time and launch netflix in the lounge"):
+            with self.subTest(phrase=phrase):
+                self.assertEqual(server.parse_movie_request(phrase), ("start", "lounge", "netflix"))
+        self.assertIsNone(server.parse_movie_request("launch an unsupported app in the lounge"))
 
     def test_rejection_is_distinct_from_an_uncertain_timeout(self):
         self.opener.open.side_effect = HTTPError("http://ha.invalid", 403, "Forbidden", {}, None)

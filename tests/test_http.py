@@ -113,6 +113,12 @@ class APITests(TestCase):
         with patch.object(server.timers, "handle", return_value=("Timer set.", "timer_set")):
             self.assertEqual(self.ask("Set a timer for five seconds")["outcome"], "timer_set")
 
+    def test_music_handoff_routes_from_assist(self):
+        with patch.object(server.music, "play", return_value=("Spotify is playing everywhere.", "confirmed")) as play:
+            response = self.ask("Move the music everywhere", path="/api/assist")
+        self.assertEqual(response["outcome"], "confirmed")
+        self.assertEqual(play.call_args.args[0], ("everywhere", None))
+
 
 class StartupTests(TestCase):
     def test_assist_requires_fixed_port_and_bridge_token(self):
