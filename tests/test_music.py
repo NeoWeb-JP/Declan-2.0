@@ -36,6 +36,8 @@ class MusicTests(unittest.TestCase):
         self.enterContext(patch.object(music, "spotify_token", None))
         folder = self.enterContext(TemporaryDirectory())
         self.enterContext(patch.object(music, "SPOTIFY_SETTINGS", Path(folder) / "spotify-settings.json"))
+        self.enterContext(patch.object(music, "PREFERENCES", Path(folder) / "music-preferences.sqlite3"))
+        self.enterContext(patch.object(music, "recent_blacklist_skips", {}))
         self.enterContext(patch.object(music, "sleep"))
 
     def open(self, request, timeout):
@@ -100,6 +102,41 @@ class MusicTests(unittest.TestCase):
     def control(self, phrase, **kwargs):
         return music.control(music.parse_control(phrase), ("http://ha", {}, self),
                              lambda _: (list(self.players.values()), None), **kwargs)
+
+    def test_everywhere_uses_unique_available_replacement(self):
+        replacement = "media_player.everywhere_3"
+        self.players[self.group]["state"] = "unavailable"
+        self.players[replacement] = {"entity_id": replacement, "state": "idle",
+                                     "attributes": {"friendly_name": "Everywhere"}}
+        self.assertEqual(self.play("play music everywhere")[1], "confirmed")
+        self.assertEqual(self.calls[-1], ("transfer_queue", {
+            "entity_id": replacement, "source_player": self.bedroom, "auto_play": True,
+        }))
+        self.players[replacement]["attributes"] = {**self.track, "friendly_name": "Everywhere"}
+        self.assertEqual(self.control("pause music everywhere")[1], "confirmed")
+
+    def test_feedback_saves_favourites_and_skips_blocked_tracks(self):
+        connection = ("http://ha", {}, self)
+
+        def inventory(_):
+            return list(self.players.values()), None
+
+        for phrase in ("we like this song", "never play this song again"):
+            self.assertEqual(music.feedback(music.parse_feedback(phrase), connection, inventory)[1], "music_feedback")
+            if phrase == "we like this song":
+                self.assertEqual(music.search_media(connection, self.bedroom, "my favourites", "", "spotify")[1], "track")
+        self.assertIsNone(music.search_media(connection, self.bedroom, "my favourites", "", "spotify"))
+        music.skip_blocked_tracks(connection, inventory)
+        self.assertEqual(self.calls[-1], ("media_next_track", {"entity_id": self.bedroom}))
+
+    def test_genre_requests_avoid_the_previous_playlist(self):
+        self.search_results = {"playlists": [
+            {"name": "Country One", "id": "A" * 22}, {"name": "Country Two", "id": "B" * 22},
+        ]}
+        self.assertEqual(self.play("play country music in the kitchen")[1], "confirmed")
+        first = self.calls[-1][1]["media_id"]
+        self.assertEqual(self.play("play country music in the kitchen")[1], "confirmed")
+        self.assertNotEqual(self.calls[-1][1]["media_id"], first)
 
     def test_room_music_controls_pause_resume_skip_previous_and_stop(self):
         for phrase, action in (

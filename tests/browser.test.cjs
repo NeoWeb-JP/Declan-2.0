@@ -183,6 +183,7 @@ test('voice waits for a chained sentence, speaks the reply and resumes listening
   const ui = browser(t, {voice: true, microphone: true});
   await flush();
   ui.responses.set('/api/chat', {session_id: 'voice-session', reply: 'Both steps finished.'});
+  ui.responses.set('/api/tts', {error: 'Voice unavailable'});
   ui.element('#spoken-replies').checked = true;
   transcript(ui.recognition, 'run good morning and');
   assert.match(ui.element('#voice-status').textContent, /Keep going/);
@@ -190,8 +191,11 @@ test('voice waits for a chained sentence, speaks the reply and resumes listening
   assert.equal(await ui.tick(5000), false);
   transcript(ui.recognition, 'turn on the fairy lights');
   assert.equal(await ui.tick(1400), true);
-  assert.equal(JSON.parse(ui.calls.at(-1).options.body).message, 'run good morning and turn on the fairy lights');
-  assert.equal(JSON.parse(ui.calls.at(-1).options.body).source, 'voice');
+  const chat = ui.calls.find(call => call.url === '/api/chat');
+  assert.equal(JSON.parse(chat.options.body).message, 'run good morning and turn on the fairy lights');
+  assert.equal(JSON.parse(chat.options.body).source, 'voice');
+  assert.equal(ui.calls.at(-1).url, '/api/tts');
+  assert.equal(JSON.parse(ui.calls.at(-1).options.body).message, 'Both steps finished.');
   assert.equal(ui.spoken[0].text, 'Both steps finished.');
   ui.spoken[0].onend();
   assert.equal(await ui.tick(350), true);

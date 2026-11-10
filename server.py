@@ -704,6 +704,53 @@ def ha_device_connection():
     return url, headers, opener
 
 
+def render_web_voice(message):
+    connection = ha_device_connection()
+    engine = os.environ.get("DECLAN_WEB_TTS_ENTITY", "").strip()
+    if connection is None or (engine and not re.fullmatch(r"tts\.[a-z0-9_]+", engine)):
+        return None
+    url, headers, opener = connection
+    try:
+        if not engine:
+            template = (
+                "{% set providers = integration_entities('elevenlabs') + integration_entities('elevenlabs_custom_tts') %}"
+                "{% set result = namespace(engines=[]) %}"
+                "{% for entity in states.tts if entity.state != 'unavailable' "
+                "and (entity.entity_id in providers or 'elevenlabs' in entity.entity_id or 'elevenlabs' in entity.name | lower) %}"
+                "{% set result.engines = result.engines + [[entity.entity_id, entity.name]] %}"
+                "{% endfor %}{{ result.engines | to_json }}"
+            )
+            request = Request(f"{url}/api/template", headers=headers,
+                              data=json.dumps({"template": template}).encode())
+            with opener.open(request, timeout=2) as response:
+                rows = json.loads(response.read(16384))
+            candidates = {entity: name for entity, name in rows
+                          if isinstance(entity, str) and re.fullmatch(r"tts\.[a-z0-9_]+", entity)
+                          and isinstance(name, str)}
+            named = [entity for entity, name in candidates.items() if "declan" in (entity + " " + name).casefold()]
+            matches = named or list(candidates)
+            if len(matches) != 1:
+                return None
+            engine = matches[0]
+        request = Request(f"{url}/api/tts_get_url", headers=headers, data=json.dumps({
+            "engine_id": engine, "message": message, "cache": False,
+            "options": {"preferred_format": "mp3"},
+        }).encode())
+        with opener.open(request, timeout=10) as response:
+            path = json.loads(response.read(8192))["path"]
+        if not isinstance(path, str) or not re.fullmatch(r"/api/tts_proxy/[\w.-]+\.mp3", path, re.ASCII):
+            return None
+        limit = 8 * 1024 * 1024
+        with opener.open(Request(url + path, headers=headers), timeout=10) as response:
+            audio = response.read(limit + 1)
+        return audio if 0 < len(audio) <= limit else None
+    except HTTPError as error:
+        error.close()
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
 def read_ha_inventory(connection):
     url, headers, opener = connection
     try:
@@ -1259,7 +1306,7 @@ class Handler(BaseHTTPRequestHandler):
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif self.client_address[0] != "127.0.0.1":
@@ -1295,6 +1342,13 @@ class Handler(BaseHTTPRequestHandler):
             detail = ("Send valid Spotify settings." if self.path == "/api/settings/spotify"
                       else "Send a message of 1 to 1,000 characters.")
             self.send_json(400, {"error": detail})
+            return
+        if self.path == "/api/tts":
+            audio = render_web_voice(message)
+            if audio is None:
+                self.send_json(503, {"error": "Declan's voice is unavailable."})
+            else:
+                self.send_body(200, audio, "audio/mpeg")
             return
         if self.path == "/api/assist/history":
             spoken_reply = body.get("reply")
@@ -1419,6 +1473,8 @@ class Handler(BaseHTTPRequestHandler):
                                  and item.get("entity_id") == GUEST_MODE_ENTITY), None
                             )
                             routine_reply = add_sass(routine_reply, "device_status", guest_mode)
+            elif music_feedback := music.parse_feedback(phrase):
+                routine_reply, outcome = music.feedback(music_feedback, ha_device_connection(), read_ha_inventory)
             elif music_control := music.parse_control(phrase):
                 routine_reply, outcome = music.control(
                     music_control, ha_device_connection(), read_ha_inventory,
@@ -1506,6 +1562,7 @@ def main():
         worker = Thread(target=server.serve_forever, daemon=True)
         worker.start()
         next_prune = monotonic()
+        next_music_check = monotonic() + 5
         url = f"http://127.0.0.1:{server.server_port}"
         try:
             opener = build_opener(ProxyHandler({}))
@@ -1521,6 +1578,9 @@ def main():
                     timers.ring_due(opener)
                 except (OSError, sqlite3.Error):
                     print("Timer alarms could not be checked.", flush=True)
+                if monotonic() >= next_music_check:
+                    next_music_check = monotonic() + 5
+                    music.skip_blocked_tracks(ha_device_connection(), read_ha_inventory)
                 if monotonic() >= next_prune:
                     try:
                         history.prune()

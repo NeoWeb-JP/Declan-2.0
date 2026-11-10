@@ -191,6 +191,29 @@ class LightingTests(TestCase):
 
 
 class ServiceTests(TestCase):
+    def test_web_voice_discovers_declan_engine_by_name(self):
+        with patch.dict(os.environ, HA_ENV | {"DECLAN_WEB_TTS_ENTITY": ""}), patch.object(server, "build_opener") as build:
+            opener = build.return_value
+            opener.open.side_effect = [
+                io.BytesIO(b'[["tts.other_elevenlabs","ElevenLabs"],["tts.house_voice","Declan - South African News"]]'),
+                io.BytesIO(b'{"path":"/api/tts_proxy/declan.mp3"}'),
+                io.BytesIO(b"audio"),
+            ]
+            self.assertEqual(server.render_web_voice("Hello"), b"audio")
+            self.assertEqual(json.loads(opener.open.call_args_list[1].args[0].data)["engine_id"], "tts.house_voice")
+
+    def test_web_voice_uses_configured_engine_and_local_audio_path(self):
+        environment = HA_ENV | {"DECLAN_WEB_TTS_ENTITY": "tts.elevenlabs"}
+        with patch.dict(os.environ, environment), patch.object(server, "build_opener") as build:
+            opener = build.return_value
+            opener.open.side_effect = [io.BytesIO(b'{"path":"/api/tts_proxy/declan.mp3"}'), io.BytesIO(b"audio")]
+            self.assertEqual(server.render_web_voice("Hello"), b"audio")
+            generate, download = [entry.args[0] for entry in opener.open.call_args_list]
+            self.assertEqual(json.loads(generate.data)["engine_id"], "tts.elevenlabs")
+            self.assertEqual(download.full_url, "http://ha.invalid/api/tts_proxy/declan.mp3")
+            opener.open.side_effect = [io.BytesIO(b'{"path":"//other.invalid/audio.mp3"}')]
+            self.assertIsNone(server.render_web_voice("Hello"))
+
     def test_media_search_requires_configured_agent_and_valid_response(self):
         environment = HA_ENV | {"DECLAN_MEDIA_SEARCH_AGENT": "conversation.declan_local"}
         with patch.dict(os.environ, environment), patch.object(server, "build_opener") as build:

@@ -3,7 +3,10 @@
 import json
 import os
 import re
+import sqlite3
+from contextlib import closing, contextmanager
 from pathlib import Path
+from random import choices
 from tempfile import NamedTemporaryFile
 from threading import Lock
 from time import monotonic, sleep
@@ -15,7 +18,7 @@ from urllib.request import Request
 PLAYERS = {
     "bedroom": "media_player.bedroom_declan_voice_assistant",
     "kitchen": "media_player.kitchen_declan_voice_assistant",
-    "everywhere": "media_player.everywhere_2",
+    "everywhere": "media_player.everywhere",
 }
 ACTIVE = {"playing", "buffering", "paused"}
 STOPPED = {"idle", "off", "standby", "on"}
@@ -37,6 +40,112 @@ SPOTIFY_REFERENCE = re.compile(
 )
 spotify_token = None
 SPOTIFY_SETTINGS = Path(__file__).with_name(".data") / "spotify-settings.json"
+PREFERENCES = SPOTIFY_SETTINGS.with_name("music-preferences.sqlite3")
+recent_blacklist_skips = {}
+
+
+def music_players(inventory):
+    destinations = PLAYERS.copy()
+    entities = {row["entity_id"]: row for row in inventory
+                if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
+    if entities.get(destinations["everywhere"], {}).get("state") in (None, "unknown", "unavailable"):
+        candidates = [entity for entity, row in entities.items()
+                      if re.fullmatch(r"media_player\.[a-z0-9_]+", entity)
+                      and row.get("state") not in (None, "unknown", "unavailable")
+                      and str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"]
+        if len(candidates) == 1:
+            destinations["everywhere"] = candidates[0]
+    return destinations, {entity: entities[entity] for entity in destinations.values() if entity in entities}
+
+
+@contextmanager
+def preference_db():
+    PREFERENCES.parent.mkdir(exist_ok=True)
+    with closing(sqlite3.connect(PREFERENCES, timeout=1)) as db, db:
+        db.execute("CREATE TABLE IF NOT EXISTS preferences (uri TEXT PRIMARY KEY, weight INTEGER NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS recent_playlists (id INTEGER PRIMARY KEY, category TEXT, uri TEXT)")
+        yield db
+
+
+def parse_feedback(phrase):
+    match = re.fullmatch(
+        r"(never play this song again|i like this song|we like this song|i like this playlist|we like this playlist)"
+        r"(?: (?:in (?:the )?)?(bedroom|master bedroom|kitchen|everywhere))?", phrase,
+    )
+    return match.groups() if match else None
+
+
+def playback_sources(destinations, players):
+    group = destinations["everywhere"]
+    group_state = players.get(group, {})
+    members = ((group_state.get("attributes") or {}).get("group_members") or []
+               if group_state.get("state") in ACTIVE else [])
+    return {entity: player for entity, player in players.items()
+            if player.get("state") in ACTIVE and (entity == group or entity not in members)}
+
+
+def feedback(command, connection, read_inventory):
+    phrase, room = command
+    if connection is None or not HANDOFF.acquire(blocking=False):
+        return "I couldn't check the current music. Try again in a moment.", "unavailable"
+    try:
+        inventory, error = read_inventory(connection)
+        if error:
+            return "I couldn't check what's playing.", error
+        destinations, players = music_players(inventory)
+        active = playback_sources(destinations, players)
+        if room:
+            entity = destinations[room.removeprefix("master ")]
+            active = {entity: active[entity]} if entity in active else {}
+        if len(active) != 1:
+            return "Tell me which active music player you mean.", "unresolved"
+        entity, player = next(iter(active.items()))
+        attrs = player.get("attributes") or {}
+        playlist = phrase.endswith("playlist")
+        kind = "playlist" if playlist else "track"
+        uri = next((media_key(value) for value in (attrs.get("media_playlist_id"), attrs.get("media_content_id"))
+                    if isinstance(value, str) and media_key(value).startswith(f"spotify://{kind}/")
+                    and SPOTIFY_REFERENCE.fullmatch(value)), None)
+        if not uri:
+            return f"I couldn't identify the current Spotify {kind}.", "unresolved"
+        ban = phrase.startswith("never")
+        with preference_db() as db:
+            if not ban and db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0", (uri,)).fetchone():
+                return "That song is on your do-not-play list.", "unresolved"
+            db.execute("INSERT INTO preferences VALUES (?, ?) ON CONFLICT(uri) DO UPDATE SET weight = "
+                       "CASE WHEN excluded.weight = 0 THEN 0 ELSE min(5, max(1, weight) + 1) END",
+                       (uri, 0 if ban else 2))
+        label = (attrs.get("media_playlist") or "this playlist") if playlist else (attrs.get("media_title") or "this song")
+        return (f"Blocked {label}. I'll skip it when it comes up." if ban else f"Saved {label} as a favourite."), "music_feedback"
+    except (OSError, ValueError, sqlite3.Error):
+        return "I couldn't save that music preference.", "unavailable"
+    finally:
+        HANDOFF.release()
+
+
+def skip_blocked_tracks(connection, read_inventory):
+    if connection is None or not PREFERENCES.exists() or not HANDOFF.acquire(blocking=False):
+        return
+    try:
+        with preference_db() as db:
+            blocked = {uri for (uri,) in db.execute("SELECT uri FROM preferences WHERE weight = 0")}
+        if not blocked:
+            return
+        inventory, error = read_inventory(connection)
+        if error:
+            return
+        now = monotonic()
+        for entity, player in playback_sources(*music_players(inventory)).items():
+            track = media_key(spotify_id(player))
+            if player.get("state") == "playing" and track in blocked and now >= recent_blacklist_skips.get(entity, 0):
+                recent_blacklist_skips[entity] = now + 10
+                request(connection, "/api/services/media_player/media_next_track", {"entity_id": entity}, timeout=2)
+    except HTTPError as error:
+        error.close()
+    except (OSError, ValueError, sqlite3.Error):
+        pass
+    finally:
+        HANDOFF.release()
 
 
 class SpotifyNotConfigured(Exception):
@@ -170,9 +279,8 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
         inventory, error = read_inventory(connection)
         if error:
             return "I couldn't check the music players.", error
-        players = {row["entity_id"]: row for row in inventory
-                   if isinstance(row, dict) and row.get("entity_id") in PLAYERS.values()}
-        group = PLAYERS["everywhere"]
+        destinations, players = music_players(inventory)
+        group = destinations["everywhere"]
         grouped = players.get(group, {})
         members = ((grouped.get("attributes") or {}).get("group_members") or []
                    if grouped.get("state") in ACTIVE else [])
@@ -182,13 +290,13 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
             if room is None:
                 return "Which room should I control?", "unresolved"
         if room is None:
-            active = [name for name, entity in PLAYERS.items()
+            active = [name for name, entity in destinations.items()
                       if (entity == group or entity not in members)
                       and players.get(entity, {}).get("state") in ACTIVE]
             if len(active) != 1:
                 return "Which room should I control?", "unresolved"
             room = active[0]
-        entity = PLAYERS[room]
+        entity = destinations[room]
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         player = players.get(entity, {})
         state = player.get("state")
@@ -274,9 +382,25 @@ def saved_spotify_selection(title, artist):
 
 def search_media(connection, destination, title, artist, provider):
     if provider == "spotify":
+        with preference_db() as db:
+            weights = dict(db.execute("SELECT uri, weight FROM preferences"))
+            recent = [uri for (uri,) in db.execute(
+                "SELECT uri FROM recent_playlists WHERE category = ? ORDER BY id DESC LIMIT 3", (title,))]
+        if title in {"my favourites", "our favourites", "my favorites", "our favorites"}:
+            options = [(uri, uri.split("/")[-2], "a favourite") for uri, weight in weights.items() if weight > 1]
+            if not options:
+                return None
+            uri, kind, name = choices(options, weights=[weights[item[0]] for item in options])[0]
+            return uri.replace("spotify://", "https://open.spotify.com/", 1), kind, name
         types = (("track",) if artist else ("playlist",) if title.endswith(" music")
                  else ("track", "album", "artist", "playlist"))
         options = spotify_search(connection[2], title, artist, types)
+        options = [item for item in options if weights.get(media_key(item[0]), 1) > 0]
+        if types == ("playlist",) and options:
+            for count in range(len(recent), -1, -1):
+                pool = [item for item in options if media_key(item[0]) not in recent[:count]]
+                if pool:
+                    return choices(pool, weights=[weights.get(media_key(item[0]), 1) for item in pool])[0]
         return next((item for item in options if item[2].casefold() == title.casefold()),
                     options[0] if options else None)
     entry = request(connection, "/api/template", {
@@ -329,7 +453,6 @@ def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
 
 def play(command, connection, read_inventory):
     room, title, provider = command
-    destination = PLAYERS[room]
     location = "everywhere" if room == "everywhere" else f"in the {room}"
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
@@ -340,15 +463,15 @@ def play(command, connection, read_inventory):
         inventory, error = read_inventory(connection)
         if error:
             return "I couldn't check which players are active.", error
-        players = {row["entity_id"]: row for row in inventory
-                   if isinstance(row, dict) and row.get("entity_id") in PLAYERS.values()}
+        destinations, players = music_players(inventory)
+        destination = destinations[room]
         if players.get(destination, {}).get("state") in (None, "unknown", "unavailable"):
             return f"The Music Assistant player {location} is unavailable.", "unavailable"
         previous_state = players[destination]["state"]
         previous_track = (players[destination].get("attributes") or {}).get("media_content_id")
         streams = {entity: player for entity, player in players.items()
                    if player.get("state") in ACTIVE and spotify_id(player)}
-        group = PLAYERS["everywhere"]
+        group = destinations["everywhere"]
         if group in streams:
             members = streams[group]["attributes"].get("group_members") or []
             for entity in tuple(streams):
@@ -361,6 +484,11 @@ def play(command, connection, read_inventory):
         if title and provider == "spotify" and " by " in title:
             title, _, artist = title.rpartition(" by ")
         saved = saved_spotify_selection(title, artist) if title and provider == "spotify" else None
+        if saved and PREFERENCES.exists():
+            with preference_db() as db:
+                if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0",
+                              (media_key(saved[0]),)).fetchone():
+                    return "That track is on your do-not-play list.", "unavailable"
         same_track = source and (
             media_key(spotify_id(streams[source])) == media_key(saved[0]) if saved
             else title and matches_track(streams[source], title, artist)
@@ -437,7 +565,13 @@ def play(command, connection, read_inventory):
         playback_source = "Spotify" if provider == "spotify" else "Radio"
         # Music Assistant may still be retrying Spotify or expanding a playlist
         # after the playback POST times out. Only poll state, never resend it.
-        if wait_for(connection, destination, verify, attempts=12 if timed_out else 4):
+        verified = wait_for(connection, destination, verify, attempts=12 if timed_out else 4)
+        if not move and kind == "playlist" and provider == "spotify" and (verified or observed_playback):
+            with preference_db() as db:
+                db.execute("INSERT INTO recent_playlists(category, uri) VALUES (?, ?)", (title, media_key(uri)))
+                db.execute("DELETE FROM recent_playlists WHERE id <= "
+                           "(SELECT max(id) - 500 FROM recent_playlists)")
+        if verified:
             if not move and kind == "artist":
                 prefix = "I stopped the previous Spotify stream. " if stopped else ""
                 return f"{prefix}{selected_name} is playing {location}.", "confirmed"
@@ -458,7 +592,7 @@ def play(command, connection, read_inventory):
         else:
             detail = "Home Assistant returned an error for the music request."
         return ("I stopped the previous stream. " if stopped else "") + detail, "unverified"
-    except (OSError, ValueError):
+    except (OSError, ValueError, sqlite3.Error):
         return ("I stopped the previous Spotify stream, but couldn't verify the new request." if stopped
                 else "I couldn't verify the music request."), "unverified"
     finally:

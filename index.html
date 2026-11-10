@@ -513,17 +513,38 @@ async function sendMessage(message, fromVoice = false) {
     add('Declan', result.reply);
     if (historyPanel.open) void loadHistory();
     if (result.history_saved === false) historyStatus.textContent = 'This message could not be saved.';
-    if (fromVoice && spokenReplies.checked && 'speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(result.reply);
-      utterance.lang = 'en-GB';
+    if (fromVoice && spokenReplies.checked) {
       const finished = () => {
         speaking = false;
         scheduleListening();
       };
-      utterance.onend = finished;
-      utterance.onerror = finished;
       speaking = true;
-      window.speechSynthesis.speak(utterance);
+      let audioUrl;
+      try {
+        const voice = await fetch('/api/tts', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({message: result.reply})
+        });
+        if (!voice.ok) throw new Error('Voice unavailable');
+        audioUrl = URL.createObjectURL(await voice.blob());
+        const audio = new Audio(audioUrl);
+        audio.onended = audio.onerror = () => {
+          URL.revokeObjectURL(audioUrl);
+          finished();
+        };
+        await audio.play();
+      } catch {
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(result.reply);
+          utterance.lang = 'en-GB';
+          utterance.onend = utterance.onerror = finished;
+          window.speechSynthesis.speak(utterance);
+        } else {
+          finished();
+        }
+      }
     }
   } catch (error) {
     speaking = false;
