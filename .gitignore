@@ -8,3 +8,5 @@ __pycache__/
 declan-conversation-history*.json
 .coverage
 node_modules/
+/.idea/
+/pyproject.toml
