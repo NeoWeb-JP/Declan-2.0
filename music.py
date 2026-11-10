@@ -252,6 +252,13 @@ def request(connection, path, data=None, *, timeout=None):
 
 
 def parse_control(phrase):
+    dislike = re.fullmatch(
+        r"(?:i|we) (?:do not|don['’]t) like this (?:song|track)"
+        r"(?: in (?:the )?(bedroom|master bedroom|kitchen|everywhere))?", phrase,
+    )
+    if dislike:
+        room = dislike[1]
+        return "media_next_track", room.removeprefix("master ") if room else None
     match = re.fullmatch(
         r"(stop|pause|continue|resume|play|skip|next|previous|go back)"
         r"(?: (?:the |this )?(music|playback|playing|spotify|radio|track|song|next track|next song|previous track|previous song))?"
@@ -274,9 +281,10 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
     if not HANDOFF.acquire(blocking=False):
         return "A music request is already in progress.", "busy"
     location = "on the music player"
-    deadline = monotonic() + 5
     try:
         inventory, error = read_inventory(connection)
+        if error == "unavailable":
+            inventory, error = read_inventory(connection)
         if error:
             return "I couldn't check the music players.", error
         destinations, players = music_players(inventory)
@@ -285,9 +293,14 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
         members = ((grouped.get("attributes") or {}).get("group_members") or []
                    if grouped.get("state") in ACTIVE else [])
         if room is None and assist:
-            areas = read_areas(connection, origin) if origin else {}
+            areas = read_areas(connection, origin) if origin and read_areas else {}
             room = next((name for name in areas if name in {"bedroom", "kitchen"}), None)
-            if room is None:
+            if action in {"media_next_track", "media_previous_track"}:
+                if room and destinations[room] in members:
+                    room = "everywhere"
+                elif room and players.get(destinations[room], {}).get("state") not in ACTIVE:
+                    room = None
+            elif room is None:
                 return "Which room should I control?", "unresolved"
         if room is None:
             active = [name for name, entity in destinations.items()
@@ -313,6 +326,7 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
             return f"There's no active playback {location}.", "unavailable"
         before = player.get("attributes") or {}
         timed_out = False
+        deadline = monotonic() + 5
         remaining = deadline - monotonic()
         if remaining <= 0:
             return f"I ran out of time checking the player {location}.", "unverified"

@@ -101,6 +101,8 @@ class APITests(TestCase):
         self.assertIn("Test Person", self.ask("What's my name?", session)["reply"])
         self.assertIn("You said", self.ask("What did I say?", session)["reply"])
         self.assertIn("here", self.ask("What time is it?", session)["reply"])
+        self.assertIn("here", self.ask("What's the time?", session)["reply"])
+        self.assertIn("here", self.ask("What’s the time?", session)["reply"])
         self.assertIn("say it another way", self.ask("Something else")["reply"])
         with patch.object(server.conditions, "handle", side_effect=lambda phrase, _: (
             ("Oxford forecast", "confirmed", "weather") if "oxford" in phrase else None

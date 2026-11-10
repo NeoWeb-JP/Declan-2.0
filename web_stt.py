@@ -1,11 +1,18 @@
 """Send a short browser recording to the Home Assistant Assist STT stage."""
 
 import json
+import re
 from time import monotonic
 from urllib.parse import urlsplit, urlunsplit
 
 
 MAX_AUDIO_BYTES = 20 * 16000 * 2
+
+
+class AssistSpeechError(ValueError):
+    def __init__(self, code):
+        self.code = code if isinstance(code, str) and re.fullmatch(r"[a-zA-Z0-9_-]{1,48}", code) else "unknown"
+        super().__init__(self.code)
 
 
 def transcribe(url, token, audio, *, pipeline=None):
@@ -41,7 +48,7 @@ def run_stt(socket, token, audio, pipeline):
         raise ValueError("Home Assistant did not request authentication")
     socket.send(json.dumps({"type": "auth", "access_token": token}))
     if receive().get("type") != "auth_ok":
-        raise ValueError("Home Assistant rejected authentication")
+        raise AssistSpeechError("auth-rejected")
     run = {"id": 1, "type": "assist_pipeline/run", "start_stage": "stt", "end_stage": "stt",
            "input": {"sample_rate": 16000}, "timeout": 20}
     if pipeline:
@@ -53,7 +60,7 @@ def run_stt(socket, token, audio, pipeline):
         if message.get("id") != 1:
             continue
         if message.get("type") == "result" and not message.get("success"):
-            raise ValueError("Home Assistant rejected the Assist pipeline request")
+            raise AssistSpeechError((message.get("error") or {}).get("code"))
         event = message.get("event") or {}
         kind, data = event.get("type"), event.get("data") or {}
         if kind == "run-start":
@@ -69,6 +76,6 @@ def run_stt(socket, token, audio, pipeline):
             text = (data.get("stt_output") or {}).get("text")
             return text.strip() if isinstance(text, str) else ""
         elif kind == "error":
-            raise ValueError("Home Assistant speech recognition failed")
+            raise AssistSpeechError(data.get("code"))
         elif kind == "run-end":
             return ""

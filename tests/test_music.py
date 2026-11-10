@@ -115,6 +115,23 @@ class MusicTests(unittest.TestCase):
         self.players[replacement]["attributes"] = {**self.track, "friendly_name": "Everywhere"}
         self.assertEqual(self.control("pause music everywhere")[1], "confirmed")
 
+    def test_assist_skip_retries_inventory_then_controls_everywhere(self):
+        self.players[self.group].update(state="playing", attributes={**self.track, "group_members": [self.bedroom]})
+        with patch.object(music, "music_players", wraps=music.music_players) as resolve:
+            responses = iter([(None, "unavailable"), (list(self.players.values()), None)])
+            reply, outcome = music.control(music.parse_control("next song"), ("http://ha", {}, self),
+                                           lambda _: next(responses), assist=True, origin="satellite",
+                                           read_areas=lambda *_: {"bedroom": set()})
+            self.assertEqual(outcome, "confirmed", reply)
+            resolve.assert_called_once()
+        self.assertEqual(self.calls, [("media_next_track", {"entity_id": self.group})])
+
+    def test_dislike_phrases_skip_without_blocking(self):
+        for phrase in ("i do not like this song", "i don't like this song", "i don’t like this song"):
+            self.assertEqual(music.parse_control(phrase), ("media_next_track", None))
+        self.assertEqual(self.control("i don't like this song")[1], "confirmed")
+        self.assertFalse(music.PREFERENCES.exists())
+
     def test_feedback_saves_favourites_and_skips_blocked_tracks(self):
         connection = ("http://ha", {}, self)
 

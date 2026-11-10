@@ -2,10 +2,19 @@ import json
 from unittest import TestCase
 from unittest.mock import Mock
 
-from web_stt import run_stt
+from web_stt import AssistSpeechError, run_stt
 
 
 class WebSpeechTests(TestCase):
+    def test_reports_home_assistant_pipeline_error_code(self):
+        socket = Mock()
+        socket.recv.side_effect = map(json.dumps, [
+            {"type": "auth_required"}, {"type": "auth_ok"},
+            {"id": 1, "type": "event", "event": {"type": "error", "data": {"code": "stt-provider-missing"}}},
+        ])
+        with self.assertRaisesRegex(AssistSpeechError, "stt-provider-missing"):
+            run_stt(socket, "test-token", b"\0\1", None)
+
     def test_assist_run_uses_selected_pipeline_and_sends_pcm(self):
         socket = Mock()
         socket.recv.side_effect = map(json.dumps, [

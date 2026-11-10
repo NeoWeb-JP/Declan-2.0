@@ -42,6 +42,7 @@ CHAT_COMMANDS = {
     "do you remember my name": "recall_name",
     "what did i just say": "recall_message", "what did i say": "recall_message",
     "what time is it": "time", "what is the time": "time", "tell me the time": "time",
+    "what's the time": "time", "what’s the time": "time",
     "hello": "greeting", "hi": "greeting", "hey": "greeting", "hello declan": "greeting",
 }
 GOOD_MORNING_SCRIPT = "script.declan_good_morning_shared_local_routine"
@@ -1325,7 +1326,12 @@ class Handler(BaseHTTPRequestHandler):
         except ImportError:
             self.send_json(503, {"error": "Install requirements-web-voice.txt to enable the Assist microphone."})
             return
-        except (OSError, ValueError, AttributeError, TypeError):
+        except web_stt.AssistSpeechError as error:
+            print(f"Web Assist transcription failed: {error.code}", flush=True)
+            self.send_json(502, {"error": f"Home Assistant speech recognition failed ({error.code})."})
+            return
+        except (OSError, ValueError, AttributeError, TypeError) as error:
+            print(f"Web Assist connection or protocol failure: {type(error).__name__}", flush=True)
             self.send_json(502, {"error": "Home Assistant couldn't transcribe that recording."})
             return
         self.send_json(200, {"text": text})
