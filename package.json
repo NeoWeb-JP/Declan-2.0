@@ -1,0 +1,11 @@
+{
+  "name": "declan-browser-tests",
+  "private": true,
+  "scripts": {
+    "test": "c8 --all --src=.data/browser-ci --reporter=text --include=.data/browser-ci/browser.js --check-coverage --lines 80 node --test tests/browser.test.cjs"
+  },
+  "devDependencies": {
+    "c8": "10.1.3",
+    "jsdom": "26.1.0"
+  }
+}

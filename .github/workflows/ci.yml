@@ -27,5 +27,23 @@ jobs:
           python-version: "3.12"
       - name: Check Python syntax
         run: python -m compileall -q server.py conditions.py device_status.py history.py personality.py timers.py custom_components tests
+      - name: Install coverage tool
+        run: python -m pip install coverage==7.13.5
       - name: Run regression tests
-        run: python -m unittest discover -s tests -v
+        run: python -m coverage run -m unittest discover -s tests -v
+      - name: Require 80% Python line coverage
+        run: python -m coverage report
+
+  browser:
+    name: Browser JavaScript tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm test

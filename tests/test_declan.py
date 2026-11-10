@@ -53,6 +53,19 @@ class CoreTests(TestCase):
         _, outcome, entity = device_status.describe("fairy lights", "on", inventory)
         self.assertEqual((outcome, entity), ("unavailable", "light.fairy_lights"))
 
+    def test_screen_position_and_duplicate_names(self):
+        inventory = [{"entity_id": device_status.SCREEN, "state": "open",
+                      "attributes": {"current_position": 83}}]
+        reply, outcome, entity = device_status.describe("projector screen", "down", inventory)
+        self.assertEqual((reply, outcome, entity), ("Projector screen is down.", "confirmed", device_status.SCREEN))
+        inventory[0]["attributes"]["current_position"] = 30
+        self.assertIn("partway down", device_status.describe(entity, "down", inventory)[0])
+        self.assertEqual(device_status.describe("projector", "on", inventory)[1], "unresolved")
+        inventory.extend({"entity_id": entity, "state": "on", "attributes": {"friendly_name": "Lamp"}}
+                         for entity in ("light.bedroom", "light.lounge"))
+        self.assertIn("Which device", device_status.describe("lamp", "on", inventory)[0])
+        self.assertEqual(device_status.parse("what about the lamp", device_status.SCREEN), ("lamp", None))
+
     def test_mixed_light_commands_do_not_become_a_routine(self):
         phrase = "turn on the fairy lights and turn off the office light"
         self.assertIsNone(server.select_routine_turn(phrase, None))

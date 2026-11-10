@@ -6,3 +6,5 @@ __pycache__/
 *.sqlite3
 *.sqlite3-*
 declan-conversation-history*.json
+.coverage
+node_modules/

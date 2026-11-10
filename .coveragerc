@@ -1,0 +1,12 @@
+[run]
+source = .
+omit =
+    */tests/*
+    */.data/*
+    */node_modules/*
+
+[report]
+include_namespace_packages = true
+precision = 2
+fail_under = 80
+show_missing = true
