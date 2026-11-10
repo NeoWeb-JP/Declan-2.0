@@ -81,6 +81,7 @@ header { position: relative; background: #060d14a8; }
 h1 small { color: #62e7ff; border: 1px solid #388da2; border-radius: 3px; padding: .14rem .25rem; vertical-align: middle; }
 .connection { position: fixed; right: max(1rem, env(safe-area-inset-right));
   bottom: calc(max(.75rem, env(safe-area-inset-bottom)) + .5rem); padding: .35rem .55rem;
+  max-width: calc(100% - 2rem); box-sizing: border-box; overflow-wrap: anywhere;
   border-radius: .35rem; background: #060d14e6; }
 .connection::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: .5rem;
   border-radius: 50%; background: #7796a8; }
@@ -186,6 +187,7 @@ const haStatusLabels = {
   authentication_failed: 'Home Assistant sign-in failed',
   disconnected: 'Home Assistant disconnected'
 };
+let buildLabel = '';
 async function refreshHAStatus() {
   let state = 'disconnected';
   try {
@@ -193,14 +195,16 @@ async function refreshHAStatus() {
     if (response.ok) {
       const result = await response.json();
       if (Object.hasOwn(haStatusLabels, result.status)) state = result.status;
+      if (Object.hasOwn(result, 'release_version')) {
+        buildLabel = result.release_version ? `Release ${result.release_version}` : 'Development build';
+      }
     }
   } catch {
     // A failed connection check must never be shown as connected.
   }
-  if (haStatus.dataset.state !== state) {
-    haStatus.dataset.state = state;
-    haStatus.textContent = haStatusLabels[state];
-  }
+  haStatus.dataset.state = state;
+  const label = [haStatusLabels[state], buildLabel].filter(Boolean).join(' · ');
+  if (haStatus.textContent !== label) haStatus.textContent = label;
   setTimeout(refreshHAStatus, 15000);
 }
 void refreshHAStatus();

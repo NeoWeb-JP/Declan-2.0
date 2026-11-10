@@ -30,6 +30,9 @@ ROUTINE_LOCKS["movie_bedroom"] = Lock()
 routine_last_attempts = {}
 IDLE_SECONDS = 300
 ASSIST_PORT = 52737
+RELEASE_VERSION = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
+if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION) or len(RELEASE_VERSION) > 40:
+    RELEASE_VERSION = None
 GUEST_MODE_ENTITY = "input_boolean.guest_mode"
 NAME_PATTERN = re.compile(r"my name is ([^\W\d_][\w '\u2019-]{0,39})", re.I)
 CHAT_COMMANDS = {
@@ -136,20 +139,44 @@ MOVIE_APPS = {
 def parse_movie_request(phrase):
     match = re.fullmatch(
         r"(?:(start|turn on|end|stop|turn off|toggle) )?(?:movie time|cinema time|cinema mode)"
-        r"(?: in (?:the )?(lounge|living room|bedroom|master bedroom))?(?: and open (.+))?",
+        r"(?: in (?:the )?(lounge|living room|bedroom|master bedroom|here))?(?: and open (.+))?",
         phrase,
     )
     if not match:
         return None
     verb, room, app = match.groups()
     if app:
-        app_room = re.fullmatch(r"(.+?) in (?:the )?(lounge|living room|bedroom|master bedroom)", app)
+        app_room = re.fullmatch(r"(.+?) in (?:the )?(lounge|living room|bedroom|master bedroom|here)", app)
         if app_room and room is None:
             app, room = app_room.groups()
     direction = ("start" if verb in ("start", "turn on") else
                  "end" if verb in ("end", "stop", "turn off") else "toggle")
-    room = "bedroom" if room in ("bedroom", "master bedroom") else "lounge"
     return direction, room, app
+
+
+def select_routine(phrase, origin):
+    if phrase in GOOD_MORNING_PHRASES:
+        return "morning", {}
+    if phrase in GOOD_NIGHT_PHRASES:
+        return "night", {}
+    movie = parse_movie_request(phrase)
+    if not movie:
+        return None
+    direction, room, app = movie
+    if room in (None, "here"):
+        area = None
+        if origin and (connection := ha_device_connection()):
+            areas = read_ha_areas(connection, origin)
+            area = next(iter(areas), None)
+        if area in ("lounge", "living room", "bedroom", "master bedroom"):
+            room = area
+        elif room == "here" or origin and not area:
+            return "movie", None
+    return "movie", {
+        "movie_action": direction,
+        "movie_room": "bedroom" if room in ("bedroom", "master bedroom") else "lounge",
+        "requested_app": app,
+    }
 
 
 def search_media(phrase):
@@ -209,7 +236,7 @@ def launch_movie_app(opener, url, token, remote, app):
     return "unverified", f"I sent the command to open {label}. I couldn't verify the app is on screen."
 
 
-def run_routine(period, default_script, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None):
+def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None):
     """Call the configured Home Assistant routine once and read its result."""
     salutation = "Movie Time." if movie_action else f"Good {period}."
     lock = ROUTINE_LOCKS["movie_bedroom" if movie_action and movie_room == "bedroom" else period]
@@ -217,6 +244,7 @@ def run_routine(period, default_script, *, action_results=None, movie_action=Non
     token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
     movie_prefix = "DECLAN_BEDROOM_MOVIE" if movie_room == "bedroom" else "DECLAN_MOVIE"
     setting = f"{movie_prefix}_SCRIPT" if movie_action else f"DECLAN_GOOD_{period.upper()}_SCRIPT"
+    default_script = {"morning": GOOD_MORNING_SCRIPT, "night": GOOD_NIGHT_SCRIPT}.get(period, "")
     script = os.environ.get(setting, default_script).strip()
     remote = os.environ.get(f"{movie_prefix}_REMOTE", "").strip() if movie_app else ""
     if movie_app and not re.fullmatch(r"remote\.[a-z0-9_]+", remote):
@@ -369,13 +397,24 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
                 reply += f" {reminder}"
             if type(temperature) in (int, float) and -40 <= temperature <= 16:
                 reply += f" It's {temperature:g} degrees indoors and the heating isn't running."
-        return reply, "reported_success", "Home Assistant confirmed the required steps."
+        detail = ("Home Assistant reports all lights are off." if period == "night"
+                  else "Home Assistant confirmed the required steps.")
+        return reply, "reported_success", detail
     if outcome == "busy":
         return f"{salutation} The routine is already in progress.", "busy", None
-    incomplete = [step["target"].replace("_", " ") for step in steps if step["status"] not in completed]
-    detail = "Could not confirm: " + ", ".join(incomplete[:8]) + "." if incomplete else (
-        "Home Assistant reported a failure." if outcome == "failed" else "I couldn't confirm the routine completed."
-    )
+    verified = [step["target"].replace("_", " ") for step in required if step["status"] in completed]
+    failed = [step["target"].replace("_", " ") for step in required if step["status"] == "failed"]
+    incomplete = [step["target"].replace("_", " ") for step in required
+                  if step["status"] not in completed and step["status"] != "failed"]
+    details = []
+    if verified:
+        details.append("Home Assistant confirmed " + ", ".join(verified[:8]) + ".")
+    if failed:
+        details.append("These steps failed: " + ", ".join(failed[:8]) + ".")
+    if incomplete:
+        details.append("I couldn't confirm " + ", ".join(incomplete[:8]) + ".")
+    detail = " ".join(details) or ("Home Assistant reported a failure." if outcome == "failed"
+                                   else "I couldn't confirm the routine completed.")
     return f"{salutation} {detail}", outcome if outcome in ("partial", "failed") else "unverified", detail
 
 
@@ -505,6 +544,41 @@ def read_ha_inventory(connection):
     return inventory, None
 
 
+def read_ha_areas(connection, origin=None):
+    url, headers, opener = connection
+    template = (
+        "{% set result = namespace(areas=[]) %}"
+        "{% for id in areas() %}"
+        "{% set result.areas = result.areas + [[area_name(id), area_entities(id)]] %}"
+        "{% endfor %}{{ result.areas | to_json }}"
+    )
+    if origin is not None:
+        template = (
+            "{% set room = area_id(" + json.dumps(origin) + ") %}"
+            "{{ ([[area_name(room), area_entities(room)]] if room else []) | to_json }}"
+        )
+    request = Request(f"{url}/api/template", headers=headers,
+                      data=json.dumps({"template": template}).encode(), method="POST")
+    try:
+        with opener.open(request, timeout=1.5) as response:
+            rows = json.loads(response.read(1024 * 1024))
+        if not isinstance(rows, list):
+            return {}
+        areas = {}
+        for label, entities in rows:
+            if not isinstance(label, str) or not isinstance(entities, list):
+                return {}
+            areas.setdefault(" ".join(label.casefold().split()), set()).update(entities)
+        if "master bedroom" in areas:
+            areas.setdefault("bedroom", areas["master bedroom"])
+        return areas
+    except HTTPError as error:
+        error.close()
+    except (OSError, ValueError, TypeError, AttributeError, KeyError):
+        pass
+    return {}
+
+
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False,
                action_results=None, origin_device=None):
     """Resolve Home Assistant lights before dispatch and verify their reported states."""
@@ -572,37 +646,7 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
     def load_area_metadata():
         nonlocal areas
-        areas = {}
-        template = (
-            "{% set result = namespace(areas=[]) %}"
-            "{% for id in areas() %}"
-            "{% set result.areas = result.areas + [[area_name(id), area_entities(id)]] %}"
-            "{% endfor %}{{ result.areas | to_json }}"
-        )
-        if origin_device is not None:
-            device = json.dumps(origin_device)
-            template = (
-                "{% set room = area_id(" + device + ") %}"
-                "{{ ([[area_name(room), area_entities(room)]] if room else []) | to_json }}"
-            )
-        request = Request(f"{url}/api/template", headers=headers,
-                          data=json.dumps({"template": template}).encode(), method="POST")
-        try:
-            with opener.open(request, timeout=1.5) as response:
-                rows = json.loads(response.read(1024 * 1024))
-            if not isinstance(rows, list):
-                raise ValueError("Invalid area membership")
-            for label, entities in rows:
-                if not isinstance(label, str) or not isinstance(entities, list):
-                    raise ValueError("Invalid area membership")
-                areas.setdefault(" ".join(label.casefold().split()), set()).update(entities)
-            if "master bedroom" in areas:
-                areas.setdefault("bedroom", areas["master bedroom"])
-        except HTTPError as error:
-            error.close()
-            areas.clear()
-        except (OSError, ValueError, TypeError, AttributeError, KeyError):
-            areas.clear()
+        areas = read_ha_areas(connection, origin_device)
     if origin_device is not None:
         load_area_metadata()
         if not areas:
@@ -929,7 +973,7 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
         reply = f"Hello, {state['name']}." if state["name"] else "Hello. I'm Declan."
         reply = add_sass(reply, "greeting", guest_mode)
     else:
-        reply = "I'm the Declan 2.0 test instance. Try telling me your name or asking the time."
+        reply = "I didn't catch what you wanted me to do. Could you say it another way?"
     state.update(last=message, at=now)
     if lighting_context is not None:
         state["lighting_context"] = lighting_context
@@ -973,7 +1017,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/health":
             self.send_json(200, {"status": "ok"})
         elif self.path == "/api/ha-status":
-            self.send_json(200, {"status": home_assistant_status()})
+            self.send_json(200, {"status": home_assistant_status(), "release_version": RELEASE_VERSION})
         elif self.path == "/api/history/export":
             try:
                 turns = history.recent(limit=None)
@@ -1065,15 +1109,20 @@ class Handler(BaseHTTPRequestHandler):
         light_result = None
         scope = source
         origin_device = None
+        satellite = body.get("satellite_id") if source == "assist" else None
+        if (not isinstance(satellite, str) or len(satellite) > 128
+                or not re.fullmatch(r"assist_satellite\.[a-z0-9_]+", satellite)):
+            satellite = None
         if source == "assist":
             device_id = body.get("device_id")
             user_id = body.get("user_id")
             origin = tuple(value if isinstance(value, str) and 0 < len(value) <= 128 else None
                            for value in (device_id, user_id))
             origin_device = origin[0]
-            scope = (source, *origin) if any(origin) else None
+            scope = (source, *origin, satellite) if any(origin) or satellite else None
         last_lights = ()
         last_device = None
+        last_information = None
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             if (scope is not None and previous and previous.get("device_status_scope") == scope
@@ -1082,11 +1131,13 @@ class Handler(BaseHTTPRequestHandler):
             if (scope is not None and previous and previous.get("lighting_scope") == scope
                     and monotonic() - previous["at"] < IDLE_SECONDS):
                 last_lights = previous.get("lighting_context", ())
+            if (scope is not None and previous and previous.get("information_scope") == scope
+                    and monotonic() - previous["at"] < IDLE_SECONDS):
+                last_information = previous.get("information_context")
         lighting_context = None
         status_target = None
+        information_context = None
         phrase = " ".join(message.casefold().strip(" .?!").split())
-        movie = parse_movie_request(phrase)
-        satellite = body.get("satellite_id") if source == "assist" else None
         opener = build_opener(ProxyHandler({}), NoRedirect())
         timer_result = timers.handle(
             phrase, opener,
@@ -1097,26 +1148,29 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
-        elif phrase in GOOD_MORNING_PHRASES:
+        elif routine := select_routine(phrase, origin_device or satellite):
             lighting_context = ()
-            routine_reply, outcome, routine_status = run_routine("morning", GOOD_MORNING_SCRIPT, action_results=action_results)
-        elif phrase in GOOD_NIGHT_PHRASES:
-            lighting_context = ()
-            routine_reply, outcome, routine_status = run_routine("night", GOOD_NIGHT_SCRIPT, action_results=action_results)
-        elif movie:
-            lighting_context = ()
-            direction, room, requested_app = movie
-            app = MOVIE_APPS.get(requested_app)
-            if requested_app and (not app or direction != "start"):
-                routine_reply, outcome = "Please name a supported app with an explicit start Movie Time command.", "unresolved"
+            period, options = routine
+            if options is None:
+                routine_reply, outcome = "Which room do you mean for Movie Time?", "unresolved"
             else:
-                routine_reply, outcome, routine_status = run_routine(
-                    "movie", "", movie_action=direction, movie_room=room, movie_app=app, action_results=action_results,
-                )
+                requested_app = options.pop("requested_app", None)
+                app = MOVIE_APPS.get(requested_app)
+                if requested_app and (not app or options.get("movie_action") != "start"):
+                    routine_reply, outcome = "Please name a supported app with an explicit start Movie Time command.", "unresolved"
+                else:
+                    routine_reply, outcome, routine_status = run_routine(
+                        period, movie_app=app, action_results=action_results, **options
+                    )
         else:
-            condition_result = conditions.handle(phrase, opener)
-            if condition_result:
+            information_phrase, clarification = conditions.follow_up(phrase, last_information)
+            condition_result = conditions.handle(information_phrase, opener) if not clarification else None
+            if clarification:
+                routine_reply, outcome = clarification, "unresolved"
+            elif condition_result:
                 routine_reply, outcome, category = condition_result
+                if outcome in ("confirmed", "partial", "unavailable"):
+                    information_context = conditions.question_context(information_phrase)
                 if outcome == "confirmed":
                     routine_reply = add_sass(routine_reply, category, read_guest_mode())
             elif status_query := device_status.parse(phrase, last_device):
@@ -1153,6 +1207,8 @@ class Handler(BaseHTTPRequestHandler):
         guest_mode = None
         if routine_reply is None and (chat_kind in CHAT_COMMANDS or NAME_PATTERN.fullmatch(chat_kind)):
             guest_mode = read_guest_mode()
+            if CHAT_COMMANDS.get(chat_kind) == "time":
+                information_context = ("time", None, None)
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             failed_phrase = previous.get("failed_light_phrase") if previous else None
@@ -1166,9 +1222,15 @@ class Handler(BaseHTTPRequestHandler):
                 phrase_suggestion = failed_phrase["text"]
             reply = converse(message, session_id, routine_reply, lighting_context=lighting_context,
                              scope=scope, guest_mode=guest_mode)
+            if outcome:
+                reply["outcome"] = outcome
+            if routine_status:
+                reply["routine_status"] = routine_status
             session = SESSIONS[reply["session_id"]]
             session["device_status_target"] = status_target
             session["device_status_scope"] = scope
+            session["information_context"] = information_context
+            session["information_scope"] = scope
             session.pop("failed_light_phrase", None)
             if (light_result and outcome == "unresolved" and scope is not None
                     and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)

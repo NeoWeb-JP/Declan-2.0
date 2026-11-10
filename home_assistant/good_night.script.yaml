@@ -58,7 +58,8 @@ sequence:
         routine_id: "{{ routine_id | default('') }}"
         outcome: >-
           {{ 'success' if lights and not lights_still_on and not lights_unverified
-             else 'partial' if lights | selectattr('state', 'eq', 'off') | list else 'unknown' }}
+             else 'partial' if lights | selectattr('state', 'eq', 'off') | list
+             else 'failed' if lights_still_on else 'unknown' }}
         guest_mode: "{{ states('input_boolean.guest_mode') }}"
         bedtime:
           battery_percent: >-
@@ -79,17 +80,10 @@ sequence:
           {% for light in lights[:200] %}
             {% set observed.steps = observed.steps + [dict(
               target=light.name, entity_id=light.entity_id, action='turn_off',
-              status='confirmed' if light.state == 'off' else 'unverified',
+              required=true,
+              status='confirmed' if light.state == 'off' else 'failed' if light.state == 'on' else 'unverified',
               detail=light.state)] %}
           {% endfor %}
           {{ observed.steps }}
-        status: "{{ 'success' if lights and not lights_still_on and not lights_unverified else 'unverified' }}"
-        routine_status: >-
-          {% if not lights %}Home Assistant found no light entities to verify.
-          {% elif not lights_still_on and not lights_unverified %}Home Assistant reports all lights are off.
-          {% else %}
-            {% if lights_still_on %}Still on: {{ lights_still_on | join(', ') }}. {% endif %}
-            {% if lights_unverified %}Could not verify: {{ lights_unverified | join(', ') }}.{% endif %}
-          {% endif %}
   - stop: Routine finished
     response_variable: declan_local_result

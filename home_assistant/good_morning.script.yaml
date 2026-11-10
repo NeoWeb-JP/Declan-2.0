@@ -12,12 +12,14 @@ sequence:
     action: light.turn_on
     target:
       entity_id: light.living_room_wall_lights
+    continue_on_error: true
   - alias: Turn on dining room lights at 10 percent
     action: light.turn_on
     target:
       entity_id: light.dining_room
     data:
       brightness_pct: 10
+    continue_on_error: true
   - alias: Wait for both lights to report the requested states
     wait_template: >-
       {% set brightness = state_attr('light.dining_room', 'brightness') %}
@@ -42,9 +44,16 @@ sequence:
           {{ 'success' if wall_lights_confirmed and dining_lights_confirmed
              else 'partial' if wall_lights_confirmed or dining_lights_confirmed else 'unknown' }}
         guest_mode: "{{ states('input_boolean.guest_mode') }}"
-        status: "{{ 'success' if wall_lights_confirmed and dining_lights_confirmed else 'unverified' }}"
         steps:
-          lounge_wall_lights: "{{ 'confirmed' if wall_lights_confirmed else 'unverified' }}"
-          dining_lights: "{{ 'confirmed' if dining_lights_confirmed else 'unverified' }}"
+          - target: lounge wall lights
+            entity_id: light.living_room_wall_lights
+            action: turn_on
+            required: true
+            status: "{{ 'confirmed' if wall_lights_confirmed else 'unverified' }}"
+          - target: dining lights at ten percent
+            entity_id: light.dining_room
+            action: set_brightness
+            required: true
+            status: "{{ 'confirmed' if dining_lights_confirmed else 'unverified' }}"
   - stop: Routine finished
     response_variable: declan_local_result
