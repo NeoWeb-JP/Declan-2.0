@@ -21,6 +21,7 @@ import device_status
 import history
 import music
 import timers
+import web_stt
 from personality import add_sass
 
 
@@ -1299,6 +1300,36 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_json(404, {"error": "Not found."})
 
+    def transcribe_browser_audio(self):
+        if self.headers.get_content_type() != "application/octet-stream":
+            self.send_json(415, {"error": "Expected microphone audio."})
+            return
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+            if not 0 < size <= web_stt.MAX_AUDIO_BYTES or size % 2:
+                raise ValueError
+        except ValueError:
+            self.send_json(400, {"error": "Record up to 20 seconds of microphone audio."})
+            return
+        connection = ha_device_connection()
+        if connection is None:
+            self.send_json(503, {"error": "Home Assistant isn't configured."})
+            return
+        audio = self.rfile.read(size)
+        if len(audio) != size:
+            self.send_json(400, {"error": "The microphone recording was incomplete."})
+            return
+        try:
+            text = web_stt.transcribe(connection[0], os.environ["DECLAN_HA_TOKEN"].strip(), audio,
+                                      pipeline=os.environ.get("DECLAN_WEB_ASSIST_PIPELINE", "").strip())
+        except ImportError:
+            self.send_json(503, {"error": "Install requirements-web-voice.txt to enable the Assist microphone."})
+            return
+        except (OSError, ValueError, AttributeError, TypeError):
+            self.send_json(502, {"error": "Home Assistant couldn't transcribe that recording."})
+            return
+        self.send_json(200, {"text": text})
+
     def do_POST(self):
         if self.path in {"/api/assist", "/api/assist/history"}:
             token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
@@ -1306,7 +1337,7 @@ class Handler(BaseHTTPRequestHandler):
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif self.client_address[0] != "127.0.0.1":
@@ -1317,6 +1348,9 @@ class Handler(BaseHTTPRequestHandler):
             f"http://localhost:{self.server.server_port}",
         }:
             self.send_json(403, {"error": "Send requests from the local Declan page."})
+            return
+        if self.path == "/api/stt":
+            self.transcribe_browser_audio()
             return
         if self.headers.get_content_type() != "application/json":
             self.send_json(415, {"error": "Send application/json."})

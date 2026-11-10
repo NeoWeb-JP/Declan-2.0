@@ -127,6 +127,7 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
     </svg>
   </summary>
     <div class="settings-menu">
+      <label><input id="use-assist-stt" type="checkbox" checked> Use Home Assistant speech recognition</label>
       <label><input id="spoken-replies" type="checkbox" checked> Speak voice replies</label>
       <button type="button" id="open-history" aria-haspopup="dialog">Conversation history</button>
       <button type="button" id="open-spotify" aria-haspopup="dialog">Spotify settings</button>
@@ -365,17 +366,23 @@ const pattern = document.querySelector('#voice-pattern');
 const patternContext = pattern.getContext('2d');
 const voiceStatus = document.querySelector('#voice-status');
 const spokenReplies = document.querySelector('#spoken-replies');
+const assistSTT = document.querySelector('#use-assist-stt');
+const assistSupported = Boolean(window.AudioContext && navigator.mediaDevices?.getUserMedia);
+assistSTT.checked = assistSupported && assistSTT.checked;
+assistSTT.disabled = !assistSupported;
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = Recognition ? new Recognition() : null;
 let sessionId = null;
 let listening = false;
 let busy = false;
-let handsFree = Boolean(recognition);
+let handsFree = assistSTT.checked || Boolean(recognition);
 let speaking = false;
 let restartTimer;
 let voiceSubmitTimer;
 let voiceTranscript = '';
 let meter = null;
+let assistRecording = null;
+let voiceGeneration = 0;
 
 function drawPattern(samples) {
   if (!patternContext) return;
@@ -447,10 +454,10 @@ async function startMeter() {
 }
 
 function updateControls() {
-  talk.disabled = !recognition;
+  talk.disabled = !assistSTT.checked && !recognition;
   talkLabel.textContent = handsFree ? 'Pause listening' : 'Resume listening';
   talk.setAttribute('aria-pressed', String(listening));
-  button.disabled = busy || listening;
+  button.disabled = busy || listening || Boolean(assistRecording);
 }
 function scheduleListening() {
   clearTimeout(restartTimer);
@@ -460,6 +467,10 @@ function scheduleListening() {
 }
 function startListening() {
   if (!handsFree || listening || busy || speaking) return;
+  if (assistSTT.checked) {
+    void startAssistListening();
+    return;
+  }
   try {
     recognition.start();
     listening = true;
@@ -473,10 +484,12 @@ function startListening() {
 }
 function pauseListening() {
   handsFree = false;
+  voiceGeneration++;
   clearTimeout(restartTimer);
   clearTimeout(voiceSubmitTimer);
   voiceTranscript = '';
-  if (listening) recognition.abort();
+  if (assistRecording) stopAssistListening(assistRecording);
+  else if (listening) recognition?.abort();
   stopMeter();
   voiceStatus.textContent = 'Microphone paused.';
   updateControls();
@@ -559,8 +572,115 @@ async function sendMessage(message, fromVoice = false) {
 }
 form.addEventListener('submit', event => {
   event.preventDefault();
-  if (!listening) void sendMessage(input.value);
+  if (!listening && !assistRecording) void sendMessage(input.value);
 });
+
+function stopAssistListening(recording) {
+  if (assistRecording !== recording) return;
+  assistRecording = null;
+  listening = false;
+  recording.stream?.getTracks().forEach(track => track.stop());
+  void recording.audio.close().catch(() => {});
+}
+
+async function finishAssistRecording(recording) {
+  if (assistRecording !== recording) return;
+  const generation = voiceGeneration;
+  stopAssistListening(recording);
+  busy = true;
+  voiceStatus.textContent = 'Transcribing with Assist.';
+  updateControls();
+  try {
+    const response = await fetch('/api/stt', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/octet-stream'},
+      body: recording.pcm.buffer.slice(0, recording.length * 2)
+    });
+    const result = await response.json();
+    if (generation !== voiceGeneration) return;
+    if (!response.ok) throw new Error(result.error);
+    if (!result.text?.trim()) return;
+    if (incompleteVoiceCommand.test(result.text)) {
+      add('You', result.text);
+      add('Declan', 'I only caught part of that. Please say the full command again.');
+      return;
+    }
+    busy = false;
+    await sendMessage(result.text, true);
+  } catch (error) {
+    if (generation === voiceGeneration) {
+      handsFree = false;
+      voiceStatus.textContent = (error.message || 'Assist speech recognition failed.') +
+        ' Retry with the orb or select browser recognition in Settings.';
+    }
+  } finally {
+    busy = false;
+    if (voiceStatus.textContent === 'Transcribing with Assist.') voiceStatus.textContent = '';
+    updateControls();
+    scheduleListening();
+  }
+}
+
+async function startAssistListening() {
+  let recording;
+  try {
+    const audio = new AudioContext({sampleRate: 16000});
+    recording = {audio, pcm: new Int16Array(320000), length: 0, voiced: 0, silence: 0,
+                 previous: null, stream: null};
+    assistRecording = recording;
+    listening = true;
+    updateControls();
+    if (audio.sampleRate !== 16000) throw new Error('This browser cannot record at 16 kHz.');
+    const resume = audio.resume();
+    void resume.catch(() => {});
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    if (assistRecording !== recording) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    recording.stream = stream;
+    await resume;
+    if (assistRecording !== recording) return;
+    const source = audio.createMediaStreamSource(stream);
+    const capture = audio.createScriptProcessor(2048, 1, 1);
+    capture.onaudioprocess = event => {
+      if (assistRecording !== recording) return;
+      const samples = event.inputBuffer.getChannelData(0);
+      const energy = samples.reduce((sum, sample) => sum + sample * sample, 0);
+      const audible = energy > samples.length * 0.015 ** 2;
+      if (!recording.voiced && !audible) {
+        recording.previous = samples.slice();
+        return;
+      }
+      if (!recording.voiced && recording.previous) {
+        for (const sample of recording.previous) {
+          recording.pcm[recording.length++] = Math.max(-32768, Math.min(32767, sample * 32768));
+        }
+      }
+      if (audible) recording.voiced += samples.length;
+      recording.silence = audible ? 0 : recording.silence + samples.length;
+      for (const sample of samples) {
+        if (recording.length === recording.pcm.length) break;
+        recording.pcm[recording.length++] = Math.max(-32768, Math.min(32767, sample * 32768));
+      }
+      if (recording.silence >= 24000 || recording.length === recording.pcm.length) {
+        if (recording.voiced >= 2400) void finishAssistRecording(recording);
+        else recording.length = recording.voiced = recording.silence = 0;
+      }
+    };
+    source.connect(capture);
+    capture.connect(audio.destination);
+    voiceStatus.textContent = 'Listening with Assist.';
+  } catch (error) {
+    if (recording && assistRecording !== recording) return;
+    if (recording) stopAssistListening(recording);
+    handsFree = false;
+    voiceStatus.textContent = error.message || 'Could not open the microphone.';
+    updateControls();
+  }
+}
+
+const incompleteVoiceCommand = /\b(?:and|as well as|then|in the)[\s,.!?]*$/i;
 if (recognition) {
   recognition.lang = 'en-GB';
   recognition.continuous = true;
@@ -578,7 +698,7 @@ if (recognition) {
       }
     }
     if (hasInterim || !voiceTranscript) return;
-    const unfinished = /\b(?:and|as well as|then|in the)[\s,.!?]*$/i.test(voiceTranscript);
+    const unfinished = incompleteVoiceCommand.test(voiceTranscript);
     voiceStatus.textContent = unfinished ? 'Keep going. I’m listening.' : 'Listening.';
     voiceSubmitTimer = setTimeout(() => {
       const message = voiceTranscript;
@@ -605,26 +725,34 @@ if (recognition) {
       : 'Voice input could not complete. Try again or type below.';
   };
   recognition.onend = () => {
+    if (assistRecording) return;
     listening = false;
     stopMeter();
     if (voiceStatus.textContent === 'Listening.') voiceStatus.textContent = '';
     updateControls();
     scheduleListening();
   };
-  talk.addEventListener('click', () => {
-    if (handsFree) {
-      pauseListening();
-      return;
-    }
+}
+talk.addEventListener('click', () => {
+  if (handsFree) {
+    pauseListening();
+  } else {
     handsFree = true;
     startListening();
     updateControls();
-  });
-  keyboard.addEventListener('toggle', () => {
-    if (keyboard.open && handsFree) pauseListening();
-  });
+  }
+});
+keyboard.addEventListener('toggle', () => {
+  if (keyboard.open && handsFree) pauseListening();
+});
+assistSTT.addEventListener('change', () => {
+  pauseListening();
+  handsFree = assistSTT.checked || Boolean(recognition);
   startListening();
-} else {
+  updateControls();
+});
+if (handsFree) startListening();
+else {
   keyboard.open = true;
   voiceStatus.textContent = 'Voice input is unavailable in this browser. You can type below.';
 }

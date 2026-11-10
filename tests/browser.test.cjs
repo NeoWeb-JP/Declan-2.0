@@ -12,7 +12,7 @@ mkdirSync(path.dirname(scriptPath), {recursive: true});
 writeFileSync(scriptPath, script);
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function browser(t, {voice = false, microphone = false} = {}) {
+function browser(t, {voice = false, microphone = false, browserRecognition = false} = {}) {
   const {window} = new JSDOM(html, {runScripts: 'outside-only', url: 'http://localhost:8765'});
   t.after(() => window.close());
   const pending = new Map();
@@ -24,6 +24,7 @@ function browser(t, {voice = false, microphone = false} = {}) {
   let recognition;
   let streamStopped = false;
   let audioClosed = false;
+  let capture;
   window.setTimeout = (callback, delay) => {
     pending.set(++nextTimer, {callback, delay});
     return nextTimer;
@@ -64,15 +65,19 @@ function browser(t, {voice = false, microphone = false} = {}) {
       getTracks: () => [{stop: () => { streamStopped = true; }}],
     })};
     window.AudioContext = class {
+      constructor({sampleRate} = {}) { this.sampleRate = sampleRate; }
       resume() { return Promise.resolve(); }
       close() { audioClosed = true; return Promise.resolve(); }
       createAnalyser() { return {getByteTimeDomainData: values => values.fill(140)}; }
       createMediaStreamSource() { return {connect() {}}; }
+      createScriptProcessor() { return capture = {connect() {}}; }
     };
   }
+  if (browserRecognition) element('#use-assist-stt').checked = false;
   window.eval(script + '\n//# sourceURL=' + pathToFileURL(scriptPath).href);
   return {
     calls, responses, element, recognition, spoken, drawing,
+    recordSamples: values => capture.onaudioprocess({inputBuffer: {getChannelData: () => values}}),
     microphoneStopped: () => streamStopped && audioClosed,
     async tick(delay) {
       for (const [id, timer] of pending) {
@@ -180,7 +185,7 @@ function transcript(recognition, text, isFinal = true) {
 }
 
 test('voice waits for a chained sentence, speaks the reply and resumes listening', async t => {
-  const ui = browser(t, {voice: true, microphone: true});
+  const ui = browser(t, {voice: true, microphone: true, browserRecognition: true});
   await flush();
   ui.responses.set('/api/chat', {session_id: 'voice-session', reply: 'Both steps finished.'});
   ui.responses.set('/api/tts', {error: 'Voice unavailable'});
@@ -203,6 +208,30 @@ test('voice waits for a chained sentence, speaks the reply and resumes listening
   assert.match(ui.element('#voice-status').textContent, /paused/);
   assert.ok(ui.drawing.length > 0);
   assert.equal(ui.microphoneStopped(), true);
+});
+
+test('Assist microphone sends audio then submits the returned transcript once', async t => {
+  const ui = browser(t, {voice: true, microphone: true});
+  ui.responses.set('/api/stt', {text: 'what time is it'});
+  ui.responses.set('/api/chat', {session_id: 'assist-mic', reply: 'Time check.'});
+  ui.element('#spoken-replies').checked = false;
+  await flush();
+  assert.equal(ui.element('#use-assist-stt').checked, true);
+  const silence = new Float32Array(2048);
+  ui.recordSamples(silence);
+  assert.equal(ui.calls.some(call => call.url === '/api/stt'), false);
+  ui.recordSamples(new Float32Array(2048).fill(0.2));
+  ui.recordSamples(new Float32Array(2048).fill(0.2));
+  for (let index = 0; index < 12; index++) ui.recordSamples(silence);
+  await flush();
+  const stt = ui.calls.find(call => call.url === '/api/stt');
+  assert.equal(stt.options.body.byteLength, 15 * 2048 * 2);
+  const chat = ui.calls.filter(call => call.url === '/api/chat');
+  assert.equal(chat.length, 1);
+  assert.equal(JSON.parse(chat[0].options.body).message, 'what time is it');
+  assert.equal(ui.microphoneStopped(), true);
+  assert.equal(await ui.tick(350), true);
+  assert.match(ui.element('#voice-status').textContent, /Listening with Assist/);
 });
 
 test('incomplete voice commands never reach the server', async t => {
