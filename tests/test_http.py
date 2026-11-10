@@ -109,7 +109,10 @@ class APITests(TestCase):
                 }}).encode())
                 result = self.ask(phrase, path="/api/assist")
                 self.assertEqual(result["outcome"], "confirmed")
-                self.assertEqual(json.loads(opener.open.call_args.args[0].data), {"operation": operation})
+                request = opener.open.call_args.args[0]
+                self.assertEqual(request.full_url,
+                                 "http://ha.invalid/api/services/script/declan_sexy_time_controller?return_response")
+                self.assertEqual(json.loads(request.data), {"operation": operation})
                 self.assertIn(result["reply"].split(". ", 1)[1], LINES[f"sexy_time_{operation}"][0])
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
             self.assertEqual(play.call_count, 3)

@@ -43,6 +43,7 @@ SEXY_TIME_COMMANDS = {
     "end sexy time": "end", "stop sexy time": "end",
 }
 SEXY_TIME_LOCK = Lock()
+SEXY_TIME_SCRIPT = "script.declan_sexy_time_controller"
 DINNER_SCRIPT = "script.declan_dinner_is_served_2"
 DINNER_PHRASES = {
     "dinner is served", "it's dinner time", "time for dinner", "it's time for dinner",
@@ -735,7 +736,7 @@ def run_sexy_time(operation, connection):
     try:
         url, headers, opener = connection
         request = Request(
-            f"{url}/api/services/script/declan_sexy_time?return_response", headers=headers,
+            f"{url}/api/services/script/{SEXY_TIME_SCRIPT.split('.', 1)[1]}?return_response", headers=headers,
             data=json.dumps({"operation": operation}).encode(), method="POST",
         )
         try:
@@ -748,8 +749,8 @@ def run_sexy_time(operation, connection):
             return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified"
 
         result = payload.get("service_response") if isinstance(payload, dict) else None
-        if isinstance(result, dict) and set(result) == {"script.declan_sexy_time"}:
-            result = result["script.declan_sexy_time"]
+        if isinstance(result, dict) and set(result) == {SEXY_TIME_SCRIPT}:
+            result = result[SEXY_TIME_SCRIPT]
         if not isinstance(result, dict) or result.get("operation") != operation:
             return "I couldn't verify the bedroom routine's result.", "unverified"
 
