@@ -197,6 +197,36 @@ button:disabled { opacity: .55; }
   .settings-menu { right: -.25rem; }
   .voice-stage { min-height: 230px; }
 }
+
+/* Review a recording in place; speaker management never chooses its match. */
+.history-heading h2 { min-width: 0; overflow-wrap: anywhere; }
+#updates { width: min(680px, calc(100% - 2rem)); }
+.update-options, .update-install { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
+.update-options .check-field { flex: 1 1 15rem; }
+.update-install { align-items: flex-end; }
+.update-install .field { flex: 1 1 15rem; }
+#update-status:not(:empty) { padding: 1rem; background: #06111b; border: 1px solid #264656; border-radius: .5rem; }
+#voice-sample-list > li { border-left: 4px solid #d7a931; background: #171a16; }
+.sample-heading { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.match-badge { color: #ffdc75; background: #392d12; padding: .2rem .5rem; border-radius: .3rem; font-size: .8rem; font-weight: 700; overflow-wrap: anywhere; }
+.history .confirm-match { background: #07351f; border-color: #257348; color: #adf5c8; }
+.history .reject-match { background: #3b1017; border-color: #963947; color: #ffd2d5; }
+.other-match { min-width: 0; }
+.other-match[open] { flex-basis: 100%; }
+.other-match > summary { border: 1px solid #6d5e30; border-radius: .35rem; padding: .6rem .85rem; min-height: 44px; width: fit-content; }
+.other-match-options { display: flex; flex-wrap: wrap; gap: .75rem; padding-top: .85rem; }
+.other-match .field { width: 100%; }
+.other-match-options > p { margin: 0; }
+.other-match input { font: inherit; }
+.profile-maintenance .field { margin-top: .75rem; }
+.enrolled-speakers > summary { padding: .4rem 0; }
+.enrolled-speakers .speaker-table-wrap { margin-top: .75rem; }
+@media (max-width: 600px) {
+  .update-options, .update-install { align-items: stretch; flex-direction: column; }
+  .update-options .check-field, .update-install .field { flex: auto; }
+  .update-options > button, .update-install > button { width: 100%; }
+  .other-match-options > button { flex: 1 1 10rem; }
+}
 </style>
 <header>
   <div class="brand">
@@ -293,12 +323,14 @@ button:disabled { opacity: .55; }
   <div class="history-heading"><h2 id="updates-title">Declan updates</h2>
     <button id="close-updates" type="button">Close</button></div>
   <div class="dialog-body">
-  <div class="history-toolbar">
-    <label class="check-field"><input id="include-prereleases" type="checkbox"> Include prereleases for testing</label>
-    <button id="check-updates" type="button">Check for updates</button>
-    <label class="field">Release <select id="update-version" disabled></select></label>
-    <button id="install-update" type="button" disabled>Install selected release</button>
-  </div>
+    <div class="update-options">
+      <label class="check-field"><input id="include-prereleases" type="checkbox"> Include prereleases for testing</label>
+      <button id="check-updates" type="button">Check for updates</button>
+    </div>
+    <div class="update-install">
+      <label class="field">Release <select id="update-version" disabled></select></label>
+      <button id="install-update" type="button" disabled>Install selected release</button>
+    </div>
   <p id="update-status" class="mono" role="status"></p>
   </div>
 </dialog>
@@ -325,41 +357,37 @@ button:disabled { opacity: .55; }
 <dialog class="history" id="voices-panel" aria-labelledby="voices-title">
   <div class="history-heading"><h2 id="voices-title">Voice profiles</h2><button type="button" data-close="voices-panel">Close</button></div>
   <div class="dialog-body">
-  <p>Review satellite recordings and teach Declan who is speaking. Profiles and reference recordings are stored in VoicePipeline.</p>
-  <div class="action-row" aria-label="Recording view">
-    <button type="button" id="refresh-voices" aria-pressed="true">Refresh pending</button>
-    <button type="button" id="voice-history" aria-pressed="false">Review history</button>
-  </div>
-  <section aria-labelledby="speaker-choice-title">
-    <h3 id="speaker-choice-title">1. Choose a speaker</h3>
-    <div class="speaker-fields">
-      <div><label class="field">Existing speaker <select id="voice-profile-select"></select></label>
-        <p id="voice-profile-summary"></p></div>
-      <div><label class="field">New speaker name <input id="voice-profile-name" maxlength="40" autocomplete="off" placeholder="Enter a name to enrol someone"></label></div>
+    <p>Confirm the suggested speaker, reject a bad recording, or choose Other match to change who is speaking. Changes are saved in VoicePipeline.</p>
+    <div class="action-row" aria-label="Recording view">
+      <button type="button" id="refresh-voices" aria-pressed="true">Refresh pending</button>
+      <button type="button" id="voice-history" aria-pressed="false">Review history</button>
     </div>
-    <div class="speaker-table-wrap">
-      <table class="speaker-table"><caption>Enrolled speakers</caption>
-        <thead><tr><th scope="col">Speaker</th><th scope="col">References</th><th scope="col">Interactions</th><th scope="col">Average confidence</th></tr></thead>
-        <tbody id="voice-profile-stats"></tbody>
-      </table>
-    </div>
-    <label class="check-field"><input type="checkbox" id="voice-consent"> I have permission to use this person's recording for speaker recognition.</label>
-  </section>
-  <p id="voices-status" role="status"></p>
-  <section aria-labelledby="recordings-title">
-    <h3 id="recordings-title">2. Listen and assign</h3>
-    <p id="voice-pending-help">Listen to a recording, then assign it to the selected speaker or enrol a new speaker. This adds it to their recognition references.</p>
-    <p id="voice-history-help" hidden>History corrections remove wrong references without adding a new reference. Return a recording to pending, then assign it to use it as a reference.</p>
-    <audio id="voice-sample-preview" controls hidden aria-label="Selected voice recording"></audio>
-    <ul id="voice-sample-list" aria-label="Voice recordings"></ul>
-  </section>
-  <details class="profile-maintenance">
-    <summary>Manage selected speaker</summary>
-    <div class="action-row">
-      <button type="button" class="danger" id="clear-voice-clips">Clear selected speaker's references</button>
-      <button type="button" class="danger" id="delete-voice-profile">Delete selected speaker</button>
-    </div>
-  </details>
+    <p id="voices-status" role="status"></p>
+    <section aria-labelledby="recordings-title">
+      <h3 id="recordings-title">Pending recordings</h3>
+      <p id="voice-pending-help">Play to listen if needed. Confirm adds the recording to that speaker's recognition references; Reject leaves it out.</p>
+      <p id="voice-history-help" hidden>Changing a history match removes wrong references without adding a new one. Return it to pending first to use it as a reference.</p>
+      <audio id="voice-sample-preview" controls hidden aria-label="Selected voice recording"></audio>
+      <ul id="voice-sample-list" aria-label="Voice recordings"></ul>
+    </section>
+    <details class="enrolled-speakers">
+      <summary>Enrolled speakers</summary>
+      <div class="speaker-table-wrap">
+        <table class="speaker-table"><caption>VoicePipeline speaker statistics</caption>
+          <thead><tr><th scope="col">Speaker</th><th scope="col">References</th><th scope="col">Interactions</th><th scope="col">Average confidence</th></tr></thead>
+          <tbody id="voice-profile-stats"></tbody>
+        </table>
+      </div>
+    </details>
+    <details class="profile-maintenance">
+      <summary>Manage speakers</summary>
+      <label class="field">Speaker to manage <select id="voice-profile-select"></select></label>
+      <p id="voice-profile-summary"></p>
+      <div class="action-row">
+        <button type="button" class="danger" id="clear-voice-clips">Clear selected speaker's references</button>
+        <button type="button" class="danger" id="delete-voice-profile">Delete selected speaker</button>
+      </div>
+    </details>
   </div>
 </dialog>
 <script>
@@ -1338,7 +1366,7 @@ async function loadVoices(history = false) {
     voiceHistory = history; voiceProfiles = result.profiles;
     document.querySelector('#refresh-voices').setAttribute('aria-pressed', String(!history));
     document.querySelector('#voice-history').setAttribute('aria-pressed', String(history));
-    document.querySelector('#recordings-title').textContent = history ? '2. Review previous recordings' : '2. Listen and assign';
+    document.querySelector('#recordings-title').textContent = history ? 'Recording history' : 'Pending recordings';
     document.querySelector('#voice-history-help').hidden = !history;
     document.querySelector('#voice-pending-help').hidden = history;
     const selected = profileSelect.value; profileSelect.replaceChildren();
@@ -1348,12 +1376,14 @@ async function loadVoices(history = false) {
     }
     if (voiceProfiles.some(profile => profile.name === selected)) profileSelect.value = selected;
     renderVoiceSummary(); renderVoiceProfileStats(); renderVoiceInteractions(entries.interactions, history);
-    voicesStatus.textContent = result.notice + (history ? ' Showing up to 100 history recordings.' : '');
+    voicesStatus.textContent = `Showing ${Math.min(entries.interactions.length, 100)} ${history ? 'history' : 'pending'} recordings.`;
+    return true;
   } catch (error) {
     if (version === voiceVersion && voicesPanel.open) {
       document.querySelector('#voice-sample-list').replaceChildren();
       voicesStatus.textContent = error.message;
     }
+    return false;
   } finally { if (version === voiceVersion) setVoiceBusy(false); }
 }
 function reportVoiceChange(message, feedback) {
@@ -1362,91 +1392,114 @@ function reportVoiceChange(message, feedback) {
 }
 async function changeVoice(body, question, feedback) {
   if (voiceBusy) return;
-  const needsConsent = body.assigned_to != null;
-  if (needsConsent && !document.querySelector('#voice-consent').checked) {
-    reportVoiceChange('Tick the permission checkbox above before assigning this recording.', feedback); return;
+  if (body.assigned_to != null && !body.assigned_to) {
+    reportVoiceChange('Enter a new speaker name before enrolling.', feedback); return;
   }
-  if (needsConsent && !body.assigned_to) { reportVoiceChange('Choose a speaker or enter a new name.', feedback); return; }
-  if (!window.confirm(question)) return;
+  if (question && !window.confirm(question)) return;
   reportVoiceChange('Saving change in VoicePipeline.', feedback);
   setVoiceBusy(true); const version = ++voiceVersion;
   try {
-    const result = await managementRequest('voicepipeline', {...body, consent: needsConsent, confirm: true});
+    const result = await managementRequest('voicepipeline', {...body, confirm: true});
     if (version !== voiceVersion || !voicesPanel.open) return;
-    document.querySelector('#voice-consent').checked = false;
-    setVoiceBusy(false); await loadVoices(voiceHistory);
-    if (voicesPanel.open) voicesStatus.textContent += result.result?.cache_refresh_requested === false
-      ? ' Saved, but VoicePipeline could not request its speaker cache refresh. Check VoicePipeline before relying on the correction.'
-      : body.assigned_to ? ` Recording assigned to ${body.assigned_to} in VoicePipeline. Live recognition still needs checking.`
-      : ' Change saved in VoicePipeline. Live recognition still needs checking.';
+    setVoiceBusy(false); const refreshed = await loadVoices(voiceHistory);
+    if (voicesPanel.open) {
+      const saved = body.assigned_to
+        ? `Recording ${body.action === 'confirm' ? 'confirmed as' : 'assigned to'} ${body.assigned_to} in VoicePipeline.`
+        : body.action === 'dismiss' ? 'Recording rejected in VoicePipeline.' : 'Change saved in VoicePipeline.';
+      voicesStatus.textContent = saved + (refreshed === false ? ' Could not refresh the list. Refresh before reviewing another recording.' : '') + (result.result?.cache_refresh_requested === false
+        ? ' Speaker cache refresh could not be requested; check VoicePipeline before relying on this change.' : '');
+    }
   } catch (error) {
     if (version === voiceVersion && voicesPanel.open) reportVoiceChange(error.message, feedback);
   } finally { if (version === voiceVersion) setVoiceBusy(false); }
 }
 function renderVoiceInteractions(entries, history) {
   const list = document.querySelector('#voice-sample-list');
-  // Keep the shared player in the panel when its previous recording is replaced.
   list.before(samplePreview); list.replaceChildren();
   for (const entry of entries.slice(0, 100)) {
     const item = document.createElement('li');
-    const transcript = document.createElement('p'); transcript.className = 'sample-transcript';
-    transcript.textContent = entry.transcript || '(no transcript)';
+    const heading = document.createElement('div'); heading.className = 'sample-heading';
     const metadata = document.createElement('p'); metadata.className = 'sample-meta';
     const date = new Date(entry.recorded_at);
     const recordedAt = Number.isNaN(date.getTime()) ? 'Time unavailable' : date.toLocaleString('en-GB', {dateStyle: 'medium', timeStyle: 'short'});
-    metadata.textContent = `${recordedAt} · ${entry.current_assigned_to ? 'Assigned: ' + entry.current_assigned_to + ' · Original match: ' : 'Suggested: '}${entry.matched_speaker || 'Unknown'} · Match confidence: ${voiceConfidence(entry.match_confidence)} · ${entry.status}`;
+    const duration = typeof entry.duration_ms === 'number' && entry.duration_ms >= 0
+      ? ' · ' + (entry.duration_ms / 1000).toLocaleString('en-GB', {maximumFractionDigits: 1}) + 's' : '';
+    metadata.textContent = recordedAt + duration + ' · ' + entry.status +
+      (entry.current_assigned_to ? ' · Assigned: ' + entry.current_assigned_to : '');
+    const badge = document.createElement('span'); badge.className = 'match-badge';
+    badge.textContent = (entry.current_assigned_to ? 'Original match: ' : '') +
+      (entry.matched_speaker || 'Unknown') + ' · ' + voiceConfidence(entry.match_confidence) + ' match';
+    heading.append(metadata, badge);
+    const transcript = document.createElement('p'); transcript.className = 'sample-transcript';
+    transcript.textContent = entry.transcript || '(no transcript)';
     const actions = document.createElement('div'); actions.className = 'action-row';
-    const feedback = document.createElement('p'); feedback.className = 'sample-feedback';
-    feedback.setAttribute('role', 'status');
-    item.append(transcript, metadata, actions, feedback);
-    const button = (label, callback) => {
+    const feedback = document.createElement('p'); feedback.className = 'sample-feedback'; feedback.setAttribute('role', 'status');
+    item.append(heading, transcript, actions, feedback);
+    const button = (label, callback, parent = actions) => {
       const control = document.createElement('button'); control.type = 'button'; control.textContent = label;
-      control.addEventListener('click', callback); actions.append(control);
-      return control;
+      control.addEventListener('click', callback); parent.append(control); return control;
     };
-    button('Listen', async () => {
+    button('Play', async () => {
       if (voiceBusy) return;
       clearVoiceAudio(); const version = voiceAudioVersion;
-      voicesStatus.textContent = 'Loading recording.';
+      reportVoiceChange('Loading recording.', feedback);
       try {
         const result = await managementRequest('voicepipeline', {operation: 'audio', interaction_id: entry.id});
         if (!voicesPanel.open || version !== voiceAudioVersion) return;
         const bytes = Uint8Array.from(atob(result.audio), value => value.charCodeAt(0));
         voiceAudioURL = URL.createObjectURL(new Blob([bytes], {type: 'audio/wav'}));
         actions.before(samplePreview); samplePreview.hidden = false; samplePreview.src = voiceAudioURL;
-        voicesStatus.textContent = 'Listen before assigning. The audio controls are below the selected recording.';
+        reportVoiceChange('Playing the selected recording.', feedback);
         try { await samplePreview.play(); } catch {
-          if (version === voiceAudioVersion && voicesPanel.open) voicesStatus.textContent = 'Press play below the selected recording to listen before assigning.';
+          if (version === voiceAudioVersion && voicesPanel.open) reportVoiceChange('Press play below the selected recording to listen.', feedback);
         }
-      } catch (error) { if (version === voiceAudioVersion && voicesPanel.open) voicesStatus.textContent = error.message; }
+      } catch (error) { if (version === voiceAudioVersion && voicesPanel.open) reportVoiceChange(error.message, feedback); }
     });
+    // Bind confirmation to this recording's exact suggestion, never a default selector.
+    const suggested = voiceProfiles.filter(profile => profile.name === entry.matched_speaker);
+    if (!history && suggested.length === 1) {
+      button('Confirm ' + entry.matched_speaker, () => changeVoice({
+        operation: 'resolve', action: 'confirm', interaction_id: entry.id, assigned_to: entry.matched_speaker
+      }, null, feedback)).className = 'confirm-match';
+    }
     if (!history) {
-      const assign = button('Use selected speaker', () => changeVoice({operation: 'resolve', action: 'assign', interaction_id: entry.id,
-        assigned_to: profileSelect.value}, `Assign this recording to ${profileSelect.value} and add it to their recognition references?`, feedback));
-      assign.dataset.voiceAssign = 'pending';
-      button('Enrol new speaker', () => changeVoice({operation: 'resolve', action: 'enrol', interaction_id: entry.id,
-        assigned_to: document.querySelector('#voice-profile-name').value.trim()}, 'Create a VoicePipeline speaker profile using this recording?', feedback));
-      button('Dismiss', () => changeVoice({operation: 'resolve', action: 'dismiss', interaction_id: entry.id}, 'Dismiss this recording without adding it to speaker references?', feedback));
-    } else if (['resolved', 'dismissed'].includes(entry.status)) {
-      const correct = button('Correct speaker', () => changeVoice({operation: 'correct', interaction_id: entry.id,
-        expected_resolution_id: entry.current_resolution_id, assigned_to: profileSelect.value},
-        `Correct this recording to ${profileSelect.value} and remove references belonging to other speakers? This does not add a new reference.`, feedback));
-      correct.dataset.voiceAssign = 'history';
-      button('Return to pending', () => changeVoice({operation: 'correct', interaction_id: entry.id,
-        expected_resolution_id: entry.current_resolution_id, assigned_to: null}, 'Remove this recording from speaker references and return it to pending?', feedback));
+      button('Reject', () => changeVoice({
+        operation: 'resolve', action: 'dismiss', interaction_id: entry.id
+      }, null, feedback)).className = 'reject-match';
+    }
+    if (!history || ['resolved', 'dismissed'].includes(entry.status)) {
+      const other = document.createElement('details'); other.className = 'other-match';
+      const summary = document.createElement('summary'); summary.textContent = 'Other match';
+      const choices = document.createElement('div'); choices.className = 'other-match-options';
+      other.append(summary, choices); actions.append(other);
+      // Unknown/missing speakers have no implied confirmation. Show explicit choices.
+      other.open = !history && suggested.length !== 1;
+      for (const profile of voiceProfiles) {
+        button((history ? 'Set speaker to ' : 'Assign to ') + profile.name, () => changeVoice(history ? {
+          operation: 'correct', interaction_id: entry.id, expected_resolution_id: entry.current_resolution_id,
+          assigned_to: profile.name
+        } : {
+          operation: 'resolve', action: 'assign', interaction_id: entry.id, assigned_to: profile.name
+        }, null, feedback), choices);
+      }
+      if (!history) {
+        const label = document.createElement('label'); label.className = 'field'; label.textContent = 'New speaker name';
+        const name = document.createElement('input'); name.maxLength = 40; name.autocomplete = 'off';
+        name.placeholder = 'Enter a name to enrol someone'; label.append(name); choices.append(label);
+        button('Enrol new speaker', () => changeVoice({
+          operation: 'resolve', action: 'enrol', interaction_id: entry.id, assigned_to: name.value.trim()
+        }, null, feedback), choices);
+      } else {
+        button('Return to pending', () => changeVoice({
+          operation: 'correct', interaction_id: entry.id, expected_resolution_id: entry.current_resolution_id, assigned_to: null
+        }, null, feedback), choices);
+      }
     }
     list.append(item);
   }
   if (!entries.length) { const item = document.createElement('li'); item.textContent = 'No recordings to review.'; list.append(item); }
-  updateVoiceAssignmentLabels();
 }
-function updateVoiceAssignmentLabels() {
-  for (const control of voicesPanel.querySelectorAll('[data-voice-assign]')) {
-    const action = control.dataset.voiceAssign === 'history' ? 'Correct speaker' : 'Use selected speaker';
-    control.textContent = profileSelect.value ? `${action} (${profileSelect.value})` : action;
-  }
-}
-profileSelect.addEventListener('change', () => { renderVoiceSummary(); updateVoiceAssignmentLabels(); });
+profileSelect.addEventListener('change', renderVoiceSummary);
 document.querySelector('#open-voices').addEventListener('click', () => {
   pauseListening(); voicesPanel.showModal(); void loadVoices();
 });
@@ -1454,7 +1507,6 @@ document.querySelector('#refresh-voices').addEventListener('click', () => void l
 document.querySelector('#voice-history').addEventListener('click', () => void loadVoices(true));
 voicesPanel.addEventListener('close', () => {
   voiceVersion++; clearVoiceAudio(); setVoiceBusy(false);
-  document.querySelector('#voice-consent').checked = false;
 });
 for (const [id, operation, question] of [
   ['delete-voice-profile', 'delete_speaker', 'Delete this speaker profile from VoicePipeline? This does not promise deletion of retained interaction audio or backups.'],

@@ -123,10 +123,10 @@ def manage(body):
                 raise ValueError('Choose confirm, assign, enrol or dismiss.')
             needs_name = operation == 'resolve' and action != 'dismiss' or operation == 'correct' and name is not None
             if needs_name:
-                if (body.get('consent') is not True or not isinstance(name, str)
+                if (not isinstance(name, str)
                         or not re.fullmatch(r"[^\W\d_][\w '\u2019-]{0,39}", name)
                         or name.casefold() in {'unknown', 'unidentified', 'none'}):
-                    raise ValueError('Choose a speaker name and confirm permission to use their voice.')
+                    raise ValueError('Choose a valid speaker name.')
                 names = [row['name'] for row in speakers()]
                 if operation == 'resolve' and action == 'enrol':
                     if name.casefold() in {value.casefold() for value in names if isinstance(value, str)}:
@@ -146,7 +146,10 @@ def manage(body):
             else:
                 # Serialise Declan's writes and reject already resolved entries. The upstream
                 # resolve API has no atomic stale-write token for edits from other clients.
-                if not any(row['id'] == interaction_id for row in interactions()):
+                pending = next((row for row in interactions() if row['id'] == interaction_id), None)
+                if pending is None:
                     raise PipelineError('This recording is no longer pending. Refresh the list.', 409)
+                if action == 'confirm' and pending.get('matched_speaker') != name:
+                    raise PipelineError('The suggested speaker changed. Refresh before confirming.', 409)
                 result = request('POST', path + '/resolve', {'action': action, 'assigned_to': name})
         return {'saved': True, 'result': result}

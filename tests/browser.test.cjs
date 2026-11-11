@@ -468,74 +468,118 @@ test('bad or stale settings previews cannot be applied or blindly retried', asyn
 });
 
 const pipelinePage = {
-  profiles: [{id: 'jaco-id', name: 'Jaco', reference_clip_count: 2, interaction_count: 5},
-             {id: 'ed-id', name: 'Ed', reference_clip_count: 3, interaction_count: 9}],
-  interactions: [{id: 'recording-1', transcript: '<img src=x onerror=alert(1)>', status: 'pending'}],
-  notice: 'Profiles are managed by VoicePipeline.'
+  profiles: [{id:'jaco-id', name:'Jaco', reference_clip_count:2, interaction_count:5, avg_confidence:0.876},
+    {id:'ed-id', name:'Ed', reference_clip_count:3, interaction_count:9, avg_confidence:0}],
+  interactions: [{id:'recording-1', transcript:'<img src=x onerror=alert(1)>', status:'pending',
+    matched_speaker:'Jaco', match_confidence:0.55, recorded_at:'2026-11-11T13:28:00Z', duration_ms:744}],
+  notice:'Profiles are managed by VoicePipeline.'
 };
-async function openProfiles(ui) {
-  ui.responses.set('/api/voicepipeline', options => options?.body ? {saved: true, result: {}} : pipelinePage);
+async function openProfiles(ui, page = pipelinePage) {
+  ui.responses.set('/api/voicepipeline', options => options?.body ? {saved:true,result:{}} : page);
   ui.element('#open-voices').click(); await flush(); await flush();
 }
-function voiceButton(ui, label) {
-  return [...ui.window.document.querySelectorAll('#voice-sample-list button')].find(value => value.textContent === label || value.textContent.startsWith(label + ' ('));
+function voiceButton(ui, label, index = 0) {
+  const card = ui.window.document.querySelectorAll('#voice-sample-list > li')[index];
+  return [...card.querySelectorAll('button')].find(value => value.textContent === label);
 }
 function pipelineWrites(ui) {
   return ui.calls.filter(call => call.url === '/api/voicepipeline' && call.options?.body).map(call => JSON.parse(call.options.body));
 }
 
-test('VoicePipeline profiles use exact enrolled names and escape recording text', async t => {
-  const ui = browser(t, {ingress: true}); await openProfiles(ui);
-  assert.match(ui.element('#voices-status').textContent, /VoicePipeline/);
-  assert.equal(ui.element('#voice-profile-select').options[1].value, 'Ed');
+test('Confirm binds to this exact suggestion without permission, default selection or a second prompt', async t => {
+  const ui = browser(t, {ingress:true}); await openProfiles(ui);
+  assert.equal(ui.element('#voice-consent'), null);
   assert.equal(ui.element('#voice-sample-list img'), null);
   assert.match(ui.element('#voice-sample-list').textContent, /<img src=x/);
+  assert.equal(ui.element('#voice-sample-list .other-match').open, false);
+  // A maintenance selection must never influence a recording's suggested match.
   ui.element('#voice-profile-select').value = 'Ed';
   ui.element('#voice-profile-select').dispatchEvent(new ui.window.Event('change'));
   assert.match(ui.element('#voice-profile-summary').textContent, /3 reference/);
-  voiceButton(ui, 'Use selected speaker').click(); await flush();
-  assert.equal(pipelineWrites(ui).length, 0);
-  assert.match(ui.element('#voices-status').textContent, /permission/);
-  ui.element('#voice-consent').checked = true;
-  voiceButton(ui, 'Use selected speaker').click(); await flush(); await flush();
-  assert.deepEqual(pipelineWrites(ui)[0], {operation: 'resolve', action: 'assign', interaction_id: 'recording-1',
-    assigned_to: 'Ed', consent: true, confirm: true});
-  assert.equal(ui.element('#voice-consent').checked, false);
-  assert.equal(ui.calls.some(call => ['/api/stt', '/api/chat', '/api/voice-profiles'].includes(call.url)), false);
+  ui.window.confirm = () => { throw new Error('Unnecessary confirmation popup'); };
+  voiceButton(ui, 'Confirm Jaco').click(); await flush(); await flush();
+  assert.deepEqual(pipelineWrites(ui)[0], {operation:'resolve', action:'confirm',
+    interaction_id:'recording-1', assigned_to:'Jaco', confirm:true});
+  assert.match(ui.element('#voices-status').textContent, /confirmed as Jaco in VoicePipeline/);
+  assert.equal(ui.calls.some(call => ['/api/stt','/api/chat','/api/voice-profiles'].includes(call.url)), false);
 });
 
-test('new speaker enrolment requires a name and deliberate confirmation', async t => {
+test('Other match assigns the chosen name and refreshes the upstream pending queue', async t => {
+  const ui = browser(t); let saved = false;
+  ui.responses.set('/api/voicepipeline', options => {
+    if (options?.body) { saved = true; return {saved:true,result:{cache_refresh_requested:true}}; }
+    return {...pipelinePage, interactions:saved ? [] : pipelinePage.interactions};
+  });
+  ui.element('#open-voices').click(); await flush(); await flush();
+  const choices = ui.element('#voice-sample-list .other-match');
+  assert.equal(choices.open, false); choices.querySelector('summary').click();
+  assert.equal(choices.open, true);
+  voiceButton(ui, 'Assign to Ed').click(); await flush(); await flush();
+  assert.deepEqual(pipelineWrites(ui)[0], {operation:'resolve',action:'assign',
+    interaction_id:'recording-1', assigned_to:'Ed',confirm:true});
+  assert.match(ui.element('#voice-sample-list').textContent, /No recordings/);
+  assert.match(ui.element('#voices-status').textContent, /assigned to Ed in VoicePipeline/);
+});
+
+test('Reject dismisses a bad recording without assigning or deleting a speaker', async t => {
   const ui = browser(t); await openProfiles(ui);
-  ui.element('#voice-consent').checked = true;
-  voiceButton(ui, 'Enrol new speaker').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /enter a new name/);
-  ui.element('#voice-profile-name').value = '  Kathy  ';
-  ui.window.confirm = () => false;
+  ui.window.confirm = () => { throw new Error('Unnecessary confirmation popup'); };
+  voiceButton(ui, 'Reject').click(); await flush(); await flush();
+  assert.deepEqual(pipelineWrites(ui)[0], {operation:'resolve',action:'dismiss',interaction_id:'recording-1',confirm:true});
+  assert.match(ui.element('#voices-status').textContent, /rejected in VoicePipeline/);
+});
+
+test('unknown, missing and ambiguous suggestions have no default Confirm action', async t => {
+  const ui = browser(t);
+  for (const [speaker, profiles] of [['Unknown',pipelinePage.profiles], ['Deleted',pipelinePage.profiles],
+    [null,[]], ['Jaco',[...pipelinePage.profiles,pipelinePage.profiles[0]]]]) {
+    await openProfiles(ui, {...pipelinePage,profiles,
+      interactions:[{id:'unknown',status:'pending',matched_speaker:speaker}]});
+    assert.equal([...ui.window.document.querySelectorAll('#voice-sample-list button')].some(b=>b.textContent.startsWith('Confirm ')), false);
+    assert.equal(ui.element('#voice-sample-list .other-match').open, true);
+    assert.equal(pipelineWrites(ui).length, 0);
+  }
+});
+
+test('enrolment lives inside Other match and validates an explicit new name', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  ui.element('#voice-sample-list .other-match').querySelector('summary').click();
   voiceButton(ui, 'Enrol new speaker').click(); await flush();
   assert.equal(pipelineWrites(ui).length, 0);
-  ui.window.confirm = () => true;
+  assert.match(ui.element('#voice-sample-list .sample-feedback').textContent, /Enter a new speaker name/);
+  ui.element('#voice-sample-list .other-match input').value = '  Kathy  ';
   voiceButton(ui, 'Enrol new speaker').click(); await flush(); await flush();
-  assert.equal(pipelineWrites(ui)[0].assigned_to, 'Kathy');
-  assert.equal(pipelineWrites(ui)[0].action, 'enrol');
+  assert.deepEqual(pipelineWrites(ui)[0], {operation:'resolve',action:'enrol',interaction_id:'recording-1',assigned_to:'Kathy',confirm:true});
 });
 
-test('history corrections preserve resolution IDs, can undo, and show conflicts', async t => {
+test('recording-specific choices never use another card or the maintenance selection', async t => {
+  const ui = browser(t); await openProfiles(ui, {...pipelinePage,interactions:[
+    ...pipelinePage.interactions,{id:'ed-recording',status:'pending',matched_speaker:'Ed'}]});
+  ui.element('#voice-profile-select').value = 'Jaco';
+  voiceButton(ui, 'Confirm Ed',1).click(); await flush(); await flush();
+  assert.equal(pipelineWrites(ui)[0].assigned_to, 'Ed');
+  assert.equal(pipelineWrites(ui)[0].interaction_id, 'ed-recording');
+});
+
+test('history changes preserve resolution IDs, support undo, and show upstream conflicts inline', async t => {
   const ui = browser(t); await openProfiles(ui);
-  const history = {interactions: [{id: 'old', status: 'resolved', transcript: 'Hi', current_resolution_id: 'revision-1'}]};
+  const history = {interactions:[{id:'old',status:'resolved',transcript:'Hi',matched_speaker:'Jaco',
+    current_assigned_to:'Ed',current_resolution_id:'revision-1',match_confidence:0.55}]};
   ui.responses.set('/api/voicepipeline', options => options?.body ? history : pipelinePage);
   ui.element('#voice-history').click(); await flush(); await flush();
-  ui.element('#voice-consent').checked = true;
-  ui.responses.set('/api/voicepipeline', options => options?.body ? {error: 'This recording changed. Refresh.'} : pipelinePage);
-  voiceButton(ui, 'Correct speaker').click(); await flush();
-  assert.deepEqual(pipelineWrites(ui).at(-1), {operation: 'correct', interaction_id: 'old', expected_resolution_id: 'revision-1', assigned_to: 'Jaco', consent: true, confirm: true});
-  assert.match(ui.element('#voices-status').textContent, /recording changed/);
+  assert.equal(voiceButton(ui,'Confirm Jaco'), undefined);
+  ui.element('#voice-sample-list .other-match').querySelector('summary').click();
+  ui.responses.set('/api/voicepipeline', {error:'This recording changed. Refresh.'});
+  voiceButton(ui,'Set speaker to Ed').click(); await flush();
+  assert.deepEqual(pipelineWrites(ui).at(-1), {operation:'correct',interaction_id:'old',
+    expected_resolution_id:'revision-1',assigned_to:'Ed',confirm:true});
+  assert.match(ui.element('#voice-sample-list .sample-feedback').textContent, /recording changed/);
   ui.responses.set('/api/voicepipeline', options => options?.body ? history : pipelinePage);
-  ui.element('#voice-consent').checked = false;
-  voiceButton(ui, 'Return to pending').click(); await flush(); await flush();
-  assert.equal(pipelineWrites(ui).find(value => value.operation === 'correct' && value.assigned_to === null).expected_resolution_id, 'revision-1');
+  voiceButton(ui,'Return to pending').click(); await flush(); await flush();
+  assert.equal(pipelineWrites(ui).find(v=>v.operation==='correct' && v.assigned_to===null).expected_resolution_id,'revision-1');
 });
 
-test('speaker deletion and reference clearing use IDs and require confirmation', async t => {
+test('speaker deletion and reference clearing retain confirmation and use selected IDs', async t => {
   const ui = browser(t); await openProfiles(ui);
   ui.window.confirm = () => false; ui.element('#delete-voice-profile').click(); await flush();
   assert.equal(pipelineWrites(ui).length, 0);
@@ -543,101 +587,109 @@ test('speaker deletion and reference clearing use IDs and require confirmation',
   assert.equal(pipelineWrites(ui)[0].speaker_id, 'jaco-id');
   assert.equal(pipelineWrites(ui)[0].operation, 'delete_speaker');
   ui.element('#clear-voice-clips').click(); await flush(); await flush();
-  assert.equal(pipelineWrites(ui).at(-1).operation, 'clear_clips');
-  voiceButton(ui, 'Dismiss').click(); await flush(); await flush();
-  assert.equal(pipelineWrites(ui).at(-1).action, 'dismiss');
+  assert.equal(pipelineWrites(ui).at(-1).operation,'clear_clips');
 });
 
-test('duplicate clicks submit once and a failed write is never retried', async t => {
-  const ui = browser(t); await openProfiles(ui);
-  let finish;
-  ui.responses.set('/api/voicepipeline', () => new Promise(resolve => { finish = resolve; }));
-  const button = voiceButton(ui, 'Dismiss'); button.click(); button.click(); await flush();
+test('duplicate review clicks submit once and lost responses are never retried', async t => {
+  const ui = browser(t); await openProfiles(ui); let finish;
+  ui.responses.set('/api/voicepipeline', () => new Promise(resolve=>{finish=resolve;}));
+  const accept = voiceButton(ui,'Confirm Jaco'); accept.click(); accept.click();
+  voiceButton(ui,'Reject').click(); await flush();
   assert.equal(pipelineWrites(ui).length, 1);
-  finish({error: 'Could not confirm result. Refresh before retrying.'}); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Refresh before retrying/);
+  finish({error:'Could not confirm result. Refresh before retrying.'}); await flush();
+  assert.match(ui.element('#voice-sample-list .sample-feedback').textContent,/Refresh before retrying/);
   assert.equal(pipelineWrites(ui).length, 1);
+  assert.equal(accept.disabled, false);
 });
 
-test('audio is only fetched on request and late playback is discarded on close', async t => {
+test('Play is optional, loads audio only on request, and places controls in the selected card', async t => {
   const ui = browser(t); await openProfiles(ui);
-  assert.equal(pipelineWrites(ui).length, 0);
-  ui.responses.set('/api/voicepipeline', {audio: 'UklGRjAwMDBXQVZFZGF0YQ=='});
-  voiceButton(ui, 'Listen').click(); await flush();
-  assert.equal(ui.element('#voice-sample-preview').src, 'blob:test-audio');
-  assert.equal(pipelineWrites(ui)[0].operation, 'audio');
-  let finish;
-  ui.responses.set('/api/voicepipeline', () => new Promise(resolve => { finish = resolve; }));
-  voiceButton(ui, 'Listen').click(); await flush();
-  ui.element('[data-close="voices-panel"]').click();
-  finish({audio: 'UklGRg=='}); await flush();
-  assert.equal(ui.element('#voice-sample-preview').hasAttribute('src'), false);
+  const player=ui.element('#voice-sample-preview'); let played=0;
+  player.play=async()=>{played++;};
+  assert.equal(pipelineWrites(ui).length, 0); assert.equal(player.hidden,true);
+  ui.responses.set('/api/voicepipeline', options => options?.body ? {audio:'UklGRg=='} : pipelinePage);
+  voiceButton(ui,'Play').click(); await flush();
+  assert.equal(pipelineWrites(ui)[0].operation,'audio');
+  assert.equal(player.src,'blob:test-audio'); assert.equal(played,1); assert.equal(player.hidden,false);
+  assert.equal(player.closest('li'),ui.element('#voice-sample-list > li'));
+  ui.element('#refresh-voices').click(); await flush(); await flush();
+  assert.equal(ui.element('#voice-sample-preview'),player);
+  assert.equal(player.hidden,true); assert.equal(player.hasAttribute('src'),false);
+  voiceButton(ui,'Play').click(); await flush(); assert.equal(played,2);
 });
 
-test('closing invalidates a pending profile load and an outage remains visible', async t => {
-  const ui = browser(t); let finish;
-  ui.responses.set('/api/voicepipeline', () => new Promise(resolve => { finish = resolve; }));
-  ui.element('#open-voices').click(); await flush();
-  ui.element('[data-close="voices-panel"]').click();
-  finish(pipelinePage); await flush();
-  assert.equal(ui.element('#voice-profile-select').options.length, 0);
-  ui.responses.set('/api/voicepipeline', {error: 'VoicePipeline unavailable'});
-  ui.element('#open-voices').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /unavailable/);
-});
-
-test('recording views expose the selected mode and explain the matching operation', async t => {
+test('blocked playback offers manual play and late audio is discarded on refresh or close', async t => {
   const ui = browser(t); await openProfiles(ui);
-  assert.equal(ui.element('#refresh-voices').getAttribute('aria-pressed'), 'true');
-  assert.equal(ui.element('#voice-history-help').hidden, true);
-  ui.responses.set('/api/voicepipeline', options => options?.body ? {interactions: []} : pipelinePage);
+  const player=ui.element('#voice-sample-preview');
+  player.play=async()=>{throw new Error('Needs gesture');};
+  ui.responses.set('/api/voicepipeline',{audio:'UklGRg=='});
+  voiceButton(ui,'Play').click(); await flush();
+  assert.match(ui.element('#voice-sample-list .sample-feedback').textContent,/Press play below/);
+  for (const close of [false,true]) {
+    let finish;
+    ui.responses.set('/api/voicepipeline',()=>new Promise(resolve=>{finish=resolve;}));
+    voiceButton(ui,'Play').click(); await flush();
+    if(close) ui.element('[data-close="voices-panel"]').click();
+    else {
+      ui.responses.set('/api/voicepipeline',pipelinePage);
+      ui.element('#refresh-voices').click(); await flush(); await flush();
+    }
+    finish({audio:'UklGRg=='}); await flush();
+    assert.equal(player.hidden,true); assert.equal(player.hasAttribute('src'),false);
+  }
+});
+
+test('closing invalidates a pending profile load and an outage stays visible', async t => {
+  const ui=browser(t); let finish;
+  ui.responses.set('/api/voicepipeline',()=>new Promise(resolve=>{finish=resolve;}));
+  ui.element('#open-voices').click(); await flush();
+  ui.element('[data-close="voices-panel"]').click(); finish(pipelinePage); await flush();
+  assert.equal(ui.element('#voice-profile-select').options.length,0);
+  ui.responses.set('/api/voicepipeline',{error:'VoicePipeline unavailable'});
+  ui.element('#open-voices').click(); await flush();
+  assert.match(ui.element('#voices-status').textContent,/unavailable/);
+});
+
+test('pending and history modes retain their guidance and empty state', async t => {
+  const ui=browser(t); await openProfiles(ui);
+  assert.equal(ui.element('#refresh-voices').getAttribute('aria-pressed'),'true');
+  ui.responses.set('/api/voicepipeline',options=>options?.body ? {interactions:[]} : pipelinePage);
   ui.element('#voice-history').click(); await flush(); await flush();
-  assert.equal(ui.element('#voice-history').getAttribute('aria-pressed'), 'true');
-  assert.equal(ui.element('#refresh-voices').getAttribute('aria-pressed'), 'false');
-  assert.equal(ui.element('#voice-history-help').hidden, false);
-  assert.equal(ui.element('#voice-pending-help').hidden, true);
-  assert.match(ui.element('#voice-sample-list').textContent, /No recordings/);
+  assert.equal(ui.element('#voice-history').getAttribute('aria-pressed'),'true');
+  assert.equal(ui.element('#voice-history-help').hidden,false);
+  assert.equal(ui.element('#voice-pending-help').hidden,true);
+  assert.match(ui.element('#voice-sample-list').textContent,/No recordings/);
   ui.element('#refresh-voices').click(); await flush(); await flush();
-  assert.equal(ui.element('#refresh-voices').getAttribute('aria-pressed'), 'true');
-  assert.equal(ui.element('#voice-pending-help').hidden, false);
+  assert.equal(ui.element('#refresh-voices').getAttribute('aria-pressed'),'true');
+  assert.equal(ui.element('#voice-pending-help').hidden,false);
 });
 
-test('Listen plays inline in the selected card and refresh hides and preserves the player', async t => {
-  const ui = browser(t); await openProfiles(ui);
-  const player = ui.element('#voice-sample-preview');
-  let played = 0; player.play = async () => { played++; };
-  assert.equal(player.hidden, true);
-  ui.responses.set('/api/voicepipeline', options => options?.body ? {audio: 'UklGRg=='} : pipelinePage);
-  voiceButton(ui, 'Listen').click(); await flush();
-  assert.equal(played, 1);
-  assert.equal(player.hidden, false);
-  assert.equal(player.closest('li'), ui.element('#voice-sample-list > li'));
+test('confidence statistics remain available and corrected matches retain the original model score', async t => {
+  const ui=browser(t); await openProfiles(ui);
+  assert.match(ui.element('#voice-profile-summary').textContent,/Average confidence: 87.6%/);
+  const rows=ui.window.document.querySelectorAll('#voice-profile-stats tr');
+  assert.match(rows[0].textContent,/Jaco.*87.6%/); assert.match(rows[1].textContent,/Ed.*0%/);
+  assert.match(ui.element('#voice-sample-list .match-badge').textContent,/Jaco.*55% match/);
+  ui.responses.set('/api/voicepipeline',{...pipelinePage,interactions:[{id:'fixed',status:'resolved',
+    matched_speaker:'Jaco',current_assigned_to:'Ed',match_confidence:0.55}]});
   ui.element('#refresh-voices').click(); await flush(); await flush();
-  assert.equal(ui.element('#voice-sample-preview'), player);
-  assert.equal(player.hidden, true);
-  assert.equal(player.hasAttribute('src'), false);
-  voiceButton(ui, 'Listen').click(); await flush();
-  assert.equal(played, 2);
+  assert.match(ui.element('#voice-sample-list .sample-meta').textContent,/Assigned: Ed/);
+  assert.match(ui.element('#voice-sample-list .match-badge').textContent,/Original match: Jaco.*55%/);
+  for(const value of [undefined,null,'','0.5',-1,1.1,NaN,Infinity]) {
+    ui.responses.set('/api/voicepipeline',{profiles:[{...pipelinePage.profiles[0],avg_confidence:value}],
+      interactions:[{id:'sample',status:'pending',match_confidence:value}],notice:'Ready'});
+    ui.element('#refresh-voices').click(); await flush(); await flush();
+    assert.match(ui.element('#voice-profile-summary').textContent,/Average confidence: Unavailable/);
+    assert.match(ui.element('#voice-sample-list .match-badge').textContent,/Unavailable match/);
+  }
 });
 
-test('blocked playback offers manual play and stale audio cannot replace a newer selection', async t => {
-  const ui = browser(t); await openProfiles(ui);
-  const player = ui.element('#voice-sample-preview');
-  player.play = async () => { throw new Error('Playback needs a gesture'); };
-  ui.responses.set('/api/voicepipeline', {audio: 'UklGRg=='});
-  voiceButton(ui, 'Listen').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Press play below/);
-  assert.equal(player.hidden, false);
-  let finish;
-  ui.responses.set('/api/voicepipeline', () => new Promise(resolve => { finish = resolve; }));
-  voiceButton(ui, 'Listen').click(); await flush();
-  ui.responses.set('/api/voicepipeline', options => options?.body ? {audio: 'UklGRg=='} : pipelinePage);
-  ui.element('#refresh-voices').click(); await flush(); await flush();
-  finish({audio: 'UklGRg=='}); await flush();
-  assert.equal(player.hidden, true);
-  assert.equal(player.hasAttribute('src'), false);
+test('saved assignments report a failed speaker cache refresh instead of claiming recognition updated', async t => {
+  const ui=browser(t); await openProfiles(ui);
+  ui.responses.set('/api/voicepipeline',options=>options?.body ? {saved:true,result:{cache_refresh_requested:false}} : pipelinePage);
+  voiceButton(ui,'Confirm Jaco').click(); await flush(); await flush();
+  assert.match(ui.element('#voices-status').textContent,/confirmed as Jaco.*cache refresh could not be requested/);
 });
-
 
 test('prerelease checkbox checks through the existing authenticated route and labels testing builds', async t => {
   const ui = browser(t, {ingress: true});
@@ -678,59 +730,3 @@ test('turning testing off or a failed check clears obsolete prerelease choices',
 });
 
 
-test('missing permission and upstream assignment failures appear beside the recording', async t => {
-  const ui = browser(t); await openProfiles(ui);
-  voiceButton(ui, 'Use selected speaker').click(); await flush();
-  assert.match(ui.element('#voice-sample-list .sample-feedback').textContent, /Tick the permission/);
-  assert.equal(pipelineWrites(ui).length, 0);
-  ui.element('#voice-consent').checked = true;
-  ui.responses.set('/api/voicepipeline', {error: 'VoicePipeline unavailable'});
-  voiceButton(ui, 'Use selected speaker').click(); await flush();
-  assert.match(ui.element('#voice-sample-list .sample-feedback').textContent, /VoicePipeline unavailable/);
-});
-
-test('correcting a suggestion names the chosen speaker and refreshes the saved upstream result', async t => {
-  const ui = browser(t);
-  const before = {profiles: pipelinePage.profiles, interactions: [{id:'wrong-match', status:'pending',
-    matched_speaker:'Jaco', match_confidence:0.55, transcript:'Hello'}], notice:'Ready'};
-  let saved = false;
-  ui.responses.set('/api/voicepipeline', options => {
-    if (options?.body) { saved = true; return {saved:true, result:{cache_refresh_requested:true}}; }
-    return saved ? {...before, interactions:[]} : before;
-  });
-  ui.element('#open-voices').click(); await flush(); await flush();
-  ui.element('#voice-profile-select').value = 'Ed';
-  ui.element('#voice-profile-select').dispatchEvent(new ui.window.Event('change'));
-  assert.equal(voiceButton(ui, 'Use selected speaker').textContent, 'Use selected speaker (Ed)');
-  assert.match(ui.element('#voice-sample-list .sample-meta').textContent, /Suggested: Jaco.*55%/);
-  let confirmation;
-  ui.window.confirm = message => { confirmation = message; return true; };
-  ui.element('#voice-consent').checked = true;
-  voiceButton(ui, 'Use selected speaker').click(); await flush(); await flush();
-  assert.match(confirmation, /Assign this recording to Ed/);
-  assert.deepEqual(pipelineWrites(ui)[0], {operation:'resolve', action:'assign', interaction_id:'wrong-match',
-    assigned_to:'Ed', consent:true, confirm:true});
-  assert.match(ui.element('#voice-sample-list').textContent, /No recordings/);
-  assert.match(ui.element('#voices-status').textContent, /assigned to Ed in VoicePipeline/);
-});
-
-test('speaker statistics show upstream averages and distinguish the original match after correction', async t => {
-  const ui = browser(t);
-  ui.responses.set('/api/voicepipeline', {profiles:[
-    {...pipelinePage.profiles[0], avg_confidence:0.876}, {...pipelinePage.profiles[1], avg_confidence:0}
-  ], interactions:[{id:'corrected', status:'resolved', matched_speaker:'Jaco',
-    current_assigned_to:'Ed', match_confidence:0.55}], notice:'Ready'});
-  ui.element('#open-voices').click(); await flush(); await flush();
-  assert.match(ui.element('#voice-profile-summary').textContent, /Average confidence: 87.6%/);
-  const rows = ui.window.document.querySelectorAll('#voice-profile-stats tr');
-  assert.match(rows[0].textContent, /Jaco.*87.6%/);
-  assert.match(rows[1].textContent, /Ed.*0%/);
-  assert.match(ui.element('#voice-sample-list .sample-meta').textContent, /Assigned: Ed.*Original match: Jaco.*55%/);
-  for (const value of [undefined, null, '', '0.5', -1, 1.1, NaN, Infinity]) {
-    ui.responses.set('/api/voicepipeline', {profiles:[{...pipelinePage.profiles[0], avg_confidence:value}],
-      interactions:[{id:'sample',status:'pending',match_confidence:value}],notice:'Ready'});
-    ui.element('#refresh-voices').click(); await flush(); await flush();
-    assert.match(ui.element('#voice-profile-summary').textContent, /Average confidence: Unavailable/);
-    assert.match(ui.element('#voice-sample-list .sample-meta').textContent, /Match confidence: Unavailable/);
-  }
-});

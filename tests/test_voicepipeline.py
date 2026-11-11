@@ -11,7 +11,7 @@ import voicepipeline as vp
 SPEAKERS = [{'id': 'speaker-jaco', 'name': 'Jaco', 'reference_clip_count': 3},
             {'id': 'speaker-ed', 'name': 'Ed', 'reference_clip_count': 5}]
 PENDING = [{'id': 'interaction-1', 'status': 'pending', 'transcript': 'Hello',
-            'audio_url': 'http://untrusted.invalid/audio'}]
+            'audio_url': 'http://untrusted.invalid/audio', 'matched_speaker': 'Ed'}]
 
 
 class PipelineTests(TestCase):
@@ -48,9 +48,9 @@ class PipelineTests(TestCase):
             with self.assertRaises(ValueError):
                 vp.manage(self.change(action='enrol', assigned_to='ed'))
 
-    def test_no_writes_without_explicit_permission_confirmation_and_pending_entry(self):
+    def test_no_writes_without_valid_name_confirmation_and_pending_entry(self):
         with patch.object(vp, 'request', side_effect=self.fake):
-            for body in (None, {}, self.change(confirm=False), self.change(consent=False),
+            for body in (None, {}, self.change(confirm=False), self.change(assigned_to=''),
                          self.change(action='arbitrary'), self.change(assigned_to='Unknown'),
                          self.change(assigned_to='../bad'), self.change(interaction_id='../bad')):
                 with self.assertRaises(ValueError):
@@ -89,6 +89,23 @@ class PipelineTests(TestCase):
             self.responses['/api/v1/speakers'] = {}
             with self.assertRaises(vp.PipelineError):
                 vp.speakers()
+
+
+    def test_review_click_needs_no_permission_checkbox_but_confirm_must_match_current_suggestion(self):
+        with patch.object(vp, 'request', side_effect=self.fake):
+            body = self.change(action='confirm')
+            body.pop('consent')
+            self.assertTrue(vp.manage(body)['saved'])
+            self.assertEqual(self.calls[-1], ('POST', '/api/v1/interactions/interaction-1/resolve',
+                                             {'action': 'confirm', 'assigned_to': 'Ed'}))
+            self.responses['/api/v1/interactions/pending'] = [
+                {**PENDING[0], 'matched_speaker': 'Jaco'}]
+            before = len(self.calls)
+            with self.assertRaisesRegex(vp.PipelineError, 'suggested speaker changed'):
+                vp.manage(body)
+            self.assertTrue(all(method == 'GET' for method, _, _ in self.calls[before:]))
+            # A deliberate Other match choice can still assign Ed over a Jaco suggestion.
+            self.assertTrue(vp.manage({**body, 'action': 'assign'})['saved'])
 
 
 class TransportTests(TestCase):
