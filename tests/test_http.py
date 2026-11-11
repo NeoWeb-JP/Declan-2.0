@@ -57,6 +57,7 @@ class APITests(TestCase):
         gateway = self.enterContext(proxy.ThreadingHTTPServer(("127.0.0.1", 0), proxy.ProxyHandler))
         gateway.target = urlsplit(self.origin)
         gateway.ingress_token = token
+        gateway.panel_token = "p" * 64
         worker = Thread(target=gateway.serve_forever, daemon=True)
         worker.start()
         self.addCleanup(worker.join)
