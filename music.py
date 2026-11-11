@@ -290,7 +290,7 @@ def _request(connection, path, data=None, *, timeout=None):
 
 def parse_control(phrase):
     dislike = re.fullmatch(
-        r"(?:i|we) (?:do not|don['']t) like this (?:song|track)"
+        r"(?:i|we) (?:do not|don['’]t) like this (?:song|track)"
         r"(?: in (?:the )?(.+))?", phrase,
     )
     if dislike:
@@ -672,4 +672,3 @@ def play(command, connection, read_inventory, *, origin=None):
                 else "I couldn't verify the music request."), "unverified"
     finally:
         HANDOFF.release()
-

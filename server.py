@@ -71,7 +71,7 @@ CHAT_COMMANDS = {
     "do you remember my name": "recall_name",
     "what did i just say": "recall_message", "what did i say": "recall_message",
     "what time is it": "time", "what is the time": "time", "tell me the time": "time",
-    "what's the time": "time", "what's the time": "time",
+    "what's the time": "time", "what’s the time": "time",
     "hello": "greeting", "hi": "greeting", "hey": "greeting", "hello declan": "greeting",
 }
 GOOD_MORNING_SCRIPT = "script.declan_good_morning_shared_local_routine"
@@ -82,7 +82,7 @@ GOOD_MORNING_PHRASES = {
 GOOD_NIGHT_SCRIPT = "script.declan_good_night_shared_local_routine"
 GOOD_NIGHT_PHRASES = {
     "good night", "good night declan", "goodnight", "it's bedtime",
-    "it's bedtime", "time for bed", "shut the house down", "start the bedtime routine",
+    "it’s bedtime", "time for bed", "shut the house down", "start the bedtime routine",
 }
 
 
@@ -1838,7 +1838,7 @@ class Handler(BaseHTTPRequestHandler):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
         elif phrase == "stop":
             routine_reply, outcome, routine_status = stop_origin_output(ha_device_connection(), satellite, origin_device)
-        elif phrase.replace("'", "'") in DINNER_PHRASES:
+        elif phrase.replace("’", "'") in DINNER_PHRASES:
             routine_reply, outcome = start_dinner(ha_device_connection())
         elif phrase in SEXY_TIME_COMMANDS:
             routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection())
@@ -2035,4 +2035,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -172,7 +172,7 @@ class MusicTests(unittest.TestCase):
         self.assertEqual(self.calls, [("media_next_track", {"entity_id": self.group})])
 
     def test_dislike_phrases_skip_without_blocking(self):
-        for phrase in ("i do not like this song", "i don't like this song", "i don't like this song"):
+        for phrase in ("i do not like this song", "i don't like this song", "i don’t like this song"):
             self.assertEqual(music.parse_control(phrase), ("media_next_track", None))
         self.assertEqual(self.control("i don't like this song")[1], "confirmed")
         self.assertFalse(music.PREFERENCES.exists())
@@ -518,5 +518,4 @@ class MusicTests(unittest.TestCase):
             self.play("play coward of the county in the bedroom")
         self.assertEqual(self.calls[0][1]["media_id"], music.FAVOURITE_TRACK)
         self.assertEqual(self.spotify_tokens, 0)
-
 

@@ -228,7 +228,7 @@ class APITests(TestCase):
         opener.open.return_value = io.BytesIO(b"[]")
         connection = ("http://ha.invalid", {}, opener)
         with patch.object(server, "ha_device_connection", return_value=connection):
-            for phrase in {*server.DINNER_PHRASES, "it's dinner time"}:
+            for phrase in {*server.DINNER_PHRASES, "it’s dinner time"}:
                 opener.open.reset_mock()
                 opener.open.return_value = io.BytesIO(b"[]")
                 result = self.ask(phrase + "!", path="/api/assist")
@@ -313,7 +313,7 @@ class APITests(TestCase):
         self.assertIn("You said", self.ask("What did I say?", session)["reply"])
         self.assertIn("here", self.ask("What time is it?", session)["reply"])
         self.assertIn("here", self.ask("What's the time?", session)["reply"])
-        self.assertIn("here", self.ask("What's the time?", session)["reply"])
+        self.assertIn("here", self.ask("What’s the time?", session)["reply"])
         self.assertIn("say it another way", self.ask("Something else")["reply"])
         with patch.object(server.conditions, "handle", side_effect=lambda phrase, _: (
             ("Oxford forecast", "confirmed", "weather") if "oxford" in phrase else None
@@ -383,4 +383,3 @@ class StartupTests(TestCase):
         prune.assert_called_once()
         host.shutdown.assert_called_once()
         self.assertIn("Timer alarms could not be checked.", stdout.getvalue())
-
