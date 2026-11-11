@@ -1,6 +1,7 @@
 """Local Declan 2.0 chat prototype. Run with python server.py."""
 import argparse
 import json
+import logging
 import os
 import re
 import secrets
@@ -1473,6 +1474,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        if self.path == "/health":
+            self.send_header("X-Declan-Pid", str(os.getpid()))
         if filename:
             self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.end_headers()
@@ -1821,6 +1824,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 target = history.learned_intent(phrase)
             except (OSError, sqlite3.Error):
+                self.log_error("Could not look up learned intention; using the original transcript.")
                 target = None
             if isinstance(target, str) and 0 < len(target) <= 120:
                 # Interpret once through the normal handlers. Never follow alias chains.
@@ -1987,6 +1991,7 @@ def main():
         parser.error("Assist LAN mode needs a fixed port. Omit --port to use 52737.")
     if args.assist_lan and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) < 32:
         parser.error("--assist-lan requires a DECLAN_ASSIST_TOKEN of at least 32 characters.")
+    history.initialize()
     bind_address = "0.0.0.0" if args.assist_lan else "127.0.0.1"
     try:
         server = ThreadingHTTPServer((bind_address, port), Handler)
@@ -2013,16 +2018,19 @@ def main():
                     raise SystemExit(75)
                 try:
                     timers.ring_due(opener)
-                except (OSError, sqlite3.Error):
-                    print("Timer alarms could not be checked.", flush=True)
+                except Exception:
+                    logging.exception("Timer alarms could not be checked.")
                 if monotonic() >= next_music_check:
                     next_music_check = monotonic() + 5
-                    music.skip_blocked_tracks(ha_device_connection(), read_music_inventory)
+                    try:
+                        music.skip_blocked_tracks(ha_device_connection(), read_music_inventory)
+                    except Exception:
+                        logging.exception("Blocked music could not be checked.")
                 if monotonic() >= next_prune:
                     try:
                         history.prune()
-                    except (OSError, sqlite3.Error):
-                        print("Conversation history could not be pruned.", flush=True)
+                    except Exception:
+                        logging.exception("Conversation history could not be pruned.")
                     next_prune = monotonic() + 3600
         except (URLError, TimeoutError, ValueError) as error:
             parser.exit(1, f"Declan bound {url} but its local health check failed: {error}\n")

@@ -6,11 +6,14 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from time import time
+from threading import Lock
 
 
 DATABASE = Path(__file__).resolve().parent / ".data" / "conversations.sqlite3"
 RETENTION_SECONDS = 30 * 24 * 60 * 60
 SPEAKER_THRESHOLD = 0.75
+_SCHEMA_LOCK = Lock()
+_initialized = set()
 
 
 def speaker_match(value):
@@ -35,48 +38,54 @@ def speaker_match(value):
     return match
 
 
+def initialize():
+    """Migrate once per database file, before starting HTTP workers."""
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
+    with _SCHEMA_LOCK:
+        identity = (DATABASE.resolve(), DATABASE.stat().st_ino) if DATABASE.exists() else None
+        if identity in _initialized:
+            return
+        connection = sqlite3.connect(DATABASE, timeout=2)
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            with connection:
+                connection.execute("BEGIN IMMEDIATE")
+                connection.execute("""CREATE TABLE IF NOT EXISTS turns (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at REAL NOT NULL, session_id TEXT NOT NULL,
+                    source TEXT NOT NULL, message TEXT NOT NULL, reply TEXT NOT NULL
+                )""")
+                connection.execute("CREATE INDEX IF NOT EXISTS turns_created ON turns(created_at)")
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(turns)")}
+                for column in ("outcome", "routine_status", "action_results", "phrase_suggestion",
+                               "speaker_match", "diagnostic_id"):
+                    if column not in columns:
+                        connection.execute(f"ALTER TABLE turns ADD COLUMN {column} TEXT")
+                connection.execute("CREATE TABLE IF NOT EXISTS learned_intents "
+                                   "(phrase TEXT PRIMARY KEY, target TEXT NOT NULL)")
+            _initialized.add((DATABASE.resolve(), DATABASE.stat().st_ino))
+        finally:
+            connection.close()
+
+
 @contextmanager
 def database():
-    DATABASE.parent.mkdir(exist_ok=True)
+    initialize()  # Also supports library callers and isolated test databases.
     connection = sqlite3.connect(DATABASE, timeout=2)
     try:
         with connection:
-            connection.execute("""CREATE TABLE IF NOT EXISTS turns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at REAL NOT NULL,
-                session_id TEXT NOT NULL,
-                source TEXT NOT NULL,
-                message TEXT NOT NULL,
-                reply TEXT NOT NULL
-            )""")
-            connection.execute("CREATE INDEX IF NOT EXISTS turns_created ON turns(created_at)")
-            connection.execute("BEGIN IMMEDIATE")
-            columns = {row[1] for row in connection.execute("PRAGMA table_info(turns)")}
-            if "outcome" not in columns:
-                connection.execute("ALTER TABLE turns ADD COLUMN outcome TEXT")
-            if "routine_status" not in columns:
-                connection.execute("ALTER TABLE turns ADD COLUMN routine_status TEXT")
-            if "action_results" not in columns:
-                connection.execute("ALTER TABLE turns ADD COLUMN action_results TEXT")
-            if "phrase_suggestion" not in columns:
-                connection.execute("ALTER TABLE turns ADD COLUMN phrase_suggestion TEXT")
-            if "speaker_match" not in columns:
-                connection.execute("ALTER TABLE turns ADD COLUMN speaker_match TEXT")
-            if "diagnostic_id" not in columns:
-                connection.execute("ALTER TABLE turns ADD COLUMN diagnostic_id TEXT")
-            connection.execute("DELETE FROM turns WHERE created_at < ?", (time() - RETENTION_SECONDS,))
             yield connection
     finally:
         connection.close()
 
 
 def prune():
-    with database():
-        pass
+    with database() as connection:
+        connection.execute("DELETE FROM turns WHERE created_at < ?", (time() - RETENTION_SECONDS,))
 
 
 def _intent_table(connection):
-    connection.execute("CREATE TABLE IF NOT EXISTS learned_intents (phrase TEXT PRIMARY KEY, target TEXT NOT NULL)")
+    """Compatibility hook; the table is now created by initialize()."""
 
 
 def normalize_phrase(text):

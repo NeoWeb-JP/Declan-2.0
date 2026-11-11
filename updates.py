@@ -1,6 +1,8 @@
 """Stage a tagged Declan build, then atomically select it for systemd."""
 
 import os
+import json
+import stat
 import state_backup
 import sqlite3
 import re
@@ -19,6 +21,23 @@ RESTART = Event()
 _lock = Lock()
 _tags = {}
 _job = {"state": "idle"}
+
+
+def trusted_releases():
+    """Trust comes from the administrator, never the downloaded repository."""
+    path = Path(os.environ.get("DECLAN_TRUSTED_RELEASES", "/etc/declan/trusted-releases.json"))
+    if os.name != "posix" or not path.is_absolute():
+        raise ValueError("A root-owned release allow-list is required.")
+    for component in (path, *path.parents):
+        info = component.lstat()
+        if info.st_uid != 0 or info.st_mode & 0o022 or stat.S_ISLNK(info.st_mode):
+            raise ValueError("Release allow-list and its parents must be root-owned and not writable by others.")
+    pins = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(pins, dict) or not all(
+            isinstance(tag, str) and VERSION.fullmatch(tag) and isinstance(sha, str)
+            and re.fullmatch(r"[a-f0-9]{40}", sha) for tag, sha in pins.items()):
+        raise ValueError("Invalid release allow-list.")
+    return pins
 
 
 def run(*command, cwd=None, timeout=30):
@@ -55,11 +74,12 @@ def status():
 def check():
     if layout() is None:
         return []
+    pins = trusted_releases()
     refs = run("git", "ls-remote", "--tags", "--refs", REPOSITORY, timeout=10)
     tags = {}
     for line in refs.splitlines():
         sha, _, ref = line.partition("\trefs/tags/")
-        if VERSION.fullmatch(ref) and re.fullmatch(r"[a-f0-9]{40}", sha):
+        if ref in pins and re.fullmatch(r"[a-f0-9]{40}", sha):
             tags[ref] = sha
     with _lock:
         _tags.clear()
@@ -84,16 +104,23 @@ def install(root, version, expected_ref):
     staged = None
     activated = False
     try:
+        approved_commit = trusted_releases().get(version)
+        if approved_commit is None:
+            raise ValueError("Release is not approved by the administrator.")
+        if os.environ.get("DECLAN_UPDATE_SUPERVISED") != "1":
+            raise ValueError("Install the stable update supervisor before enabling updates.")
         staged = Path(mkdtemp(prefix=f"{version}-", dir=root / "releases"))
         run("git", "clone", "--quiet", "--depth", "1", "--branch", version, REPOSITORY, str(staged), timeout=90)
         ref = f"refs/tags/{version}"
         if (run("git", "rev-parse", ref, cwd=staged) != expected_ref
-                or run("git", "rev-parse", "HEAD", cwd=staged) != run("git", "rev-parse", ref + "^{commit}", cwd=staged)):
+                or run("git", "rev-parse", "HEAD", cwd=staged) != approved_commit
+                or run("git", "rev-parse", ref + "^{commit}", cwd=staged) != approved_commit):
             raise ValueError("Release tag changed")
         run(sys.executable, "-m", "venv", str(staged / ".venv"), timeout=90)
         python = str(staged / ".venv/bin/python")
         if (staged / "requirements-web-voice.txt").is_file():
-            run(python, "-m", "pip", "--disable-pip-version-check", "install", "-r", "requirements-web-voice.txt",
+            run(python, "-m", "pip", "--disable-pip-version-check", "install", "--require-hashes",
+                "--only-binary=:all:", "-r", "requirements-web-voice.txt",
                 cwd=staged, timeout=180)
         run(python, "server.py", "--help", cwd=staged)
         (staged / ".data").symlink_to((APP / ".data").resolve(), target_is_directory=True)
