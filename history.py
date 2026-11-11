@@ -62,6 +62,8 @@ def database():
                 connection.execute("ALTER TABLE turns ADD COLUMN phrase_suggestion TEXT")
             if "speaker_match" not in columns:
                 connection.execute("ALTER TABLE turns ADD COLUMN speaker_match TEXT")
+            if "diagnostic_id" not in columns:
+                connection.execute("ALTER TABLE turns ADD COLUMN diagnostic_id TEXT")
             connection.execute("DELETE FROM turns WHERE created_at < ?", (time() - RETENTION_SECONDS,))
             yield connection
     finally:
@@ -136,15 +138,15 @@ def has_recent_assist():
 
 
 def record(session_id, source, message, reply, outcome=None, routine_status=None, action_results=None,
-           phrase_suggestion=None, *, speaker=None):
+           phrase_suggestion=None, *, speaker=None, diagnostic_id=None):
     match = speaker_match(speaker) if source == "assist" else None
     with database() as connection:
         connection.execute(
             "INSERT INTO turns(created_at, session_id, source, message, reply, outcome, routine_status, "
-            "action_results, phrase_suggestion, speaker_match) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "action_results, phrase_suggestion, speaker_match, diagnostic_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (time(), session_id, source, message, reply, outcome, routine_status,
              json.dumps(action_results) if action_results else None, phrase_suggestion,
-             json.dumps(match) if match else None),
+             json.dumps(match) if match else None, diagnostic_id),
         )
 
 
@@ -166,3 +168,19 @@ def recent(before=None, limit=50):
         turn["action_results"] = json.loads(turn["action_results"]) if turn["action_results"] else []
         turn["speaker_match"] = json.loads(turn["speaker_match"]) if turn["speaker_match"] else None
     return turns
+
+
+def edit_intent(phrase, target, previous):
+    """Edit an existing correction; a stale tab must not overwrite a newer edit."""
+    if not all(isinstance(value, str) for value in (phrase, target, previous)):
+        raise ValueError("Enter a valid phrase and command.")
+    phrase = normalize_phrase(phrase)
+    target = normalize_phrase(target)
+    if not 0 < len(target) <= 120 or any(ord(char) < 32 for char in target) or target == phrase:
+        raise ValueError("Enter a different command, up to 120 characters.")
+    with database() as connection:
+        _intent_table(connection)
+        changed = connection.execute(
+            "UPDATE learned_intents SET target = ? WHERE phrase = ? AND target = ?", (target, phrase, previous))
+        if changed.rowcount != 1:
+            raise ValueError("This intention changed in another tab. Refresh before editing.")

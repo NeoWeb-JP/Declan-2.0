@@ -38,3 +38,25 @@ class UpdateTests(TestCase):
                 self.assertEqual((selected / ".declan-release").read_text().strip(), "0.1.0")
                 self.assertEqual((root / "previous").resolve(), app)
                 self.assertTrue(restart.is_set())
+
+    @skipUnless(os.name == "posix", "Linux deployment uses symbolic links")
+    def test_bad_state_never_activates_release_or_leaves_update_stuck(self):
+        import sqlite3
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = root / 'baseline'
+            (app / '.data').mkdir(parents=True)
+            (root / 'releases').mkdir()
+            (root / 'current').symlink_to(app)
+            restart = Event()
+            job = {'state': 'installing'}
+            with patch.dict(os.environ, {'DECLAN_UPDATE_ROOT': directory}), patch.object(updates, 'APP', app), patch.object(
+                updates, 'RESTART', restart
+            ), patch.object(updates, '_job', job), patch.object(updates, 'run', return_value='a' * 40), patch.object(
+                updates.state_backup, 'snapshot', side_effect=sqlite3.DatabaseError('bad store')
+            ):
+                updates.install(root, '0.2.0', 'a' * 40)
+                self.assertEqual(job['state'], 'failed')
+                self.assertEqual((root / 'current').resolve(), app)
+                self.assertFalse(restart.is_set())
+                self.assertEqual(list((root / 'releases').iterdir()), [])

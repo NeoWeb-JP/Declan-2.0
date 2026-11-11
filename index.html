@@ -135,6 +135,9 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
       <label><input id="use-assist-stt" type="checkbox" checked> Use Home Assistant speech recognition</label>
       <label><input id="spoken-replies" type="checkbox" checked> Speak voice replies</label>
       <button type="button" id="open-history" aria-haspopup="dialog">Conversation history</button>
+      <button type="button" id="open-diagnostics">Request diagnostics</button>
+      <button type="button" id="open-backup">Back up settings</button>
+      <button type="button" id="open-voices">Voice profiles</button>
       <button type="button" id="open-spotify" aria-haspopup="dialog">Spotify settings</button>
     </div>
   </details>
@@ -213,6 +216,39 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
     <button id="install-update" type="button" disabled>Install selected release</button>
   </div>
   <p id="update-status" class="mono" role="status"></p>
+</dialog>
+<dialog class="history" id="diagnostics-panel" aria-labelledby="diagnostics-title">
+  <div class="history-heading"><h2 id="diagnostics-title">Request diagnostics</h2><button type="button" data-close="diagnostics-panel">Close</button></div>
+  <p>Recent timings and outcomes. A reported playback state does not prove sound was audible.</p>
+  <button type="button" id="refresh-diagnostics">Refresh</button><p id="diagnostics-status" role="status"></p><div id="diagnostics-list"></div>
+</dialog>
+<dialog class="history" id="backup-panel" aria-labelledby="backup-title">
+  <div class="history-heading"><h2 id="backup-title">Back up settings</h2><button type="button" data-close="backup-panel">Close</button></div>
+  <p>Exports exclude credentials, conversations, voice recordings and caches. Back up Home Assistant separately for its integration settings and voice cache.</p>
+  <label><input type="checkbox" id="backup-learning"> Include learned intentions (private phrases)</label>
+  <p><a id="download-settings" href="./api/settings/export" download>Download settings</a> · <a id="download-recovery" href="./api/settings/recovery" download>Download settings before the last import</a></p>
+  <label>Settings file <input id="import-settings-file" type="file" accept="application/json,.json"></label>
+  <button type="button" id="preview-settings">Preview import</button>
+  <pre id="settings-preview" style="white-space:pre-wrap"></pre>
+  <button type="button" id="apply-settings" disabled>Apply reviewed settings</button>
+  <p id="backup-status" role="status"></p>
+</dialog>
+<dialog class="history" id="voices-panel" aria-labelledby="voices-title">
+  <div class="history-heading"><h2 id="voices-title">Voice profiles</h2><button type="button" data-close="voices-panel">Close</button></div>
+  <p>Local sample collection only. These recordings do not change recognition yet. Add only your own voice. Deleting a profile also deletes its active samples; earlier local upgrade backups may retain copies.</p>
+  <label>Your name <input id="voice-profile-name" maxlength="40" autocomplete="off"></label>
+  <label><input type="checkbox" id="voice-consent"> I consent to storing my voice locally for reviewed speaker enrolment.</label>
+  <button type="button" id="create-voice-profile">Create profile</button>
+  <p><label>Profile <select id="voice-profile-select"></select></label></p>
+  <button type="button" id="record-voice-sample">Record sample</button>
+  <button type="button" id="stop-voice-sample" disabled>Stop recording</button>
+  <label>Or choose a mono 16 kHz PCM WAV <input type="file" id="voice-sample-file" accept="audio/wav,.wav"></label>
+  <p>Say a natural sentence for one to ten seconds. Listen before saving.</p>
+  <audio id="voice-sample-preview" controls></audio>
+  <button type="button" id="save-voice-sample" disabled>Save reviewed sample</button>
+  <button type="button" id="export-voice-profile">Download samples</button>
+  <button type="button" id="delete-voice-profile">Delete profile</button>
+  <ul id="voice-sample-list"></ul><p id="voices-status" role="status"></p>
 </dialog>
 <script>
 const haStatus = document.querySelector('#ha-status');
@@ -359,6 +395,7 @@ function renderLearnedIntents(aliases) {
     button.type = 'button';
     button.textContent = 'Forget';
     button.addEventListener('click', async () => {
+      if (!window.confirm(`Forget the correction for “${phrase}”?`)) return;
       button.disabled = true;
       try {
         await updateLearnedIntent({forget: phrase});
@@ -370,7 +407,20 @@ function renderLearnedIntents(aliases) {
         button.disabled = false;
       }
     });
-    item.append(button);
+    const edit = document.createElement('input');
+    edit.type = 'text'; edit.value = target; edit.maxLength = 120;
+    edit.setAttribute('aria-label', `Correct command for ${phrase}`);
+    const save = document.createElement('button');
+    save.type = 'button'; save.textContent = 'Save edit';
+    save.addEventListener('click', async () => {
+      save.disabled = button.disabled = true;
+      try {
+        await updateLearnedIntent({phrase, target: edit.value, previous: target});
+        aliases[phrase] = edit.value.trim(); renderLearnedIntents(aliases);
+        historyStatus.textContent = 'Intention updated. No command was run.';
+      } catch (error) { historyStatus.textContent = error.message; save.disabled = button.disabled = false; }
+    });
+    item.append(button, edit, save);
     list.append(item);
   }
   document.querySelector('#learned-intents').hidden = !list.children.length;
@@ -439,6 +489,10 @@ async function loadHistory(older = false) {
       replyText.textContent = turn.reply;
       reply.append(replyText);
       row.append(meta, message, reply);
+      if (turn.diagnostic_id) {
+        const requestId = document.createElement('div'); requestId.className = 'mono';
+        requestId.textContent = 'Request: ' + turn.diagnostic_id; row.append(requestId);
+      }
       if (turn.speaker_match) {
         const match = turn.speaker_match;
         const details = document.createElement('details');
@@ -1039,5 +1093,231 @@ if (assistSupported || recognition) {
 }
 updateControls();
 drawPattern();
+
+// Management actions stay in the authenticated panel; none run a voice command.
+async function managementRequest(path, body) {
+  const response = await fetch('./api/' + path, body === undefined ? undefined : {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Request failed. Try again.');
+  return result;
+}
+for (const button of document.querySelectorAll('[data-close]')) {
+  button.addEventListener('click', () => document.getElementById(button.dataset.close).close());
+}
+async function loadDiagnostics() {
+  const status = document.querySelector('#diagnostics-status');
+  try {
+    const result = await managementRequest('diagnostics');
+    const list = document.querySelector('#diagnostics-list'); list.replaceChildren();
+    for (const trace of result.traces) {
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.textContent = `${trace.created_at} · ${trace.route} · ${trace.outcome} · ${trace.duration_ms} ms`;
+      const evidence = document.createElement('p');
+      evidence.textContent = `Request ${trace.id}. ` + trace.stages.map(stage =>
+        `${stage.stage}: ${stage.outcome} (${stage.duration_ms} ms)${stage.error ? ' ' + stage.error : ''}`).join('; ');
+      details.append(summary, evidence); list.append(details);
+    }
+    status.textContent = result.traces.length ? 'Latest 50 requests. Retained for up to seven days.' : 'No request diagnostics yet.';
+  } catch (error) { status.textContent = error.message; }
+}
+document.querySelector('#open-diagnostics').addEventListener('click', () => {
+  document.querySelector('#diagnostics-panel').showModal(); void loadDiagnostics();
+});
+document.querySelector('#refresh-diagnostics').addEventListener('click', () => void loadDiagnostics());
+document.querySelector('#open-backup').addEventListener('click', () => document.querySelector('#backup-panel').showModal());
+document.querySelector('#backup-learning').addEventListener('change', event => {
+  document.querySelector('#download-settings').href = './api/settings/' + (event.target.checked ? 'export-learning' : 'export');
+  document.querySelector('#download-recovery').href = './api/settings/' + (event.target.checked ? 'recovery-learning' : 'recovery');
+});
+let importPreview = null;
+const importFile = document.querySelector('#import-settings-file');
+const applySettings = document.querySelector('#apply-settings');
+const backupStatus = document.querySelector('#backup-status');
+importFile.addEventListener('change', () => {
+  importPreview = null; applySettings.disabled = true;
+  document.querySelector('#settings-preview').textContent = '';
+});
+document.querySelector('#preview-settings').addEventListener('click', async () => {
+  importPreview = null; applySettings.disabled = true;
+  try {
+    const file = importFile.files[0];
+    if (!file || file.size > 190000) throw new Error('Choose a settings JSON file smaller than 190 KB.');
+    const document = JSON.parse(await file.text());
+    const preview = await managementRequest('settings/import', {document});
+    if (file !== importFile.files[0]) return;
+    importPreview = {document, expected: preview.expected};
+    window.document.querySelector('#settings-preview').textContent = JSON.stringify({
+      settings: preview.settings, learned_intentions: preview.learning_count,
+      replaces_existing_learning: preview.replaces_learning, notice: preview.notice
+    }, null, 2);
+    applySettings.disabled = false; backupStatus.textContent = 'Review the IDs and learning changes before applying.';
+  } catch (error) { backupStatus.textContent = error.message; }
+});
+applySettings.addEventListener('click', async () => {
+  if (!importPreview || !window.confirm('Apply these settings? Included learned intentions will replace the current list.')) return;
+  applySettings.disabled = true;
+  try {
+    await managementRequest('settings/import', {...importPreview, confirm: true});
+    importPreview = null; backupStatus.textContent = 'Settings imported. No household actions were run.';
+  } catch (error) { importPreview = null; backupStatus.textContent = error.message + ' Preview again before retrying.'; }
+});
+const voicesStatus = document.querySelector('#voices-status');
+const profileSelect = document.querySelector('#voice-profile-select');
+const samplePreview = document.querySelector('#voice-sample-preview');
+const saveSample = document.querySelector('#save-voice-sample');
+const recordSample = document.querySelector('#record-voice-sample');
+const stopSample = document.querySelector('#stop-voice-sample');
+let voiceProfiles = [];
+let sampleData = null;
+let sampleURL = null;
+let profileRecording = null;
+function discardSample() {
+  sampleData = null; saveSample.disabled = true;
+  samplePreview.removeAttribute('src');
+  if (sampleURL) URL.revokeObjectURL(sampleURL);
+  sampleURL = null;
+}
+function previewSample(data) {
+  discardSample(); sampleData = data;
+  const bytes = Uint8Array.from(atob(data), value => value.charCodeAt(0));
+  sampleURL = URL.createObjectURL(new Blob([bytes], {type: 'audio/wav'}));
+  samplePreview.src = sampleURL; saveSample.disabled = false;
+}
+function wavSample(samples) {
+  const data = new ArrayBuffer(44 + samples.length * 2); const view = new DataView(data);
+  const text = (offset, value) => [...value].forEach((letter, i) => view.setUint8(offset + i, letter.charCodeAt(0)));
+  text(0, 'RIFF'); view.setUint32(4, data.byteLength - 8, true); text(8, 'WAVE'); text(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, 16000, true); view.setUint32(28, 32000, true); view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); text(36, 'data'); view.setUint32(40, samples.length * 2, true);
+  samples.forEach((value, i) => view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, value * 32768)), true));
+  let binary = ''; for (const value of new Uint8Array(data)) binary += String.fromCharCode(value);
+  return btoa(binary);
+}
+function stopProfileRecording(keep = true) {
+  const recording = profileRecording; profileRecording = null;
+  if (!recording) return;
+  recording.capture?.disconnect(); recording.source?.disconnect();
+  recording.stream?.getTracks().forEach(track => track.stop());
+  void recording.audio.close().catch(() => {});
+  recordSample.disabled = false; stopSample.disabled = true;
+  if (keep && recording.samples.length >= 16000) {
+    previewSample(wavSample(recording.samples)); voicesStatus.textContent = 'Listen to the recording, then save it if you approve.';
+  } else if (keep) voicesStatus.textContent = 'Record at least one second of speech.';
+}
+function renderProfiles(result) {
+  voiceProfiles = result.profiles;
+  const selected = profileSelect.value; profileSelect.replaceChildren();
+  for (const profile of voiceProfiles) {
+    const option = document.createElement('option'); option.value = profile.id; option.textContent = profile.name;
+    profileSelect.append(option);
+  }
+  if (voiceProfiles.some(profile => profile.id === selected)) profileSelect.value = selected;
+  renderSamples();
+}
+function renderSamples() {
+  const list = document.querySelector('#voice-sample-list'); list.replaceChildren();
+  const profile = voiceProfiles.find(value => value.id === profileSelect.value);
+  for (const sample of profile?.samples || []) {
+    const item = document.createElement('li'); item.textContent = `${sample.duration}s `;
+    for (const operation of ['preview', 'delete_sample']) {
+      const button = document.createElement('button'); button.type = 'button';
+      button.textContent = operation === 'preview' ? 'Listen' : 'Delete sample';
+      button.addEventListener('click', async () => {
+        if (operation === 'delete_sample' && !window.confirm('Delete this saved voice sample?')) return;
+        button.disabled = true;
+        try {
+          const result = await managementRequest('voice-profiles', {operation, profile: profile.id, sample: sample.id, confirm: true});
+          if (operation === 'preview') previewSample(result.samples[0].audio);
+          else { discardSample(); renderProfiles(result); }
+        } catch (error) { voicesStatus.textContent = error.message; }
+        finally { button.disabled = false; }
+      });
+      item.append(button);
+    }
+    list.append(item);
+  }
+}
+profileSelect.addEventListener('change', () => { stopProfileRecording(false); discardSample(); renderSamples(); });
+document.querySelector('#open-voices').addEventListener('click', async () => {
+  pauseListening(); document.querySelector('#voices-panel').showModal();
+  try { const result = await managementRequest('voice-profiles'); renderProfiles(result); voicesStatus.textContent = result.notice; }
+  catch (error) { voicesStatus.textContent = error.message; }
+});
+document.querySelector('#voices-panel').addEventListener('close', () => { stopProfileRecording(false); discardSample(); });
+document.querySelector('#create-voice-profile').addEventListener('click', async () => {
+  try {
+    renderProfiles(await managementRequest('voice-profiles', {operation: 'create',
+      name: document.querySelector('#voice-profile-name').value.trim(), consent: document.querySelector('#voice-consent').checked}));
+    voicesStatus.textContent = 'Local profile created. Record your own voice and review each sample.';
+  } catch (error) { voicesStatus.textContent = error.message; }
+});
+recordSample.addEventListener('click', async () => {
+  if (!assistSupported || !profileSelect.value || !document.querySelector('#voice-consent').checked) {
+    voicesStatus.textContent = 'Choose your profile, confirm consent and allow microphone access over HTTPS.'; return;
+  }
+  discardSample(); recordSample.disabled = true;
+  const recording = {audio: new BrowserAudioContext(), samples: [], stream: null}; profileRecording = recording;
+  try {
+    await recording.audio.resume();
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    if (profileRecording !== recording) { stream.getTracks().forEach(track => track.stop()); return; }
+    recording.stream = stream;
+    recording.source = recording.audio.createMediaStreamSource(stream);
+    recording.capture = recording.audio.createScriptProcessor(4096, 1, 1);
+    const convert = resampler(recording.audio.sampleRate);
+    recording.capture.onaudioprocess = event => {
+      if (profileRecording !== recording) return;
+      const values = convert(event.inputBuffer.getChannelData(0));
+      for (const value of values) { if (recording.samples.length === 160000) break; recording.samples.push(value); }
+      if (recording.samples.length === 160000) stopProfileRecording();
+    };
+    recording.source.connect(recording.capture); recording.capture.connect(recording.audio.destination);
+    stopSample.disabled = false; voicesStatus.textContent = 'Recording your sample. Stop after a natural sentence (maximum ten seconds).';
+  } catch (error) { stopProfileRecording(false); voicesStatus.textContent = 'Could not record: ' + error.message; }
+});
+stopSample.addEventListener('click', () => stopProfileRecording());
+document.querySelector('#voice-sample-file').addEventListener('change', event => {
+  discardSample();
+  const file = event.target.files[0];
+  if (!file || file.size > 320100) { voicesStatus.textContent = 'Choose a one to ten second mono 16 kHz PCM WAV.'; return; }
+  const reader = new FileReader();
+  const profile = profileSelect.value;
+  reader.onload = () => {
+    if (document.querySelector('#voices-panel').open && profile === profileSelect.value && event.target.files[0] === file) {
+      previewSample(String(reader.result).split(',')[1]);
+    }
+  };
+  reader.readAsDataURL(file);
+});
+saveSample.addEventListener('click', async () => {
+  if (!sampleData) return;
+  saveSample.disabled = true;
+  try {
+    renderProfiles(await managementRequest('voice-profiles', {operation: 'save_sample', profile: profileSelect.value,
+      audio: sampleData, consent: document.querySelector('#voice-consent').checked}));
+    discardSample(); voicesStatus.textContent = 'Sample saved locally for review. Speaker matching has not changed.';
+  } catch (error) { voicesStatus.textContent = error.message; saveSample.disabled = false; }
+});
+document.querySelector('#delete-voice-profile').addEventListener('click', async () => {
+  if (!profileSelect.value || !window.confirm('Delete this profile and all its active voice samples? Local upgrade backups are separate.')) return;
+  try {
+    renderProfiles(await managementRequest('voice-profiles', {operation: 'delete_profile', profile: profileSelect.value, confirm: true}));
+    discardSample(); voicesStatus.textContent = 'Profile and active samples deleted.';
+  } catch (error) { voicesStatus.textContent = error.message; }
+});
+document.querySelector('#export-voice-profile').addEventListener('click', async () => {
+  if (!profileSelect.value || !window.confirm('Download these private voice samples? Keep the file private.')) return;
+  try {
+    const result = await managementRequest('voice-profiles', {operation: 'export', profile: profileSelect.value});
+    const url = URL.createObjectURL(new Blob([JSON.stringify(result)], {type: 'application/json'}));
+    const link = document.createElement('a'); link.href = url; link.download = 'declan-voice-samples.json'; link.click();
+    URL.revokeObjectURL(url); voicesStatus.textContent = 'Private samples downloaded. No model was changed.';
+  } catch (error) { voicesStatus.textContent = error.message; }
+});
+
 </script>
 </html>

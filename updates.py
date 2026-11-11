@@ -1,6 +1,8 @@
 """Stage a tagged Declan build, then atomically select it for systemd."""
 
 import os
+import state_backup
+import sqlite3
 import re
 import shutil
 import subprocess
@@ -98,6 +100,9 @@ def install(root, version, expected_ref):
         (staged / ".declan-release").write_text(version + "\n", encoding="ascii")
         if layout() != root:
             raise ValueError("Active release changed during staging")
+        backup = state_backup.snapshot(APP / ".data")
+        with _lock:
+            _job.update(backup=backup)
         for name, target in (("previous", APP), ("current", staged)):
             pending = root / f".{name}-{staged.name}"
             pending.symlink_to(target, target_is_directory=True)
@@ -109,7 +114,7 @@ def install(root, version, expected_ref):
         with _lock:
             _job.update(state="restarting")
         RESTART.set()
-    except (OSError, ValueError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, sqlite3.Error, subprocess.SubprocessError) as error:
         print(f"Declan update {version} failed: {type(error).__name__}", flush=True)
         with _lock:
             _job.update(state="failed")

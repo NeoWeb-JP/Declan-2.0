@@ -10,11 +10,11 @@ from urllib.parse import urlsplit
 
 GET_PATHS = {
     "/", "/logo.png", "/api/ha-status", "/api/history", "/api/history/export",
-    "/api/settings/spotify", "/api/updates", "/api/updates/status",
+    "/api/settings/export", "/api/settings/export-learning", "/api/settings/recovery", "/api/settings/recovery-learning", "/api/voice-profiles", "/api/diagnostics", "/api/settings/spotify", "/api/updates", "/api/updates/status",
 }
 POST_PATHS = {
     "/api/chat", "/api/tts", "/api/stt", "/api/history/clear",
-    "/api/history/intents", "/api/settings/spotify", "/api/updates",
+    "/api/voice-profiles", "/api/settings/import", "/api/history/intents", "/api/settings/spotify", "/api/updates",
 }
 SUPERVISOR_ADDRESS = "172.30.32.2"
 
@@ -56,7 +56,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if self.headers.get_content_type() != expected or self.headers.get("Transfer-Encoding"):
                 self.send_error_json(415, f"Send {expected}.")
                 return
-            limit = 640_000 if path == "/api/stt" else 8192
+            limit = 450000 if path == "/api/voice-profiles" else 640_000 if path == "/api/stt" else 196608 if path == "/api/settings/import" else 8192
             length = self.headers.get("Content-Length", "")
             if len(length) > 7 or not length.isascii() or not length.isdigit() or not 0 < int(length) <= limit:
                 self.send_error_json(400, "Invalid request size.")

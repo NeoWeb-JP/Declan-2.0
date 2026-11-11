@@ -1,6 +1,7 @@
 """Route one household Spotify stream through Music Assistant."""
 
 import json
+import diagnostics
 import os
 import re
 import sqlite3
@@ -205,6 +206,7 @@ def save_spotify_credentials(client_id, client_secret):
         temp_path.unlink(missing_ok=True)
 
 
+@diagnostics.timed("spotify_search")
 def spotify_search(opener, title, artist, types):
     global spotify_token
     credentials, _ = spotify_credentials()
@@ -263,6 +265,13 @@ def parse(phrase):
 
 
 def request(connection, path, data=None, *, timeout=None):
+    label = ('stop_dispatch' if path.endswith('/media_stop') else
+             'play_dispatch' if path.endswith('/play_media') else 'ha_media_request')
+    with diagnostics.stage(label):
+        return _request(connection, path, data, timeout=timeout)
+
+
+def _request(connection, path, data=None, *, timeout=None):
     url, headers, opener = connection
     body = json.dumps(data).encode() if data is not None else None
     search = path.endswith("/search?return_response")
@@ -298,6 +307,7 @@ def parse_control(phrase):
     return action, room_key(room) if room else None
 
 
+@diagnostics.timed("music_control")
 def control(command, connection, read_inventory, *, origin=None, read_areas=None, assist=False):
     action, room = command
     if connection is None:
@@ -474,6 +484,7 @@ def matches_track(player, title, artist):
             and (not artist or str(attributes.get("media_artist") or "").casefold() == artist.casefold()))
 
 
+@diagnostics.timed("playback_verification")
 def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
     for attempt in range(attempts):
         if attempt:
@@ -493,6 +504,7 @@ def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
     return False
 
 
+@diagnostics.timed("music_playback")
 def play(command, connection, read_inventory):
     room, title, provider = command
     location = "everywhere" if room == "everywhere" else f"in the {room}"
