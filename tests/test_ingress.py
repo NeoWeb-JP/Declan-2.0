@@ -27,10 +27,10 @@ class IngressTests(TestCase):
         self.thread.join()
         self.server.server_close()
 
-    def request(self, method='POST', headers=None, supervisor=True):
+    def request(self, method='POST', headers=None, supervisor=True, path=None):
         connection = HTTPConnection(*self.server.server_address)
         with mock.patch.object(proxy, 'SUPERVISOR_ADDRESS', '127.0.0.1' if supervisor else '192.0.2.1'), mock.patch.object(proxy, 'HTTPConnection', return_value=self.upstream):
-            connection.request(method, '/' if method == 'GET' else '/api/updates', body='{}' if method == 'POST' else None, headers=headers or {})
+            connection.request(method, path or ('/' if method == 'GET' else '/api/updates'), body='{}' if method == 'POST' else None, headers=headers or {})
             response = connection.getresponse()
             result = response.status, response.read()
         connection.close()
@@ -64,3 +64,11 @@ class IngressTests(TestCase):
         self.assertNotIn(b'upstream-secret', body)
         self.assertTrue(body.startswith(b'<html><script>'))
         self.assertTrue(body.endswith(b'</html>'))
+
+    def test_voicepipeline_management_route_is_allowed_with_same_panel_boundary(self):
+        self.response.getheader.side_effect = lambda name, default=None: {'Content-Type': 'application/json', 'Content-Length': '2'}.get(name, default)
+        for method in ('GET', 'POST'):
+            self.response.read.side_effect = [b'{}', b'']
+            headers = {'Content-Type': 'application/json', 'X-Declan-Panel-Token': 'panel-secret'}
+            self.assertEqual(self.request(method=method, headers=headers, path='/api/voicepipeline')[0], 200)
+        self.assertEqual(self.request(path='/api/voicepipeline')[0], 403)

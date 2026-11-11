@@ -26,6 +26,7 @@ import conditions
 import diagnostics
 import configuration
 import voice_profiles
+import voicepipeline
 import device_status
 import history
 import music
@@ -1477,7 +1478,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not ingress and (
             self.path.startswith("/api/history")
-            or self.path.startswith("/api/settings/") or self.path == "/api/voice-profiles"
+            or self.path.startswith("/api/settings/") or self.path in {"/api/voice-profiles", "/api/voicepipeline"}
             or self.path in {"/api/diagnostics", "/api/settings/spotify", "/api/updates", "/api/updates/status"}
         ) and self.headers.get("Host") not in {
             f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"
@@ -1507,6 +1508,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(200, json.dumps(document).encode(), 'application/json', 'declan-settings.json')
             except (ValueError, OSError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings export is unavailable."})
+        elif self.path == "/api/voicepipeline":
+            try:
+                self.send_json(200, voicepipeline.listing())
+            except voicepipeline.PipelineError as error:
+                self.send_json(error.status, {'error': str(error)})
         elif self.path == "/api/voice-profiles":
             try:
                 self.send_json(200, voice_profiles.listing())
@@ -1602,7 +1608,7 @@ class Handler(BaseHTTPRequestHandler):
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/voice-profiles"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/voice-profiles", "/api/voicepipeline"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not self.has_ingress_access() and (
@@ -1625,8 +1631,18 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
+            if self.path == "/api/voicepipeline":
+                try:
+                    self.send_json(200, voicepipeline.manage(body))
+                except voicepipeline.PipelineError as error:
+                    self.send_json(error.status, {'error': str(error)})
+                except ValueError as error:
+                    self.send_json(400, {'error': str(error)})
+                return
             if self.path == "/api/voice-profiles":
                 try:
+                    if isinstance(body, dict) and body.get('operation') in {'create', 'save_sample'}:
+                        raise ValueError('Use Voice profiles to enrol through VoicePipeline. Separate local collection is retired.')
                     self.send_json(200, voice_profiles.manage(body))
                 except ValueError as error:
                     self.send_json(400, {'error': str(error)})

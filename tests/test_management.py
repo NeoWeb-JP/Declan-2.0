@@ -23,6 +23,7 @@ import music
 import server
 import state_backup
 import voice_profiles
+import voicepipeline
 
 
 def wav(seconds=1, value=1000, rate=16000):
@@ -250,8 +251,8 @@ class ManagementAPITests(TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(self.request('/api/settings/import', {'document': export, 'expected': preview['expected'], 'confirm': True})[0], 200)
             self.assertEqual(self.request('/api/settings/import', {'confirm': True})[0], 400)
-            self.assertEqual(self.request('/api/voice-profiles', {'operation': 'create', 'name': 'Jaco', 'consent': True})[0], 200)
-            self.assertEqual(self.request('/api/voice-profiles')[1]['profiles'][0]['name'], 'Jaco')
+            self.assertEqual(self.request('/api/voice-profiles', {'operation': 'create', 'name': 'Jaco', 'consent': True})[0], 400)
+            self.assertEqual(self.request('/api/voice-profiles')[1]['profiles'], [])
             self.assertEqual(self.request('/api/voice-profiles', {'operation': 'create'})[0], 400)
         self.assertEqual(self.request('/api/diagnostics')[1], {'traces': []})
         self.assertEqual(self.request('/api/diagnostics', headers={'Host': 'attacker.invalid'})[0], 403)
@@ -264,3 +265,21 @@ class ManagementAPITests(TestCase):
         self.assertEqual(traces[0]['id'], result['diagnostic_id'])
         self.assertEqual(history.recent()[0]['diagnostic_id'], result['diagnostic_id'])
         self.assertNotIn('Hello Declan', json.dumps(traces))
+
+    def test_voicepipeline_routes_use_management_boundary_and_preserve_error_status(self):
+        with patch.object(voicepipeline, 'listing', return_value={'profiles': []}) as listing, patch.object(
+                voicepipeline, 'manage', return_value={'saved': True}) as manage:
+            self.assertEqual(self.request('/api/voicepipeline', headers={'Host': 'attacker.invalid'})[0], 403)
+            listing.assert_not_called()
+            self.assertEqual(self.request('/api/voicepipeline')[1], {'profiles': []})
+            self.assertEqual(self.request('/api/voicepipeline', {'operation': 'resolve'}, origin=False)[0], 403)
+            manage.assert_not_called()
+            self.assertEqual(self.request('/api/voicepipeline', {'operation': 'resolve'}, origin=False,
+                                          headers={'Authorization': 'Bearer assist-token'})[0], 403)
+            self.assertEqual(self.request('/api/voicepipeline', {'operation': 'history'})[1], {'saved': True})
+            manage.side_effect = voicepipeline.PipelineError('Refresh', 409)
+            self.assertEqual(self.request('/api/voicepipeline', {'operation': 'correct'})[0], 409)
+            manage.side_effect = ValueError('Invalid operation')
+            self.assertEqual(self.request('/api/voicepipeline', {'operation': 'invalid'})[0], 400)
+            listing.side_effect = voicepipeline.PipelineError('Unavailable', 503)
+            self.assertEqual(self.request('/api/voicepipeline')[0], 503)
