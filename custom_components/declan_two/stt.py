@@ -5,6 +5,9 @@ import io
 import logging
 import wave
 
+from .capture_level import CaptureLevel
+from .speaker_models import SpeakerTranscript
+
 import aiohttp
 from homeassistant.components import stt
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -74,12 +77,15 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
     async def async_process_audio_stream(self, metadata, stream):
         """Send one bounded Assist utterance to OpenAI; never log audio or key."""
         raw = bytearray()
+        level = CaptureLevel()
         try:
             async for chunk in stream:
                 raw.extend(chunk)
+                level.add(chunk)
                 if len(raw) > MAX_AUDIO_BYTES:
                     _LOGGER.warning("Declan OpenAI STT rejected oversized utterance")
                     return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
+            level.finish()
             if not raw:
                 return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
 
@@ -103,7 +109,7 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
             text = text.strip() if isinstance(text, str) else ""
             if not text:
                 return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
-            return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
+            return stt.SpeechResult(SpeakerTranscript(text, capture_level=level.snapshot()), stt.SpeechResultState.SUCCESS)
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError):
             _LOGGER.warning("Declan OpenAI STT request could not complete")
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)

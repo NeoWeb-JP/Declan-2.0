@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Thread
-from time import monotonic
+from time import monotonic, time
+from concurrent.futures import ThreadPoolExecutor
 from unittest import TestCase
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
@@ -85,6 +86,48 @@ class APITests(TestCase):
         with patch.object(proxy, "SUPERVISOR_ADDRESS", "192.0.2.1"):
             self.assertEqual(request("/")[0], 403)
 
+    def test_stop_discovers_the_speaking_device_and_replies_silently(self):
+        rows = [
+            {"entity_id": "assist_satellite.new_bedroom", "declan_device": "bedroom", "declan_area": "Master Bedroom"},
+            {"entity_id": "media_player.new_bedroom_speaker", "declan_device": "bedroom",
+             "declan_area": "Master Bedroom", "declan_music_assistant": False, "state": "playing", "attributes": {}},
+            {"entity_id": "media_player.kitchen", "declan_device": "kitchen",
+             "declan_music_assistant": False, "state": "playing", "attributes": {}},
+        ]
+        with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), patch.object(
+            server, "read_music_inventory", return_value=(rows, None)
+        ), patch.object(server.music, "request") as request, patch.object(
+            server.music, "wait_for", return_value=True
+        ), patch.object(server.timers, "stop_due") as alarms:
+            result = self.ask("stop", path="/api/assist", device="bedroom")
+            self.assertEqual((result["reply"], result["outcome"]), ("", "confirmed"))
+            self.assertEqual(request.call_args.args[2], {"entity_id": "media_player.new_bedroom_speaker"})
+            alarms.assert_called_once_with("assist_satellite.new_bedroom")
+            self.assertEqual(server.history.recent(limit=1)[0]["reply"], "")
+            rows.append({**rows[1], "entity_id": "media_player.second_bedroom_speaker"})
+            request.reset_mock()
+            self.assertEqual(self.ask("stop", path="/api/assist", device="bedroom")["outcome"], "unresolved")
+            request.assert_not_called()
+
+    def test_two_satellites_execute_and_record_one_command(self):
+        self.enterContext(patch.object(server, "CAPTURE_ARBITER", server.CaptureArbiter(window=0.03)))
+        end = time()
+        def call(satellite, rms):
+            status, payload = self.request("/api/assist", body={
+                "message": "dinner time", "satellite_id": "assist_satellite." + satellite,
+                "capture": {"ended_at": end, "duration": 2, "rms": rms},
+            }, headers={"Authorization": "Bearer test", "Content-Type": "application/json"})
+            self.assertEqual(status, 200)
+            return json.loads(payload)
+        with patch.object(server, "start_dinner", return_value=("Dinner ready.", "requested")) as dinner:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                quiet = pool.submit(call, "kitchen", 0.1)
+                loud = pool.submit(call, "bedroom", 0.5)
+                self.assertEqual(quiet.result()["reply"], "")
+                self.assertEqual(loud.result()["reply"], "Dinner ready.")
+            dinner.assert_called_once()
+            self.assertEqual(len(server.history.recent()), 1)
+
     def test_status_and_assets(self):
         with patch.object(server, "RELEASE_VERSION", "v1.2.3"), patch.object(
             server, "home_assistant_status", return_value="disconnected"
@@ -154,7 +197,7 @@ class APITests(TestCase):
                 self.assertIn(result["reply"], LINES[f"sexy_time_{operation}"][0])
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
             self.assertEqual(play.call_count, 3)
-            play.assert_called_with(("bedroom", "sexy time music", "spotify"), connection, server.read_ha_inventory)
+            play.assert_called_with(("bedroom", "sexy time music", "spotify"), connection, server.read_music_inventory)
 
             play.return_value = ("Home Assistant took too long to respond.", "unverified")
             opener.open.return_value = io.BytesIO(b'{"service_response":{"operation":"start","lighting_ok":true}}')

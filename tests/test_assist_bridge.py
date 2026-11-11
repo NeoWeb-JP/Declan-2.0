@@ -1,6 +1,7 @@
 """Test the bridge against a fake Home Assistant host and HTTP client."""
 
 from importlib import import_module
+from collections import namedtuple
 from io import BytesIO
 from types import ModuleType, SimpleNamespace
 from unittest import IsolatedAsyncioTestCase
@@ -52,7 +53,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             ConversationEntity=object, ConversationResult=SimpleNamespace
         )
         modules["homeassistant.components"].stt = SimpleNamespace(
-            SpeechToTextEntity=object, SpeechResult=lambda text, result: (text, result),
+            SpeechToTextEntity=object, SpeechResult=namedtuple("SpeechResult", "text result"),
             SpeechResultState=SimpleNamespace(SUCCESS="success", ERROR="error"),
         )
         self.session = Mock()
@@ -87,7 +88,9 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             jarvis_speaker = ("match-123", "Ed", 0.91)
 
         user_input.text = SpeakerTranscript("good morning")
+        user_input.text.capture_level = {"ended_at": 123, "duration": 2, "rms": 0.4}
         await agent.async_process(user_input)
+        self.assertEqual(self.session.post.call_args.kwargs["json"]["capture"], user_input.text.capture_level)
         self.assertEqual(self.session.post.call_args.kwargs["json"]["speaker"], {
             "interaction_id": "match-123", "name": "Ed", "confidence": 0.91,
         })
@@ -182,6 +185,8 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         transcript, status = await entity.async_process_audio_stream(SimpleNamespace(language="en"), audio())
         self.assertEqual((transcript, status), ("What's the time?", "success"))
         self.assertEqual(transcript.jarvis_speaker, ("match-1", "Jaco", 0.32))
+        self.assertEqual(transcript.capture_level["duration"], 1 / 16000)
+        self.assertGreater(transcript.capture_level["rms"], 0)
         bridge.AsyncTcpClient.assert_called_once_with("192.168.0.43", 10300)
 
     async def test_voice_manager_reuses_provider_and_legacy_cache_identity(self):

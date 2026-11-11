@@ -12,11 +12,14 @@ from wyoming.asr import Transcribe, Transcript
 from wyoming.audio import AudioStart, AudioChunk, AudioStop
 from wyoming.error import Error
 from .speaker_models import SpeakerTranscript
+from .capture_level import CaptureLevel
 _LOGGER=logging.getLogger(__name__)
 
-async def upload(client, stream):
+async def upload(client, stream, level):
     async for data in stream:
+        level.add(data)
         await client.write_event(AudioChunk(rate=16000,width=2,channels=1,audio=data).event())
+    level.finish()
     await client.write_event(AudioStop().event())
 
 async def receive(client):
@@ -125,7 +128,8 @@ class DeclanWyomingVoiceBridge(stt.SpeechToTextEntity):
             async with asyncio.timeout(85), AsyncTcpClient(self.host, self.port) as client:
                 await client.write_event(Transcribe(language=metadata.language).event())
                 await client.write_event(AudioStart(rate=16000, width=2, channels=1).event())
-                upload_task = asyncio.create_task(upload(client, stream))
+                level = CaptureLevel()
+                upload_task = asyncio.create_task(upload(client, stream, level))
                 receive_task = asyncio.create_task(receive(client))
                 try:
                     done, _ = await asyncio.wait(
@@ -133,7 +137,11 @@ class DeclanWyomingVoiceBridge(stt.SpeechToTextEntity):
                     )
                     if upload_task in done:
                         upload_task.result()
-                    return await receive_task
+                    result = await receive_task
+                    text = getattr(result, "text", None)
+                    if isinstance(text, SpeakerTranscript):
+                        text.capture_level = level.snapshot()
+                    return result
                 finally:
                     upload_task.cancel()
                     receive_task.cancel()

@@ -247,6 +247,12 @@ def handle(phrase, opener, *, satellite=None, device=None, browser=False):
         return "I couldn't complete that timer request.", "unavailable"
 
 
+def stop_due(satellite):
+    """Acknowledge expired alarms on one satellite without cancelling running timers."""
+    with database() as db:
+        db.execute("DELETE FROM timers WHERE satellite = ? AND deadline <= ?", (satellite, time()))
+
+
 def ring_due(opener):
     """Claim one due alarm and send a short chime without stopping other audio."""
     now = time()

@@ -789,7 +789,7 @@ async function sendMessage(message, fromVoice = false) {
     add('Declan', result.reply);
     if (historyPanel.open) void loadHistory();
     if (result.history_saved === false) historyStatus.textContent = 'This message could not be saved.';
-    if (fromVoice && spokenReplies.checked) {
+    if (fromVoice && spokenReplies.checked && result.reply) {
       const finished = () => {
         speaking = false;
         scheduleListening();

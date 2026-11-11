@@ -103,6 +103,28 @@ class MusicTests(unittest.TestCase):
         return music.control(music.parse_control(phrase), ("http://ha", {}, self),
                              lambda _: (list(self.players.values()), None), **kwargs)
 
+    def test_registry_area_mapping_follows_renamed_music_assistant_entities(self):
+        self.players[self.bedroom]["declan_music_assistant"] = False
+        replacement = "media_player.new_bedroom_queue"
+        self.players[replacement] = {
+            "entity_id": replacement, "state": "idle", "attributes": {},
+            "declan_area": "Master Bedroom", "declan_music_assistant": True,
+        }
+        self.assertEqual(self.play("play coward of the county in the bedroom")[1], "confirmed")
+        self.assertEqual(self.calls[-1][1]["entity_id"], replacement)
+        self.players[replacement]["declan_area"] = "Study"
+        self.assertEqual(self.play("play coward of the county in the study")[1], "confirmed")
+        self.assertEqual(self.calls[-1][1]["entity_id"], replacement)
+        self.assertEqual(self.play("play coward of the county in the bedroom")[1], "unresolved")
+
+    def test_two_registered_players_in_one_area_require_clarification(self):
+        for entity in (self.bedroom, self.kitchen):
+            self.players[entity].update(declan_area="Bedroom", declan_music_assistant=True)
+        self.assertEqual(self.play("play country music in the bedroom")[1], "unresolved")
+        self.assertEqual(self.control("next song", origin="new-satellite", assist=True,
+                                      read_areas=lambda *args: {"Master Bedroom": []})[1], "unresolved")
+        self.assertEqual(self.calls, [])
+
     def test_everywhere_uses_unique_available_replacement(self):
         replacement = "media_player.everywhere_3"
         self.players[self.group]["state"] = "unavailable"
@@ -363,7 +385,8 @@ class MusicTests(unittest.TestCase):
         self.assertEqual(self.play("move the music to the bedroom")[1], "confirmed")
         self.assertEqual(self.play("move the music to the bedroom")[1], "confirmed")
         self.assertEqual([action for action, _ in self.calls], ["media_play"])
-        self.assertIsNone(music.parse("play music in the garage"))
+        self.assertEqual(music.parse("play music in the garage"), ("garage", None, "spotify"))
+        self.assertEqual(self.play("play music in the garage")[1], "unresolved")
         with patch.object(server, "ha_device_connection", return_value=None):
             self.assertEqual(music.play(("kitchen", "track", "spotify"), server.ha_device_connection(), None)[1],
                              "not_configured")

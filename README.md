@@ -43,3 +43,27 @@ Use HTTPS for the upstream Declan URL if the network between HA and Proxmox is
 untrusted. For the default LAN HTTP URL, restrict the existing Declan port to the
 trusted network and do not port-forward it. Browser microphone capture requires
 opening Home Assistant over HTTPS and granting microphone permission.
+
+
+## Automatic voice outputs
+
+Assign satellites, speakers and Music Assistant players to their real Home Assistant
+areas. Declan discovers the players through HA's registry for each music request.
+No Show entity IDs are needed in Declan's configuration. If several available
+Music Assistant players belong to one area, Declan asks for clarification instead
+of selecting one arbitrarily. Available players replace unavailable entries automatically.
+
+An unqualified Assist **Stop** first uses the media player attached to the same
+Home Assistant device as the satellite. If that is unavailable, it uses the area's
+single Music Assistant player. Grouped outputs are left alone to avoid stopping
+other rooms. Stop returns no spoken acknowledgement and records its result in history.
+Expired local timer alarms are acknowledged after playback stops.
+
+Update the HACS bridge to **0.2.4** and the Proxmox server for two-satellite capture
+arbitration. Declan compares overlapping audio captures of the same transcript and
+prefers the louder capture arriving within a 250 ms selection window. Later duplicate
+captures are suppressed, giving one execution, reply and history entry. Confidently
+identified different speakers are kept separate. Audio is not stored for arbitration.
+Captures without valid loudness/timing metadata keep the existing processing path.
+Live kitchen/bedroom acceptance remains required before removing the legacy routine
+result fallback.

@@ -17,6 +17,8 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 import webbrowser
 
+from arbitration import CaptureArbiter
+
 import conditions
 import device_status
 import history
@@ -29,6 +31,7 @@ from personality import add_sass, choose_line
 
 SESSIONS = OrderedDict()
 SESSION_LOCK = Lock()
+CAPTURE_ARBITER = CaptureArbiter()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
 routine_last_attempts = {}
@@ -766,7 +769,7 @@ def run_sexy_time(operation, connection):
 
         if not lighting_ok:
             return "I couldn't verify the bedroom lights, so I held off on the playlist.", "unverified", None
-        reply, outcome = music.play(("bedroom", "sexy time music", "spotify"), connection, read_ha_inventory)
+        reply, outcome = music.play(("bedroom", "sexy time music", "spotify"), connection, read_music_inventory)
         spoken = choose_line("sexy_time_start", read_guest_mode())
         if outcome == "confirmed":
             return spoken, "confirmed", None
@@ -906,6 +909,80 @@ def read_ha_inventory(connection):
     except (OSError, ValueError):
         return None, "unavailable"
     return inventory, None
+
+
+def read_music_inventory(connection):
+    url, headers, opener = connection
+    template = (
+        "{% set result = namespace(rows=[]) %}"
+        "{% set ma = integration_entities('music_assistant') %}"
+        "{% for entity in (states.media_player | list) + (states.assist_satellite | list) %}"
+        "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, state=entity.state, "
+        "attributes=entity.attributes, declan_area=area_name(entity.entity_id), "
+        "declan_device=device_id(entity.entity_id), declan_music_assistant=entity.entity_id in ma)] %}"
+        "{% endfor %}{{ result.rows | to_json }}"
+    )
+    request = Request(f"{url}/api/template", headers=headers, data=json.dumps({"template": template}).encode())
+    try:
+        with opener.open(request, timeout=2) as response:
+            inventory = json.loads(response.read(8 * 1024 * 1024))
+        if isinstance(inventory, list) and all(isinstance(row, dict) for row in inventory):
+            return inventory, None
+    except HTTPError as error:
+        error.close()
+    except (OSError, ValueError):
+        pass
+    return None, "unavailable"
+
+
+def stop_origin_output(connection, satellite, device):
+    if connection is None or not (satellite or device):
+        return "", "unresolved", "Stop needs an identifiable Assist satellite or device."
+    inventory, error = read_music_inventory(connection)
+    if error:
+        return "", error, "Could not discover the originating satellite's outputs."
+    origin = next((row for row in inventory if row.get("entity_id") == satellite), None)
+    origin_device = (origin.get("declan_device") if origin else None) or device
+    if not origin and device:
+        satellites = [row for row in inventory if str(row.get("entity_id", "")).startswith("assist_satellite.")
+                      and row.get("declan_device") == device]
+        origin = satellites[0] if len(satellites) == 1 else None
+        satellite = origin.get("entity_id") if origin else None
+    direct = [row for row in inventory if str(row.get("entity_id", "")).startswith("media_player.")
+              and origin_device and row.get("declan_device") == origin_device
+              and row.get("declan_music_assistant") is False
+              and row.get("state") not in (None, "unknown", "unavailable")]
+    if len(direct) > 1:
+        return "", "unresolved", "More than one playback output belongs to the originating device."
+    if len(direct) == 1:
+        target = direct[0]["entity_id"]
+        members = (direct[0].get("attributes") or {}).get("group_members") or []
+        if len(members) > 1:
+            return "", "unresolved", "The device output is grouped; Stop left the shared group alone."
+        try:
+            music.request(connection, "/api/services/media_player/media_stop", {"entity_id": target}, timeout=2)
+            if music.wait_for(connection, target, lambda row: row.get("state") in music.STOPPED):
+                if satellite:
+                    timers.stop_due(satellite)
+                return "", "confirmed", f"Stopped {target}."
+        except HTTPError as error:
+            error.close()
+        except (OSError, ValueError, sqlite3.Error):
+            pass
+        return "", "unverified", f"Could not verify Stop on {target}."
+    area = origin.get("declan_area") if origin else None
+    if not isinstance(area, str) or not area.strip():
+        return "", "unresolved", "No playback output or area could be resolved for the satellite."
+    reply, outcome = music.control(
+        ("media_stop", music.room_key(area)), connection,
+        lambda _: (inventory, None),
+    )
+    if outcome == "confirmed" and satellite:
+        try:
+            timers.stop_due(satellite)
+        except (OSError, sqlite3.Error):
+            return "", "partial", "Playback stopped, but the local timer alarm could not be acknowledged."
+    return "", outcome, reply
 
 
 def read_ha_areas(connection, origin=None):
@@ -1632,6 +1709,16 @@ class Handler(BaseHTTPRequestHandler):
                            for value in (device_id, user_id))
             origin_device = origin[0]
             scope = (source, *origin, satellite) if any(origin) or satellite else None
+        if source == "assist":
+            speaker = body.get("speaker")
+            speaker_name = (speaker.get("name") if isinstance(speaker, dict)
+                            and type(speaker.get("confidence")) in (int, float)
+                            and speaker["confidence"] >= 0.75 and isinstance(speaker.get("name"), str) else None)
+            if not CAPTURE_ARBITER.claim(history.normalize_phrase(message), satellite or origin_device,
+                                         body.get("capture"), speaker_name):
+                self.send_json(200, {"reply": "", "session_id": session_id or secrets.token_urlsafe(24),
+                                     "outcome": "duplicate"})
+                return
         last_lights = ()
         last_device = None
         last_information = None
@@ -1670,6 +1757,8 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
+        elif phrase == "stop":
+            routine_reply, outcome, routine_status = stop_origin_output(ha_device_connection(), satellite, origin_device)
         elif phrase.replace("’", "'") in DINNER_PHRASES:
             routine_reply, outcome = start_dinner(ha_device_connection())
         elif phrase in SEXY_TIME_COMMANDS:
@@ -1685,7 +1774,7 @@ class Handler(BaseHTTPRequestHandler):
                 if follow_on.startswith("play "):
                     command = music.parse(follow_on)
                     follow_reply, follow_outcome = (
-                        music.play(command, ha_device_connection(), read_ha_inventory) if command
+                        music.play(command, ha_device_connection(), read_music_inventory) if command
                         else ("Tell me where to play the music.", "unresolved")
                     )
                 else:
@@ -1734,14 +1823,14 @@ class Handler(BaseHTTPRequestHandler):
                             )
                             routine_reply = add_sass(routine_reply, "device_status", guest_mode)
             elif music_feedback := music.parse_feedback(phrase):
-                routine_reply, outcome = music.feedback(music_feedback, ha_device_connection(), read_ha_inventory)
+                routine_reply, outcome = music.feedback(music_feedback, ha_device_connection(), read_music_inventory)
             elif music_control := music.parse_control(phrase):
                 routine_reply, outcome = music.control(
-                    music_control, ha_device_connection(), read_ha_inventory,
+                    music_control, ha_device_connection(), read_music_inventory,
                     origin=origin_device or satellite, read_areas=read_ha_areas, assist=source == "assist",
                 )
             elif music_command := music.parse(phrase):
-                routine_reply, outcome = music.play(music_command, ha_device_connection(), read_ha_inventory)
+                routine_reply, outcome = music.play(music_command, ha_device_connection(), read_music_inventory)
             else:
                 media_result = search_media(phrase)
                 if media_result:
@@ -1844,7 +1933,7 @@ def main():
                     print("Timer alarms could not be checked.", flush=True)
                 if monotonic() >= next_music_check:
                     next_music_check = monotonic() + 5
-                    music.skip_blocked_tracks(ha_device_connection(), read_ha_inventory)
+                    music.skip_blocked_tracks(ha_device_connection(), read_music_inventory)
                 if monotonic() >= next_prune:
                     try:
                         history.prune()

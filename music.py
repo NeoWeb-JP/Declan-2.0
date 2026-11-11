@@ -48,6 +48,10 @@ PREFERENCES = SPOTIFY_SETTINGS.with_name("music-preferences.sqlite3")
 recent_blacklist_skips = {}
 
 
+def room_key(name):
+    return " ".join(name.casefold().split()).removeprefix("master ")
+
+
 def music_players(inventory):
     destinations = PLAYERS.copy()
     entities = {row["entity_id"]: row for row in inventory
@@ -59,6 +63,21 @@ def music_players(inventory):
                       and str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"]
         if len(candidates) == 1:
             destinations["everywhere"] = candidates[0]
+    registered = any("declan_music_assistant" in row for row in entities.values())
+    if registered:
+        # Resolve Music Assistant wrappers from HA areas, including inherited device areas.
+        destinations = {"everywhere": destinations["everywhere"]}
+        rooms = {}
+        for entity, row in entities.items():
+            area = row.get("declan_area")
+            if row.get("declan_music_assistant") is True and isinstance(area, str) and area.strip():
+                rooms.setdefault(room_key(area), []).append(entity)
+        for room, candidates in rooms.items():
+            available = [entity for entity in candidates if entities[entity].get("state") not in (None, "unknown", "unavailable")]
+            destinations[room] = available[0] if len(available) == 1 else None
+        players = {entity: row for entity, row in entities.items()
+                   if row.get("declan_music_assistant") is True or entity == destinations["everywhere"]}
+        return destinations, players
     return destinations, {entity: entities[entity] for entity in destinations.values() if entity in entities}
 
 
@@ -74,7 +93,7 @@ def preference_db():
 def parse_feedback(phrase):
     match = re.fullmatch(
         r"(never play this song again|i like this song|we like this song|i like this playlist|we like this playlist)"
-        r"(?: (?:in (?:the )?)?(bedroom|master bedroom|kitchen|everywhere))?", phrase,
+        r"(?: (?:in (?:the )?)?(.+))?", phrase,
     )
     return match.groups() if match else None
 
@@ -99,7 +118,7 @@ def feedback(command, connection, read_inventory):
         destinations, players = music_players(inventory)
         active = playback_sources(destinations, players)
         if room:
-            entity = destinations[room.removeprefix("master ")]
+            entity = destinations.get(room_key(room))
             active = {entity: active[entity]} if entity in active else {}
         if len(active) != 1:
             return "Tell me which active music player you mean.", "unresolved"
@@ -225,8 +244,8 @@ def parse(phrase):
                     r"\2 on \1", phrase)
     match = re.fullmatch(
         r"(?:(?:move|transfer) (?:the )?music(?: to (?:the )?| )|"
-        r"play (?:(.+?) in (?:the )?|(.+?) (?=everywhere\b)))"
-        r"(bedroom|master bedroom|kitchen|everywhere)(?: on (spotify|radio|tunein))?",
+        r"play (?:(.+) in (?:the )?|(.+?) (?=everywhere\b)))"
+        r"(.+?)(?: on (spotify|radio|tunein))?",
         phrase,
     )
     if not match:
@@ -240,7 +259,7 @@ def parse(phrase):
             provider = "radio"
     if title in {"music", "the music", "this", "this music"}:
         title = None
-    return room.removeprefix("master "), title, provider or "spotify"
+    return room_key(room), title, provider or "spotify"
 
 
 def request(connection, path, data=None, *, timeout=None):
@@ -258,24 +277,25 @@ def request(connection, path, data=None, *, timeout=None):
 def parse_control(phrase):
     dislike = re.fullmatch(
         r"(?:i|we) (?:do not|don['’]t) like this (?:song|track)"
-        r"(?: in (?:the )?(bedroom|master bedroom|kitchen|everywhere))?", phrase,
+        r"(?: in (?:the )?(.+))?", phrase,
     )
     if dislike:
         room = dislike[1]
-        return "media_next_track", room.removeprefix("master ") if room else None
+        return "media_next_track", room_key(room) if room else None
     match = re.fullmatch(
         r"(stop|pause|continue|resume|play|skip|next|previous|go back)"
         r"(?: (?:the |this )?(music|playback|playing|spotify|radio|track|song|next track|next song|previous track|previous song))?"
-        r"(?: (?:in (?:the )?)?(bedroom|master bedroom|kitchen|everywhere))?",
+        r"(?: in (?:the )?(.+)| (bedroom|master bedroom|kitchen|everywhere))?",
         phrase,
     )
     if not match:
         return None
-    verb, subject, room = match.groups()
+    verb, subject, named_room, short_room = match.groups()
+    room = named_room or short_room
     if verb == "play" and subject not in {"music", "playback", "next track", "next song", "previous track", "previous song"}:
         return None
     action = CONTROLS[subject.split()[0] if verb == "play" and subject.startswith(("next ", "previous ")) else verb]
-    return action, room.removeprefix("master ") if room else None
+    return action, room_key(room) if room else None
 
 
 def control(command, connection, read_inventory, *, origin=None, read_areas=None, assist=False):
@@ -298,7 +318,9 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
                    if grouped.get("state") in ACTIVE else [])
         if room is None and assist:
             areas = read_areas(connection, origin) if origin and read_areas else {}
-            room = next((name for name in areas if name in {"bedroom", "kitchen"}), None)
+            room = next((room_key(name) for name in areas if room_key(name) in destinations), None)
+            if room and destinations.get(room) is None:
+                return f"More than one available Music Assistant player is assigned to the {room}.", "unresolved"
             if action in {"media_next_track", "media_previous_track"}:
                 if room and destinations[room] in members:
                     room = "everywhere"
@@ -313,7 +335,9 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
             if len(active) != 1:
                 return "Which room should I control?", "unresolved"
             room = active[0]
-        entity = destinations[room]
+        entity = destinations.get(room)
+        if entity is None:
+            return f"I couldn't identify one available Music Assistant player in the {room}. Check its Home Assistant area.", "unresolved"
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         player = players.get(entity, {})
         state = player.get("state")
@@ -482,7 +506,9 @@ def play(command, connection, read_inventory):
         if error:
             return "I couldn't check which players are active.", error
         destinations, players = music_players(inventory)
-        destination = destinations[room]
+        destination = destinations.get(room)
+        if destination is None:
+            return f"I couldn't identify one available Music Assistant player in the {room}. Check its Home Assistant area.", "unresolved"
         if players.get(destination, {}).get("state") in (None, "unknown", "unavailable"):
             return f"The Music Assistant player {location} is unavailable.", "unavailable"
         previous_state = players[destination]["state"]

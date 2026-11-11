@@ -37,6 +37,9 @@ class DeclanTwoAgent(conversation.ConversationEntity):
                 speaker_data = {"speaker": {"interaction_id": interaction_id, "name": name, "confidence": confidence}}
         elif hasattr(user_input.text, "jarvis_speaker"):
             speaker_data = {"speaker": {}}
+        capture = getattr(user_input.text, "capture_level", None)
+        if isinstance(capture, dict):
+            speaker_data["capture"] = capture
         try:
             session = async_get_clientsession(self.hass)
             async with session.post(

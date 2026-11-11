@@ -12,7 +12,18 @@ fields:
 sequence:
   - variables:
       op: "{{ operation | default('start') }}"
-      player: media_player.bedroom_declan_voice_assistant
+      bedroom_players: >-
+        {% set result = namespace(players=[]) %}
+        {% for entity in integration_entities('music_assistant') %}
+          {% if entity.startswith('media_player.')
+             and area_name(entity) | default('', true) | lower in ['bedroom', 'master bedroom']
+             and states(entity) not in ['unknown', 'unavailable'] %}
+            {% set result.players = result.players + [entity] %}
+          {% endif %}
+        {% endfor %}
+        {{ result.players }}
+  - variables:
+      player: "{{ bedroom_players[0] if bedroom_players | count == 1 else '' }}"
   - if: "{{ op not in ['start', 'end'] }}"
     then:
       - stop: Unknown Sexy Time operation.
