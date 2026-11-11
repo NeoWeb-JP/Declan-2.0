@@ -584,3 +584,42 @@ test('closing invalidates a pending profile load and an outage remains visible',
   ui.element('#open-voices').click(); await flush();
   assert.match(ui.element('#voices-status').textContent, /unavailable/);
 });
+
+
+test('prerelease checkbox checks through the existing authenticated route and labels testing builds', async t => {
+  const ui = browser(t, {ingress: true});
+  assert.equal(ui.element('#include-prereleases').checked, false);
+  ui.responses.set('/api/updates', {enabled: true, state: 'idle', current: '0.10.1',
+    versions: ['0.11.0-rc.1', '0.11.0'], prereleases: ['0.11.0-rc.1']});
+  ui.element('#open-updates').click(); await flush();
+  ui.element('#include-prereleases').checked = true;
+  ui.element('#include-prereleases').dispatchEvent(new ui.window.Event('change')); await flush();
+  const check = ui.calls.filter(call => call.url === '/api/updates').at(-1);
+  assert.deepEqual(JSON.parse(check.options.body), {operation: 'check', include_prereleases: true});
+  assert.equal(ui.element('#update-version').options[0].textContent, '0.11.0-rc.1 (prerelease)');
+  ui.window.confirm = () => false;
+  let count = ui.calls.length; ui.element('#install-update').click(); await flush();
+  assert.equal(ui.calls.length, count);
+  ui.window.confirm = () => true; ui.element('#install-update').click(); await flush();
+  const install = ui.calls.filter(call => call.url === '/api/updates').at(-1);
+  assert.deepEqual(JSON.parse(install.options.body), {version: '0.11.0-rc.1', include_prereleases: true});
+  assert.equal(ui.element('#include-prereleases').disabled, true);
+  ui.responses.set('/api/updates/status', {state: 'failed'}); await ui.tick(2000);
+  assert.equal(ui.element('#include-prereleases').disabled, false);
+});
+
+test('turning testing off or a failed check clears obsolete prerelease choices', async t => {
+  const ui = browser(t);
+  ui.responses.set('/api/updates', {enabled: true, state: 'idle', versions: ['0.11.0-rc.1'], prereleases: ['0.11.0-rc.1']});
+  ui.element('#include-prereleases').checked = true;
+  ui.element('#open-updates').click(); await flush();
+  ui.responses.set('/api/updates', {enabled: true, state: 'idle', versions: ['0.10.1']});
+  ui.element('#include-prereleases').checked = false;
+  ui.element('#include-prereleases').dispatchEvent(new ui.window.Event('change')); await flush();
+  assert.deepEqual(Array.from(ui.element('#update-version').options, item => item.value), ['0.10.1']);
+  assert.equal(ui.calls.filter(call => call.url === '/api/updates').at(-1).options, undefined);
+  ui.responses.set('/api/updates', {error: 'GitHub unavailable'});
+  ui.element('#check-updates').click(); await flush();
+  assert.equal(ui.element('#update-version').options.length, 0);
+  assert.equal(ui.element('#install-update').disabled, true);
+});

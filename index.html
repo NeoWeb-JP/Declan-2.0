@@ -211,6 +211,7 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
   <div class="history-heading"><h2 id="updates-title">Declan updates</h2>
     <button id="close-updates" type="button">Close</button></div>
   <div class="history-toolbar">
+    <label><input id="include-prereleases" type="checkbox"> Include prereleases for testing</label>
     <button id="check-updates" type="button">Check for updates</button>
     <label>Release <select id="update-version" disabled></select></label>
     <button id="install-update" type="button" disabled>Install selected release</button>
@@ -281,6 +282,7 @@ void refreshHAStatus();
 
 const updatesPanel = document.querySelector('#updates');
 const checkUpdates = document.querySelector('#check-updates');
+const includePrereleases = document.querySelector('#include-prereleases');
 const updateVersion = document.querySelector('#update-version');
 const installUpdate = document.querySelector('#install-update');
 const updateStatus = document.querySelector('#update-status');
@@ -320,10 +322,14 @@ async function watchUpdate(version) {
 }
 
 checkUpdates.addEventListener('click', async () => {
-  checkUpdates.disabled = updateVersion.disabled = installUpdate.disabled = true;
+  checkUpdates.disabled = includePrereleases.disabled = updateVersion.disabled = installUpdate.disabled = true;
+  updateVersion.replaceChildren();
   updateStatus.textContent = 'Checking GitHub…';
   try {
-    const response = await fetch('./api/updates');
+    const response = await fetch('./api/updates', includePrereleases.checked ? {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({operation: 'check', include_prereleases: true})
+    } : undefined);
     const result = await response.json();
     if (!response.ok) throw new Error(result.error);
     if (!result.enabled) {
@@ -332,24 +338,29 @@ checkUpdates.addEventListener('click', async () => {
       await watchUpdate(result.version);
     } else {
       const versions = result.versions.filter(version => version !== result.current);
-      updateVersion.replaceChildren(...versions.map(version => new Option(version, version)));
+      updateVersion.replaceChildren(...versions.map(version => new Option(
+        version + ((result.prereleases || []).includes(version) ? ' (prerelease)' : ''), version)));
       updateVersion.disabled = installUpdate.disabled = !versions.length;
       updateStatus.textContent = versions.length ? `Running ${result.current || 'a development build'}.` : 'No other eligible releases found.';
     }
   } catch (error) {
     updateStatus.textContent = error.message;
   } finally {
-    checkUpdates.disabled = false;
+    checkUpdates.disabled = includePrereleases.disabled = false;
   }
 });
+includePrereleases.addEventListener('change', () => checkUpdates.click());
 
 installUpdate.addEventListener('click', async () => {
   const version = updateVersion.value;
   if (!version) return;
-  checkUpdates.disabled = updateVersion.disabled = installUpdate.disabled = true;
+  if (updateVersion.selectedOptions[0]?.textContent.includes('(prerelease)') &&
+      !window.confirm('Install this testing prerelease? It may contain unfinished changes.')) return;
+  checkUpdates.disabled = includePrereleases.disabled = updateVersion.disabled = installUpdate.disabled = true;
   try {
     const response = await fetch('./api/updates', {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({version})
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({version, ...(includePrereleases.checked ? {include_prereleases: true} : {})})
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error);
@@ -357,7 +368,7 @@ installUpdate.addEventListener('click', async () => {
   } catch (error) {
     updateStatus.textContent = error.message;
   } finally {
-    checkUpdates.disabled = false;
+    checkUpdates.disabled = includePrereleases.disabled = false;
   }
 });
 
