@@ -57,8 +57,8 @@ def release_source():
     return source
 
 
-def published_tags():
-    """Only published stable releases in the fixed repository are candidates.
+def published_tags(include_prereleases=False):
+    """Published releases in the fixed repository, with testing releases opt-in.
 
     GitHub publication is the trust boundary in the default channel. This is
     repository trust over HTTPS, not independent cryptographic release signing.
@@ -80,17 +80,18 @@ def published_tags():
         raise OSError('Could not read published GitHub releases.') from None
     except (ValueError, HTTPException):
         raise OSError('GitHub returned an invalid release list.') from None
-    return {item['tag_name'] for item in releases
+    return {item['tag_name']: item['prerelease'] or '-' in item['tag_name'] for item in releases
             if isinstance(item.get('tag_name'), str) and VERSION.fullmatch(item['tag_name'])
-            and '-' not in item['tag_name'] and item.get('draft') is False
-            and item.get('prerelease') is False and isinstance(item.get('published_at'), str)
+            and item.get('draft') is False and type(item.get('prerelease')) is bool
+            and (include_prereleases or not item['prerelease'] and '-' not in item['tag_name'])
+            and isinstance(item.get('published_at'), str)
             and bool(item['published_at'])}
 
 
-def available_releases():
+def available_releases(include_prereleases=False):
     source = release_source()
     pins = trusted_releases() if source == 'pinned' else None
-    names = pins.keys() if pins is not None else published_tags()
+    names = pins.keys() if pins is not None else (published_tags(True) if include_prereleases else published_tags())
     refs = run('git', 'ls-remote', '--tags', REPOSITORY, timeout=10)
     objects = {}
     for line in refs.splitlines():
@@ -99,12 +100,19 @@ def available_releases():
             objects[ref] = sha
     tags = {}
     for name in names:
+        prerelease = names.get(name, False) if isinstance(names, dict) else '-' in name
+        if prerelease and not include_prereleases:
+            continue
         if name not in objects:
             continue
         commit = objects.get(name + '^{}', objects[name])
         if pins is not None and pins[name] != commit:
             continue
         tags[name] = {'ref': objects[name], 'commit': commit, 'source': source}
+        if include_prereleases:
+            tags[name]['include_prereleases'] = True
+        if prerelease:
+            tags[name]['prerelease'] = True
     return tags
 
 
@@ -139,20 +147,36 @@ def status():
         return {"enabled": layout() is not None, **_job}
 
 
-def check():
+def version_order(tag):
+    numbers = tuple(map(int, VERSION.fullmatch(tag).groups()))
+    suffix = tag.partition('-')[2]
+    parts = tuple((0, int(part)) if part.isdigit() else (1, part) for part in suffix.split('.'))
+    return (*numbers, not bool(suffix), parts, tag)
+
+
+def check(include_prereleases=False):
+    if type(include_prereleases) is not bool:
+        raise ValueError('Choose whether to include prereleases.')
     # A failed check must not leave previously offered selections installable.
     with _lock:
         _tags.clear()
     if layout() is None:
         return []
-    tags = available_releases()
+    tags = available_releases(True) if include_prereleases else available_releases()
     with _lock:
         _tags.clear()
         _tags.update(tags)
-    return sorted(tags, key=lambda tag: (*map(int, VERSION.fullmatch(tag).groups()), "-" not in tag, tag), reverse=True)
+    return sorted(tags, key=version_order, reverse=True)
 
 
-def queue(version, current):
+def prerelease_versions():
+    with _lock:
+        return [tag for tag, selection in _tags.items() if selection.get('prerelease')]
+
+
+def queue(version, current, include_prereleases=False):
+    if type(include_prereleases) is not bool:
+        raise ValueError('Choose whether to include prereleases.')
     root = layout()
     if root is None:
         raise ValueError("Updates are not enabled on this installation.")
@@ -161,6 +185,8 @@ def queue(version, current):
             raise ValueError("An update is already in progress.")
         if not isinstance(version, str) or version not in _tags or version == current:
             raise ValueError("Check for updates and select a different release.")
+        if _tags[version].get('include_prereleases', False) != include_prereleases:
+            raise ValueError('The release channel changed. Check for updates again.')
         _job.update(state="installing", version=version)
         selection = dict(_tags[version])
         Thread(target=install, args=(root, version, selection), daemon=True).start()
@@ -177,12 +203,17 @@ def install(root, version, expected_ref):
         source = release_source()
         if isinstance(expected_ref, dict):
             selection = expected_ref
-            if (set(selection) != {'ref', 'commit', 'source'} or selection['source'] != source
+            if (not {'ref', 'commit', 'source'} <= set(selection)
+                    or set(selection) - {'ref', 'commit', 'source', 'include_prereleases', 'prerelease'}
+                    or selection['source'] != source
+                    or any(type(selection[key]) is not bool for key in ('include_prereleases', 'prerelease') if key in selection)
+                    or selection.get('prerelease', False) and not selection.get('include_prereleases', False)
                     or any(not isinstance(selection[key], str) or not re.fullmatch(r'[a-f0-9]{40}', selection[key])
                            for key in ('ref', 'commit'))):
                 raise ValueError('Check for updates again')
             # Recheck publication and tag identity before cloning or executing code.
-            if available_releases().get(version) != selection:
+            catalog = available_releases(True) if selection.get('include_prereleases', False) else available_releases()
+            if catalog.get(version) != selection:
                 raise ValueError('Release was withdrawn or its tag changed. Check for updates again.')
             expected_ref, approved_commit = selection['ref'], selection['commit']
         elif source == 'pinned':

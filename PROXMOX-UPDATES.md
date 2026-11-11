@@ -36,11 +36,11 @@ systemctl restart declan
 
 ## Normal release updates
 
-The default `DECLAN_UPDATE_SOURCE=github` needs no additional configuration. Publish a non-draft, non-prerelease version in GitHub Releases, then click **Check for updates** and **Install selected release**. Plain Git tags and prerelease version suffixes are not offered in this channel. Up to the latest 100 GitHub release records are considered, sorted by numeric version for the menu. GitHub API or Git failures show an error and invalidate the previous choices; there is no silent fallback to the old allow-list.
+The default `DECLAN_UPDATE_SOURCE=github` needs no additional configuration. Publish a non-draft, non-prerelease version in GitHub Releases, then click **Check for updates** and **Install selected release**. Plain Git tags and drafts are never offered. Prereleases and tags with prerelease suffixes are hidden by default. Select **Include prereleases for testing** in the Updates panel to include them for that check; testing versions are labelled and ask for confirmation before installation. The choice stays in the current page until it is reloaded. Turning it off immediately refreshes stable-only choices. This uses the existing sidebar route, so no HA app update is needed. Up to the latest 100 GitHub release records are considered, sorted by numeric version for the menu. GitHub API or Git failures show an error and invalidate the previous choices; there is no silent fallback to the old allow-list.
 
 Publishing access to `NeoWeb-JP/Declan-2.0` is now the trust boundary. Discovery uses HTTPS against GitHub's fixed releases API and Git remote; no download locations from release metadata are followed. This is repository trust, not independent release signing. Protect repository/release publishing access accordingly. Existing `trusted-releases.json` contents are retained but are not consulted by the default channel.
 
-Each update check records the exact tag object and peeled commit. Installation rechecks that the release is still published and stable and that its identities still match. The cloned tag, HEAD and peeled commit must also match before Python environments, dependencies or release code run. A tag moved during discovery or cloning is rejected. Release withdrawal after the final publication check cannot be observed atomically, but a changed commit cannot pass the cloned-identity check.
+Each update check records the exact tag object and peeled commit. Installation rechecks that the release is still published in the selected stable/testing channel and that its identities still match. The cloned tag, HEAD and peeled commit must also match before Python environments, dependencies or release code run. A tag moved during discovery or cloning is rejected. Release withdrawal after the final publication check cannot be observed atomically, but a changed commit cannot pass the cloned-identity check.
 
 Staging still installs wheels with `--require-hashes`, takes a private state snapshot before activation and retains the stable launcher's startup health check and rollback. All builds share the existing `.data`, and the service keeps using `/etc/declan/declan.env`. Updates are installed only when requested in the panel.
 
@@ -68,3 +68,5 @@ previous=$(readlink -f /opt/declan-deploy/previous) &&
   ln -sfn "$previous" /opt/declan-deploy/current &&
   systemctl restart declan
 ```
+
+Testing releases use the same commit verification, state snapshot and startup rollback as stable releases. Selecting a stable release is also possible after testing; code rollback does not reverse shared database migrations. Prerelease numeric identifiers sort numerically (for example `rc.10` after `rc.2`), and a final release sorts above prereleases of the same version. In explicit pinned mode, prerelease suffixes also require the testing option.

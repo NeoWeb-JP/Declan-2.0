@@ -112,6 +112,50 @@ class PublishedReleaseTests(TestCase):
                 updates, 'published_tags', side_effect=AssertionError('Pinned mode does not trust publication')):
             self.assertEqual(set(updates.available_releases()), {'0.10.0'})
 
+    def test_prereleases_are_opt_in_include_flagged_numeric_tags_and_never_drafts(self):
+        payload = json.dumps([release('0.11.0', prerelease=True), release('0.12.0-rc.1'),
+                              release('0.13.0-rc.1', prerelease=True, draft=True), release('0.10.1')]).encode()
+        opener = Mock()
+        opener.open.side_effect = lambda *args, **kwargs: io.BytesIO(payload)
+        with patch.object(updates, 'build_opener', return_value=opener):
+            self.assertEqual(updates.published_tags(), {'0.10.1': False})
+            self.assertEqual(updates.published_tags(True), {'0.11.0': True, '0.12.0-rc.1': True, '0.10.1': False})
+
+    def test_testing_selection_is_bound_to_channel_and_numeric_prerelease_order(self):
+        tags = {'0.11.0-rc.2': True, '0.11.0-rc.10': True, '0.11.0': False, '0.10.1': False}
+        refs = '\n'.join(f"{'a'*40}\trefs/tags/{tag}" for tag in tags)
+        with patch.object(updates, 'published_tags', return_value=tags), patch.object(updates, 'run', return_value=refs), patch.object(
+                updates, 'layout', return_value=Path('/unused')):
+            versions = updates.check(True)
+            self.assertEqual(versions, ['0.11.0', '0.11.0-rc.10', '0.11.0-rc.2', '0.10.1'])
+            self.assertEqual(set(updates.prerelease_versions()), {'0.11.0-rc.2', '0.11.0-rc.10'})
+            with self.assertRaises(ValueError):
+                updates.queue('0.11.0-rc.10', '0.10.1')
+            with patch.object(updates, 'Thread') as thread:
+                updates.queue('0.11.0-rc.10', '0.10.1', True)
+                self.assertTrue(thread.call_args.kwargs['args'][2]['include_prereleases'])
+            updates._job['state'] = 'idle'
+            updates.check()
+            with self.assertRaises(ValueError):
+                updates.queue('0.11.0-rc.10', '0.10.1', True)
+        for value in ('true', 1, None):
+            with self.assertRaises(ValueError):
+                updates.check(value)
+            with self.assertRaises(ValueError):
+                updates.queue('0.11.0', '0.10.1', value)
+
+    def test_install_rechecks_testing_channel_and_rejects_unopted_selection(self):
+        selection = {'ref': 'a'*40, 'commit': 'b'*40, 'source': 'github',
+                     'include_prereleases': True, 'prerelease': True}
+        with patch.object(updates, 'available_releases', return_value={}) as catalog, patch.object(updates, 'run') as run:
+            updates.install(Path('/unused'), '0.11.0-rc.1', selection)
+            catalog.assert_called_once_with(True)
+            run.assert_not_called()
+            catalog.reset_mock()
+            for extra in ({'include_prereleases': False}, {'include_prereleases': 1}, {'prerelease': 'yes'}):
+                updates.install(Path('/unused'), '0.11.0-rc.1', {**selection, **extra})
+            catalog.assert_not_called()
+
     @skipUnless(os.name == 'posix', 'Production activation uses Linux symlinks')
     def test_published_annotated_release_installs_only_the_selected_commit(self):
         with TemporaryDirectory() as directory:

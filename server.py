@@ -1700,9 +1700,18 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/api/updates":
                 try:
-                    updates.queue(body.get("version") if isinstance(body, dict) else None, RELEASE_VERSION)
+                    if isinstance(body, dict) and body.get('operation') == 'check':
+                        versions = updates.check(body.get('include_prereleases', False))
+                        self.send_json(200, {**updates.status(), 'current': RELEASE_VERSION,
+                                             'versions': versions, 'prereleases': updates.prerelease_versions()})
+                        return
+                    updates.queue(body.get("version") if isinstance(body, dict) else None, RELEASE_VERSION,
+                                  body.get('include_prereleases', False) if isinstance(body, dict) else False)
                 except ValueError as error:
                     self.send_json(409, {"error": str(error)})
+                    return
+                except (OSError, subprocess.SubprocessError):
+                    self.send_json(503, {'error': "Couldn't check GitHub for releases."})
                     return
                 self.send_json(202, {"status": "installing"})
                 return

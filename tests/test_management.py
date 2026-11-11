@@ -283,3 +283,21 @@ class ManagementAPITests(TestCase):
             self.assertEqual(self.request('/api/voicepipeline', {'operation': 'invalid'})[0], 400)
             listing.side_effect = voicepipeline.PipelineError('Unavailable', 503)
             self.assertEqual(self.request('/api/voicepipeline')[0], 503)
+
+    def test_prerelease_check_is_authenticated_read_only_and_install_requires_opt_in(self):
+        with patch.object(server.updates, 'check', return_value=['0.11.0-rc.1']) as check, patch.object(
+                server.updates, 'prerelease_versions', return_value=['0.11.0-rc.1']), patch.object(server.updates, 'queue') as queue:
+            body = {'operation': 'check', 'include_prereleases': True}
+            self.assertEqual(self.request('/api/updates', body, origin=False)[0], 403)
+            check.assert_not_called()
+            status, result = self.request('/api/updates', body)
+            self.assertEqual(status, 200)
+            self.assertEqual(result['prereleases'], ['0.11.0-rc.1'])
+            check.assert_called_once_with(True)
+            queue.assert_not_called()
+            self.assertEqual(self.request('/api/updates', {'version': '0.11.0-rc.1', 'include_prereleases': True})[0], 202)
+            queue.assert_called_once_with('0.11.0-rc.1', server.RELEASE_VERSION, True)
+            check.side_effect = OSError('offline')
+            self.assertEqual(self.request('/api/updates', body)[0], 503)
+            check.side_effect = ValueError('Invalid channel')
+            self.assertEqual(self.request('/api/updates', body)[0], 409)
