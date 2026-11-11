@@ -215,7 +215,7 @@ class APITests(TestCase):
             self.assertTrue(turn["teachable"])
             correction = {"turn_id": turn["id"], "target": "end sexy time"}
             self.assertEqual(self.request(path, body=correction, headers={**headers, "Origin": "https://else.invalid"})[0], 403)
-            self.assertEqual(self.request(path, body={**correction, "target": "arbitrary service"}, headers=headers)[0], 400)
+            self.assertEqual(self.request(path, body={**correction, "target": ""}, headers=headers)[0], 400)
             self.assertEqual(self.request(path, body=correction, headers=headers)[0], 200)
             routine.assert_not_called()
 
@@ -226,6 +226,19 @@ class APITests(TestCase):
             self.assertEqual(self.request(path, body={"forget": "end 60 time"}, headers=headers)[0], 200)
             self.assertEqual(self.ask("end 60 time", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             routine.assert_called_once()
+
+    def test_free_text_correction_uses_normal_time_handler_and_preserves_transcript(self):
+        self.ask("Bring me time!", path="/api/assist")
+        turn = server.history.recent(limit=1)[0]
+        headers = {"Origin": self.origin, "Content-Type": "application/json"}
+        correction = {"turn_id": turn["id"], "target": "What is the time?"}
+        self.assertEqual(self.request("/api/history/intents", body=correction, headers=headers)[0], 200)
+        self.assertEqual(len(server.history.recent()), 1)
+        result = self.ask("Bring me time!", path="/api/assist")
+        self.assertIn("It's ", result["reply"])
+        self.assertEqual(server.history.recent(limit=1)[0]["message"], "Bring me time!")
+        with self.assertRaises(ValueError):
+            server.history.teach_intent(turn["id"], "Bring me time!", server.UNMATCHED_REPLY)
 
     def test_clear_history_requires_local_confirmation(self):
         self.ask("hello")

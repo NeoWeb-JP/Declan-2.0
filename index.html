@@ -70,6 +70,9 @@ form button { color: #e7f7ff; background: #143347; border: 0; border-radius: .5r
 #chat { max-height: clamp(19rem, 58vh, 42rem); overflow: auto; margin: 0; padding: 0; list-style: none; }
 #chat > li { display: grid; gap: .25rem; padding: .65rem 1rem; border-top: 1px solid #203747;
   font-size: .9rem; overflow-wrap: anywhere; }
+.teach-form { display: flex; flex-wrap: wrap; gap: .6rem; }
+.teach-form label { flex: 1 1 16rem; min-width: 0; }
+.teach-form input { display: block; width: 100%; box-sizing: border-box; margin-top: .4rem; }
 .turn-status { color: #a1ccdf; font-size: .8rem; }
 #older-history { margin: .65rem 1rem; }
 @media (min-width: 680px) {
@@ -373,7 +376,7 @@ function renderLearnedIntents(aliases) {
   document.querySelector('#learned-intents').hidden = !list.children.length;
 }
 
-function teachIntentionControl(turn, targets) {
+function teachIntentionControl(turn) {
   const details = document.createElement('details');
   details.className = 'turn-status';
   const summary = document.createElement('summary');
@@ -381,21 +384,24 @@ function teachIntentionControl(turn, targets) {
   const form = document.createElement('form');
   const label = document.createElement('label');
   label.textContent = 'When I say this, run ';
-  const select = document.createElement('select');
-  select.required = true;
-  select.add(new Option('Choose a command', ''));
-  for (const target of targets) select.add(new Option(target, target));
-  label.append(select);
+  const command = document.createElement('input');
+  command.type = 'text';
+  command.required = true;
+  command.maxLength = 120;
+  command.placeholder = 'Type what you meant, e.g. end sexy time';
+  command.autocomplete = 'off';
+  form.className = 'teach-form';
+  label.append(command);
   const save = document.createElement('button');
   save.textContent = 'Save correction';
   form.append(label, save);
   details.append(summary, form);
   form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (!select.value) return;
+    if (!command.value.trim()) return;
     save.disabled = true;
     try {
-      await updateLearnedIntent({turn_id: turn.id, target: select.value});
+      await updateLearnedIntent({turn_id: turn.id, target: command.value.trim()});
       await loadHistory();
       historyStatus.textContent = 'Intention saved for next time.';
     } catch (error) {
@@ -416,7 +422,7 @@ async function loadHistory(older = false) {
     const query = older ? '?before=' + encodeURIComponent(historyCursor) : '';
     const response = await fetch('./api/history' + query);
     if (!response.ok) throw new Error('History could not be loaded.');
-    const {turns, next, teachable_intents: targets, learned_intents: aliases} = await response.json();
+    const {turns, next, learned_intents: aliases} = await response.json();
     if (aliases) renderLearnedIntents(aliases);
     if (!older) chat.replaceChildren();
     for (const turn of turns) {
@@ -486,7 +492,7 @@ async function loadHistory(older = false) {
         suggestion.textContent = 'Possible rephrase (review only): “' + turn.phrase_suggestion + '” → “' + turn.message + '”';
         row.append(suggestion);
       }
-      if (turn.teachable && targets?.length) row.append(teachIntentionControl(turn, targets));
+      if (turn.teachable) row.append(teachIntentionControl(turn));
       chat.append(row);
     }
     historyCursor = next;
@@ -590,7 +596,8 @@ const patternContext = pattern.getContext('2d');
 const voiceStatus = document.querySelector('#voice-status');
 const spokenReplies = document.querySelector('#spoken-replies');
 const assistSTT = document.querySelector('#use-assist-stt');
-const assistSupported = Boolean(window.AudioContext && navigator.mediaDevices?.getUserMedia);
+const BrowserAudioContext = window.AudioContext || window.webkitAudioContext;
+const assistSupported = Boolean(BrowserAudioContext && navigator.mediaDevices?.getUserMedia);
 assistSTT.checked = assistSupported && assistSTT.checked;
 assistSTT.disabled = !assistSupported;
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -598,13 +605,45 @@ const recognition = Recognition ? new Recognition() : null;
 let sessionId = null;
 let listening = false;
 let busy = false;
-let handsFree = assistSTT.checked || Boolean(recognition);
+let handsFree = false;
 let speaking = false;
 let restartTimer;
 let voiceSubmitTimer;
 let voiceTranscript = '';
 let meter = null;
 let assistRecording = null;
+let captureAudio = null;
+let captureStream = null;
+
+function releaseCapture() {
+  captureStream?.getTracks().forEach(track => track.stop());
+  captureStream = null;
+  if (captureAudio) void captureAudio.close().catch(() => {});
+  captureAudio = null;
+}
+
+function resampler(sampleRate) {
+  const ratio = sampleRate / 16000;
+  let weight = 0;
+  let sum = 0;
+  return samples => {
+    const output = [];
+    for (const sample of samples) {
+      let remaining = 1;
+      while (remaining > 1e-8) {
+        const used = Math.min(remaining, ratio - weight);
+        sum += sample * used;
+        weight += used;
+        remaining -= used;
+        if (weight >= ratio - 1e-8) {
+          output.push(sum / ratio);
+          sum = weight = 0;
+        }
+      }
+    }
+    return Float32Array.from(output);
+  };
+}
 let voiceGeneration = 0;
 
 function drawPattern(samples) {
@@ -678,7 +717,7 @@ async function startMeter() {
 
 function updateControls() {
   talk.disabled = !assistSTT.checked && !recognition;
-  talkLabel.textContent = handsFree ? 'Pause listening' : 'Resume listening';
+  talkLabel.textContent = handsFree ? 'Pause listening' : 'Tap to speak';
   talk.setAttribute('aria-pressed', String(listening));
   button.disabled = busy || listening || Boolean(assistRecording);
 }
@@ -714,6 +753,7 @@ function pauseListening() {
   if (assistRecording) stopAssistListening(assistRecording);
   else if (listening) recognition?.abort();
   stopMeter();
+  releaseCapture();
   voiceStatus.textContent = 'Microphone paused.';
   updateControls();
 }
@@ -802,8 +842,9 @@ function stopAssistListening(recording) {
   if (assistRecording !== recording) return;
   assistRecording = null;
   listening = false;
-  recording.stream?.getTracks().forEach(track => track.stop());
-  void recording.audio.close().catch(() => {});
+  recording.capture?.disconnect();
+  recording.source?.disconnect();
+  recording.capture = recording.source = null;
 }
 
 async function finishAssistRecording(recording) {
@@ -833,6 +874,7 @@ async function finishAssistRecording(recording) {
   } catch (error) {
     if (generation === voiceGeneration) {
       handsFree = false;
+      releaseCapture();
       voiceStatus.textContent = (error.message || 'Assist speech recognition failed.') +
         ' Retry with the orb or select browser recognition in Settings.';
     }
@@ -847,28 +889,34 @@ async function finishAssistRecording(recording) {
 async function startAssistListening() {
   let recording;
   try {
-    const audio = new AudioContext({sampleRate: 16000});
+    const audio = captureAudio || (captureAudio = new BrowserAudioContext());
     recording = {audio, pcm: new Int16Array(320000), length: 0, voiced: 0, silence: 0,
-                 previous: null, stream: null};
+                 previous: null, capture: null, source: null};
     assistRecording = recording;
     listening = true;
     updateControls();
-    if (audio.sampleRate !== 16000) throw new Error('This browser cannot record at 16 kHz.');
+    voiceStatus.textContent = 'Opening microphone…';
     const resume = audio.resume();
     void resume.catch(() => {});
-    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    const stream = captureStream || await navigator.mediaDevices.getUserMedia({
+      audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
+    });
     if (assistRecording !== recording) {
       stream.getTracks().forEach(track => track.stop());
       return;
     }
-    recording.stream = stream;
+    captureStream = stream;
     await resume;
     if (assistRecording !== recording) return;
     const source = audio.createMediaStreamSource(stream);
     const capture = audio.createScriptProcessor(2048, 1, 1);
+    recording.source = source;
+    recording.capture = capture;
+    const convert = resampler(audio.sampleRate);
     capture.onaudioprocess = event => {
       if (assistRecording !== recording) return;
-      const samples = event.inputBuffer.getChannelData(0);
+      const samples = convert(event.inputBuffer.getChannelData(0));
+      drawPattern(Uint8Array.from(samples, sample => Math.max(0, Math.min(255, 128 + sample * 128))));
       const energy = samples.reduce((sum, sample) => sum + sample * sample, 0);
       const audible = energy > samples.length * 0.015 ** 2;
       if (!recording.voiced && !audible) {
@@ -886,7 +934,7 @@ async function startAssistListening() {
         if (recording.length === recording.pcm.length) break;
         recording.pcm[recording.length++] = Math.max(-32768, Math.min(32767, sample * 32768));
       }
-      if (recording.silence >= 24000 || recording.length === recording.pcm.length) {
+      if (recording.silence >= 12800 || recording.length === recording.pcm.length) {
         if (recording.voiced >= 2400) void finishAssistRecording(recording);
         else recording.length = recording.voiced = recording.silence = 0;
       }
@@ -897,8 +945,11 @@ async function startAssistListening() {
   } catch (error) {
     if (recording && assistRecording !== recording) return;
     if (recording) stopAssistListening(recording);
+    releaseCapture();
     handsFree = false;
-    voiceStatus.textContent = error.message || 'Could not open the microphone.';
+    voiceStatus.textContent = error.name === 'NotAllowedError'
+      ? 'Allow microphone access for Home Assistant, then tap the orb again.'
+      : error.message || 'Could not open the microphone.';
     updateControls();
   }
 }
@@ -974,10 +1025,17 @@ assistSTT.addEventListener('change', () => {
   startListening();
   updateControls();
 });
-if (handsFree) startListening();
-else {
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && handsFree) pauseListening();
+});
+window.addEventListener('pagehide', pauseListening);
+if (assistSupported || recognition) {
+  voiceStatus.textContent = 'Tap the orb to speak.';
+} else {
   keyboard.open = true;
-  voiceStatus.textContent = 'Voice input is unavailable in this browser. You can type below.';
+  voiceStatus.textContent = window.isSecureContext === false
+    ? 'Open Home Assistant over HTTPS to use the microphone.'
+    : 'Microphone access is unavailable here. Open Home Assistant in Safari or use the keyboard.';
 }
 updateControls();
 drawPattern();

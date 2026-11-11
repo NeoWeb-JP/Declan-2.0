@@ -12,7 +12,7 @@ mkdirSync(path.dirname(scriptPath), {recursive: true});
 writeFileSync(scriptPath, script);
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function browser(t, {voice = false, microphone = false, browserRecognition = false, ingress = false} = {}) {
+function browser(t, {voice = false, microphone = false, browserRecognition = false, ingress = false, sampleRate = 16000, webkit = false} = {}) {
   const prefix = ingress ? '/api/hassio_ingress/test' : '';
   const {window} = new JSDOM(html, {runScripts: 'outside-only', url: 'http://localhost:8765' + prefix + '/'});
   t.after(() => window.close());
@@ -69,13 +69,17 @@ function browser(t, {voice = false, microphone = false, browserRecognition = fal
       getTracks: () => [{stop: () => { streamStopped = true; }}],
     })};
     window.AudioContext = class {
-      constructor({sampleRate} = {}) { this.sampleRate = sampleRate; }
+      constructor() { this.sampleRate = sampleRate; }
       resume() { return Promise.resolve(); }
       close() { audioClosed = true; return Promise.resolve(); }
       createAnalyser() { return {getByteTimeDomainData: values => values.fill(140)}; }
-      createMediaStreamSource() { return {connect() {}}; }
-      createScriptProcessor() { return capture = {connect() {}}; }
+      createMediaStreamSource() { return {connect() {}, disconnect() {}}; }
+      createScriptProcessor() { return capture = {connect() {}, disconnect() {}}; }
     };
+  }
+  if (webkit) {
+    window.webkitAudioContext = window.AudioContext;
+    delete window.AudioContext;
   }
   if (browserRecognition) element('#use-assist-stt').checked = false;
   window.eval(script + '\n//# sourceURL=' + pathToFileURL(scriptPath).href);
@@ -230,7 +234,7 @@ test('history teaches a missed voice command without sending a chat command', as
   ui.element('#open-history').click();
   await flush();
   assert.match(ui.element('#chat').textContent, /Teach intention/);
-  ui.element('#chat select').value = 'end sexy time';
+  ui.element('#chat input').value = 'end sexy time';
   ui.responses.set('/api/history', {...page, learned_intents: {'end 60 time': 'end sexy time'}});
   ui.element('#chat form button').click();
   await flush();
@@ -262,6 +266,7 @@ function transcript(recognition, text, isFinal = true) {
 
 test('voice waits for a chained sentence, speaks the reply and resumes listening', async t => {
   const ui = browser(t, {voice: true, microphone: true, browserRecognition: true});
+  ui.element('#talk').click();
   await flush();
   ui.responses.set('/api/chat', {session_id: 'voice-session', reply: 'Both steps finished.'});
   ui.responses.set('/api/tts', {error: 'Voice unavailable'});
@@ -288,6 +293,7 @@ test('voice waits for a chained sentence, speaks the reply and resumes listening
 
 test('Assist microphone sends audio then submits the returned transcript once', async t => {
   const ui = browser(t, {voice: true, microphone: true});
+  ui.element('#talk').click();
   ui.responses.set('/api/stt', {text: 'what time is it'});
   ui.responses.set('/api/chat', {session_id: 'assist-mic', reply: 'Time check.'});
   ui.element('#spoken-replies').checked = false;
@@ -301,14 +307,37 @@ test('Assist microphone sends audio then submits the returned transcript once', 
   for (let index = 0; index < 12; index++) ui.recordSamples(silence);
   await flush();
   const stt = ui.calls.find(call => call.url === '/api/stt');
-  assert.equal(stt.options.body.byteLength, 15 * 2048 * 2);
+  assert.equal(stt.options.body.byteLength, 10 * 2048 * 2);
   const chat = ui.calls.filter(call => call.url === '/api/chat');
   assert.equal(chat.length, 1);
   assert.equal(JSON.parse(chat[0].options.body).message, 'what time is it');
-  assert.equal(ui.microphoneStopped(), true);
+  assert.equal(ui.microphoneStopped(), false);
   assert.equal(await ui.tick(350), true);
   assert.match(ui.element('#voice-status').textContent, /Listening with Assist/);
 });
+
+for (const sampleRate of [44100, 48000]) {
+  test(`Assist records ${sampleRate} Hz browser audio after a tap and sends 16 kHz PCM`, async t => {
+    const ui = browser(t, {microphone: true, webkit: true, sampleRate});
+    assert.equal(ui.element('#use-assist-stt').disabled, false);
+    assert.match(ui.element('#voice-status').textContent, /Tap the orb/);
+    ui.responses.set('/api/stt', {text: 'what time is it'});
+    ui.responses.set('/api/chat', {session_id: 'ios', reply: 'Time check.'});
+    ui.element('#spoken-replies').checked = false;
+    ui.element('#talk').click();
+    await flush();
+    ui.recordSamples(new Float32Array(sampleRate / 2).fill(0.2));
+    ui.recordSamples(new Float32Array(sampleRate));
+    await flush();
+    const stt = ui.calls.find(call => call.url === '/api/stt');
+    assert.equal(stt.options.body.byteLength, 48000);
+    const pcm = new Int16Array(stt.options.body);
+    assert.ok(Math.abs(pcm[0] - 6554) < 2);
+    assert.equal(pcm[pcm.length - 1], 0);
+    ui.element('#talk').click();
+    assert.equal(ui.microphoneStopped(), true);
+  });
+}
 
 test('updates list allows selecting an older release', async t => {
   const ui = browser(t);
@@ -329,6 +358,7 @@ test('updates list allows selecting an older release', async t => {
 
 test('incomplete voice commands never reach the server', async t => {
   const ui = browser(t, {voice: true});
+  ui.element('#talk').click();
   transcript(ui.recognition, 'turn on the kitchen and');
   assert.equal(await ui.tick(5000), true);
   assert.match(ui.element('#latest-reply').textContent, /only caught part/);

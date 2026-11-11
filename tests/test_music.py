@@ -162,6 +162,16 @@ class MusicTests(unittest.TestCase):
                     self.assertEqual(self.calls[-1][1]["entity_id"], music.PLAYERS[room])
             self.assertEqual(self.spotify_tokens, 0)
 
+    def test_dinner_uses_spotify_search_then_stops_before_music_assistant_play(self):
+        self.search_results = {"playlists": [{"name": "Romantic Dinner", "id": "0123456789AbCdEfGhIjKl"}]}
+        reply, outcome = self.play("play romantic dinner music in the kitchen")
+        self.assertEqual(outcome, "confirmed", reply)
+        self.assertEqual(self.spotify_tokens, 1)
+        self.assertEqual(self.searches, [{"media_type": ["playlist"], "q": "romantic dinner music"}])
+        self.assertEqual([action for action, _ in self.calls], ["media_stop", "play_media"])
+        self.assertEqual(self.calls[-1][1]["entity_id"], self.kitchen)
+        self.assertEqual(self.calls[-1][1]["media_id"], "https://open.spotify.com/playlist/0123456789AbCdEfGhIjKl")
+
     def test_genre_requests_avoid_the_previous_playlist(self):
         self.search_results = {"playlists": [
             {"name": "Country One", "id": "A" * 22}, {"name": "Country Two", "id": "B" * 22},

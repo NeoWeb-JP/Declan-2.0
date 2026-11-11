@@ -103,6 +103,11 @@ def teach_intent(turn_id, target, unmatched_reply):
         phrase = normalize_phrase(turn[0]) if turn else ""
         if not 0 < len(phrase) <= 120:
             raise ValueError("Choose a missed voice command from history (up to 120 characters).")
+        target = normalize_phrase(target)
+        if not 0 < len(target) <= 120 or any(ord(char) < 32 for char in target):
+            raise ValueError("Enter the command you meant, up to 120 characters.")
+        if target == phrase:
+            raise ValueError("Enter a different command from the missed transcript.")
         _intent_table(connection)
         connection.execute(
             "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) "

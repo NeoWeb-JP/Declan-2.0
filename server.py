@@ -58,7 +58,6 @@ GUEST_COMMANDS = {
     "our guests have left": "clear",
     "clear the guests in charge": "clear",
 }
-TEACHABLE_INTENTS = ("start sexy time", "end sexy time", "dinner time", "who is in charge", "the guests have left")
 UNMATCHED_REPLY = "I didn't catch what you wanted me to do. Could you say it another way?"
 NAME_PATTERN = re.compile(r"my name is ([^\W\d_][\w '\u2019-]{0,39})", re.I)
 CHAT_COMMANDS = {
@@ -1462,7 +1461,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.send_json(200, {
                 "turns": turns[:50], "next": turns[49]["id"] if len(turns) > 50 else None,
-                "teachable_intents": TEACHABLE_INTENTS, "learned_intents": aliases,
+                "learned_intents": aliases,
             })
         else:
             self.send_json(404, {"error": "Not found."})
@@ -1539,10 +1538,11 @@ class Handler(BaseHTTPRequestHandler):
                     if set(body) == {"forget"} and isinstance(body["forget"], str) and 0 < len(body["forget"]) <= 120:
                         history.forget_intent(body["forget"])
                     elif (set(body) == {"turn_id", "target"} and type(body["turn_id"]) is int
-                          and 0 < body["turn_id"] < 2**63 and body["target"] in TEACHABLE_INTENTS):
+                          and 0 < body["turn_id"] < 2**63 and isinstance(body["target"], str)
+                          and 0 < len(body["target"]) <= 120):
                         history.teach_intent(body["turn_id"], body["target"], UNMATCHED_REPLY)
                     else:
-                        raise ValueError("Choose a missed voice command and a supported intent.")
+                        raise ValueError("Choose a missed voice command and enter what you meant.")
                 except ValueError as error:
                     self.send_json(400, {"error": str(error)})
                     return
@@ -1650,6 +1650,16 @@ class Handler(BaseHTTPRequestHandler):
         status_target = None
         information_context = None
         phrase = history.normalize_phrase(message)
+        effective_message = message
+        if source in {"assist", "browser_voice"} and len(phrase) <= 120:
+            try:
+                target = history.learned_intent(phrase)
+            except (OSError, sqlite3.Error):
+                target = None
+            if isinstance(target, str) and 0 < len(target) <= 120:
+                # Interpret once through the normal handlers. Never follow alias chains.
+                effective_message = target
+                phrase = history.normalize_phrase(target)
         opener = build_opener(ProxyHandler({}), NoRedirect())
         timer_result = timers.handle(
             phrase, opener,
@@ -1746,23 +1756,12 @@ class Handler(BaseHTTPRequestHandler):
                         step["entity_id"] for step in action_results
                         if step["status"] in ("confirmed", "already_set") and "entity_id" in step
                     )) if outcome == "confirmed" and scope is not None and len(action_results) < 200 else ()
-        chat_kind = message.casefold().strip(" .?!")
+        chat_kind = effective_message.casefold().strip(" .?!")
         guest_mode = None
         if routine_reply is None and (chat_kind in CHAT_COMMANDS or NAME_PATTERN.fullmatch(chat_kind)):
             guest_mode = read_guest_mode()
             if CHAT_COMMANDS.get(chat_kind) == "time":
                 information_context = ("time", None, None)
-        elif routine_reply is None and source in {"assist", "browser_voice"} and len(phrase) <= 120:
-            try:
-                target = history.learned_intent(phrase)
-            except (OSError, sqlite3.Error):
-                target = None
-            if target in SEXY_TIME_COMMANDS:
-                routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[target], ha_device_connection())
-            elif target in DINNER_PHRASES:
-                routine_reply, outcome = start_dinner(ha_device_connection())
-            elif target in GUEST_COMMANDS:
-                routine_reply, outcome = guest_assignment(GUEST_COMMANDS[target], ha_device_connection())
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             failed_phrase = previous.get("failed_light_phrase") if previous else None
@@ -1774,13 +1773,14 @@ class Handler(BaseHTTPRequestHandler):
                     and actions & failed_phrase["actions"]
                     and failed_phrase["text"].casefold() != message.casefold()):
                 phrase_suggestion = failed_phrase["text"]
-            reply = converse(message, session_id, routine_reply, lighting_context=lighting_context,
+            reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
                              scope=scope, guest_mode=guest_mode)
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:
                 reply["routine_status"] = routine_status
             session = SESSIONS[reply["session_id"]]
+            session["last"] = message
             session["device_status_target"] = status_target
             session["device_status_scope"] = scope
             session["information_context"] = information_context
