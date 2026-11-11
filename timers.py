@@ -8,6 +8,7 @@ import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
 from time import time
+from threading import Lock
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request
@@ -24,6 +25,8 @@ TENS = dict(zip("twenty thirty forty fifty sixty seventy eighty ninety".split(),
 UNIT = re.compile(r"\s*(.+?)\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b")
 SATELLITE_ID = re.compile(r"assist_satellite\.[a-z0-9_]+")
 TARGET = r"(?P<target>.*?\btimers?)(?: in (?:the )?(?P<room>.+))?"
+_SCHEMA_LOCK = Lock()
+_initialized = set()
 
 
 def duration_seconds(text):
@@ -63,16 +66,27 @@ def format_duration(seconds, *, hyphen=False):
     return " ".join(parts) or "0 seconds"
 
 
-@contextmanager
-def database():
-    DATABASE.parent.mkdir(exist_ok=True)
-    with closing(sqlite3.connect(DATABASE, timeout=2)) as connection, connection:
-        connection.row_factory = sqlite3.Row
-        connection.execute("""CREATE TABLE IF NOT EXISTS timers (
+def initialize():
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
+    with _SCHEMA_LOCK:
+        identity = (DATABASE.resolve(), DATABASE.stat().st_ino) if DATABASE.exists() else None
+        if identity in _initialized:
+            return
+        with closing(sqlite3.connect(DATABASE, timeout=2)) as connection, connection:
+            connection.execute('PRAGMA journal_mode=WAL')
+            connection.execute("""CREATE TABLE IF NOT EXISTS timers (
             id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, satellite TEXT NOT NULL,
             room TEXT NOT NULL, deadline REAL NOT NULL, next_alarm REAL NOT NULL,
             last_alarm_ok INTEGER, UNIQUE(name COLLATE NOCASE, room COLLATE NOCASE)
-        )""")
+            )""")
+        _initialized.add((DATABASE.resolve(), DATABASE.stat().st_ino))
+
+
+@contextmanager
+def database():
+    initialize()
+    with closing(sqlite3.connect(DATABASE, timeout=2)) as connection, connection:
+        connection.row_factory = sqlite3.Row
         yield connection
 
 
@@ -205,7 +219,8 @@ def handle(phrase, opener, *, satellite=None, device=None, browser=False):
         room = match["room"] if match else None
         now = time()
         with database() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if removal or adjustment:
+                db.execute("BEGIN IMMEDIATE")
             timers = db.execute("SELECT * FROM timers ORDER BY deadline, id").fetchall()
             matches = [timer for timer in timers
                        if (not name or timer["name"].casefold() == name.casefold())
@@ -257,11 +272,14 @@ def ring_due(opener):
     """Claim one due alarm and send a short chime without stopping other audio."""
     now = time()
     with database() as db:
-        db.execute("BEGIN IMMEDIATE")
         timer = db.execute("SELECT * FROM timers WHERE next_alarm <= ? ORDER BY next_alarm LIMIT 1", (now,)).fetchone()
         if timer is None:
             return
-        db.execute("UPDATE timers SET next_alarm = ? WHERE id = ?", (now + ALARM_INTERVAL, timer["id"]))
+        # Claim only if another poller/cancellation/adjustment has not changed it.
+        changed = db.execute("UPDATE timers SET next_alarm = ? WHERE id = ? AND next_alarm = ? AND deadline = ?",
+                             (now + ALARM_INTERVAL, timer['id'], timer['next_alarm'], timer['deadline']))
+        if changed.rowcount != 1:
+            return
     with database() as db:
         if db.execute("SELECT 1 FROM timers WHERE id = ? AND deadline = ?", (timer["id"], timer["deadline"])).fetchone() is None:
             return

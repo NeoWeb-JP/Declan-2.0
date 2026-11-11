@@ -64,7 +64,10 @@ class DeclanTwoAgent(conversation.ConversationEntity):
                     payload = await result.json()
                     if not isinstance(payload["reply"], str) or not isinstance(payload["session_id"], str):
                         raise ValueError("Invalid Declan response")
-                    response.async_set_speech(payload["reply"])
+                    # An empty speech mapping tells Assist to finish without a TTS stage.
+                    # Never populate plain speech with an empty string.
+                    if payload["reply"]:
+                        response.async_set_speech(payload["reply"])
                     session_id = payload["session_id"]
         except TimeoutError:
             _LOGGER.warning("Declan Assist request timed out")

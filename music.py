@@ -30,6 +30,7 @@ CONTROLS = {
     "previous": "media_previous_track", "go back": "media_previous_track",
 }
 HANDOFF = Lock()
+SPOTIFY_TOKEN_LOCK = Lock()
 FAVOURITE_TRACK = "https://open.spotify.com/track/0JkIre0YxNmKGMU5V7ZiDx"
 SPOTIFY_PRESETS = {
     "coward of the county": FAVOURITE_TRACK,
@@ -192,48 +193,58 @@ def spotify_credentials():
 
 
 def save_spotify_credentials(client_id, client_secret):
-    if not all(isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", value.strip())
-               for value in (client_id, client_secret)):
-        raise ValueError("Enter both the Spotify Client ID and Client Secret.")
-    SPOTIFY_SETTINGS.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temp = NamedTemporaryFile(mode="w", encoding="utf-8", dir=SPOTIFY_SETTINGS.parent, delete=False)
-    temp_path = Path(temp.name)
-    try:
-        with temp:
-            json.dump({"client_id": client_id.strip(), "client_secret": client_secret.strip()}, temp)
-        temp_path.replace(SPOTIFY_SETTINGS)
-    finally:
-        temp_path.unlink(missing_ok=True)
+    with SPOTIFY_TOKEN_LOCK:
+        if not all(isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", value.strip())
+                   for value in (client_id, client_secret)):
+            raise ValueError("Enter both the Spotify Client ID and Client Secret.")
+        SPOTIFY_SETTINGS.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        temp = NamedTemporaryFile(mode="w", encoding="utf-8", dir=SPOTIFY_SETTINGS.parent, delete=False)
+        temp_path = Path(temp.name)
+        try:
+            with temp:
+                json.dump({"client_id": client_id.strip(), "client_secret": client_secret.strip()}, temp)
+            temp_path.replace(SPOTIFY_SETTINGS)
+        finally:
+            temp_path.unlink(missing_ok=True)
 
 
 @diagnostics.timed("spotify_search")
 def spotify_search(opener, title, artist, types):
     global spotify_token
-    credentials, _ = spotify_credentials()
-    if not all(credentials):
-        raise SpotifyNotConfigured
-    now = monotonic()
-    if spotify_token is None or spotify_token[0] != credentials or spotify_token[2] <= now:
-        data = urlencode(dict(zip(("client_id", "client_secret"), credentials))
-                         | {"grant_type": "client_credentials"}).encode()
-        token_request = Request("https://accounts.spotify.com/api/token", data=data,
-                                headers={"Content-Type": "application/x-www-form-urlencoded"})
-        with opener.open(token_request, timeout=4) as response:
-            token = json.load(response)
-        access_token = token.get("access_token")
-        if not isinstance(access_token, str) or not access_token:
-            raise ValueError("Spotify did not return an access token")
-        spotify_token = (credentials, access_token, now + max(0, int(token.get("expires_in", 0)) - 30))
-    query = f'track:"{title}" artist:"{artist}"' if artist else title
-    params = urlencode({"q": query, "type": ",".join(types), "market": "GB", "limit": 5})
+    with SPOTIFY_TOKEN_LOCK:
+        credentials, _ = spotify_credentials()
+        if not all(credentials):
+            raise SpotifyNotConfigured
+        now = monotonic()
+        if spotify_token is None or spotify_token[0] != credentials or spotify_token[2] <= now:
+            data = urlencode(dict(zip(("client_id", "client_secret"), credentials))
+                             | {"grant_type": "client_credentials"}).encode()
+            token_request = Request("https://accounts.spotify.com/api/token", data=data,
+                                    headers={"Content-Type": "application/x-www-form-urlencoded"})
+            with opener.open(token_request, timeout=4) as response:
+                token = json.load(response)
+            access_token = token.get("access_token")
+            if not isinstance(access_token, str) or not access_token:
+                raise ValueError("Spotify did not return an access token")
+            spotify_token = (credentials, access_token, now + max(0, int(token.get("expires_in", 0)) - 30))
+        access_token = spotify_token[1]
+    def quoted(value):
+        return value.replace('\\', '\\\\').replace('"', '\\"')
+    query = f'track:"{quoted(title)}" artist:"{quoted(artist)}"' if artist else quoted(title)
+    market = os.environ.get("DECLAN_SPOTIFY_MARKET", "GB").strip().upper()
+    if not re.fullmatch(r"[A-Z]{2}", market):
+        raise ValueError("DECLAN_SPOTIFY_MARKET must be a two-letter country code")
+    params = urlencode({"q": query, "type": ",".join(types), "market": market, "limit": 5})
     search_request = Request("https://api.spotify.com/v1/search?" + params,
-                             headers={"Authorization": f"Bearer {spotify_token[1]}"})
+                             headers={"Authorization": f"Bearer {access_token}"})
     try:
         with opener.open(search_request, timeout=8) as response:
             results = json.load(response)
     except HTTPError as error:
         if error.code == 401:
-            spotify_token = None
+            with SPOTIFY_TOKEN_LOCK:
+                if spotify_token is not None and spotify_token[1] == access_token:
+                    spotify_token = None
         raise
     return [(f"https://open.spotify.com/{kind}/{item['id']}", kind, item["name"])
             for kind in types for item in (results.get(f"{kind}s", {}).get("items") or [])

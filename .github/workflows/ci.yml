@@ -26,9 +26,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Check Python syntax
-        run: python -m compileall -q server.py conditions.py device_status.py history.py music.py personality.py timers.py diagnostics.py configuration.py state_backup.py voice_profiles.py updates.py custom_components tests
+        run: python -m compileall -q server.py conditions.py device_status.py history.py music.py personality.py timers.py diagnostics.py configuration.py state_backup.py voice_profiles.py updates.py ha_inventory.py declan_ingress custom_components tests
       - name: Install coverage tool
-        run: python -m pip install coverage==7.13.5
+        run: python -m pip install coverage==7.13.5 Jinja2==3.1.6
       - name: Run regression tests
         run: python -m coverage run -m unittest discover -s tests -v
       - name: Require 80% Python line coverage

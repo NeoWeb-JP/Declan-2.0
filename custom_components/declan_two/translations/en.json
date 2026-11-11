@@ -34,17 +34,20 @@
           "cache_enabled": "Save and reuse generated speech",
           "cache_revision": "Voice cache revision",
           "category_fallback": "Use a saved equivalent reply when the provider fails",
-          "primary_daily_character_limit": "Daily primary character limit (UTC; 0 means unlimited)"
+          "primary_daily_character_limit": "Daily primary character limit (UTC; 0 means unlimited)",
+          "local_stt_entity": "Local STT fallback entity"
         },
         "data_description": {
-          "openai_stt_api_key": "Leave blank to keep the existing key. Required when enabling transcription for the first time."
+          "openai_stt_api_key": "Leave blank to keep the existing key. Required when enabling transcription for the first time.",
+          "local_stt_entity": "Optional local stt.* entity. Leave blank to use the configured Wyoming speaker bridge."
         }
       }
     },
     "error": {
       "openai_key_required": "Enter an OpenAI API key to enable transcription.",
       "wyoming_host_required": "Enter the VoicePipeline host to enable Wyoming recognition.",
-      "invalid_tts_provider": "Enter the entity ID of your speech provider, such as tts.elevenlabs_text_to_speech."
+      "invalid_tts_provider": "Enter the entity ID of your speech provider, such as tts.elevenlabs_text_to_speech.",
+      "invalid_stt_provider": "Enter a valid local speech entity ID, such as stt.faster_whisper."
     }
   }
 }

@@ -1,4 +1,4 @@
 FROM python:3.12-alpine
 WORKDIR /app
-COPY proxy.py .
+COPY proxy.py http_server.py .
 CMD ["python", "proxy.py"]

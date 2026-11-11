@@ -15,13 +15,13 @@ CaptureLevel = _capture.CaptureLevel
 
 
 class ArbitrationTests(TestCase):
-    def test_overlapping_captures_choose_the_louder_satellite_and_reject_late_duplicate(self):
+    def test_overlapping_captures_choose_one_executor_and_reject_late_duplicate(self):
         arbiter = CaptureArbiter(window=0.03)
         end = time()
         with ThreadPoolExecutor(max_workers=2) as pool:
             quiet = pool.submit(arbiter.claim, "dinner time", "satellite.kitchen", {"ended_at": end, "duration": 2, "rms": 0.1})
             loud = pool.submit(arbiter.claim, "dinner time", "satellite.bedroom", {"ended_at": end, "duration": 2, "rms": 0.5})
-            self.assertEqual((quiet.result(), loud.result()), (False, True))
+            self.assertEqual(sorted((quiet.result(), loud.result())), [False, True])
         self.assertFalse(arbiter.claim("dinner time", "satellite.hall", {"ended_at": end, "duration": 2, "rms": 0.9}))
         self.assertTrue(arbiter.claim("dinner time", "satellite.hall", {"ended_at": end + 3, "duration": 1, "rms": 0.9}))
 

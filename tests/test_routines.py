@@ -101,11 +101,11 @@ class RoutineTests(TestCase):
         self.delay.side_effect = wait
         reply, outcome, _ = server.execute_routine(selection, steps)
         self.assertEqual(outcome, "reported_success")
-        self.assertEqual(events, ["script finished", ("delay", 7), ("delay", 2)])
+        self.assertEqual(events, ["script finished", ("delay", 7)])
         self.assertIn(reply.removeprefix("Starting Movie Time. "), LINES["movie_start"][0])
         self.assertEqual(steps[-1]["status"], "sent")
-        self.assertEqual(json.loads(self.calls[-4].data)["requested_action"], "start")
-        self.assertEqual(json.loads(self.calls[-1].data)["command"], "app:netflix")
+        self.assertEqual(json.loads(self.calls[-3].data)["requested_action"], "start")
+        self.assertEqual(json.loads(self.calls[-1].data)["command"], ["KEY_HOME", "app:netflix"])
 
     def test_movie_app_discovers_home_assistant_script_and_projector_remote(self):
         script = "script.declan_movie_time_shared_local_routine"
@@ -126,7 +126,7 @@ class RoutineTests(TestCase):
             )
         self.assertEqual(outcome, "reported_success")
         self.assertIn(f"/api/services/script/{script.split('.')[1]}?", self.calls[0].full_url)
-        self.assertEqual(json.loads(self.calls[-1].data), {"entity_id": remote, "command": "app:netflix"})
+        self.assertEqual(json.loads(self.calls[-1].data), {"entity_id": remote, "command": ["KEY_HOME", "app:netflix"], "delay_secs": 2})
         self.assertEqual(steps[-1]["entity_id"], remote)
         self.assertIn("Command: app:netflix.", steps[-1]["detail"])
 
@@ -153,10 +153,10 @@ class RoutineTests(TestCase):
             self.delay.reset_mock()
             reply, outcome, detail = server.run_routine("movie", movie_action="start", movie_app=app)
         self.assertEqual(outcome, "partial")
-        self.assertEqual([entry.args for entry in self.delay.call_args_list], [(7,), (2,)])
+        self.assertEqual([entry.args for entry in self.delay.call_args_list], [(7,)])
         self.assertIn("Movie Time has finished and the lounge projector socket is on", detail)
         self.assertIn(reply.removeprefix("Starting Movie Time. "), LINES["movie_start"][1])
-        self.assertEqual(json.loads(self.calls[-1].data)["command"], "app:netflix")
+        self.assertEqual(json.loads(self.calls[-1].data)["command"], ["KEY_HOME", "app:netflix"])
 
     def test_movie_accepts_a_matching_result_wrapped_by_script_entity(self):
         self.respond(lambda data: {"script.movie": self.confirmed(data, resolved_action="start")})
@@ -165,7 +165,7 @@ class RoutineTests(TestCase):
             "movie", movie_action="start", movie_app=server.MOVIE_APPS["netflix"], action_results=steps,
         )
         self.assertEqual(outcome, "reported_success")
-        self.assertEqual([entry.args for entry in self.delay.call_args_list], [(7,), (2,)])
+        self.assertEqual([entry.args for entry in self.delay.call_args_list], [(7,)])
         self.assertEqual(steps[-1]["status"], "sent")
 
     def test_movie_response_from_another_run_cannot_launch_an_app(self):

@@ -1,7 +1,11 @@
 """Forward Home Assistant Ingress requests to the authenticated Declan web API."""
 
 from http.client import HTTPConnection, HTTPSConnection, HTTPException
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+if __package__:
+    from .http_server import BoundedHTTPServer as ThreadingHTTPServer
+else:
+    from http_server import BoundedHTTPServer as ThreadingHTTPServer
 import json
 import os
 import secrets

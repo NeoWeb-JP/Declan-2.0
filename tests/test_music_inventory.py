@@ -34,23 +34,23 @@ class MusicInventoryTests(TestCase):
         def open_request(request, timeout):
             path = urlsplit(request.full_url).path
             calls.append(path)
-            if path == "/api/states":
-                # HA's REST encoder converts native datetime attributes to ISO strings.
-                return io.BytesIO(json.dumps(states, default=lambda value: value.isoformat()).encode())
             self.assertEqual(path, "/api/template")
             template = json.loads(request.data)["template"]
-            self.assertNotIn("entity.attributes", template)
+            self.assertNotIn("attributes=entity.attributes", template)
+            self.assertNotIn("media_position_updated_at", template)
             self.assertIn("integration_entities('music_assistant')", template)
-            # Only registry metadata crosses Jinja's strict JSON encoder.
-            return io.BytesIO(json.dumps(metadata).encode())
+            projected = [dict(row, **metadata[index], attributes={key: value for key, value in row['attributes'].items()
+                                                                  if key not in ('media_position_updated_at', 'last_seen')})
+                         for index, row in enumerate(states)]
+            return io.BytesIO(json.dumps({'total': len(projected), 'rows': projected}).encode())
 
         opener = Mock()
         opener.open.side_effect = open_request
         inventory, error = server.read_music_inventory(("http://ha.invalid", {}, opener))
         self.assertIsNone(error)
-        self.assertEqual(calls, ["/api/states", "/api/template"])
+        self.assertEqual(calls, ["/api/template"])
         player = inventory[0]
-        self.assertEqual(player["attributes"]["media_position_updated_at"], timestamp.isoformat())
+        self.assertNotIn("media_position_updated_at", player["attributes"])
         self.assertEqual(player["attributes"]["group_members"], [entity])
         destinations, players = music.music_players(inventory)
         self.assertEqual(destinations["utility room"], entity)
@@ -65,6 +65,5 @@ class MusicInventoryTests(TestCase):
 
     def test_unavailable_registry_does_not_produce_partial_inventory(self):
         opener = Mock()
-        opener.open.side_effect = [io.BytesIO(b"[]"),
-                                  HTTPError("http://ha.invalid/api/template", 500, "Error", {}, None)]
+        opener.open.side_effect = [HTTPError("http://ha.invalid/api/template", 500, "Error", {}, None)]
         self.assertEqual(server.read_music_inventory(("http://ha.invalid", {}, opener)), (None, "unavailable"))
