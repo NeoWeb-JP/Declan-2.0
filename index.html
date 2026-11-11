@@ -235,19 +235,17 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
 </dialog>
 <dialog class="history" id="voices-panel" aria-labelledby="voices-title">
   <div class="history-heading"><h2 id="voices-title">Voice profiles</h2><button type="button" data-close="voices-panel">Close</button></div>
-  <p>Local sample collection only. These recordings do not change recognition yet. Add only your own voice. Deleting a profile also deletes its active samples; earlier local upgrade backups may retain copies.</p>
-  <label>Your name <input id="voice-profile-name" maxlength="40" autocomplete="off"></label>
-  <label><input type="checkbox" id="voice-consent"> I consent to storing my voice locally for reviewed speaker enrolment.</label>
-  <button type="button" id="create-voice-profile">Create profile</button>
-  <p><label>Profile <select id="voice-profile-select"></select></label></p>
-  <button type="button" id="record-voice-sample">Record sample</button>
-  <button type="button" id="stop-voice-sample" disabled>Stop recording</button>
-  <label>Or choose a mono 16 kHz PCM WAV <input type="file" id="voice-sample-file" accept="audio/wav,.wav"></label>
-  <p>Say a natural sentence for one to ten seconds. Listen before saving.</p>
+  <p>VoicePipeline owns these profiles and reference recordings. Speak to a satellite, then refresh to review its recording. Confirming, assigning or enrolling adds the recording to recognition references.</p>
+  <button type="button" id="refresh-voices">Refresh pending</button>
+  <button type="button" id="voice-history">Review history</button>
+  <p><label>Existing speaker <select id="voice-profile-select"></select></label></p>
+  <p id="voice-profile-summary"></p>
+  <label>New speaker name <input id="voice-profile-name" maxlength="40" autocomplete="off"></label>
+  <label><input type="checkbox" id="voice-consent"> I have permission to use this person's recording for speaker recognition.</label>
+  <p>Listen before assigning. History corrections remove wrong references but do not add a new reference. Return a recording to pending, then assign it if it should become a reference.</p>
   <audio id="voice-sample-preview" controls></audio>
-  <button type="button" id="save-voice-sample" disabled>Save reviewed sample</button>
-  <button type="button" id="export-voice-profile">Download samples</button>
-  <button type="button" id="delete-voice-profile">Delete profile</button>
+  <button type="button" id="clear-voice-clips">Clear selected speaker's references</button>
+  <button type="button" id="delete-voice-profile">Delete selected speaker</button>
   <ul id="voice-sample-list"></ul><p id="voices-status" role="status"></p>
 </dialog>
 <script>
@@ -1167,156 +1165,129 @@ applySettings.addEventListener('click', async () => {
 const voicesStatus = document.querySelector('#voices-status');
 const profileSelect = document.querySelector('#voice-profile-select');
 const samplePreview = document.querySelector('#voice-sample-preview');
-const saveSample = document.querySelector('#save-voice-sample');
-const recordSample = document.querySelector('#record-voice-sample');
-const stopSample = document.querySelector('#stop-voice-sample');
+const voicesPanel = document.querySelector('#voices-panel');
 let voiceProfiles = [];
-let sampleData = null;
-let sampleURL = null;
-let profileRecording = null;
-function discardSample() {
-  sampleData = null; saveSample.disabled = true;
-  samplePreview.removeAttribute('src');
-  if (sampleURL) URL.revokeObjectURL(sampleURL);
-  sampleURL = null;
+let voiceHistory = false;
+let voiceBusy = false;
+let voiceVersion = 0;
+let voiceAudioVersion = 0;
+let voiceAudioURL = null;
+function clearVoiceAudio() {
+  voiceAudioVersion++;
+  samplePreview.pause(); samplePreview.removeAttribute('src');
+  if (voiceAudioURL) URL.revokeObjectURL(voiceAudioURL);
+  voiceAudioURL = null;
 }
-function previewSample(data) {
-  discardSample(); sampleData = data;
-  const bytes = Uint8Array.from(atob(data), value => value.charCodeAt(0));
-  sampleURL = URL.createObjectURL(new Blob([bytes], {type: 'audio/wav'}));
-  samplePreview.src = sampleURL; saveSample.disabled = false;
+function setVoiceBusy(value) {
+  voiceBusy = value;
+  for (const control of voicesPanel.querySelectorAll('button:not([data-close]), select, input')) control.disabled = value;
 }
-function wavSample(samples) {
-  const data = new ArrayBuffer(44 + samples.length * 2); const view = new DataView(data);
-  const text = (offset, value) => [...value].forEach((letter, i) => view.setUint8(offset + i, letter.charCodeAt(0)));
-  text(0, 'RIFF'); view.setUint32(4, data.byteLength - 8, true); text(8, 'WAVE'); text(12, 'fmt ');
-  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-  view.setUint32(24, 16000, true); view.setUint32(28, 32000, true); view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true); text(36, 'data'); view.setUint32(40, samples.length * 2, true);
-  samples.forEach((value, i) => view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, value * 32768)), true));
-  let binary = ''; for (const value of new Uint8Array(data)) binary += String.fromCharCode(value);
-  return btoa(binary);
+function renderVoiceSummary() {
+  const profile = voiceProfiles.find(value => value.name === profileSelect.value);
+  document.querySelector('#voice-profile-summary').textContent = profile
+    ? `${profile.reference_clip_count} reference recordings; ${profile.interaction_count} interactions. Profile stored in VoicePipeline.`
+    : 'No enrolled speakers. Review a pending recording to enrol someone.';
 }
-function stopProfileRecording(keep = true) {
-  const recording = profileRecording; profileRecording = null;
-  if (!recording) return;
-  recording.capture?.disconnect(); recording.source?.disconnect();
-  recording.stream?.getTracks().forEach(track => track.stop());
-  void recording.audio.close().catch(() => {});
-  recordSample.disabled = false; stopSample.disabled = true;
-  if (keep && recording.samples.length >= 16000) {
-    previewSample(wavSample(recording.samples)); voicesStatus.textContent = 'Listen to the recording, then save it if you approve.';
-  } else if (keep) voicesStatus.textContent = 'Record at least one second of speech.';
+async function loadVoices(history = false) {
+  if (voiceBusy) return;
+  const version = ++voiceVersion;
+  clearVoiceAudio(); setVoiceBusy(true);
+  voicesStatus.textContent = 'Loading VoicePipeline…';
+  try {
+    const result = await managementRequest('voicepipeline');
+    const entries = history ? await managementRequest('voicepipeline', {operation: 'history'}) : result;
+    if (!voicesPanel.open || version !== voiceVersion) return;
+    voiceHistory = history; voiceProfiles = result.profiles;
+    const selected = profileSelect.value; profileSelect.replaceChildren();
+    for (const profile of voiceProfiles) {
+      const option = document.createElement('option'); option.value = profile.name; option.textContent = profile.name;
+      profileSelect.append(option);
+    }
+    if (voiceProfiles.some(profile => profile.name === selected)) profileSelect.value = selected;
+    renderVoiceSummary(); renderVoiceInteractions(entries.interactions, history);
+    voicesStatus.textContent = result.notice + (history ? ' Showing up to 100 history recordings.' : '');
+  } catch (error) {
+    if (version === voiceVersion && voicesPanel.open) {
+      document.querySelector('#voice-sample-list').replaceChildren();
+      voicesStatus.textContent = error.message;
+    }
+  } finally { if (version === voiceVersion) setVoiceBusy(false); }
 }
-function renderProfiles(result) {
-  voiceProfiles = result.profiles;
-  const selected = profileSelect.value; profileSelect.replaceChildren();
-  for (const profile of voiceProfiles) {
-    const option = document.createElement('option'); option.value = profile.id; option.textContent = profile.name;
-    profileSelect.append(option);
+async function changeVoice(body, question) {
+  if (voiceBusy) return;
+  const needsConsent = body.assigned_to != null;
+  if (needsConsent && !document.querySelector('#voice-consent').checked) {
+    voicesStatus.textContent = 'Confirm permission to use this person’s voice first.'; return;
   }
-  if (voiceProfiles.some(profile => profile.id === selected)) profileSelect.value = selected;
-  renderSamples();
+  if (needsConsent && !body.assigned_to) { voicesStatus.textContent = 'Choose a speaker or enter a new name.'; return; }
+  if (!window.confirm(question)) return;
+  setVoiceBusy(true); const version = ++voiceVersion;
+  try {
+    const result = await managementRequest('voicepipeline', {...body, consent: needsConsent, confirm: true});
+    if (version !== voiceVersion || !voicesPanel.open) return;
+    document.querySelector('#voice-consent').checked = false;
+    setVoiceBusy(false); await loadVoices(voiceHistory);
+    if (voicesPanel.open) voicesStatus.textContent += result.result?.cache_refresh_requested === false
+      ? ' Saved, but VoicePipeline could not request its speaker cache refresh. Check VoicePipeline before relying on the correction.'
+      : ' Change saved in VoicePipeline. Live recognition still needs checking.';
+  } catch (error) {
+    if (version === voiceVersion && voicesPanel.open) voicesStatus.textContent = error.message;
+  } finally { if (version === voiceVersion) setVoiceBusy(false); }
 }
-function renderSamples() {
+function renderVoiceInteractions(entries, history) {
   const list = document.querySelector('#voice-sample-list'); list.replaceChildren();
-  const profile = voiceProfiles.find(value => value.id === profileSelect.value);
-  for (const sample of profile?.samples || []) {
-    const item = document.createElement('li'); item.textContent = `${sample.duration}s `;
-    for (const operation of ['preview', 'delete_sample']) {
-      const button = document.createElement('button'); button.type = 'button';
-      button.textContent = operation === 'preview' ? 'Listen' : 'Delete sample';
-      button.addEventListener('click', async () => {
-        if (operation === 'delete_sample' && !window.confirm('Delete this saved voice sample?')) return;
-        button.disabled = true;
-        try {
-          const result = await managementRequest('voice-profiles', {operation, profile: profile.id, sample: sample.id, confirm: true});
-          if (operation === 'preview') previewSample(result.samples[0].audio);
-          else { discardSample(); renderProfiles(result); }
-        } catch (error) { voicesStatus.textContent = error.message; }
-        finally { button.disabled = false; }
-      });
-      item.append(button);
+  for (const entry of entries.slice(0, 100)) {
+    const item = document.createElement('li');
+    item.textContent = `${entry.recorded_at || ''}: ${entry.transcript || '(no transcript)'} — ${entry.current_assigned_to || entry.matched_speaker || 'Unknown'} (${entry.status}) `;
+    const button = (label, callback) => {
+      const control = document.createElement('button'); control.type = 'button'; control.textContent = label;
+      control.addEventListener('click', callback); item.append(control);
+    };
+    button('Listen', async () => {
+      if (voiceBusy) return;
+      clearVoiceAudio(); const version = voiceAudioVersion;
+      try {
+        const result = await managementRequest('voicepipeline', {operation: 'audio', interaction_id: entry.id});
+        if (!voicesPanel.open || version !== voiceAudioVersion) return;
+        const bytes = Uint8Array.from(atob(result.audio), value => value.charCodeAt(0));
+        voiceAudioURL = URL.createObjectURL(new Blob([bytes], {type: 'audio/wav'}));
+        samplePreview.src = voiceAudioURL;
+        voicesStatus.textContent = 'Use the audio controls to listen before assigning.';
+      } catch (error) { if (version === voiceAudioVersion && voicesPanel.open) voicesStatus.textContent = error.message; }
+    });
+    if (!history) {
+      button('Use selected speaker', () => changeVoice({operation: 'resolve', action: 'assign', interaction_id: entry.id,
+        assigned_to: profileSelect.value}, 'Add this recording to the selected speaker’s recognition references?'));
+      button('Enrol new speaker', () => changeVoice({operation: 'resolve', action: 'enrol', interaction_id: entry.id,
+        assigned_to: document.querySelector('#voice-profile-name').value.trim()}, 'Create a VoicePipeline speaker profile using this recording?'));
+      button('Dismiss', () => changeVoice({operation: 'resolve', action: 'dismiss', interaction_id: entry.id}, 'Dismiss this recording without adding it to speaker references?'));
+    } else if (['resolved', 'dismissed'].includes(entry.status)) {
+      button('Correct speaker', () => changeVoice({operation: 'correct', interaction_id: entry.id,
+        expected_resolution_id: entry.current_resolution_id, assigned_to: profileSelect.value},
+        'Correct the speaker and remove references belonging to other speakers? This does not add a new reference.'));
+      button('Return to pending', () => changeVoice({operation: 'correct', interaction_id: entry.id,
+        expected_resolution_id: entry.current_resolution_id, assigned_to: null}, 'Remove this recording from speaker references and return it to pending?'));
     }
     list.append(item);
   }
+  if (!entries.length) { const item = document.createElement('li'); item.textContent = 'No recordings to review.'; list.append(item); }
 }
-profileSelect.addEventListener('change', () => { stopProfileRecording(false); discardSample(); renderSamples(); });
-document.querySelector('#open-voices').addEventListener('click', async () => {
-  pauseListening(); document.querySelector('#voices-panel').showModal();
-  try { const result = await managementRequest('voice-profiles'); renderProfiles(result); voicesStatus.textContent = result.notice; }
-  catch (error) { voicesStatus.textContent = error.message; }
+profileSelect.addEventListener('change', renderVoiceSummary);
+document.querySelector('#open-voices').addEventListener('click', () => {
+  pauseListening(); voicesPanel.showModal(); void loadVoices();
 });
-document.querySelector('#voices-panel').addEventListener('close', () => { stopProfileRecording(false); discardSample(); });
-document.querySelector('#create-voice-profile').addEventListener('click', async () => {
-  try {
-    renderProfiles(await managementRequest('voice-profiles', {operation: 'create',
-      name: document.querySelector('#voice-profile-name').value.trim(), consent: document.querySelector('#voice-consent').checked}));
-    voicesStatus.textContent = 'Local profile created. Record your own voice and review each sample.';
-  } catch (error) { voicesStatus.textContent = error.message; }
+document.querySelector('#refresh-voices').addEventListener('click', () => void loadVoices());
+document.querySelector('#voice-history').addEventListener('click', () => void loadVoices(true));
+voicesPanel.addEventListener('close', () => {
+  voiceVersion++; clearVoiceAudio(); setVoiceBusy(false);
+  document.querySelector('#voice-consent').checked = false;
 });
-recordSample.addEventListener('click', async () => {
-  if (!assistSupported || !profileSelect.value || !document.querySelector('#voice-consent').checked) {
-    voicesStatus.textContent = 'Choose your profile, confirm consent and allow microphone access over HTTPS.'; return;
-  }
-  discardSample(); recordSample.disabled = true;
-  const recording = {audio: new BrowserAudioContext(), samples: [], stream: null}; profileRecording = recording;
-  try {
-    await recording.audio.resume();
-    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-    if (profileRecording !== recording) { stream.getTracks().forEach(track => track.stop()); return; }
-    recording.stream = stream;
-    recording.source = recording.audio.createMediaStreamSource(stream);
-    recording.capture = recording.audio.createScriptProcessor(4096, 1, 1);
-    const convert = resampler(recording.audio.sampleRate);
-    recording.capture.onaudioprocess = event => {
-      if (profileRecording !== recording) return;
-      const values = convert(event.inputBuffer.getChannelData(0));
-      for (const value of values) { if (recording.samples.length === 160000) break; recording.samples.push(value); }
-      if (recording.samples.length === 160000) stopProfileRecording();
-    };
-    recording.source.connect(recording.capture); recording.capture.connect(recording.audio.destination);
-    stopSample.disabled = false; voicesStatus.textContent = 'Recording your sample. Stop after a natural sentence (maximum ten seconds).';
-  } catch (error) { stopProfileRecording(false); voicesStatus.textContent = 'Could not record: ' + error.message; }
-});
-stopSample.addEventListener('click', () => stopProfileRecording());
-document.querySelector('#voice-sample-file').addEventListener('change', event => {
-  discardSample();
-  const file = event.target.files[0];
-  if (!file || file.size > 320100) { voicesStatus.textContent = 'Choose a one to ten second mono 16 kHz PCM WAV.'; return; }
-  const reader = new FileReader();
-  const profile = profileSelect.value;
-  reader.onload = () => {
-    if (document.querySelector('#voices-panel').open && profile === profileSelect.value && event.target.files[0] === file) {
-      previewSample(String(reader.result).split(',')[1]);
-    }
-  };
-  reader.readAsDataURL(file);
-});
-saveSample.addEventListener('click', async () => {
-  if (!sampleData) return;
-  saveSample.disabled = true;
-  try {
-    renderProfiles(await managementRequest('voice-profiles', {operation: 'save_sample', profile: profileSelect.value,
-      audio: sampleData, consent: document.querySelector('#voice-consent').checked}));
-    discardSample(); voicesStatus.textContent = 'Sample saved locally for review. Speaker matching has not changed.';
-  } catch (error) { voicesStatus.textContent = error.message; saveSample.disabled = false; }
-});
-document.querySelector('#delete-voice-profile').addEventListener('click', async () => {
-  if (!profileSelect.value || !window.confirm('Delete this profile and all its active voice samples? Local upgrade backups are separate.')) return;
-  try {
-    renderProfiles(await managementRequest('voice-profiles', {operation: 'delete_profile', profile: profileSelect.value, confirm: true}));
-    discardSample(); voicesStatus.textContent = 'Profile and active samples deleted.';
-  } catch (error) { voicesStatus.textContent = error.message; }
-});
-document.querySelector('#export-voice-profile').addEventListener('click', async () => {
-  if (!profileSelect.value || !window.confirm('Download these private voice samples? Keep the file private.')) return;
-  try {
-    const result = await managementRequest('voice-profiles', {operation: 'export', profile: profileSelect.value});
-    const url = URL.createObjectURL(new Blob([JSON.stringify(result)], {type: 'application/json'}));
-    const link = document.createElement('a'); link.href = url; link.download = 'declan-voice-samples.json'; link.click();
-    URL.revokeObjectURL(url); voicesStatus.textContent = 'Private samples downloaded. No model was changed.';
-  } catch (error) { voicesStatus.textContent = error.message; }
+for (const [id, operation, question] of [
+  ['delete-voice-profile', 'delete_speaker', 'Delete this speaker profile from VoicePipeline? This does not promise deletion of retained interaction audio or backups.'],
+  ['clear-voice-clips', 'clear_clips', 'Clear this speaker’s recognition reference list? The profile and retained interaction audio are separate.']
+]) document.querySelector('#' + id).addEventListener('click', () => {
+  const profile = voiceProfiles.find(value => value.name === profileSelect.value);
+  if (profile) void changeVoice({operation, speaker_id: profile.id}, question);
 });
 
 </script>

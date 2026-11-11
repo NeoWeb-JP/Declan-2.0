@@ -1,5 +1,5 @@
 name: Declan 2.0 Web
-version: "1.0.2"
+version: "1.0.3"
 slug: declan_ingress
 description: Open the Proxmox-hosted Declan web interface inside Home Assistant.
 url: https://github.com/NeoWeb-JP/Declan-2.0

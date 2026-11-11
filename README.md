@@ -70,4 +70,18 @@ result fallback.
 
 ### Current NOW work
 
-The [current work and live testing list](docs/now-work.md) tracks the agreed additions, remaining migration gaps and new GitHub issues. Settings now includes request diagnostics, configuration export/import and local voice sample controls. Local samples do not change the active recognition model yet; the VoicePipeline enrolment API still needs to be established.
+The [current work and live testing list](docs/now-work.md) tracks the agreed additions, remaining migration gaps and new GitHub issues. Settings includes request diagnostics, configuration export/import and shared VoicePipeline speaker management.
+
+### One speaker profile store
+
+Set `DECLAN_VOICEPIPELINE_URL=http://192.168.0.43:8000` on the standalone Declan server and restart it. Update the **Declan 2.0 Web** HA app to **1.0.3** for the new management route, then reload the panel. If your VoicePipeline deployment requires a bearer token, set `DECLAN_VOICEPIPELINE_TOKEN` on the server too. Neither value is supplied by the browser.
+
+Open **Settings → Voice profiles**. Existing speakers and pending recordings come directly from VoicePipeline. Speak through the satellite's Wyoming pipeline, refresh, listen, then explicitly assign the recording to an existing speaker or enrol a new name with permission. Assignment and enrolment add recognition references; the API requests a speaker-cache refresh. Names are sent exactly as enrolled, so an existing `Ed` profile remains `Ed` even when Declan displays `Edd` in conversation history.
+
+History corrections use VoicePipeline's current resolution ID to reject stale edits. Corrections remove references from other speakers but do not add a reference to the selected speaker. Returning a recording to pending removes its references; assigning it afterward deliberately adds it to the selected speaker. Clearing references and deleting speakers require confirmation and do not promise deletion of retained interaction audio or backups.
+
+Audio is fetched through the authenticated management route only when Listen is selected and is not persisted by Declan. Model settings, automatic model reloads, retention settings and HA webhooks are untouched. There is no second recogniser or automatic replay of audio for enrolment. The legacy local sample database is retained; new local profile/sample collection is rejected, while its existing export and deletion API operations remain available. Legacy samples are not automatically uploaded because the deployed VoicePipeline API has no upload endpoint.
+
+The Assist bridge must still use **Declan 2.0 Wyoming Speaker Recognition** at `192.168.0.43:10300` to carry speaker identity alongside the transcript. Management API connectivity does not prove recognition works. Browser microphone STT currently returns text only and still needs a separate metadata-preservation change. Recognition accuracy and cross-room context remain live acceptance work.
+
+VoicePipeline's pending resolve endpoint has no atomic stale-edit token. Declan serialises its own changes and checks that a recording is still pending, but another VoicePipeline client could resolve it in the interval. Avoid reviewing the same pending recording in both interfaces simultaneously. Failed writes are never retried automatically; refresh the list before deciding what to do next.

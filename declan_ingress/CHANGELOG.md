@@ -1,3 +1,7 @@
+# 1.0.3
+
+- Allow the authenticated VoicePipeline management route through the sidebar proxy. Update the standalone Declan server as well to use shared speaker profiles and recording review.
+
 # 1.0.2
 
 - Limit simultaneous proxy requests to 16 workers and return HTTP 503 with a retry hint when busy.

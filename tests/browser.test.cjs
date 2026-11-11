@@ -36,7 +36,8 @@ function browser(t, {voice = false, microphone = false, browserRecognition = fal
     assert.ok(resolved.pathname.startsWith(prefix + '/'), 'Request escaped the Ingress path');
     url = resolved.pathname.slice(prefix.length) + resolved.search;
     calls.push({url, options});
-    const response = responses.get(url) ?? {status: 'connected', release_version: 'v1.2.3'};
+    let response = responses.get(url) ?? {status: 'connected', release_version: 'v1.2.3'};
+    if (typeof response === 'function') response = await response(options);
     if (response instanceof Error) throw response;
     return {ok: !response.error, json: async () => response};
   };
@@ -44,6 +45,7 @@ function browser(t, {voice = false, microphone = false, browserRecognition = fal
   window.URL.createObjectURL = () => 'blob:test-audio';
   window.URL.revokeObjectURL = () => {};
   window.HTMLAnchorElement.prototype.click = function () {};
+  window.HTMLMediaElement.prototype.pause = function () {};
   window.confirm = () => true;
   for (const dialog of window.document.querySelectorAll('dialog')) {
     dialog.showModal = () => { dialog.open = true; };
@@ -464,126 +466,121 @@ test('bad or stale settings previews cannot be applied or blindly retried', asyn
   assert.match(ui.element('#backup-status').textContent, /Preview again/);
 });
 
-const profilePage = {profiles: [{id: 'jaco', name: 'Jaco', samples: []}], notice: 'Samples stay local.'};
+const pipelinePage = {
+  profiles: [{id: 'jaco-id', name: 'Jaco', reference_clip_count: 2, interaction_count: 5},
+             {id: 'ed-id', name: 'Ed', reference_clip_count: 3, interaction_count: 9}],
+  interactions: [{id: 'recording-1', transcript: '<img src=x onerror=alert(1)>', status: 'pending'}],
+  notice: 'Profiles are managed by VoicePipeline.'
+};
 async function openProfiles(ui) {
-  ui.responses.set('/api/voice-profiles', profilePage);
-  ui.element('#open-voices').click(); await flush();
+  ui.responses.set('/api/voicepipeline', options => options?.body ? {saved: true, result: {}} : pipelinePage);
+  ui.element('#open-voices').click(); await flush(); await flush();
+}
+function voiceButton(ui, label) {
+  return [...ui.window.document.querySelectorAll('#voice-sample-list button')].find(value => value.textContent === label);
+}
+function pipelineWrites(ui) {
+  return ui.calls.filter(call => call.url === '/api/voicepipeline' && call.options?.body).map(call => JSON.parse(call.options.body));
 }
 
-test('voice profile controls require consent, report errors and confirm deletion', async t => {
-  const ui = browser(t);
-  await openProfiles(ui);
-  assert.match(ui.element('#voices-status').textContent, /Samples stay local/);
-  ui.element('#record-voice-sample').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /confirm consent/);
-  ui.element('#voice-profile-name').value = 'Edd'; ui.element('#voice-consent').checked = true;
-  ui.element('#create-voice-profile').click(); await flush();
-  assert.deepEqual(JSON.parse(ui.calls.at(-1).options.body), {operation: 'create', name: 'Edd', consent: true});
-  ui.responses.set('/api/voice-profiles', {error: 'Already exists'});
-  ui.element('#create-voice-profile').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Already exists/);
-  ui.window.confirm = () => false; const count = ui.calls.length;
-  ui.element('#delete-voice-profile').click(); await flush(); assert.equal(ui.calls.length, count);
-  ui.window.confirm = () => true;
-  ui.element('#delete-voice-profile').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Already exists/);
-  ui.responses.set('/api/voice-profiles', {profiles: []});
-  ui.element('#delete-voice-profile').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Profile and active samples deleted/);
-  assert.equal(ui.element('#voice-profile-select').children.length, 0);
-});
-
-test('recorded voice samples are reviewed before saving and do not call STT or chat', async t => {
-  const ui = browser(t, {microphone: true, webkit: true, sampleRate: 48000});
-  await openProfiles(ui); ui.element('#voice-consent').checked = true;
-  ui.element('#record-voice-sample').click(); await flush();
-  assert.equal(ui.element('#stop-voice-sample').disabled, false);
-  ui.recordSamples(new Float32Array(48000).fill(0.15));
-  ui.element('#stop-voice-sample').click(); await flush();
-  assert.equal(ui.element('#save-voice-sample').disabled, false);
-  assert.match(ui.element('#voices-status').textContent, /Listen to the recording/);
-  ui.responses.set('/api/voice-profiles', {error: 'Sample rejected'});
-  ui.element('#save-voice-sample').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Sample rejected/);
-  ui.responses.set('/api/voice-profiles', profilePage);
-  ui.element('#save-voice-sample').click(); await flush();
-  const saved = JSON.parse(ui.calls.at(-1).options.body);
-  assert.equal(saved.operation, 'save_sample'); assert.equal(saved.profile, 'jaco');
-  const wav = Buffer.from(saved.audio, 'base64');
-  assert.equal(wav.toString('ascii', 0, 4), 'RIFF');
-  assert.equal(wav.readUInt32LE(24), 16000); assert.equal(wav.length, 32044);
-  assert.equal(ui.element('#save-voice-sample').disabled, true);
-  assert.equal(ui.microphoneStopped(), true);
-  assert.equal(ui.calls.some(call => ['/api/chat', '/api/stt'].includes(call.url)), false);
-});
-
-test('closing the enrolment page cancels microphone permission races and discards drafts', async t => {
-  const ui = browser(t, {microphone: true});
-  await openProfiles(ui); ui.element('#voice-consent').checked = true;
-  let resolvePermission; let stopped = false;
-  ui.window.navigator.mediaDevices.getUserMedia = () => new Promise(resolve => { resolvePermission = resolve; });
-  ui.element('#record-voice-sample').click(); await flush();
-  ui.element('[data-close="voices-panel"]').click();
-  resolvePermission({getTracks: () => [{stop: () => { stopped = true; }}]}); await flush();
-  assert.equal(stopped, true);
-  assert.equal(ui.element('#save-voice-sample').disabled, true);
-  await openProfiles(ui);
-  ui.window.navigator.mediaDevices.getUserMedia = async () => { throw new Error('Denied'); };
-  ui.element('#record-voice-sample').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Could not record/);
-  assert.equal(ui.element('#record-voice-sample').disabled, false);
-});
-
-test('voice recording duration is bounded and profile changes discard drafts', async t => {
-  const ui = browser(t, {microphone: true});
-  await openProfiles(ui); ui.element('#voice-consent').checked = true;
-  ui.element('#record-voice-sample').click(); await flush();
-  ui.recordSamples(new Float32Array(10).fill(0.1));
-  ui.element('#stop-voice-sample').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /at least one second/);
-  ui.element('#record-voice-sample').click(); await flush();
-  ui.recordSamples(new Float32Array(180000).fill(0.1)); await flush();
-  assert.equal(ui.element('#stop-voice-sample').disabled, true);
-  assert.equal(ui.element('#save-voice-sample').disabled, false);
+test('VoicePipeline profiles use exact enrolled names and escape recording text', async t => {
+  const ui = browser(t, {ingress: true}); await openProfiles(ui);
+  assert.match(ui.element('#voices-status').textContent, /VoicePipeline/);
+  assert.equal(ui.element('#voice-profile-select').options[1].value, 'Ed');
+  assert.equal(ui.element('#voice-sample-list img'), null);
+  assert.match(ui.element('#voice-sample-list').textContent, /<img src=x/);
+  ui.element('#voice-profile-select').value = 'Ed';
   ui.element('#voice-profile-select').dispatchEvent(new ui.window.Event('change'));
-  assert.equal(ui.element('#save-voice-sample').disabled, true);
+  assert.match(ui.element('#voice-profile-summary').textContent, /3 reference/);
+  voiceButton(ui, 'Use selected speaker').click(); await flush();
+  assert.equal(pipelineWrites(ui).length, 0);
+  assert.match(ui.element('#voices-status').textContent, /permission/);
+  ui.element('#voice-consent').checked = true;
+  voiceButton(ui, 'Use selected speaker').click(); await flush(); await flush();
+  assert.deepEqual(pipelineWrites(ui)[0], {operation: 'resolve', action: 'assign', interaction_id: 'recording-1',
+    assigned_to: 'Ed', consent: true, confirm: true});
+  assert.equal(ui.element('#voice-consent').checked, false);
+  assert.equal(ui.calls.some(call => ['/api/stt', '/api/chat', '/api/voice-profiles'].includes(call.url)), false);
 });
 
-test('saved voice samples can be listened to, exported and removed with confirmation', async t => {
-  const ui = browser(t);
-  const page = {profiles: [{id: 'jaco', name: 'Jaco', samples: [{id: 'sample', duration: 2}]}]};
-  ui.responses.set('/api/voice-profiles', page);
-  ui.element('#open-voices').click(); await flush();
-  ui.responses.set('/api/voice-profiles', {samples: [{audio: 'UklGRg=='}]});
-  ui.element('#voice-sample-list button').click(); await flush();
-  assert.equal(ui.element('#save-voice-sample').disabled, false);
-  ui.element('#export-voice-profile').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /No model was changed/);
-  ui.responses.set('/api/voice-profiles', {error: 'Unavailable'});
-  ui.element('#voice-sample-list button').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Unavailable/);
-  ui.element('#export-voice-profile').click(); await flush();
-  assert.match(ui.element('#voices-status').textContent, /Unavailable/);
-  ui.window.confirm = () => false; const count = ui.calls.length;
-  ui.element('#voice-sample-list button:last-child').click(); await flush(); assert.equal(ui.calls.length, count);
-  ui.window.confirm = () => true; ui.responses.set('/api/voice-profiles', profilePage);
-  ui.element('#voice-sample-list button:last-child').click(); await flush();
-  assert.equal(ui.element('#voice-sample-list').children.length, 0);
+test('new speaker enrolment requires a name and deliberate confirmation', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  ui.element('#voice-consent').checked = true;
+  voiceButton(ui, 'Enrol new speaker').click(); await flush();
+  assert.match(ui.element('#voices-status').textContent, /enter a new name/);
+  ui.element('#voice-profile-name').value = '  Kathy  ';
+  ui.window.confirm = () => false;
+  voiceButton(ui, 'Enrol new speaker').click(); await flush();
+  assert.equal(pipelineWrites(ui).length, 0);
+  ui.window.confirm = () => true;
+  voiceButton(ui, 'Enrol new speaker').click(); await flush(); await flush();
+  assert.equal(pipelineWrites(ui)[0].assigned_to, 'Kathy');
+  assert.equal(pipelineWrites(ui)[0].action, 'enrol');
 });
 
-test('WAV upload is size bounded and the file must still belong to the selected profile', async t => {
-  const ui = browser(t);
-  await openProfiles(ui);
-  const input = ui.element('#voice-sample-file');
-  Object.defineProperty(input, 'files', {configurable: true, value: [{size: 999999}]});
-  input.dispatchEvent(new ui.window.Event('change'));
-  assert.match(ui.element('#voices-status').textContent, /one to ten second/);
-  ui.window.FileReader = class {
-    readAsDataURL() { this.result = 'data:audio/wav;base64,UklGRg=='; this.onload(); }
-  };
-  Object.defineProperty(input, 'files', {configurable: true, value: [{size: 50}]});
-  input.dispatchEvent(new ui.window.Event('change'));
-  assert.equal(ui.element('#save-voice-sample').disabled, false);
+test('history corrections preserve resolution IDs, can undo, and show conflicts', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  const history = {interactions: [{id: 'old', status: 'resolved', transcript: 'Hi', current_resolution_id: 'revision-1'}]};
+  ui.responses.set('/api/voicepipeline', options => options?.body ? history : pipelinePage);
+  ui.element('#voice-history').click(); await flush(); await flush();
+  ui.element('#voice-consent').checked = true;
+  ui.responses.set('/api/voicepipeline', options => options?.body ? {error: 'This recording changed. Refresh.'} : pipelinePage);
+  voiceButton(ui, 'Correct speaker').click(); await flush();
+  assert.deepEqual(pipelineWrites(ui).at(-1), {operation: 'correct', interaction_id: 'old', expected_resolution_id: 'revision-1', assigned_to: 'Jaco', consent: true, confirm: true});
+  assert.match(ui.element('#voices-status').textContent, /recording changed/);
+  ui.responses.set('/api/voicepipeline', options => options?.body ? history : pipelinePage);
+  ui.element('#voice-consent').checked = false;
+  voiceButton(ui, 'Return to pending').click(); await flush(); await flush();
+  assert.equal(pipelineWrites(ui).find(value => value.operation === 'correct' && value.assigned_to === null).expected_resolution_id, 'revision-1');
+});
+
+test('speaker deletion and reference clearing use IDs and require confirmation', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  ui.window.confirm = () => false; ui.element('#delete-voice-profile').click(); await flush();
+  assert.equal(pipelineWrites(ui).length, 0);
+  ui.window.confirm = () => true; ui.element('#delete-voice-profile').click(); await flush(); await flush();
+  assert.equal(pipelineWrites(ui)[0].speaker_id, 'jaco-id');
+  assert.equal(pipelineWrites(ui)[0].operation, 'delete_speaker');
+  ui.element('#clear-voice-clips').click(); await flush(); await flush();
+  assert.equal(pipelineWrites(ui).at(-1).operation, 'clear_clips');
+  voiceButton(ui, 'Dismiss').click(); await flush(); await flush();
+  assert.equal(pipelineWrites(ui).at(-1).action, 'dismiss');
+});
+
+test('duplicate clicks submit once and a failed write is never retried', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  let finish;
+  ui.responses.set('/api/voicepipeline', () => new Promise(resolve => { finish = resolve; }));
+  const button = voiceButton(ui, 'Dismiss'); button.click(); button.click(); await flush();
+  assert.equal(pipelineWrites(ui).length, 1);
+  finish({error: 'Could not confirm result. Refresh before retrying.'}); await flush();
+  assert.match(ui.element('#voices-status').textContent, /Refresh before retrying/);
+  assert.equal(pipelineWrites(ui).length, 1);
+});
+
+test('audio is only fetched on request and late playback is discarded on close', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  assert.equal(pipelineWrites(ui).length, 0);
+  ui.responses.set('/api/voicepipeline', {audio: 'UklGRjAwMDBXQVZFZGF0YQ=='});
+  voiceButton(ui, 'Listen').click(); await flush();
+  assert.equal(ui.element('#voice-sample-preview').src, 'blob:test-audio');
+  assert.equal(pipelineWrites(ui)[0].operation, 'audio');
+  let finish;
+  ui.responses.set('/api/voicepipeline', () => new Promise(resolve => { finish = resolve; }));
+  voiceButton(ui, 'Listen').click(); await flush();
   ui.element('[data-close="voices-panel"]').click();
-  assert.equal(ui.element('#save-voice-sample').disabled, true);
+  finish({audio: 'UklGRg=='}); await flush();
+  assert.equal(ui.element('#voice-sample-preview').hasAttribute('src'), false);
+});
+
+test('closing invalidates a pending profile load and an outage remains visible', async t => {
+  const ui = browser(t); let finish;
+  ui.responses.set('/api/voicepipeline', () => new Promise(resolve => { finish = resolve; }));
+  ui.element('#open-voices').click(); await flush();
+  ui.element('[data-close="voices-panel"]').click();
+  finish(pipelinePage); await flush();
+  assert.equal(ui.element('#voice-profile-select').options.length, 0);
+  ui.responses.set('/api/voicepipeline', {error: 'VoicePipeline unavailable'});
+  ui.element('#open-voices').click(); await flush();
+  assert.match(ui.element('#voices-status').textContent, /unavailable/);
 });
