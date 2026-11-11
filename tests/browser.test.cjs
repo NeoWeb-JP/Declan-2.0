@@ -478,7 +478,7 @@ async function openProfiles(ui) {
   ui.element('#open-voices').click(); await flush(); await flush();
 }
 function voiceButton(ui, label) {
-  return [...ui.window.document.querySelectorAll('#voice-sample-list button')].find(value => value.textContent === label);
+  return [...ui.window.document.querySelectorAll('#voice-sample-list button')].find(value => value.textContent === label || value.textContent.startsWith(label + ' ('));
 }
 function pipelineWrites(ui) {
   return ui.calls.filter(call => call.url === '/api/voicepipeline' && call.options?.body).map(call => JSON.parse(call.options.body));
@@ -677,3 +677,60 @@ test('turning testing off or a failed check clears obsolete prerelease choices',
   assert.equal(ui.element('#install-update').disabled, true);
 });
 
+
+test('missing permission and upstream assignment failures appear beside the recording', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  voiceButton(ui, 'Use selected speaker').click(); await flush();
+  assert.match(ui.element('#voice-sample-list .sample-feedback').textContent, /Tick the permission/);
+  assert.equal(pipelineWrites(ui).length, 0);
+  ui.element('#voice-consent').checked = true;
+  ui.responses.set('/api/voicepipeline', {error: 'VoicePipeline unavailable'});
+  voiceButton(ui, 'Use selected speaker').click(); await flush();
+  assert.match(ui.element('#voice-sample-list .sample-feedback').textContent, /VoicePipeline unavailable/);
+});
+
+test('correcting a suggestion names the chosen speaker and refreshes the saved upstream result', async t => {
+  const ui = browser(t);
+  const before = {profiles: pipelinePage.profiles, interactions: [{id:'wrong-match', status:'pending',
+    matched_speaker:'Jaco', match_confidence:0.55, transcript:'Hello'}], notice:'Ready'};
+  let saved = false;
+  ui.responses.set('/api/voicepipeline', options => {
+    if (options?.body) { saved = true; return {saved:true, result:{cache_refresh_requested:true}}; }
+    return saved ? {...before, interactions:[]} : before;
+  });
+  ui.element('#open-voices').click(); await flush(); await flush();
+  ui.element('#voice-profile-select').value = 'Ed';
+  ui.element('#voice-profile-select').dispatchEvent(new ui.window.Event('change'));
+  assert.equal(voiceButton(ui, 'Use selected speaker').textContent, 'Use selected speaker (Ed)');
+  assert.match(ui.element('#voice-sample-list .sample-meta').textContent, /Suggested: Jaco.*55%/);
+  let confirmation;
+  ui.window.confirm = message => { confirmation = message; return true; };
+  ui.element('#voice-consent').checked = true;
+  voiceButton(ui, 'Use selected speaker').click(); await flush(); await flush();
+  assert.match(confirmation, /Assign this recording to Ed/);
+  assert.deepEqual(pipelineWrites(ui)[0], {operation:'resolve', action:'assign', interaction_id:'wrong-match',
+    assigned_to:'Ed', consent:true, confirm:true});
+  assert.match(ui.element('#voice-sample-list').textContent, /No recordings/);
+  assert.match(ui.element('#voices-status').textContent, /assigned to Ed in VoicePipeline/);
+});
+
+test('speaker statistics show upstream averages and distinguish the original match after correction', async t => {
+  const ui = browser(t);
+  ui.responses.set('/api/voicepipeline', {profiles:[
+    {...pipelinePage.profiles[0], avg_confidence:0.876}, {...pipelinePage.profiles[1], avg_confidence:0}
+  ], interactions:[{id:'corrected', status:'resolved', matched_speaker:'Jaco',
+    current_assigned_to:'Ed', match_confidence:0.55}], notice:'Ready'});
+  ui.element('#open-voices').click(); await flush(); await flush();
+  assert.match(ui.element('#voice-profile-summary').textContent, /Average confidence: 87.6%/);
+  const rows = ui.window.document.querySelectorAll('#voice-profile-stats tr');
+  assert.match(rows[0].textContent, /Jaco.*87.6%/);
+  assert.match(rows[1].textContent, /Ed.*0%/);
+  assert.match(ui.element('#voice-sample-list .sample-meta').textContent, /Assigned: Ed.*Original match: Jaco.*55%/);
+  for (const value of [undefined, null, '', '0.5', -1, 1.1, NaN, Infinity]) {
+    ui.responses.set('/api/voicepipeline', {profiles:[{...pipelinePage.profiles[0], avg_confidence:value}],
+      interactions:[{id:'sample',status:'pending',match_confidence:value}],notice:'Ready'});
+    ui.element('#refresh-voices').click(); await flush(); await flush();
+    assert.match(ui.element('#voice-profile-summary').textContent, /Average confidence: Unavailable/);
+    assert.match(ui.element('#voice-sample-list .sample-meta').textContent, /Match confidence: Unavailable/);
+  }
+});
