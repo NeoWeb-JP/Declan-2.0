@@ -676,3 +676,4 @@ test('turning testing off or a failed check clears obsolete prerelease choices',
   assert.equal(ui.element('#update-version').options.length, 0);
   assert.equal(ui.element('#install-update').disabled, true);
 });
+

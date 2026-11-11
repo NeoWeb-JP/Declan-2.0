@@ -237,7 +237,7 @@ button:disabled { opacity: .55; }
   <p class="mono">Tap the orb to pause or resume listening</p>
   <details class="keyboard" id="keyboard">
     <summary>
-      <span class="key-icon" aria-hidden="true">?</span>
+      <span class="key-icon" aria-hidden="true">⌨</span>
       <span class="show-keyboard">Use keyboard</span>
       <span class="hide-keyboard">Hide keyboard</span>
     </summary>
@@ -374,7 +374,7 @@ async function refreshHAStatus() {
     // A failed connection check must never be shown as connected.
   }
   haStatus.dataset.state = state;
-  const label = [haStatusLabels[state], buildLabel].filter(Boolean).join(' � ');
+  const label = [haStatusLabels[state], buildLabel].filter(Boolean).join(' · ');
   if (haStatus.textContent !== label) haStatus.textContent = label;
   setTimeout(refreshHAStatus, 15000);
 }
@@ -424,7 +424,7 @@ async function watchUpdate(version) {
 checkUpdates.addEventListener('click', async () => {
   checkUpdates.disabled = includePrereleases.disabled = updateVersion.disabled = installUpdate.disabled = true;
   updateVersion.replaceChildren();
-  updateStatus.textContent = 'Checking GitHub.';
+  updateStatus.textContent = 'Checking GitHub…';
   try {
     const response = await fetch('./api/updates', includePrereleases.checked ? {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -482,7 +482,7 @@ const olderHistory = document.querySelector('#older-history');
 const clearHistory = document.querySelector('#clear-history');
 let historyCursor = null;
 let loadingHistory = false;
-const sources = {assist: 'Assist', ha_sentence: 'Assist � Home Assistant routine', browser_voice: 'Browser voice', browser_keyboard: 'Browser keyboard'};
+const sources = {assist: 'Assist', ha_sentence: 'Assist · Home Assistant routine', browser_voice: 'Browser voice', browser_keyboard: 'Browser keyboard'};
 
 async function updateLearnedIntent(change) {
   const response = await fetch('./api/history/intents', {
@@ -499,12 +499,12 @@ function renderLearnedIntents(aliases) {
   list.replaceChildren();
   for (const [phrase, target] of Object.entries(aliases)) {
     const item = document.createElement('li');
-    item.textContent = `"${phrase}"  "${target}" `;
+    item.textContent = `“${phrase}” → “${target}” `;
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = 'Forget';
     button.addEventListener('click', async () => {
-      if (!window.confirm(`Forget the correction for "${phrase}"?`)) return;
+      if (!window.confirm(`Forget the correction for “${phrase}”?`)) return;
       button.disabled = true;
       try {
         await updateLearnedIntent({forget: phrase});
@@ -576,7 +576,7 @@ async function loadHistory(older = false) {
   if (loadingHistory || (older && historyCursor === null)) return;
   loadingHistory = true;
   clearHistory.disabled = true;
-  historyStatus.textContent = 'Loading history.';
+  historyStatus.textContent = 'Loading history…';
   try {
     const query = older ? '?before=' + encodeURIComponent(historyCursor) : '';
     const response = await fetch('./api/history' + query);
@@ -588,8 +588,8 @@ async function loadHistory(older = false) {
       const row = document.createElement('li');
       const meta = document.createElement('div');
       meta.className = 'mono turn-meta';
-      meta.textContent = new Date(turn.created_at).toLocaleString() + ' � ' + (sources[turn.source] || 'Declan');
-      if (turn.outcome) meta.textContent += ' � ' + turn.outcome.replaceAll('_', ' ');
+      meta.textContent = new Date(turn.created_at).toLocaleString() + ' · ' + (sources[turn.source] || 'Declan');
+      if (turn.outcome) meta.textContent += ' · ' + turn.outcome.replaceAll('_', ' ');
       const message = document.createElement('div');
       message.textContent = (turn.speaker_match?.name || 'You') + ': ' + turn.message;
       const reply = document.createElement('div');
@@ -652,7 +652,7 @@ async function loadHistory(older = false) {
       if (turn.phrase_suggestion) {
         const suggestion = document.createElement('div');
         suggestion.className = 'turn-status';
-        suggestion.textContent = 'Possible rephrase (review only): "' + turn.phrase_suggestion + '"  "' + turn.message + '"';
+        suggestion.textContent = 'Possible rephrase (review only): “' + turn.phrase_suggestion + '” → “' + turn.message + '”';
         row.append(suggestion);
       }
       if (turn.teachable) row.append(teachIntentionControl(turn));
@@ -682,7 +682,7 @@ const spotifyStatus = document.querySelector('#spotify-status');
 document.querySelector('#open-spotify').addEventListener('click', async () => {
   historySettings.open = false;
   spotifyPanel.showModal();
-  spotifyStatus.textContent = 'Checking saved credentials.';
+  spotifyStatus.textContent = 'Checking saved credentials…';
   try {
     const response = await fetch('./api/settings/spotify');
     if (!response.ok) throw new Error();
@@ -925,7 +925,7 @@ function add(speaker, text) {
     latestMessage.textContent = text;
     latestReply.textContent = '';
   } else {
-    latestReply.textContent = speaker + ' � ' + text;
+    latestReply.textContent = speaker + ' · ' + text;
   }
 }
 async function sendMessage(message, fromVoice = false) {
@@ -938,7 +938,7 @@ async function sendMessage(message, fromVoice = false) {
   add('You', message);
   if (!fromVoice) input.value = '';
   busy = true;
-  voiceStatus.textContent = 'Thinking.';
+  voiceStatus.textContent = 'Thinking…';
   updateControls();
   try {
     const response = await fetch('./api/chat', {
@@ -990,7 +990,7 @@ async function sendMessage(message, fromVoice = false) {
     add('Chat', 'Could not get a reply. ' + error.message);
   } finally {
     busy = false;
-    if (voiceStatus.textContent === 'Thinking.') voiceStatus.textContent = '';
+    if (voiceStatus.textContent === 'Thinking…') voiceStatus.textContent = '';
     updateControls();
     scheduleListening();
     if (!fromVoice) input.focus();
@@ -1058,7 +1058,7 @@ async function startAssistListening() {
     assistRecording = recording;
     listening = true;
     updateControls();
-    voiceStatus.textContent = 'Opening microphone.';
+    voiceStatus.textContent = 'Opening microphone…';
     const resume = audio.resume();
     void resume.catch(() => {});
     const stream = captureStream || await navigator.mediaDevices.getUserMedia({
@@ -1136,7 +1136,7 @@ if (recognition) {
     }
     if (hasInterim || !voiceTranscript) return;
     const unfinished = incompleteVoiceCommand.test(voiceTranscript);
-    voiceStatus.textContent = unfinished ? 'Keep going. I'm listening.' : 'Listening.';
+    voiceStatus.textContent = unfinished ? 'Keep going. I’m listening.' : 'Listening.';
     voiceSubmitTimer = setTimeout(() => {
       const message = voiceTranscript;
       voiceTranscript = '';
@@ -1223,7 +1223,7 @@ async function loadDiagnostics() {
     for (const trace of result.traces) {
       const details = document.createElement('details');
       const summary = document.createElement('summary');
-      summary.textContent = `${trace.created_at} � ${trace.route} � ${trace.outcome} � ${trace.duration_ms} ms`;
+      summary.textContent = `${trace.created_at} · ${trace.route} · ${trace.outcome} · ${trace.duration_ms} ms`;
       const evidence = document.createElement('p');
       evidence.textContent = `Request ${trace.id}. ` + trace.stages.map(stage =>
         `${stage.stage}: ${stage.outcome} (${stage.duration_ms} ms)${stage.error ? ' ' + stage.error : ''}`).join('; ');
@@ -1303,7 +1303,7 @@ async function loadVoices(history = false) {
   if (voiceBusy) return;
   const version = ++voiceVersion;
   clearVoiceAudio(); setVoiceBusy(true);
-  voicesStatus.textContent = 'Loading VoicePipeline.';
+  voicesStatus.textContent = 'Loading VoicePipeline…';
   try {
     const result = await managementRequest('voicepipeline');
     const entries = history ? await managementRequest('voicepipeline', {operation: 'history'}) : result;
@@ -1333,7 +1333,7 @@ async function changeVoice(body, question) {
   if (voiceBusy) return;
   const needsConsent = body.assigned_to != null;
   if (needsConsent && !document.querySelector('#voice-consent').checked) {
-    voicesStatus.textContent = 'Confirm permission to use this person's voice first.'; return;
+    voicesStatus.textContent = 'Confirm permission to use this person’s voice first.'; return;
   }
   if (needsConsent && !body.assigned_to) { voicesStatus.textContent = 'Choose a speaker or enter a new name.'; return; }
   if (!window.confirm(question)) return;
@@ -1361,7 +1361,7 @@ function renderVoiceInteractions(entries, history) {
     const metadata = document.createElement('p'); metadata.className = 'sample-meta';
     const date = new Date(entry.recorded_at);
     const recordedAt = Number.isNaN(date.getTime()) ? 'Time unavailable' : date.toLocaleString('en-GB', {dateStyle: 'medium', timeStyle: 'short'});
-    metadata.textContent = `${recordedAt} � ${entry.current_assigned_to || entry.matched_speaker || 'Unknown'} � ${entry.status}`;
+    metadata.textContent = `${recordedAt} · ${entry.current_assigned_to || entry.matched_speaker || 'Unknown'} · ${entry.status}`;
     const actions = document.createElement('div'); actions.className = 'action-row';
     item.append(transcript, metadata, actions);
     const button = (label, callback) => {
@@ -1386,7 +1386,7 @@ function renderVoiceInteractions(entries, history) {
     });
     if (!history) {
       button('Use selected speaker', () => changeVoice({operation: 'resolve', action: 'assign', interaction_id: entry.id,
-        assigned_to: profileSelect.value}, 'Add this recording to the selected speaker's recognition references?'));
+        assigned_to: profileSelect.value}, 'Add this recording to the selected speaker’s recognition references?'));
       button('Enrol new speaker', () => changeVoice({operation: 'resolve', action: 'enrol', interaction_id: entry.id,
         assigned_to: document.querySelector('#voice-profile-name').value.trim()}, 'Create a VoicePipeline speaker profile using this recording?'));
       button('Dismiss', () => changeVoice({operation: 'resolve', action: 'dismiss', interaction_id: entry.id}, 'Dismiss this recording without adding it to speaker references?'));
@@ -1413,7 +1413,7 @@ voicesPanel.addEventListener('close', () => {
 });
 for (const [id, operation, question] of [
   ['delete-voice-profile', 'delete_speaker', 'Delete this speaker profile from VoicePipeline? This does not promise deletion of retained interaction audio or backups.'],
-  ['clear-voice-clips', 'clear_clips', 'Clear this speaker's recognition reference list? The profile and retained interaction audio are separate.']
+  ['clear-voice-clips', 'clear_clips', 'Clear this speaker’s recognition reference list? The profile and retained interaction audio are separate.']
 ]) document.querySelector('#' + id).addEventListener('click', () => {
   const profile = voiceProfiles.find(value => value.name === profileSelect.value);
   if (profile) void changeVoice({operation, speaker_id: profile.id}, question);
@@ -1421,3 +1421,4 @@ for (const [id, operation, question] of [
 
 </script>
 </html>
+
