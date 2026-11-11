@@ -86,6 +86,8 @@ class HTTPPolicyTests(TestCase):
         nonces = re.findall(br'<script nonce="([^"]+)"', page)
         self.assertEqual(len(nonces), scripts)
         self.assertEqual(len(set(nonces)), 1)
+        for tag in re.findall(br'<script[^>]*>', page):
+            self.assertEqual(tag.count(b'nonce='), 1)
         csp = headers['Content-Security-Policy']
         self.assertIn("script-src 'nonce-" + nonces[0].decode() + "'", csp)
         self.assertNotIn("script-src 'unsafe-inline'", csp)
@@ -131,6 +133,44 @@ class HTTPPolicyTests(TestCase):
         status, headers, _ = self.request('/api/assist', method='POST', token='bridge-secret', body={})
         self.assertEqual(status, 400)
         self.assertNotIn('Retry-After', headers)
+
+    def test_history_and_export_do_not_disclose_expired_turns(self):
+        directory = self.enterContext(TemporaryDirectory())
+        self.enterContext(patch.object(history, 'DATABASE', Path(directory) / 'history.sqlite3'))
+        self.enterContext(patch.dict(os.environ, {'DECLAN_HISTORY_RETENTION_DAYS': '1'}))
+        history.record('new', 'assist', 'recent words', 'reply')
+        history.record('old', 'assist', 'expired private words', 'reply')
+        with history.database() as db:
+            db.execute('UPDATE turns SET created_at=1 WHERE session_id=?', ('old',))
+        for path in ('/api/history', '/api/history/export'):
+            status, _, data = self.request(path)
+            self.assertEqual(status, 200)
+            turns = json.loads(data)['turns']
+            self.assertEqual([turn['message'] for turn in turns], ['recent words'])
+        with history.database() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM turns').fetchone(), (2,))
+
+
+class BindTests(TestCase):
+    def test_assist_can_be_restricted_to_loopback_without_changing_launcher(self):
+        with patch.dict(os.environ, {'DECLAN_ASSIST_TOKEN': 's' * 32, 'DECLAN_BIND_ADDRESS': '127.0.0.1'}), \
+                patch('sys.argv', ['server.py', '--assist-lan']), \
+                patch.object(server.history, 'initialize'), patch.object(server.timers, 'initialize'), \
+                patch.object(server, 'ThreadingHTTPServer', side_effect=OSError('test bind')) as constructor:
+            with self.assertRaises(SystemExit):
+                server.main()
+            self.assertEqual(constructor.call_args.args[0], ('127.0.0.1', 52737))
+
+    def test_bad_bind_setting_fails_before_opening_a_socket(self):
+        for value in ('declan.example.net', '127.0.0.1:1234', '::1'):
+            with self.subTest(value=value), \
+                    patch.dict(os.environ, {'DECLAN_ASSIST_TOKEN': 's' * 32, 'DECLAN_BIND_ADDRESS': value}), \
+                    patch('sys.argv', ['server.py', '--assist-lan']), \
+                    patch.object(server.history, 'initialize'), patch.object(server.timers, 'initialize'), \
+                    patch.object(server, 'ThreadingHTTPServer') as constructor:
+                with self.assertRaises(SystemExit):
+                    server.main()
+                constructor.assert_not_called()
 
 
 class RetentionTests(TestCase):
