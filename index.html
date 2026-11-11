@@ -143,6 +143,8 @@ button:disabled { opacity: .55; }
 .history button, .history a, .settings-menu button { min-height: 44px; padding: .6rem .85rem; }
 .history button, .history a { display: inline-flex; align-items: center; justify-content: center; text-align: center; }
 .history button:hover:not(:disabled), .history a:hover { background: #19394b; }
+.sample-feedback:empty { display: none; }
+.sample-feedback { margin: 0; color: #c7f7ff; overflow-wrap: anywhere; }
 .history button[aria-pressed="true"] { color: #e7f7ff; background: #19485c; border-color: #62c7df; }
 .dialog-body > button { justify-self: start; }
 .history .field { display: grid; gap: .5rem; align-content: start; min-width: 0; }
@@ -167,6 +169,11 @@ button:disabled { opacity: .55; }
 #diagnostics-list details { padding: .85rem; border: 1px solid #203747; border-radius: .5rem; }
 #diagnostics-list summary { line-height: 1.6; }
 #settings-preview { padding: 1rem; background: #060f18; border: 1px solid #203747; border-radius: .5rem; overflow-wrap: anywhere; }
+.speaker-table-wrap { overflow-x: auto; }
+.speaker-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.speaker-table caption { text-align: left; font-weight: 600; padding-bottom: .5rem; }
+.speaker-table th, .speaker-table td { text-align: left; padding: .65rem; border-bottom: 1px solid #264656; }
+.speaker-table th { color: #a1ccdf; }
 .speaker-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .speaker-fields > div { display: grid; align-content: start; gap: .5rem; padding: 1rem;
   border: 1px solid #203747; border-radius: .5rem; }
@@ -330,8 +337,15 @@ button:disabled { opacity: .55; }
         <p id="voice-profile-summary"></p></div>
       <div><label class="field">New speaker name <input id="voice-profile-name" maxlength="40" autocomplete="off" placeholder="Enter a name to enrol someone"></label></div>
     </div>
+    <div class="speaker-table-wrap">
+      <table class="speaker-table"><caption>Enrolled speakers</caption>
+        <thead><tr><th scope="col">Speaker</th><th scope="col">References</th><th scope="col">Interactions</th><th scope="col">Average confidence</th></tr></thead>
+        <tbody id="voice-profile-stats"></tbody>
+      </table>
+    </div>
     <label class="check-field"><input type="checkbox" id="voice-consent"> I have permission to use this person's recording for speaker recognition.</label>
   </section>
+  <p id="voices-status" role="status"></p>
   <section aria-labelledby="recordings-title">
     <h3 id="recordings-title">2. Listen and assign</h3>
     <p id="voice-pending-help">Listen to a recording, then assign it to the selected speaker or enrol a new speaker. This adds it to their recognition references.</p>
@@ -339,7 +353,6 @@ button:disabled { opacity: .55; }
     <audio id="voice-sample-preview" controls hidden aria-label="Selected voice recording"></audio>
     <ul id="voice-sample-list" aria-label="Voice recordings"></ul>
   </section>
-  <p id="voices-status" role="status"></p>
   <details class="profile-maintenance">
     <summary>Manage selected speaker</summary>
     <div class="action-row">
@@ -1293,10 +1306,24 @@ function setVoiceBusy(value) {
   voiceBusy = value;
   for (const control of voicesPanel.querySelectorAll('button:not([data-close]), select, input')) control.disabled = value;
 }
+function voiceConfidence(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+    ? (value * 100).toLocaleString('en-GB', {maximumFractionDigits: 1}) + '%' : 'Unavailable';
+}
+function renderVoiceProfileStats() {
+  const rows = document.querySelector('#voice-profile-stats'); rows.replaceChildren();
+  for (const profile of voiceProfiles) {
+    const row = document.createElement('tr');
+    for (const value of [profile.name, profile.reference_clip_count, profile.interaction_count, voiceConfidence(profile.avg_confidence)]) {
+      const cell = document.createElement('td'); cell.textContent = value ?? 'Unavailable'; row.append(cell);
+    }
+    rows.append(row);
+  }
+}
 function renderVoiceSummary() {
   const profile = voiceProfiles.find(value => value.name === profileSelect.value);
   document.querySelector('#voice-profile-summary').textContent = profile
-    ? `${profile.reference_clip_count} reference recordings; ${profile.interaction_count} interactions. Profile stored in VoicePipeline.`
+    ? `${profile.reference_clip_count} reference recordings; ${profile.interaction_count} interactions. Average confidence: ${voiceConfidence(profile.avg_confidence)}. Profile stored in VoicePipeline.`
     : 'No enrolled speakers. Review a pending recording to enrol someone.';
 }
 async function loadVoices(history = false) {
@@ -1320,7 +1347,7 @@ async function loadVoices(history = false) {
       profileSelect.append(option);
     }
     if (voiceProfiles.some(profile => profile.name === selected)) profileSelect.value = selected;
-    renderVoiceSummary(); renderVoiceInteractions(entries.interactions, history);
+    renderVoiceSummary(); renderVoiceProfileStats(); renderVoiceInteractions(entries.interactions, history);
     voicesStatus.textContent = result.notice + (history ? ' Showing up to 100 history recordings.' : '');
   } catch (error) {
     if (version === voiceVersion && voicesPanel.open) {
@@ -1329,14 +1356,19 @@ async function loadVoices(history = false) {
     }
   } finally { if (version === voiceVersion) setVoiceBusy(false); }
 }
-async function changeVoice(body, question) {
+function reportVoiceChange(message, feedback) {
+  voicesStatus.textContent = message;
+  if (feedback) feedback.textContent = message;
+}
+async function changeVoice(body, question, feedback) {
   if (voiceBusy) return;
   const needsConsent = body.assigned_to != null;
   if (needsConsent && !document.querySelector('#voice-consent').checked) {
-    voicesStatus.textContent = 'Confirm permission to use this person’s voice first.'; return;
+    reportVoiceChange('Tick the permission checkbox above before assigning this recording.', feedback); return;
   }
-  if (needsConsent && !body.assigned_to) { voicesStatus.textContent = 'Choose a speaker or enter a new name.'; return; }
+  if (needsConsent && !body.assigned_to) { reportVoiceChange('Choose a speaker or enter a new name.', feedback); return; }
   if (!window.confirm(question)) return;
+  reportVoiceChange('Saving change in VoicePipeline.', feedback);
   setVoiceBusy(true); const version = ++voiceVersion;
   try {
     const result = await managementRequest('voicepipeline', {...body, consent: needsConsent, confirm: true});
@@ -1345,9 +1377,10 @@ async function changeVoice(body, question) {
     setVoiceBusy(false); await loadVoices(voiceHistory);
     if (voicesPanel.open) voicesStatus.textContent += result.result?.cache_refresh_requested === false
       ? ' Saved, but VoicePipeline could not request its speaker cache refresh. Check VoicePipeline before relying on the correction.'
+      : body.assigned_to ? ` Recording assigned to ${body.assigned_to} in VoicePipeline. Live recognition still needs checking.`
       : ' Change saved in VoicePipeline. Live recognition still needs checking.';
   } catch (error) {
-    if (version === voiceVersion && voicesPanel.open) voicesStatus.textContent = error.message;
+    if (version === voiceVersion && voicesPanel.open) reportVoiceChange(error.message, feedback);
   } finally { if (version === voiceVersion) setVoiceBusy(false); }
 }
 function renderVoiceInteractions(entries, history) {
@@ -1361,12 +1394,15 @@ function renderVoiceInteractions(entries, history) {
     const metadata = document.createElement('p'); metadata.className = 'sample-meta';
     const date = new Date(entry.recorded_at);
     const recordedAt = Number.isNaN(date.getTime()) ? 'Time unavailable' : date.toLocaleString('en-GB', {dateStyle: 'medium', timeStyle: 'short'});
-    metadata.textContent = `${recordedAt} · ${entry.current_assigned_to || entry.matched_speaker || 'Unknown'} · ${entry.status}`;
+    metadata.textContent = `${recordedAt} · ${entry.current_assigned_to ? 'Assigned: ' + entry.current_assigned_to + ' · Original match: ' : 'Suggested: '}${entry.matched_speaker || 'Unknown'} · Match confidence: ${voiceConfidence(entry.match_confidence)} · ${entry.status}`;
     const actions = document.createElement('div'); actions.className = 'action-row';
-    item.append(transcript, metadata, actions);
+    const feedback = document.createElement('p'); feedback.className = 'sample-feedback';
+    feedback.setAttribute('role', 'status');
+    item.append(transcript, metadata, actions, feedback);
     const button = (label, callback) => {
       const control = document.createElement('button'); control.type = 'button'; control.textContent = label;
       control.addEventListener('click', callback); actions.append(control);
+      return control;
     };
     button('Listen', async () => {
       if (voiceBusy) return;
@@ -1385,23 +1421,32 @@ function renderVoiceInteractions(entries, history) {
       } catch (error) { if (version === voiceAudioVersion && voicesPanel.open) voicesStatus.textContent = error.message; }
     });
     if (!history) {
-      button('Use selected speaker', () => changeVoice({operation: 'resolve', action: 'assign', interaction_id: entry.id,
-        assigned_to: profileSelect.value}, 'Add this recording to the selected speaker’s recognition references?'));
+      const assign = button('Use selected speaker', () => changeVoice({operation: 'resolve', action: 'assign', interaction_id: entry.id,
+        assigned_to: profileSelect.value}, `Assign this recording to ${profileSelect.value} and add it to their recognition references?`, feedback));
+      assign.dataset.voiceAssign = 'pending';
       button('Enrol new speaker', () => changeVoice({operation: 'resolve', action: 'enrol', interaction_id: entry.id,
-        assigned_to: document.querySelector('#voice-profile-name').value.trim()}, 'Create a VoicePipeline speaker profile using this recording?'));
-      button('Dismiss', () => changeVoice({operation: 'resolve', action: 'dismiss', interaction_id: entry.id}, 'Dismiss this recording without adding it to speaker references?'));
+        assigned_to: document.querySelector('#voice-profile-name').value.trim()}, 'Create a VoicePipeline speaker profile using this recording?', feedback));
+      button('Dismiss', () => changeVoice({operation: 'resolve', action: 'dismiss', interaction_id: entry.id}, 'Dismiss this recording without adding it to speaker references?', feedback));
     } else if (['resolved', 'dismissed'].includes(entry.status)) {
-      button('Correct speaker', () => changeVoice({operation: 'correct', interaction_id: entry.id,
+      const correct = button('Correct speaker', () => changeVoice({operation: 'correct', interaction_id: entry.id,
         expected_resolution_id: entry.current_resolution_id, assigned_to: profileSelect.value},
-        'Correct the speaker and remove references belonging to other speakers? This does not add a new reference.'));
+        `Correct this recording to ${profileSelect.value} and remove references belonging to other speakers? This does not add a new reference.`, feedback));
+      correct.dataset.voiceAssign = 'history';
       button('Return to pending', () => changeVoice({operation: 'correct', interaction_id: entry.id,
-        expected_resolution_id: entry.current_resolution_id, assigned_to: null}, 'Remove this recording from speaker references and return it to pending?'));
+        expected_resolution_id: entry.current_resolution_id, assigned_to: null}, 'Remove this recording from speaker references and return it to pending?', feedback));
     }
     list.append(item);
   }
   if (!entries.length) { const item = document.createElement('li'); item.textContent = 'No recordings to review.'; list.append(item); }
+  updateVoiceAssignmentLabels();
 }
-profileSelect.addEventListener('change', renderVoiceSummary);
+function updateVoiceAssignmentLabels() {
+  for (const control of voicesPanel.querySelectorAll('[data-voice-assign]')) {
+    const action = control.dataset.voiceAssign === 'history' ? 'Correct speaker' : 'Use selected speaker';
+    control.textContent = profileSelect.value ? `${action} (${profileSelect.value})` : action;
+  }
+}
+profileSelect.addEventListener('change', () => { renderVoiceSummary(); updateVoiceAssignmentLabels(); });
 document.querySelector('#open-voices').addEventListener('click', () => {
   pauseListening(); voicesPanel.showModal(); void loadVoices();
 });
