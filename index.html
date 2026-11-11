@@ -334,7 +334,7 @@ checkUpdates.addEventListener('click', async () => {
       const versions = result.versions.filter(version => version !== result.current);
       updateVersion.replaceChildren(...versions.map(version => new Option(version, version)));
       updateVersion.disabled = installUpdate.disabled = !versions.length;
-      updateStatus.textContent = versions.length ? `Running ${result.current || 'a development build'}.` : 'No other tagged releases found.';
+      updateStatus.textContent = versions.length ? `Running ${result.current || 'a development build'}.` : 'No other eligible releases found.';
     }
   } catch (error) {
     updateStatus.textContent = error.message;

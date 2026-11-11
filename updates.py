@@ -9,12 +9,17 @@ import re
 import shutil
 import subprocess
 import sys
+from http.client import HTTPException
 from pathlib import Path
 from tempfile import mkdtemp
 from threading import Event, Lock, Thread
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 
 REPOSITORY = "https://github.com/NeoWeb-JP/Declan-2.0.git"
+RELEASES_API = "https://api.github.com/repos/NeoWeb-JP/Declan-2.0/releases?per_page=100"
+MAX_RELEASE_BYTES = 2 * 1024 * 1024
 VERSION = re.compile(r"v?(\d{1,8})\.(\d{1,8})\.(\d{1,8})(?:-[0-9A-Za-z.-]{1,20})?")
 APP = Path(__file__).resolve().parent
 RESTART = Event()
@@ -38,6 +43,69 @@ def trusted_releases():
             and re.fullmatch(r"[a-f0-9]{40}", sha) for tag, sha in pins.items()):
         raise ValueError("Invalid release allow-list.")
     return pins
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def release_source():
+    source = os.environ.get('DECLAN_UPDATE_SOURCE', 'github').strip()
+    if source not in {'github', 'pinned'}:
+        raise ValueError('Choose github or pinned for DECLAN_UPDATE_SOURCE.')
+    return source
+
+
+def published_tags():
+    """Only published stable releases in the fixed repository are candidates.
+
+    GitHub publication is the trust boundary in the default channel. This is
+    repository trust over HTTPS, not independent cryptographic release signing.
+    Do not fetch code or assets from URLs returned in release metadata.
+    """
+    request = Request(RELEASES_API, headers={'Accept': 'application/vnd.github+json',
+                                          'User-Agent': 'Declan-release-updater',
+                                          'X-GitHub-Api-Version': '2022-11-28'})
+    try:
+        with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=10) as response:
+            raw = response.read(MAX_RELEASE_BYTES + 1)
+        if len(raw) > MAX_RELEASE_BYTES:
+            raise ValueError('Release response too large')
+        releases = json.loads(raw)
+        if not isinstance(releases, list) or any(not isinstance(item, dict) for item in releases):
+            raise ValueError('Invalid release list')
+    except HTTPError as error:
+        error.close()
+        raise OSError('Could not read published GitHub releases.') from None
+    except (ValueError, HTTPException):
+        raise OSError('GitHub returned an invalid release list.') from None
+    return {item['tag_name'] for item in releases
+            if isinstance(item.get('tag_name'), str) and VERSION.fullmatch(item['tag_name'])
+            and '-' not in item['tag_name'] and item.get('draft') is False
+            and item.get('prerelease') is False and isinstance(item.get('published_at'), str)
+            and bool(item['published_at'])}
+
+
+def available_releases():
+    source = release_source()
+    pins = trusted_releases() if source == 'pinned' else None
+    names = pins.keys() if pins is not None else published_tags()
+    refs = run('git', 'ls-remote', '--tags', REPOSITORY, timeout=10)
+    objects = {}
+    for line in refs.splitlines():
+        sha, separator, ref = line.partition('\trefs/tags/')
+        if separator and re.fullmatch(r'[a-f0-9]{40}', sha):
+            objects[ref] = sha
+    tags = {}
+    for name in names:
+        if name not in objects:
+            continue
+        commit = objects.get(name + '^{}', objects[name])
+        if pins is not None and pins[name] != commit:
+            continue
+        tags[name] = {'ref': objects[name], 'commit': commit, 'source': source}
+    return tags
 
 
 def run(*command, cwd=None, timeout=30):
@@ -72,15 +140,12 @@ def status():
 
 
 def check():
+    # A failed check must not leave previously offered selections installable.
+    with _lock:
+        _tags.clear()
     if layout() is None:
         return []
-    pins = trusted_releases()
-    refs = run("git", "ls-remote", "--tags", "--refs", REPOSITORY, timeout=10)
-    tags = {}
-    for line in refs.splitlines():
-        sha, _, ref = line.partition("\trefs/tags/")
-        if ref in pins and re.fullmatch(r"[a-f0-9]{40}", sha):
-            tags[ref] = sha
+    tags = available_releases()
     with _lock:
         _tags.clear()
         _tags.update(tags)
@@ -97,18 +162,36 @@ def queue(version, current):
         if not isinstance(version, str) or version not in _tags or version == current:
             raise ValueError("Check for updates and select a different release.")
         _job.update(state="installing", version=version)
-        Thread(target=install, args=(root, version, _tags[version]), daemon=True).start()
+        selection = dict(_tags[version])
+        Thread(target=install, args=(root, version, selection), daemon=True).start()
 
 
 def install(root, version, expected_ref):
     staged = None
     activated = False
     try:
-        approved_commit = trusted_releases().get(version)
-        if approved_commit is None:
-            raise ValueError("Release is not approved by the administrator.")
         if os.environ.get("DECLAN_UPDATE_SUPERVISED") != "1":
             raise ValueError("Install the stable update supervisor before enabling updates.")
+        if not isinstance(version, str) or not VERSION.fullmatch(version):
+            raise ValueError('Invalid release tag')
+        source = release_source()
+        if isinstance(expected_ref, dict):
+            selection = expected_ref
+            if (set(selection) != {'ref', 'commit', 'source'} or selection['source'] != source
+                    or any(not isinstance(selection[key], str) or not re.fullmatch(r'[a-f0-9]{40}', selection[key])
+                           for key in ('ref', 'commit'))):
+                raise ValueError('Check for updates again')
+            # Recheck publication and tag identity before cloning or executing code.
+            if available_releases().get(version) != selection:
+                raise ValueError('Release was withdrawn or its tag changed. Check for updates again.')
+            expected_ref, approved_commit = selection['ref'], selection['commit']
+        elif source == 'pinned':
+            # Compatibility for pinned-mode callers; the UI always passes a selection.
+            approved_commit = trusted_releases().get(version)
+            if approved_commit is None:
+                raise ValueError('Release is not approved by the administrator.')
+        else:
+            raise ValueError('Check for updates before installing a published release.')
         staged = Path(mkdtemp(prefix=f"{version}-", dir=root / "releases"))
         run("git", "clone", "--quiet", "--depth", "1", "--branch", version, REPOSITORY, str(staged), timeout=90)
         ref = f"refs/tags/{version}"

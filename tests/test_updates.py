@@ -12,7 +12,7 @@ class UpdateTests(TestCase):
     def setUp(self):
         self.enterContext(patch.object(updates, "trusted_releases", return_value={
             tag: "a" * 40 for tag in ("0.1.0", "0.2.0", "0.10.0", "v0.1.1")}))
-        self.enterContext(patch.dict(os.environ, {"DECLAN_UPDATE_SUPERVISED": "1"}))
+        self.enterContext(patch.dict(os.environ, {"DECLAN_UPDATE_SUPERVISED": "1", "DECLAN_UPDATE_SOURCE": "pinned"}))
 
     def test_lists_only_version_tags_in_version_order(self):
         refs = "\n".join(f"{'a' * 40}\trefs/tags/{tag}" for tag in ("0.2.0", "0.10.0", "v0.1.1", "test"))
