@@ -62,4 +62,5 @@ class IngressTests(TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b'panel-secret', body)
         self.assertNotIn(b'upstream-secret', body)
-        self.assertTrue(body.endswith(b'<html></html>'))
+        self.assertTrue(body.startswith(b'<html><script>'))
+        self.assertTrue(body.endswith(b'</html>'))

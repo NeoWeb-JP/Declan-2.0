@@ -98,7 +98,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
         try:
             page = None
             if path == "/" and response.status == 200 and response.getheader("Content-Type", "").startswith("text/html"):
-                page = panel_script(self.server.panel_token) + response.read()
+                page = response.read()
+                insertion = page.find(b">", page.lower().find(b"<html")) + 1
+                page = page[:insertion] + panel_script(self.server.panel_token) + page[insertion:]
             self.send_response(response.status)
             for name in ("Content-Type", "Content-Disposition", "Content-Length"):
                 value = response.getheader(name)
