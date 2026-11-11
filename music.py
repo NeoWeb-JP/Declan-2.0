@@ -251,9 +251,14 @@ def parse(phrase):
         phrase,
     )
     if not match:
-        return None
-    title, group_title, room, provider = match.groups()
-    title = title or group_title
+        unqualified = re.fullmatch(r"play (.+?)(?: on (spotify|radio|tunein))?", phrase)
+        if not unqualified:
+            return None
+        title, provider = unqualified.groups()
+        room = None
+    else:
+        title, group_title, room, provider = match.groups()
+        title = title or group_title
     if provider is None and title:
         station = re.fullmatch(r"radio (.+)|(.+) radio", title)
         if station:
@@ -261,7 +266,7 @@ def parse(phrase):
             provider = "radio"
     if title in {"music", "the music", "this", "this music"}:
         title = None
-    return room_key(room), title, provider or "spotify"
+    return room_key(room) if room else None, title, provider or "spotify"
 
 
 def request(connection, path, data=None, *, timeout=None):
@@ -285,7 +290,7 @@ def _request(connection, path, data=None, *, timeout=None):
 
 def parse_control(phrase):
     dislike = re.fullmatch(
-        r"(?:i|we) (?:do not|don['’]t) like this (?:song|track)"
+        r"(?:i|we) (?:do not|don['']t) like this (?:song|track)"
         r"(?: in (?:the )?(.+))?", phrase,
     )
     if dislike:
@@ -505,9 +510,8 @@ def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
 
 
 @diagnostics.timed("music_playback")
-def play(command, connection, read_inventory):
+def play(command, connection, read_inventory, *, origin=None):
     room, title, provider = command
-    location = "everywhere" if room == "everywhere" else f"in the {room}"
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
     if not HANDOFF.acquire(blocking=False):
@@ -517,6 +521,14 @@ def play(command, connection, read_inventory):
         inventory, error = read_inventory(connection)
         if error:
             return "I couldn't check which players are active.", error
+        if room is None:
+            areas = {room_key(row["declan_area"]) for row in inventory
+                     if origin and (row.get("entity_id") == origin or row.get("declan_device") == origin)
+                     and isinstance(row.get("declan_area"), str) and row["declan_area"].strip()}
+            if len(areas) != 1:
+                return "Which room should I play the music in?", "unresolved"
+            room = areas.pop()
+        location = "everywhere" if room == "everywhere" else f"in the {room}"
         destinations, players = music_players(inventory)
         destination = destinations.get(room)
         if destination is None:
@@ -660,3 +672,4 @@ def play(command, connection, read_inventory):
                 else "I couldn't verify the music request."), "unverified"
     finally:
         HANDOFF.release()
+

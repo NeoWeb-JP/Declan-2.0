@@ -103,6 +103,29 @@ class MusicTests(unittest.TestCase):
         return music.control(music.parse_control(phrase), ("http://ha", {}, self),
                              lambda _: (list(self.players.values()), None), **kwargs)
 
+    def test_unqualified_music_uses_satellite_area_and_spotify_search(self):
+        utility = "media_player.utility_queue"
+        satellite = "assist_satellite.utility"
+        self.players[utility] = {"entity_id": utility, "state": "idle", "attributes": {},
+                                 "declan_area": "Utility Room", "declan_music_assistant": True}
+        self.players[satellite] = {"entity_id": satellite, "state": "idle",
+                                  "declan_device": "utility-device", "declan_area": "Utility Room"}
+        self.players[self.bedroom]["state"] = "idle"
+        self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
+        for origin in (satellite, "utility-device"):
+            with self.subTest(origin=origin):
+                reply, outcome = music.play(music.parse("play country music"), ("http://ha", {}, self),
+                                            lambda _: (list(self.players.values()), None), origin=origin)
+                self.assertEqual(outcome, "confirmed", reply)
+                self.assertEqual(self.calls[-1][1]["entity_id"], utility)
+                self.assertEqual(self.searches[-1]["q"], "country music")
+
+    def test_unqualified_music_without_origin_asks_for_room_without_playback(self):
+        reply, outcome = self.play("play country music")
+        self.assertEqual((reply, outcome), ("Which room should I play the music in?", "unresolved"))
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.searches, [])
+
     def test_registry_area_mapping_follows_renamed_music_assistant_entities(self):
         self.players[self.bedroom]["declan_music_assistant"] = False
         replacement = "media_player.new_bedroom_queue"
@@ -149,7 +172,7 @@ class MusicTests(unittest.TestCase):
         self.assertEqual(self.calls, [("media_next_track", {"entity_id": self.group})])
 
     def test_dislike_phrases_skip_without_blocking(self):
-        for phrase in ("i do not like this song", "i don't like this song", "i don’t like this song"):
+        for phrase in ("i do not like this song", "i don't like this song", "i don't like this song"):
             self.assertEqual(music.parse_control(phrase), ("media_next_track", None))
         self.assertEqual(self.control("i don't like this song")[1], "confirmed")
         self.assertFalse(music.PREFERENCES.exists())
@@ -495,4 +518,5 @@ class MusicTests(unittest.TestCase):
             self.play("play coward of the county in the bedroom")
         self.assertEqual(self.calls[0][1]["media_id"], music.FAVOURITE_TRACK)
         self.assertEqual(self.spotify_tokens, 0)
+
 

@@ -71,7 +71,7 @@ CHAT_COMMANDS = {
     "do you remember my name": "recall_name",
     "what did i just say": "recall_message", "what did i say": "recall_message",
     "what time is it": "time", "what is the time": "time", "tell me the time": "time",
-    "what's the time": "time", "what’s the time": "time",
+    "what's the time": "time", "what's the time": "time",
     "hello": "greeting", "hi": "greeting", "hey": "greeting", "hello declan": "greeting",
 }
 GOOD_MORNING_SCRIPT = "script.declan_good_morning_shared_local_routine"
@@ -82,7 +82,7 @@ GOOD_MORNING_PHRASES = {
 GOOD_NIGHT_SCRIPT = "script.declan_good_night_shared_local_routine"
 GOOD_NIGHT_PHRASES = {
     "good night", "good night declan", "goodnight", "it's bedtime",
-    "it’s bedtime", "time for bed", "shut the house down", "start the bedtime routine",
+    "it's bedtime", "time for bed", "shut the house down", "start the bedtime routine",
 }
 
 
@@ -920,13 +920,20 @@ def read_ha_inventory(connection):
 
 
 def read_music_inventory(connection):
+    # HA's states API serializes native attributes such as datetime values.
+    # Keep those values out of Jinja's stricter to_json filter.
+    states, error = read_ha_inventory(connection)
+    if error:
+        return None, error
+    states = {row["entity_id"]: row for row in states
+              if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
     url, headers, opener = connection
     template = (
         "{% set result = namespace(rows=[]) %}"
         "{% set ma = integration_entities('music_assistant') %}"
         "{% for entity in (states.media_player | list) + (states.assist_satellite | list) %}"
-        "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, state=entity.state, "
-        "attributes=entity.attributes, declan_area=area_name(entity.entity_id), "
+        "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, "
+        "declan_area=area_name(entity.entity_id), "
         "declan_device=device_id(entity.entity_id), declan_music_assistant=entity.entity_id in ma)] %}"
         "{% endfor %}{{ result.rows | to_json }}"
     )
@@ -935,7 +942,8 @@ def read_music_inventory(connection):
         with opener.open(request, timeout=2) as response:
             inventory = json.loads(response.read(8 * 1024 * 1024))
         if isinstance(inventory, list) and all(isinstance(row, dict) for row in inventory):
-            return inventory, None
+            return [dict(states[row["entity_id"]], **row) for row in inventory
+                    if isinstance(row.get("entity_id"), str) and row["entity_id"] in states], None
     except HTTPError as error:
         error.close()
     except (OSError, ValueError):
@@ -1830,7 +1838,7 @@ class Handler(BaseHTTPRequestHandler):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
         elif phrase == "stop":
             routine_reply, outcome, routine_status = stop_origin_output(ha_device_connection(), satellite, origin_device)
-        elif phrase.replace("’", "'") in DINNER_PHRASES:
+        elif phrase.replace("'", "'") in DINNER_PHRASES:
             routine_reply, outcome = start_dinner(ha_device_connection())
         elif phrase in SEXY_TIME_COMMANDS:
             routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection())
@@ -1845,7 +1853,8 @@ class Handler(BaseHTTPRequestHandler):
                 if follow_on.startswith("play "):
                     command = music.parse(follow_on)
                     follow_reply, follow_outcome = (
-                        music.play(command, ha_device_connection(), read_music_inventory) if command
+                        music.play(command, ha_device_connection(), read_music_inventory,
+                                   **({"origin": satellite or origin_device} if command[0] is None else {})) if command
                         else ("Tell me where to play the music.", "unresolved")
                     )
                 else:
@@ -1901,7 +1910,10 @@ class Handler(BaseHTTPRequestHandler):
                     origin=origin_device or satellite, read_areas=read_ha_areas, assist=source == "assist",
                 )
             elif music_command := music.parse(phrase):
-                routine_reply, outcome = music.play(music_command, ha_device_connection(), read_music_inventory)
+                routine_reply, outcome = music.play(
+                    music_command, ha_device_connection(), read_music_inventory,
+                    **({"origin": satellite or origin_device} if music_command[0] is None else {}),
+                )
             else:
                 media_result = search_media(phrase)
                 if media_result:
@@ -2023,3 +2035,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

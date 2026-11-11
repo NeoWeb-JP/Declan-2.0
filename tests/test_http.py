@@ -86,6 +86,15 @@ class APITests(TestCase):
         with patch.object(proxy, "SUPERVISOR_ADDRESS", "192.0.2.1"):
             self.assertEqual(request("/")[0], 403)
 
+    def test_unqualified_assist_music_passes_origin_to_playback(self):
+        with patch.object(server, "ha_device_connection", return_value=None), patch.object(
+            server.music, "play", return_value=("Playing country music.", "confirmed")
+        ) as play:
+            result = self.ask("Play country music.", path="/api/assist", device="utility-device")
+            self.assertEqual(result["outcome"], "confirmed")
+            play.assert_called_once_with((None, "country music", "spotify"), None,
+                                         server.read_music_inventory, origin="utility-device")
+
     def test_stop_discovers_the_speaking_device_and_replies_silently(self):
         rows = [
             {"entity_id": "assist_satellite.new_bedroom", "declan_device": "bedroom", "declan_area": "Master Bedroom"},
@@ -219,7 +228,7 @@ class APITests(TestCase):
         opener.open.return_value = io.BytesIO(b"[]")
         connection = ("http://ha.invalid", {}, opener)
         with patch.object(server, "ha_device_connection", return_value=connection):
-            for phrase in {*server.DINNER_PHRASES, "it’s dinner time"}:
+            for phrase in {*server.DINNER_PHRASES, "it's dinner time"}:
                 opener.open.reset_mock()
                 opener.open.return_value = io.BytesIO(b"[]")
                 result = self.ask(phrase + "!", path="/api/assist")
@@ -304,7 +313,7 @@ class APITests(TestCase):
         self.assertIn("You said", self.ask("What did I say?", session)["reply"])
         self.assertIn("here", self.ask("What time is it?", session)["reply"])
         self.assertIn("here", self.ask("What's the time?", session)["reply"])
-        self.assertIn("here", self.ask("What’s the time?", session)["reply"])
+        self.assertIn("here", self.ask("What's the time?", session)["reply"])
         self.assertIn("say it another way", self.ask("Something else")["reply"])
         with patch.object(server.conditions, "handle", side_effect=lambda phrase, _: (
             ("Oxford forecast", "confirmed", "weather") if "oxford" in phrase else None
@@ -374,3 +383,4 @@ class StartupTests(TestCase):
         prune.assert_called_once()
         host.shutdown.assert_called_once()
         self.assertIn("Timer alarms could not be checked.", stdout.getvalue())
+
