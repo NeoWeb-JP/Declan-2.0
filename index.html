@@ -119,6 +119,77 @@ main { width: min(600px, calc(100% - 2rem)); }
 .keyboard[open] .hide-keyboard { display: inline; }
 .key-icon { font-size: 1rem; }
 form button { color: #07151f; background: #62e7ff; font-weight: 700; }
+/* One outer panel edge; headers and bodies share the same inset. */
+:root { --panel-space: clamp(1rem, 3vw, 1.5rem); --panel-gap: 1rem; }
+body { line-height: 1.5; }
+.settings-menu { width: min(23rem, calc(100vw - 3rem)); white-space: normal; z-index: 2; }
+.settings-menu label { display: flex; align-items: flex-start; gap: .5rem; }
+button, input, select { font: inherit; }
+button:disabled { opacity: .55; }
+.history { width: min(960px, calc(100% - 2rem)); max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem); overflow: hidden; }
+.history[open] { display: flex; flex-direction: column; }
+.history-heading { flex: 0 0 auto; padding: 1rem var(--panel-space); border-radius: 0; }
+.history-heading button { flex-shrink: 0; }
+.dialog-body { padding: var(--panel-space); overflow-y: auto; overscroll-behavior: contain;
+  min-height: 0; display: grid; gap: var(--panel-gap); scrollbar-gutter: stable; }
+.dialog-body > * { min-width: 0; margin: 0; }
+.dialog-body p, .dialog-body label, .dialog-body summary { overflow-wrap: anywhere; }
+.dialog-body h3 { margin: 0; font-size: 1rem; }
+.dialog-body section { display: grid; gap: .85rem; min-width: 0; }
+.dialog-body section > p { margin: 0; }
+.history-toolbar, .action-row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.history-toolbar { padding: 0; }
+.history button, .history a, .settings-menu button { min-height: 44px; padding: .6rem .85rem; }
+.history button, .history a { display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.history button:hover:not(:disabled), .history a:hover { background: #19394b; }
+.history button[aria-pressed="true"] { color: #e7f7ff; background: #19485c; border-color: #62c7df; }
+.dialog-body > button { justify-self: start; }
+.history .field { display: grid; gap: .5rem; align-content: start; min-width: 0; }
+.history input:not([type="checkbox"]), .history select { width: 100%; min-width: 0; min-height: 44px;
+  color: #e7f7ff; background: #060f18; border: 1px solid #315568; border-radius: .4rem; padding: .6rem .75rem; }
+.history input[type="checkbox"] { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; margin: .2rem 0 0; }
+.check-field { display: flex; align-items: flex-start; gap: .65rem; }
+.history form { margin: 0; padding: 0; background: transparent; border: 0; border-radius: 0; }
+#spotify-form { display: grid; gap: 1rem; }
+#spotify-form label { display: grid; gap: .5rem; }
+#spotify-form button { justify-self: start; }
+#history-status { margin: 0; }
+.history [role="status"]:empty, #settings-preview:empty { display: none; }
+#chat { max-height: none; overflow: visible; display: grid; gap: .85rem; }
+#chat > li { padding: 1rem; border: 1px solid #203747; border-radius: .5rem; gap: .5rem; }
+#older-history { margin: 0; justify-self: start; }
+#learned-intent-list { padding-left: 1.25rem; }
+#learned-intent-list li { margin-top: .75rem; }
+.teach-form { padding: .85rem !important; margin-top: .65rem !important; background: #060f18 !important; }
+.teach-form input { font: inherit; }
+#diagnostics-list { display: grid; gap: .75rem; }
+#diagnostics-list details { padding: .85rem; border: 1px solid #203747; border-radius: .5rem; }
+#diagnostics-list summary { line-height: 1.6; }
+#settings-preview { padding: 1rem; background: #060f18; border: 1px solid #203747; border-radius: .5rem; overflow-wrap: anywhere; }
+.speaker-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.speaker-fields > div { display: grid; align-content: start; gap: .5rem; padding: 1rem;
+  border: 1px solid #203747; border-radius: .5rem; }
+#voice-profile-summary { margin: 0; color: #a1ccdf; font-size: .85rem; }
+#voice-sample-list { display: grid; gap: 1rem; padding: 0; list-style: none; }
+#voice-sample-list > li { display: grid; gap: .85rem; padding: 1rem; border: 1px solid #264656; border-radius: .5rem; min-width: 0; }
+.sample-transcript { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.sample-meta { margin: 0; color: #a1ccdf; font-size: .85rem; overflow-wrap: anywhere; }
+#voice-sample-preview { width: 100%; max-width: 30rem; }
+.history .danger { color: #ffb8bd; border-color: #96545d; }
+.profile-maintenance { border-top: 1px solid #264656; padding-top: 1rem; }
+.profile-maintenance > summary { padding: .4rem 0; }
+.profile-maintenance .action-row { margin-top: .75rem; }
+.history-toolbar label { min-width: 0; }
+#updates .history-toolbar { align-items: flex-end; }
+@media (max-width: 600px) {
+  .speaker-fields { grid-template-columns: minmax(0, 1fr); }
+  .history { width: calc(100% - 1.5rem); max-height: calc(100dvh - 1.5rem); }
+  .action-row > button, .action-row > a { flex: 1 1 10rem; }
+  .connection { position: static; margin: .75rem; max-width: none; }
+  .settings-menu { right: -.25rem; }
+  .voice-stage { min-height: 230px; }
+}
 </style>
 <header>
   <div class="brand">
@@ -181,6 +252,7 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
       <h2 id="history-title">Conversation history</h2>
       <button type="button" id="close-history" autofocus>Close</button>
     </div>
+  <div class="dialog-body">
     <div class="history-toolbar">
       <p class="mono">Browser and Assist messages from the last 30 days</p>
       <button type="button" id="refresh-history">Refresh</button>
@@ -194,60 +266,88 @@ form button { color: #07151f; background: #62e7ff; font-weight: 700; }
     </details>
     <ul id="chat" aria-label="Conversation"></ul>
     <button type="button" id="older-history" hidden>Load older messages</button>
-  </dialog>
+    </div>
+</dialog>
   <dialog class="history" id="spotify-settings" aria-labelledby="spotify-settings-title">
     <div class="history-heading">
       <h2 id="spotify-settings-title">Spotify search credentials</h2>
       <button type="button" id="close-spotify">Close</button>
     </div>
+  <div class="dialog-body">
     <form id="spotify-form" class="history-toolbar" autocomplete="off">
       <label>Client ID <input name="client_id" maxlength="256" required></label>
       <label>Client Secret <input name="client_secret" type="password" maxlength="256" required></label>
       <button type="submit">Save credentials</button>
       <p id="spotify-status" class="mono" role="status"></p>
     </form>
-  </dialog>
+    </div>
+</dialog>
 <dialog class="history" id="updates" aria-labelledby="updates-title">
   <div class="history-heading"><h2 id="updates-title">Declan updates</h2>
     <button id="close-updates" type="button">Close</button></div>
+  <div class="dialog-body">
   <div class="history-toolbar">
-    <label><input id="include-prereleases" type="checkbox"> Include prereleases for testing</label>
+    <label class="check-field"><input id="include-prereleases" type="checkbox"> Include prereleases for testing</label>
     <button id="check-updates" type="button">Check for updates</button>
-    <label>Release <select id="update-version" disabled></select></label>
+    <label class="field">Release <select id="update-version" disabled></select></label>
     <button id="install-update" type="button" disabled>Install selected release</button>
   </div>
   <p id="update-status" class="mono" role="status"></p>
+  </div>
 </dialog>
 <dialog class="history" id="diagnostics-panel" aria-labelledby="diagnostics-title">
   <div class="history-heading"><h2 id="diagnostics-title">Request diagnostics</h2><button type="button" data-close="diagnostics-panel">Close</button></div>
+  <div class="dialog-body">
   <p>Recent timings and outcomes. A reported playback state does not prove sound was audible.</p>
   <button type="button" id="refresh-diagnostics">Refresh</button><p id="diagnostics-status" role="status"></p><div id="diagnostics-list"></div>
+  </div>
 </dialog>
 <dialog class="history" id="backup-panel" aria-labelledby="backup-title">
   <div class="history-heading"><h2 id="backup-title">Back up settings</h2><button type="button" data-close="backup-panel">Close</button></div>
+  <div class="dialog-body">
   <p>Exports exclude credentials, conversations, voice recordings and caches. Back up Home Assistant separately for its integration settings and voice cache.</p>
-  <label><input type="checkbox" id="backup-learning"> Include learned intentions (private phrases)</label>
-  <p><a id="download-settings" href="./api/settings/export" download>Download settings</a> · <a id="download-recovery" href="./api/settings/recovery" download>Download settings before the last import</a></p>
-  <label>Settings file <input id="import-settings-file" type="file" accept="application/json,.json"></label>
+  <label class="check-field"><input type="checkbox" id="backup-learning"> Include learned intentions (private phrases)</label>
+  <p class="action-row"><a id="download-settings" href="./api/settings/export" download>Download settings</a> <a id="download-recovery" href="./api/settings/recovery" download>Download settings before the last import</a></p>
+  <label class="field">Settings file <input id="import-settings-file" type="file" accept="application/json,.json"></label>
   <button type="button" id="preview-settings">Preview import</button>
   <pre id="settings-preview" style="white-space:pre-wrap"></pre>
   <button type="button" id="apply-settings" disabled>Apply reviewed settings</button>
   <p id="backup-status" role="status"></p>
+  </div>
 </dialog>
 <dialog class="history" id="voices-panel" aria-labelledby="voices-title">
   <div class="history-heading"><h2 id="voices-title">Voice profiles</h2><button type="button" data-close="voices-panel">Close</button></div>
-  <p>VoicePipeline owns these profiles and reference recordings. Speak to a satellite, then refresh to review its recording. Confirming, assigning or enrolling adds the recording to recognition references.</p>
-  <button type="button" id="refresh-voices">Refresh pending</button>
-  <button type="button" id="voice-history">Review history</button>
-  <p><label>Existing speaker <select id="voice-profile-select"></select></label></p>
-  <p id="voice-profile-summary"></p>
-  <label>New speaker name <input id="voice-profile-name" maxlength="40" autocomplete="off"></label>
-  <label><input type="checkbox" id="voice-consent"> I have permission to use this person's recording for speaker recognition.</label>
-  <p>Listen before assigning. History corrections remove wrong references but do not add a new reference. Return a recording to pending, then assign it if it should become a reference.</p>
-  <audio id="voice-sample-preview" controls></audio>
-  <button type="button" id="clear-voice-clips">Clear selected speaker's references</button>
-  <button type="button" id="delete-voice-profile">Delete selected speaker</button>
-  <ul id="voice-sample-list"></ul><p id="voices-status" role="status"></p>
+  <div class="dialog-body">
+  <p>Review satellite recordings and teach Declan who is speaking. Profiles and reference recordings are stored in VoicePipeline.</p>
+  <div class="action-row" aria-label="Recording view">
+    <button type="button" id="refresh-voices" aria-pressed="true">Refresh pending</button>
+    <button type="button" id="voice-history" aria-pressed="false">Review history</button>
+  </div>
+  <section aria-labelledby="speaker-choice-title">
+    <h3 id="speaker-choice-title">1. Choose a speaker</h3>
+    <div class="speaker-fields">
+      <div><label class="field">Existing speaker <select id="voice-profile-select"></select></label>
+        <p id="voice-profile-summary"></p></div>
+      <div><label class="field">New speaker name <input id="voice-profile-name" maxlength="40" autocomplete="off" placeholder="Enter a name to enrol someone"></label></div>
+    </div>
+    <label class="check-field"><input type="checkbox" id="voice-consent"> I have permission to use this person's recording for speaker recognition.</label>
+  </section>
+  <section aria-labelledby="recordings-title">
+    <h3 id="recordings-title">2. Listen and assign</h3>
+    <p id="voice-pending-help">Listen to a recording, then assign it to the selected speaker or enrol a new speaker. This adds it to their recognition references.</p>
+    <p id="voice-history-help" hidden>History corrections remove wrong references without adding a new reference. Return a recording to pending, then assign it to use it as a reference.</p>
+    <audio id="voice-sample-preview" controls hidden aria-label="Selected voice recording"></audio>
+    <ul id="voice-sample-list" aria-label="Voice recordings"></ul>
+  </section>
+  <p id="voices-status" role="status"></p>
+  <details class="profile-maintenance">
+    <summary>Manage selected speaker</summary>
+    <div class="action-row">
+      <button type="button" class="danger" id="clear-voice-clips">Clear selected speaker's references</button>
+      <button type="button" class="danger" id="delete-voice-profile">Delete selected speaker</button>
+    </div>
+  </details>
+  </div>
 </dialog>
 <script>
 const haStatus = document.querySelector('#ha-status');
@@ -1185,7 +1285,7 @@ let voiceAudioVersion = 0;
 let voiceAudioURL = null;
 function clearVoiceAudio() {
   voiceAudioVersion++;
-  samplePreview.pause(); samplePreview.removeAttribute('src');
+  samplePreview.pause(); samplePreview.removeAttribute('src'); samplePreview.hidden = true;
   if (voiceAudioURL) URL.revokeObjectURL(voiceAudioURL);
   voiceAudioURL = null;
 }
@@ -1209,6 +1309,11 @@ async function loadVoices(history = false) {
     const entries = history ? await managementRequest('voicepipeline', {operation: 'history'}) : result;
     if (!voicesPanel.open || version !== voiceVersion) return;
     voiceHistory = history; voiceProfiles = result.profiles;
+    document.querySelector('#refresh-voices').setAttribute('aria-pressed', String(!history));
+    document.querySelector('#voice-history').setAttribute('aria-pressed', String(history));
+    document.querySelector('#recordings-title').textContent = history ? '2. Review previous recordings' : '2. Listen and assign';
+    document.querySelector('#voice-history-help').hidden = !history;
+    document.querySelector('#voice-pending-help').hidden = history;
     const selected = profileSelect.value; profileSelect.replaceChildren();
     for (const profile of voiceProfiles) {
       const option = document.createElement('option'); option.value = profile.name; option.textContent = profile.name;
@@ -1246,24 +1351,37 @@ async function changeVoice(body, question) {
   } finally { if (version === voiceVersion) setVoiceBusy(false); }
 }
 function renderVoiceInteractions(entries, history) {
-  const list = document.querySelector('#voice-sample-list'); list.replaceChildren();
+  const list = document.querySelector('#voice-sample-list');
+  // Keep the shared player in the panel when its previous recording is replaced.
+  list.before(samplePreview); list.replaceChildren();
   for (const entry of entries.slice(0, 100)) {
     const item = document.createElement('li');
-    item.textContent = `${entry.recorded_at || ''}: ${entry.transcript || '(no transcript)'} — ${entry.current_assigned_to || entry.matched_speaker || 'Unknown'} (${entry.status}) `;
+    const transcript = document.createElement('p'); transcript.className = 'sample-transcript';
+    transcript.textContent = entry.transcript || '(no transcript)';
+    const metadata = document.createElement('p'); metadata.className = 'sample-meta';
+    const date = new Date(entry.recorded_at);
+    const recordedAt = Number.isNaN(date.getTime()) ? 'Time unavailable' : date.toLocaleString('en-GB', {dateStyle: 'medium', timeStyle: 'short'});
+    metadata.textContent = `${recordedAt} · ${entry.current_assigned_to || entry.matched_speaker || 'Unknown'} · ${entry.status}`;
+    const actions = document.createElement('div'); actions.className = 'action-row';
+    item.append(transcript, metadata, actions);
     const button = (label, callback) => {
       const control = document.createElement('button'); control.type = 'button'; control.textContent = label;
-      control.addEventListener('click', callback); item.append(control);
+      control.addEventListener('click', callback); actions.append(control);
     };
     button('Listen', async () => {
       if (voiceBusy) return;
       clearVoiceAudio(); const version = voiceAudioVersion;
+      voicesStatus.textContent = 'Loading recording.';
       try {
         const result = await managementRequest('voicepipeline', {operation: 'audio', interaction_id: entry.id});
         if (!voicesPanel.open || version !== voiceAudioVersion) return;
         const bytes = Uint8Array.from(atob(result.audio), value => value.charCodeAt(0));
         voiceAudioURL = URL.createObjectURL(new Blob([bytes], {type: 'audio/wav'}));
-        samplePreview.src = voiceAudioURL;
-        voicesStatus.textContent = 'Use the audio controls to listen before assigning.';
+        actions.before(samplePreview); samplePreview.hidden = false; samplePreview.src = voiceAudioURL;
+        voicesStatus.textContent = 'Listen before assigning. The audio controls are below the selected recording.';
+        try { await samplePreview.play(); } catch {
+          if (version === voiceAudioVersion && voicesPanel.open) voicesStatus.textContent = 'Press play below the selected recording to listen before assigning.';
+        }
       } catch (error) { if (version === voiceAudioVersion && voicesPanel.open) voicesStatus.textContent = error.message; }
     });
     if (!history) {
@@ -1303,3 +1421,4 @@ for (const [id, operation, question] of [
 
 </script>
 </html>
+

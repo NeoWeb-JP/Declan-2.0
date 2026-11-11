@@ -46,6 +46,7 @@ function browser(t, {voice = false, microphone = false, browserRecognition = fal
   window.URL.revokeObjectURL = () => {};
   window.HTMLAnchorElement.prototype.click = function () {};
   window.HTMLMediaElement.prototype.pause = function () {};
+  window.HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };
   window.confirm = () => true;
   for (const dialog of window.document.querySelectorAll('dialog')) {
     dialog.showModal = () => { dialog.open = true; };
@@ -585,6 +586,58 @@ test('closing invalidates a pending profile load and an outage remains visible',
   assert.match(ui.element('#voices-status').textContent, /unavailable/);
 });
 
+test('recording views expose the selected mode and explain the matching operation', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  assert.equal(ui.element('#refresh-voices').getAttribute('aria-pressed'), 'true');
+  assert.equal(ui.element('#voice-history-help').hidden, true);
+  ui.responses.set('/api/voicepipeline', options => options?.body ? {interactions: []} : pipelinePage);
+  ui.element('#voice-history').click(); await flush(); await flush();
+  assert.equal(ui.element('#voice-history').getAttribute('aria-pressed'), 'true');
+  assert.equal(ui.element('#refresh-voices').getAttribute('aria-pressed'), 'false');
+  assert.equal(ui.element('#voice-history-help').hidden, false);
+  assert.equal(ui.element('#voice-pending-help').hidden, true);
+  assert.match(ui.element('#voice-sample-list').textContent, /No recordings/);
+  ui.element('#refresh-voices').click(); await flush(); await flush();
+  assert.equal(ui.element('#refresh-voices').getAttribute('aria-pressed'), 'true');
+  assert.equal(ui.element('#voice-pending-help').hidden, false);
+});
+
+test('Listen plays inline in the selected card and refresh hides and preserves the player', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  const player = ui.element('#voice-sample-preview');
+  let played = 0; player.play = async () => { played++; };
+  assert.equal(player.hidden, true);
+  ui.responses.set('/api/voicepipeline', options => options?.body ? {audio: 'UklGRg=='} : pipelinePage);
+  voiceButton(ui, 'Listen').click(); await flush();
+  assert.equal(played, 1);
+  assert.equal(player.hidden, false);
+  assert.equal(player.closest('li'), ui.element('#voice-sample-list > li'));
+  ui.element('#refresh-voices').click(); await flush(); await flush();
+  assert.equal(ui.element('#voice-sample-preview'), player);
+  assert.equal(player.hidden, true);
+  assert.equal(player.hasAttribute('src'), false);
+  voiceButton(ui, 'Listen').click(); await flush();
+  assert.equal(played, 2);
+});
+
+test('blocked playback offers manual play and stale audio cannot replace a newer selection', async t => {
+  const ui = browser(t); await openProfiles(ui);
+  const player = ui.element('#voice-sample-preview');
+  player.play = async () => { throw new Error('Playback needs a gesture'); };
+  ui.responses.set('/api/voicepipeline', {audio: 'UklGRg=='});
+  voiceButton(ui, 'Listen').click(); await flush();
+  assert.match(ui.element('#voices-status').textContent, /Press play below/);
+  assert.equal(player.hidden, false);
+  let finish;
+  ui.responses.set('/api/voicepipeline', () => new Promise(resolve => { finish = resolve; }));
+  voiceButton(ui, 'Listen').click(); await flush();
+  ui.responses.set('/api/voicepipeline', options => options?.body ? {audio: 'UklGRg=='} : pipelinePage);
+  ui.element('#refresh-voices').click(); await flush(); await flush();
+  finish({audio: 'UklGRg=='}); await flush();
+  assert.equal(player.hidden, true);
+  assert.equal(player.hasAttribute('src'), false);
+});
+
 
 test('prerelease checkbox checks through the existing authenticated route and labels testing builds', async t => {
   const ui = browser(t, {ingress: true});
@@ -623,3 +676,4 @@ test('turning testing off or a failed check clears obsolete prerelease choices',
   assert.equal(ui.element('#update-version').options.length, 0);
   assert.equal(ui.element('#install-update').disabled, true);
 });
+
