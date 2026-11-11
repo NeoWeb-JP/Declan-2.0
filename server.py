@@ -1499,7 +1499,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/updates":
             try:
                 self.send_json(200, {**updates.status(), "current": RELEASE_VERSION, "versions": updates.check()})
-            except (OSError, subprocess.SubprocessError):
+            except (OSError, ValueError, subprocess.SubprocessError):
                 self.send_json(503, {"error": "Couldn't check GitHub for releases."})
         elif self.path in {"/api/settings/export", "/api/settings/export-learning", "/api/settings/recovery", "/api/settings/recovery-learning"}:
             try:
