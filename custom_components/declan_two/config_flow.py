@@ -1,5 +1,6 @@
 """Configure the address and shared secret for the Declan test service."""
 from urllib.parse import urlsplit
+import re
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -54,6 +55,9 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
             enabled = user_input["openai_stt_enabled"]
             key = user_input.get("openai_stt_api_key", "").strip() or current.get("openai_stt_api_key", "")
             host = user_input.get("wyoming_bridge_host", "").strip()
+            local_stt = user_input.get('local_stt_entity', '').strip()
+            if local_stt and not re.fullmatch(r'stt\.[a-z0-9_]+', local_stt):
+                errors['local_stt_entity'] = 'invalid_stt_provider'
             provider = user_input.get("primary_tts", DEFAULT_PROVIDER).strip()
             if user_input.get("wyoming_bridge_enabled") and not host:
                 errors["wyoming_bridge_host"] = "wyoming_host_required"
@@ -69,6 +73,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                     **current,
                     **{key: value for key, value in user_input.items() if key != "openai_stt_api_key"},
                     "wyoming_bridge_host": host,
+                    "local_stt_entity": local_stt,
                     "primary_tts": provider,
                     "openai_stt_enabled": enabled,
                     "openai_stt_model": user_input["openai_stt_model"],
@@ -83,6 +88,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
             ),
             vol.Required("wyoming_bridge_enabled", default=values.get("wyoming_bridge_enabled", False)): bool,
+            vol.Optional("local_stt_entity", default=values.get("local_stt_entity", "")): str,
             vol.Required("wyoming_bridge_host", default=values.get("wyoming_bridge_host", "")): str,
             vol.Required("wyoming_bridge_port", default=values.get("wyoming_bridge_port", 10300)):
                 vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),

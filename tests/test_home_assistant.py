@@ -47,7 +47,12 @@ class FakeHomeAssistant:
         elif path.startswith("/api/states/"):
             result = self.entities[path.removeprefix("/api/states/")]
         elif path == "/api/template":
-            result = self.areas[:1] if "area_id(" in data["template"] else self.areas
+            if 'declan_inventory_page' in data['template']:
+                rows = [dict(row, attributes=row.get('attributes', {})) for row in self.entities.values()
+                        if row['entity_id'].partition('.')[0] in server.ha_inventory.DEVICE_DOMAINS]
+                result = {'total': len(rows), 'rows': rows}
+            else:
+                result = self.areas[:1] if "area_id(" in data["template"] else self.areas
         elif path == "/api/":
             result = {"message": "API running."}
         elif path in {"/api/services/input_text/set_value", "/api/services/input_boolean/turn_off"}:
@@ -178,7 +183,7 @@ class LightingTests(TestCase):
         self.assertEqual(steps[0]["status"], "unverified")
         self.ha.fail = "/api/services/light/turn_on"
         self.assertEqual(self.run_light("turn on the study light", "action_error")[0]["status"], "failed")
-        self.ha.fail = "/api/states"
+        self.ha.fail = "/api/template"
         self.run_light("turn on the study light", "unavailable")
 
     def test_ambiguity_and_conflicting_actions(self):

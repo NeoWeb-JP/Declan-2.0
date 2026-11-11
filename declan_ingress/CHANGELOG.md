@@ -1,3 +1,7 @@
+# 1.0.2
+
+- Limit simultaneous proxy requests to 16 workers and return HTTP 503 with a retry hint when busy.
+
 # 1.0.1
 
 - Allow panel update requests over HTTP when browser Fetch Metadata is absent by validating a random panel token delivered through authenticated Ingress.

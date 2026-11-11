@@ -9,7 +9,9 @@ import sqlite3
 import subprocess
 from collections import OrderedDict
 from datetime import datetime
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
+import ha_inventory
 from pathlib import Path
 from threading import Lock, Thread
 from time import monotonic, sleep
@@ -322,13 +324,11 @@ def launch_movie_app(connection, remote, app):
             state = json.loads(response.read(65536))["state"]
         if state in ("unknown", "unavailable"):
             return "skipped", f"The remote is unavailable. I didn't send the {label} command."
-        for remote_command in ("KEY_HOME", f"app:{command}"):
-            request = Request(f"{url}/api/services/remote/send_command", headers=headers,
-                              data=json.dumps({"entity_id": remote, "command": remote_command}).encode())
-            with opener.open(request, timeout=3):
-                pass
-            if remote_command == "KEY_HOME":
-                sleep(2)
+        request = Request(f"{url}/api/services/remote/send_command", headers=headers,
+                          data=json.dumps({"entity_id": remote, "command": ["KEY_HOME", f"app:{command}"],
+                                           "delay_secs": 2}).encode())
+        with opener.open(request, timeout=6):
+            pass
     except HTTPError as error:
         error.close()
         return "failed", f"Home Assistant rejected the {label} launch request."
@@ -906,50 +906,11 @@ def render_web_voice(message):
 
 
 def read_ha_inventory(connection):
-    url, headers, opener = connection
-    try:
-        with opener.open(Request(f"{url}/api/states", headers=headers), timeout=1.5) as response:
-            inventory = json.loads(response.read(8 * 1024 * 1024))
-        if not isinstance(inventory, list):
-            raise ValueError("Expected a list of states")
-    except HTTPError as error:
-        error.close()
-        return None, "unavailable"
-    except (OSError, ValueError):
-        return None, "unavailable"
-    return inventory, None
+    return ha_inventory.read(connection)
 
 
 def read_music_inventory(connection):
-    # HA's states API serializes native attributes such as datetime values.
-    # Keep those values out of Jinja's stricter to_json filter.
-    states, error = read_ha_inventory(connection)
-    if error:
-        return None, error
-    states = {row["entity_id"]: row for row in states
-              if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
-    url, headers, opener = connection
-    template = (
-        "{% set result = namespace(rows=[]) %}"
-        "{% set ma = integration_entities('music_assistant') %}"
-        "{% for entity in (states.media_player | list) + (states.assist_satellite | list) %}"
-        "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, "
-        "declan_area=area_name(entity.entity_id), "
-        "declan_device=device_id(entity.entity_id), declan_music_assistant=entity.entity_id in ma)] %}"
-        "{% endfor %}{{ result.rows | to_json }}"
-    )
-    request = Request(f"{url}/api/template", headers=headers, data=json.dumps({"template": template}).encode())
-    try:
-        with opener.open(request, timeout=2) as response:
-            inventory = json.loads(response.read(8 * 1024 * 1024))
-        if isinstance(inventory, list) and all(isinstance(row, dict) for row in inventory):
-            return [dict(states[row["entity_id"]], **row) for row in inventory
-                    if isinstance(row.get("entity_id"), str) and row["entity_id"] in states], None
-    except HTTPError as error:
-        error.close()
-    except (OSError, ValueError):
-        pass
-    return None, "unavailable"
+    return ha_inventory.read(connection, music=True)
 
 
 def stop_origin_output(connection, satellite, device):
@@ -1992,6 +1953,7 @@ def main():
     if args.assist_lan and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) < 32:
         parser.error("--assist-lan requires a DECLAN_ASSIST_TOKEN of at least 32 characters.")
     history.initialize()
+    timers.initialize()
     bind_address = "0.0.0.0" if args.assist_lan else "127.0.0.1"
     try:
         server = ThreadingHTTPServer((bind_address, port), Handler)

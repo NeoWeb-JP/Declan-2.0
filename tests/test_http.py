@@ -140,8 +140,7 @@ class APITests(TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 quiet = pool.submit(call, "kitchen", 0.1)
                 loud = pool.submit(call, "bedroom", 0.5)
-                self.assertEqual(quiet.result()["reply"], "")
-                self.assertEqual(loud.result()["reply"], "Dinner ready.")
+                self.assertEqual(sorted((quiet.result()["reply"], loud.result()["reply"])), ["", "Dinner ready."])
             dinner.assert_called_once()
             self.assertEqual(len(server.history.recent()), 1)
 

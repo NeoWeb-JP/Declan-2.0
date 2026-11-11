@@ -27,7 +27,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.form = modules["aiohttp"].FormData = Mock()
         modules["voluptuous"].Schema = Mock()
         modules["voluptuous"].Required = lambda name, **kwargs: name
-        modules["voluptuous"].Optional = lambda name: name
+        modules["voluptuous"].Optional = lambda name, **kwargs: name
         for validator in ("In", "All", "Coerce", "Range", "Length"):
             setattr(modules["voluptuous"], validator, Mock())
         modules["homeassistant.components"].tts = modules["homeassistant.components.tts"]
@@ -112,6 +112,80 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertTrue(self.session.post.call_args.args[0].endswith("/api/assist/history"))
         self.assertEqual(self.session.post.call_args.kwargs["json"]["outcome"], "partial")
         self.assertTrue(await self.component.async_unload_entry(hass, self.entry))
+
+    async def test_duplicate_and_stop_finish_without_setting_empty_speech(self):
+        agent = self.conversation.DeclanTwoAgent(self.entry)
+        agent.hass = object()
+        user_input = SimpleNamespace(text='dinner time', language='en', conversation_id='old', device_id='device',
+                                     context=SimpleNamespace(user_id='user'))
+        for outcome in ('duplicate', 'confirmed'):
+            self.response.json.return_value = {'reply': '', 'session_id': 'new', 'outcome': outcome}
+            await agent.async_process(user_input)
+        self.intent.IntentResponse.return_value.async_set_speech.assert_not_called()
+        self.intent.IntentResponse.return_value.async_set_error.assert_not_called()
+
+    async def test_cloud_failure_replays_audio_to_local_stt_once_and_preserves_capture(self):
+        provider = import_module('custom_components.declan_two.stt')
+        models = import_module('custom_components.declan_two.speaker_models')
+        self.entry.options = {'openai_stt_api_key': 'key', 'local_stt_entity': 'stt.local'}
+        entity = provider.DeclanOpenAISTT(object(), self.entry)
+        received = []
+        async def local(metadata, stream):
+            received.append(b''.join([chunk async for chunk in stream]))
+            return provider.stt.SpeechResult(models.SpeakerTranscript('hello', ('id', 'Edd', .9)), 'success')
+        engine = SimpleNamespace(check_metadata=Mock(return_value=True), async_process_audio_stream=AsyncMock(side_effect=local))
+        async def audio():
+            yield b'\x00\x01' * 100
+        with patch.object(provider.stt, 'async_get_speech_to_text_entity', return_value=engine, create=True):
+            for failure in ('http', 'timeout', 'empty', 'malformed'):
+                self.response.status = 503 if failure == 'http' else 200
+                self.request.__aenter__.side_effect = TimeoutError if failure == 'timeout' else None
+                self.response.json.side_effect = ValueError if failure == 'malformed' else None
+                self.response.json.return_value = {'text': ''}
+                result = await entity.async_process_audio_stream(SimpleNamespace(language='en'), audio())
+                self.assertEqual(result.result, 'success')
+                self.assertEqual(result.text.jarvis_speaker, ('id', 'Edd', .9))
+                self.assertAlmostEqual(result.text.capture_level['duration'], 100 / 16000)
+        self.assertEqual(engine.async_process_audio_stream.await_count, 4)
+        self.assertEqual(received, [b'\x00\x01' * 100] * 4)
+
+    async def test_local_stt_failure_missing_provider_and_recursive_provider_fail_cleanly(self):
+        provider = import_module('custom_components.declan_two.stt')
+        self.entry.options = {'local_stt_entity': 'stt.local'}
+        entity = provider.DeclanOpenAISTT(object(), self.entry)
+        local = SimpleNamespace(check_metadata=Mock(return_value=True), async_process_audio_stream=AsyncMock(side_effect=TimeoutError))
+        for engine in (None, entity, local):
+            with patch.object(provider.stt, 'async_get_speech_to_text_entity', return_value=engine, create=True):
+                result = await entity._fallback(None, b'\0\0', {'ended_at': 1, 'duration': 1, 'rms': 0})
+                self.assertEqual(result.result, 'error')
+        local.async_process_audio_stream.assert_awaited_once()
+
+    async def test_wyoming_configuration_is_used_as_local_fallback(self):
+        provider = import_module('custom_components.declan_two.stt')
+        bridge = import_module('custom_components.declan_two.wyoming_speaker_stt')
+        self.entry.options = {'wyoming_bridge_enabled': True, 'wyoming_bridge_host': 'local.test'}
+        engine = SimpleNamespace(check_metadata=Mock(return_value=True), async_process_audio_stream=AsyncMock(
+            return_value=provider.stt.SpeechResult('hello', 'success')))
+        with patch.object(bridge, 'DeclanWyomingVoiceBridge', return_value=engine):
+            result = await provider.DeclanOpenAISTT(object(), self.entry)._fallback(None, b'\0\0', {})
+        self.assertEqual(result.result, 'success')
+
+    async def test_local_fallback_deadline_and_external_cancellation(self):
+        import asyncio
+        provider = import_module('custom_components.declan_two.stt')
+        self.entry.options = {'local_stt_entity': 'stt.local'}
+        entity = provider.DeclanOpenAISTT(object(), self.entry)
+        async def stall(metadata, stream):
+            await asyncio.Event().wait()
+        engine = SimpleNamespace(check_metadata=Mock(return_value=True), async_process_audio_stream=AsyncMock(side_effect=stall))
+        timeout = asyncio.timeout
+        with patch.object(provider.stt, 'async_get_speech_to_text_entity', return_value=engine, create=True), patch.object(
+                provider.asyncio, 'timeout', side_effect=lambda _: timeout(.01)):
+            self.assertEqual((await entity._fallback(None, b'\0\0', {})).result, 'error')
+        engine.async_process_audio_stream.side_effect = asyncio.CancelledError
+        with patch.object(provider.stt, 'async_get_speech_to_text_entity', return_value=engine, create=True):
+            with self.assertRaises(asyncio.CancelledError):
+                await entity._fallback(None, b'\0\0', {})
 
     async def test_configuration_rejects_bad_address_and_weak_token(self):
         flow = self.config.DeclanTwoConfigFlow()

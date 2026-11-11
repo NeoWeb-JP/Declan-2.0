@@ -1,13 +1,20 @@
-"""Choose one satellite for overlapping captures of the same utterance."""
-
+"""Claim overlapping copies once, independently of transcription arrival latency."""
 import math
+import re
 from threading import Lock
-from time import monotonic, sleep, time
+from time import monotonic, time
+
+
+def command_key(phrase):
+    # Only explicit harmless variants. Fuzzy matching can merge opposite actions.
+    phrase = " ".join(phrase.casefold().strip(" .?!").split())
+    return re.sub(r"^(turn (?:on|off) (?:the )?)lights(?=$| in )", r"\1light", phrase)
 
 
 class CaptureArbiter:
-    def __init__(self, window=0.25):
-        self.window = window
+    def __init__(self, window=None, retention=120):
+        # Keep window accepted for old callers; no sleep is imposed.
+        self.retention = retention
         self.lock = Lock()
         self.groups = []
 
@@ -18,36 +25,24 @@ class CaptureArbiter:
         if not all(type(value) in (int, float) and math.isfinite(value) for value in values):
             return True
         ended_at, duration, rms = values
-        if not (0.1 <= duration <= 65 and 0 <= rms <= 1 and abs(time() - ended_at) < 120):
+        if not (0.1 <= duration <= 65 and 0 <= rms <= 1 and abs(time() - ended_at) < self.retention):
             return True
         started_at = ended_at - duration
         now = monotonic()
-        candidate = {"origin": origin, "rms": rms}
+        phrase = command_key(phrase)
         with self.lock:
-            self.groups = [group for group in self.groups if now - group["created"] < 120][-127:]
-            if any(group["phrase"] == phrase and abs(group["ended_at"] - ended_at) < 0.01
-                   and abs(group["started_at"] - started_at) < 0.01
-                   and origin in {item["origin"] for item in group["candidates"]}
-                   for group in self.groups):
+            self.groups = [group for group in self.groups if now - group["created"] < self.retention]
+            for group in self.groups:
+                if phrase != group["phrase"] or (speaker and group["speaker"] and speaker != group["speaker"]):
+                    continue
+                exact = abs(group["ended_at"] - ended_at) < 0.01 and abs(group["started_at"] - started_at) < 0.01
+                overlap = min(ended_at, group["ended_at"]) - max(started_at, group["started_at"])
+                same = overlap >= 0.8 * min(duration, group["duration"]) and abs(ended_at - group["ended_at"]) <= 1
+                if (origin == group["origin"] and exact) or (origin != group["origin"] and same):
+                    return False
+            # Never evict a live claim under load and accidentally execute it twice.
+            if len(self.groups) >= 4096:
                 return False
-            group = next((group for group in self.groups
-                          if group["phrase"] == phrase
-                          and origin not in {item["origin"] for item in group["candidates"]}
-                          and not (speaker and group["speaker"] and speaker != group["speaker"])
-                          and min(ended_at, group["ended_at"]) - max(started_at, group["started_at"]) >= 0.1), None)
-            if group is None:
-                group = {"phrase": phrase, "speaker": speaker, "created": now,
-                         "started_at": started_at, "ended_at": ended_at, "candidates": [], "winner": None}
-                self.groups.append(group)
-            if speaker and group["speaker"] is None:
-                group["speaker"] = speaker
-            group["candidates"].append(candidate)
-            if group["winner"] is not None:
-                return False
-            remaining = group["created"] + self.window - now
-        if remaining > 0:
-            sleep(remaining)
-        with self.lock:
-            if group["winner"] is None:
-                group["winner"] = max(group["candidates"], key=lambda item: item["rms"])
-            return group["winner"] is candidate
+            self.groups.append(dict(phrase=phrase, origin=origin, speaker=speaker, created=now,
+                                    started_at=started_at, ended_at=ended_at, duration=duration))
+            return True
