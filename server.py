@@ -20,6 +20,9 @@ import webbrowser
 from arbitration import CaptureArbiter
 
 import conditions
+import diagnostics
+import configuration
+import voice_profiles
 import device_status
 import history
 import music
@@ -258,7 +261,7 @@ def search_media(phrase):
     title = match[1].strip()
     if len(title) > 200 or re.search(r"\b(?:and|then)\s+(?:turn|switch|dim|brighten|set|start|stop|unlock|lock|open|play)\b", title):
         return "Please ask for the film or show separately from any device commands.", "unresolved"
-    agent = os.environ.get("DECLAN_MEDIA_SEARCH_AGENT", "").strip()
+    agent = configuration.get("DECLAN_MEDIA_SEARCH_AGENT", "").strip()
     if agent and not re.fullmatch(r"conversation\.[a-z0-9_]+", agent):
         return "The Declan Local media search agent isn't configured.", "not_configured"
     connection = ha_device_connection()
@@ -396,6 +399,7 @@ def verify_legacy_lounge_start(connection, script):
     return None
 
 
+@diagnostics.timed("ha_routine")
 def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None):
     """Call the configured Home Assistant routine once and read its result."""
     salutation = "Movie Time." if movie_action else f"Good {period}."
@@ -407,8 +411,8 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
     movie_prefix = "DECLAN_BEDROOM_MOVIE" if movie_room == "bedroom" else "DECLAN_MOVIE"
     setting = f"{movie_prefix}_SCRIPT" if movie_action else f"DECLAN_GOOD_{period.upper()}_SCRIPT"
     default_script = {"morning": GOOD_MORNING_SCRIPT, "night": GOOD_NIGHT_SCRIPT}.get(period, "")
-    script = os.environ.get(setting, default_script).strip()
-    remote = os.environ.get(f"{movie_prefix}_REMOTE", "").strip() if movie_app else ""
+    script = configuration.get(setting, default_script).strip()
+    remote = configuration.get(f"{movie_prefix}_REMOTE", "").strip() if movie_app else ""
     if movie_action and (not script or (movie_app and not remote)):
         script, remote, error = discover_movie_entities(
             connection, movie_room, script=script, remote=remote, needs_remote=bool(movie_app),
@@ -637,6 +641,7 @@ def parse_light_command(phrase):
     return name, direction
 
 
+@diagnostics.timed("lighting")
 def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_device=None):
     if phrase in {"what lights are on", "which lights are on", "what lights are still on", "which lights are still on"}:
         return set_lights("", None)
@@ -732,6 +737,7 @@ def ha_device_connection():
     return url, headers, opener
 
 
+@diagnostics.timed("bedroom_routine")
 def run_sexy_time(operation, connection):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured", None
@@ -778,6 +784,7 @@ def run_sexy_time(operation, connection):
         SEXY_TIME_LOCK.release()
 
 
+@diagnostics.timed("dinner_dispatch")
 def start_dinner(connection):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
@@ -849,9 +856,10 @@ def guest_assignment(operation, connection):
     return add_sass("Guest Mode is off. The house is back in your hands.", "guest_inactive", mode), "confirmed"
 
 
+@diagnostics.timed("speech_generation")
 def render_web_voice(message):
     connection = ha_device_connection()
-    engine = os.environ.get("DECLAN_WEB_TTS_ENTITY", "").strip()
+    engine = configuration.get("DECLAN_WEB_TTS_ENTITY", "").strip()
     if connection is None or (engine and not re.fullmatch(r"tts\.[a-z0-9_]+", engine)):
         return None
     url, headers, opener = connection
@@ -1440,10 +1448,19 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
     return {"session_id": session_id, "reply": reply}
 
 
+@diagnostics.timed("ha_transcription")
+def traced_transcribe(*args, **kwargs):
+    return web_stt.transcribe(*args, **kwargs)
+
 class Handler(BaseHTTPRequestHandler):
     timeout = 5
 
     def send_body(self, status, data, content_type, filename=None):
+        trace = diagnostics.ACTIVE.get()
+        if trace is not None:
+            if trace['outcome'] == 'unknown':
+                trace['outcome'] = 'failed' if status >= 400 else 'completed'
+            diagnostics.persist(trace)
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
@@ -1454,6 +1471,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def send_json(self, status, data):
+        trace = diagnostics.ACTIVE.get()
+        if trace is not None:
+            trace['outcome'] = data.get('outcome') or ('failed' if status >= 400 else 'completed')
+            data = {**data, 'diagnostic_id': trace['id']}
         self.send_body(status, json.dumps(data).encode(), "application/json")
 
     def spotify_settings(self, body=None):
@@ -1484,7 +1505,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not ingress and (
             self.path.startswith("/api/history")
-            or self.path in {"/api/settings/spotify", "/api/updates", "/api/updates/status"}
+            or self.path.startswith("/api/settings/") or self.path == "/api/voice-profiles"
+            or self.path in {"/api/diagnostics", "/api/settings/spotify", "/api/updates", "/api/updates/status"}
         ) and self.headers.get("Host") not in {
             f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"
         }:
@@ -1506,6 +1528,23 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {**updates.status(), "current": RELEASE_VERSION, "versions": updates.check()})
             except (OSError, subprocess.SubprocessError):
                 self.send_json(503, {"error": "Couldn't check GitHub for releases."})
+        elif self.path in {"/api/settings/export", "/api/settings/export-learning", "/api/settings/recovery", "/api/settings/recovery-learning"}:
+            try:
+                document = (configuration.recovery(self.path.endswith("recovery-learning")) if "/recovery" in self.path else
+                            configuration.export(self.path.endswith('export-learning')))
+                self.send_body(200, json.dumps(document).encode(), 'application/json', 'declan-settings.json')
+            except (ValueError, OSError, sqlite3.Error):
+                self.send_json(503, {"error": "Settings export is unavailable."})
+        elif self.path == "/api/voice-profiles":
+            try:
+                self.send_json(200, voice_profiles.listing())
+            except (OSError, sqlite3.Error):
+                self.send_json(503, {'error': 'Voice profiles are unavailable.'})
+        elif self.path == "/api/diagnostics":
+            try:
+                self.send_json(200, {"traces": diagnostics.recent()})
+            except (OSError, sqlite3.Error, ValueError):
+                self.send_json(503, {"error": "Diagnostics are unavailable."})
         elif self.path == "/api/settings/spotify":
             self.spotify_settings()
         elif self.path == "/api/history/export":
@@ -1563,8 +1602,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "The microphone recording was incomplete."})
             return
         try:
-            text = web_stt.transcribe(connection[0], os.environ["DECLAN_HA_TOKEN"].strip(), audio,
-                                      pipeline=os.environ.get("DECLAN_WEB_ASSIST_PIPELINE", "").strip())
+            text = traced_transcribe(connection[0], os.environ["DECLAN_HA_TOKEN"].strip(), audio,
+                                      pipeline=configuration.get("DECLAN_WEB_ASSIST_PIPELINE", "").strip())
         except ImportError:
             self.send_json(503, {"error": "Install requirements-web-voice.txt to enable the Assist microphone."})
             return
@@ -1579,13 +1618,19 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"text": text})
 
     def do_POST(self):
+        if self.path not in {"/api/chat", "/api/assist", "/api/stt", "/api/tts", "/api/assist/history"}:
+            return self.handle_post()
+        with diagnostics.request(self.path):
+            return self.handle_post()
+
+    def handle_post(self):
         if self.path in {"/api/assist", "/api/assist/history"}:
             token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
             supplied = self.headers.get("Authorization", "")
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/voice-profiles"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not self.has_ingress_access() and (
@@ -1604,16 +1649,42 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            max_size = 65536 if self.path == "/api/assist/history" else 8192
+            max_size = 450000 if self.path == "/api/voice-profiles" else 196608 if self.path == "/api/settings/import" else 65536 if self.path == "/api/assist/history" else 8192
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
+            if self.path == "/api/voice-profiles":
+                try:
+                    self.send_json(200, voice_profiles.manage(body))
+                except ValueError as error:
+                    self.send_json(400, {'error': str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {'error': 'Voice profiles could not be saved.'})
+                return
+            if self.path == "/api/settings/import":
+                try:
+                    if not isinstance(body, dict) or set(body) - {'document', 'confirm', 'expected'}:
+                        raise ValueError('Send a settings file to preview.')
+                    if body.get('confirm') is True:
+                        configuration.apply(body.get('document'), body.get('expected'))
+                        self.send_json(200, {'saved': True})
+                    elif 'confirm' not in body:
+                        self.send_json(200, configuration.preview(body.get('document')))
+                    else:
+                        raise ValueError('Preview the settings before confirming.')
+                except ValueError as error:
+                    self.send_json(400, {'error': str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {'error': 'Settings could not be imported.'})
+                return
             if self.path == "/api/history/intents":
                 try:
                     if not isinstance(body, dict):
                         raise ValueError("Send an intent correction or removal.")
                     if set(body) == {"forget"} and isinstance(body["forget"], str) and 0 < len(body["forget"]) <= 120:
                         history.forget_intent(body["forget"])
+                    elif set(body) == {"phrase", "target", "previous"}:
+                        history.edit_intent(body["phrase"], body["target"], body["previous"])
                     elif (set(body) == {"turn_id", "target"} and type(body["turn_id"]) is int
                           and 0 < body["turn_id"] < 2**63 and isinstance(body["target"], str)
                           and 0 < len(body["target"]) <= 120):
@@ -1881,7 +1952,8 @@ class Handler(BaseHTTPRequestHandler):
                 session["failed_light_phrase"] = {"text": message, "scope": scope, "actions": actions}
             try:
                 history.record(reply["session_id"], source, message, reply["reply"], outcome, routine_status,
-                               action_results, phrase_suggestion, speaker=body.get("speaker") if source == "assist" else None)
+                               action_results, phrase_suggestion, speaker=body.get("speaker") if source == "assist" else None,
+                               diagnostic_id=diagnostics.current_id())
                 if action_results:
                     reply["action_results"] = action_results
             except (OSError, sqlite3.Error):

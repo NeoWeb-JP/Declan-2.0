@@ -10,3 +10,5 @@ declan-conversation-history*.json
 node_modules/
 /.idea/
 /pyproject.toml
+
+coverage/

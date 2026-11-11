@@ -67,3 +67,7 @@ identified different speakers are kept separate. Audio is not stored for arbitra
 Captures without valid loudness/timing metadata keep the existing processing path.
 Live kitchen/bedroom acceptance remains required before removing the legacy routine
 result fallback.
+
+### Current NOW work
+
+The [current work and live testing list](docs/now-work.md) tracks the agreed additions, remaining migration gaps and new GitHub issues. Settings now includes request diagnostics, configuration export/import and local voice sample controls. Local samples do not change the active recognition model yet; the VoicePipeline enrolment API still needs to be established.
