@@ -57,6 +57,7 @@ class APITests(TestCase):
         gateway = self.enterContext(proxy.ThreadingHTTPServer(("127.0.0.1", 0), proxy.ProxyHandler))
         gateway.target = urlsplit(self.origin)
         gateway.ingress_token = token
+        gateway.panel_token = "p" * 64
         worker = Thread(target=gateway.serve_forever, daemon=True)
         worker.start()
         self.addCleanup(worker.join)
@@ -85,6 +86,15 @@ class APITests(TestCase):
         self.assertEqual(json.loads(request("/api/history")[1])["turns"][0]["message"], "hello")
         with patch.object(proxy, "SUPERVISOR_ADDRESS", "192.0.2.1"):
             self.assertEqual(request("/")[0], 403)
+
+    def test_unqualified_assist_music_passes_origin_to_playback(self):
+        with patch.object(server, "ha_device_connection", return_value=None), patch.object(
+            server.music, "play", return_value=("Playing country music.", "confirmed")
+        ) as play:
+            result = self.ask("Play country music.", path="/api/assist", device="utility-device")
+            self.assertEqual(result["outcome"], "confirmed")
+            play.assert_called_once_with((None, "country music", "spotify"), None,
+                                         server.read_music_inventory, origin="utility-device")
 
     def test_stop_discovers_the_speaking_device_and_replies_silently(self):
         rows = [
