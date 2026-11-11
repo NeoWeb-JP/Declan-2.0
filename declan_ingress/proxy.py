@@ -4,6 +4,7 @@ from http.client import HTTPConnection, HTTPSConnection, HTTPException
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import secrets
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -17,6 +18,15 @@ POST_PATHS = {
     "/api/history/intents", "/api/settings/spotify", "/api/updates",
 }
 SUPERVISOR_ADDRESS = "172.30.32.2"
+
+
+def panel_script(token):
+    return ("<script>(()=>{const original=window.fetch;const token="
+            + json.dumps(token)
+            + ";window.fetch=function(input,options){const request=new Request(input,options);"
+            "const url=new URL(request.url);if(request.method==='POST'&&"
+            "url.origin===location.origin&&url.pathname.startsWith(new URL('.',location.href).pathname)){"
+            "request.headers.set('X-Declan-Panel-Token',token);}return original.call(this,request);};})();</script>").encode()
 
 
 class ProxyHandler(BaseHTTPRequestHandler):
@@ -49,7 +59,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
         body = None
         headers = {"X-Declan-Ingress-Token": self.server.ingress_token}
         if self.command == "POST":
-            if self.headers.get("Sec-Fetch-Site") != "same-origin":
+            fetch_site = self.headers.get("Sec-Fetch-Site")
+            panel_token = self.headers.get("X-Declan-Panel-Token", "")
+            valid_token = secrets.compare_digest(panel_token.encode(), self.server.panel_token.encode())
+            if fetch_site not in {None, "same-origin"} or (fetch_site is None and not valid_token):
                 self.send_error_json(403, "Send requests from the Declan panel.")
                 return
             expected = "application/octet-stream" if path == "/api/stt" else "application/json"
@@ -83,13 +96,21 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return
 
         try:
+            page = None
+            if path == "/" and response.status == 200 and response.getheader("Content-Type", "").startswith("text/html"):
+                page = panel_script(self.server.panel_token) + response.read()
             self.send_response(response.status)
             for name in ("Content-Type", "Content-Disposition", "Content-Length"):
                 value = response.getheader(name)
+                if name == "Content-Length" and page is not None:
+                    value = str(len(page))
                 if value is not None:
                     self.send_header(name, value)
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
+            if page is not None:
+                self.wfile.write(page)
+                return
             while chunk := response.read(65536):
                 self.wfile.write(chunk)
         except (HTTPException, OSError):
@@ -118,6 +139,7 @@ def main():
     with ThreadingHTTPServer(("0.0.0.0", 8099), ProxyHandler) as server:
         server.target = target
         server.ingress_token = token
+        server.panel_token = secrets.token_urlsafe(32)
         server.serve_forever()
 
 
