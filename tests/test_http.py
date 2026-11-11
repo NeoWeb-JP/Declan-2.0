@@ -64,8 +64,10 @@ class APITests(TestCase):
         self.addCleanup(gateway.shutdown)
         origin = f"http://127.0.0.1:{gateway.server_port}"
 
-        def request(path, *, body=None, site=None):
+        def request(path, *, body=None, site=None, panel=None):
             headers = {"Content-Type": "application/json"}
+            if panel:
+                headers["X-Declan-Panel-Token"] = panel
             if site:
                 headers["Sec-Fetch-Site"] = site
             data = json.dumps(body).encode() if body is not None else None
@@ -83,6 +85,11 @@ class APITests(TestCase):
             "X-Declan-Ingress-Token": "wrong", "Content-Type": "application/json",
         })[0], 403)
         self.assertEqual(request("/api/chat", body={"message": "hello"}, site="same-origin")[0], 200)
+        self.assertEqual(request("/api/chat", body={"message": "hello"})[0], 403)
+        self.assertEqual(request("/api/chat", body={"message": "hello"}, panel="wrong")[0], 403)
+        self.assertEqual(request("/api/chat", body={"message": "hello"}, panel=gateway.panel_token)[0], 200)
+        self.assertEqual(request("/api/chat", body={"message": "hello"}, site="cross-site",
+                                 panel=gateway.panel_token)[0], 403)
         self.assertEqual(json.loads(request("/api/history")[1])["turns"][0]["message"], "hello")
         with patch.object(proxy, "SUPERVISOR_ADDRESS", "192.0.2.1"):
             self.assertEqual(request("/")[0], 403)
@@ -364,6 +371,7 @@ class StartupTests(TestCase):
                     server.main()
 
     def test_startup_checks_health_and_keeps_maintenance_running(self):
+        self.enterContext(patch.object(server.history, "initialize"))
         http = self.enterContext(patch.object(server, "ThreadingHTTPServer"))
         host = http.return_value
         host.server_port = 8765
@@ -376,11 +384,44 @@ class StartupTests(TestCase):
         browser = self.enterContext(patch.object(server.webbrowser, "open"))
         self.enterContext(patch("sys.argv", ["server.py", "--open"]))
         stdout = self.enterContext(patch("sys.stdout", new_callable=io.StringIO))
-        server.main()
+        with self.assertLogs(level="ERROR") as logs:
+            server.main()
         http.assert_called_once_with(("127.0.0.1", 8765), server.Handler)
         opener.open.assert_called_once_with("http://127.0.0.1:8765/health", timeout=3)
         browser.assert_called_once_with("http://127.0.0.1:8765/")
         ring.assert_called_once_with(opener)
         prune.assert_called_once()
         host.shutdown.assert_called_once()
-        self.assertIn("Timer alarms could not be checked.", stdout.getvalue())
+        self.assertIn("Timer alarms could not be checked.", '\n'.join(logs.output))
+
+    def test_every_background_job_isolated_and_retried_after_unexpected_errors(self):
+        self.enterContext(patch.object(server.history, "initialize"))
+        host = self.enterContext(patch.object(server, "ThreadingHTTPServer")).return_value
+        host.server_port = 8765
+        worker = self.enterContext(patch.object(server, "Thread")).return_value
+        worker.is_alive.side_effect = [True, True, False]
+        opener = self.enterContext(patch.object(server, "build_opener")).return_value
+        opener.open.return_value = io.BytesIO(b'{"status":"ok"}')
+        self.enterContext(patch.object(server, "monotonic", side_effect=iter(range(0, 40000, 4000))))
+        self.enterContext(patch.object(server, "ha_device_connection", return_value=None))
+        ring = self.enterContext(patch.object(server.timers, "ring_due", side_effect=[KeyError(), None]))
+        music = self.enterContext(patch.object(server.music, "skip_blocked_tracks", side_effect=[ValueError(), None]))
+        prune = self.enterContext(patch.object(server.history, "prune", side_effect=[TypeError(), None]))
+        self.enterContext(patch("sys.argv", ["server.py"]))
+        with self.assertLogs(level="ERROR") as logs:
+            server.main()
+        self.assertEqual((ring.call_count, music.call_count, prune.call_count), (2, 2, 2))
+        self.assertEqual(len(logs.output), 3)
+        host.shutdown.assert_called_once()
+
+    def test_learned_intent_database_failure_is_logged(self):
+        import sqlite3
+        # Reuse the HTTP fixture to check the actual request error path.
+        fixture = APITests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        with patch.object(server.history, 'learned_intent', side_effect=sqlite3.OperationalError('locked')), patch.object(
+                server.Handler, 'log_error') as log:
+            response = fixture.ask('hello', path='/api/assist')
+            self.assertIsInstance(response['reply'], str)
+        log.assert_called_once_with('Could not look up learned intention; using the original transcript.')
