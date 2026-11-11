@@ -18,7 +18,7 @@ Forwarding headers cannot change the peer identity. The ledger is lock-protected
 
 The HA bridge and the ingress proxy already accept `https://` URLs and validate server certificates. Keep the stable launcher's HTTP health check on loopback, and terminate TLS on a reverse proxy on the **same host as Declan**. Set `DECLAN_BIND_ADDRESS=127.0.0.1` in the service environment so the authenticated Assist listener is no longer exposed directly on the LAN. This optional setting applies to `--assist-lan`; it defaults to the existing `0.0.0.0` binding for compatibility and accepts IPv4 addresses only.
 
-For example, after provisioning a DNS name and a certificate whose full chain HA trusts, an nginx server block can expose only the required bridge and ingress paths:
+For example, after provisioning a DNS name and a certificate whose full chain HA trusts, an nginx server block can expose the service for the HA bridge and ingress:
 
 ```nginx
 server {
@@ -34,14 +34,14 @@ server {
 
     location / {
         proxy_pass http://127.0.0.1:52737;
-        proxy_set_header Host 127.0.0.1:52737;
+        proxy_set_header Host $host;
         proxy_read_timeout 90s;
         client_max_body_size 1m;
     }
 }
 ```
 
-Use `https://declan.example.net` in the HA bridge configuration and the HA app's `declan_url`. Keep `DECLAN_INGRESS_TOKEN` separate from `DECLAN_ASSIST_TOKEN`. Do not disable certificate validation or redirect an HTTP request containing a bearer token to HTTPS: configure the HTTPS URL from the start. Verify the old LAN HTTP port is unreachable, both HA clients can connect with the trusted name, and an untrusted certificate is rejected. TLS requires deployment-specific DNS, certificate and firewall configuration; these are not created by this change. Protect the separate Declan-to-HA URL with HTTPS too when it crosses the LAN. A same-host TLS proxy avoids changing updater health checks or trusting forwarded headers.
+Use `https://declan.example.net` in the HA bridge configuration and the HA app's `declan_url`. Keep `DECLAN_INGRESS_TOKEN` separate from `DECLAN_ASSIST_TOKEN`. Preserve the external Host header as shown: rewriting it to the loopback address would defeat the standalone server's Host check on private GET endpoints. Use the HA sidebar for the web UI; the HTTPS origin is for the authenticated HA clients. Do not disable certificate validation or redirect an HTTP request containing a bearer token to HTTPS: configure the HTTPS URL from the start. Verify the old LAN HTTP port is unreachable, both HA clients can connect with the trusted name, and an untrusted certificate is rejected. TLS requires deployment-specific DNS, certificate and firewall configuration; these are not created by this change. Protect the separate Declan-to-HA URL with HTTPS too when it crosses the LAN. A same-host TLS proxy avoids changing updater health checks or trusting forwarded headers.
 
 References: [nginx HTTPS configuration](https://nginx.org/en/docs/http/configuring_https_servers.html) and [proxy module](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
 
