@@ -4,8 +4,10 @@ from http.client import HTTPConnection, HTTPSConnection, HTTPException
 from http.server import BaseHTTPRequestHandler
 if __package__:
     from .http_server import BoundedHTTPServer as ThreadingHTTPServer
+    from .security import response_headers, secure_page
 else:
     from http_server import BoundedHTTPServer as ThreadingHTTPServer
+    from security import response_headers, secure_page
 import json
 import os
 import secrets
@@ -36,6 +38,12 @@ def panel_script(token):
 class ProxyHandler(BaseHTTPRequestHandler):
     timeout = 10
 
+    def end_headers(self):
+        # The browser sees the HA origin. Replace the upstream frame policy.
+        for name, value in response_headers(ingress=True, nonce=getattr(self, '_page_nonce', None)).items():
+            self.send_header(name, value)
+        super().end_headers()
+
     def log_message(self, *args):
         # Ingress paths and headers can contain credentials.
         pass
@@ -50,6 +58,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def forward(self):
+        self._page_nonce = None
         if self.client_address[0] != SUPERVISOR_ADDRESS:
             self.send_error_json(403, "Open Declan from Home Assistant.")
             return
@@ -105,6 +114,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 page = response.read()
                 insertion = page.find(b">", page.lower().find(b"<html")) + 1
                 page = page[:insertion] + panel_script(self.server.panel_token) + page[insertion:]
+                page, self._page_nonce = secure_page(page)
             self.send_response(response.status)
             for name in ("Content-Type", "Content-Disposition", "Content-Length"):
                 value = response.getheader(name)
@@ -151,3 +161,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -1,6 +1,10 @@
 """Bound request workers and reject overload without creating extra threads."""
 from http.server import ThreadingHTTPServer
 from threading import BoundedSemaphore
+if __package__:
+    from .security import BadTokenLimiter
+else:
+    from security import BadTokenLimiter
 
 
 class BoundedHTTPServer(ThreadingHTTPServer):
@@ -8,6 +12,7 @@ class BoundedHTTPServer(ThreadingHTTPServer):
 
     def __init__(self, *args, max_workers=16, **kwargs):
         self._slots = BoundedSemaphore(max_workers)
+        self.bad_tokens = BadTokenLimiter()
         super().__init__(*args, **kwargs)
 
     def process_request(self, request, client_address):
@@ -32,3 +37,4 @@ class BoundedHTTPServer(ThreadingHTTPServer):
             super().process_request_thread(request, client_address)
         finally:
             self._slots.release()
+

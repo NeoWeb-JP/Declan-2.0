@@ -62,7 +62,7 @@ class IngressTests(TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b'panel-secret', body)
         self.assertNotIn(b'upstream-secret', body)
-        self.assertTrue(body.startswith(b'<html><script>'))
+        self.assertTrue(body.startswith(b'<html><script nonce="'))
         self.assertTrue(body.endswith(b'</html>'))
 
     def test_voicepipeline_management_route_is_allowed_with_same_panel_boundary(self):
@@ -72,3 +72,4 @@ class IngressTests(TestCase):
             headers = {'Content-Type': 'application/json', 'X-Declan-Panel-Token': 'panel-secret'}
             self.assertEqual(self.request(method=method, headers=headers, path='/api/voicepipeline')[0], 200)
         self.assertEqual(self.request(path='/api/voicepipeline')[0], 403)
+

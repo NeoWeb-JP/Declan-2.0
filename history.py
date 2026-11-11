@@ -1,5 +1,6 @@
 """Local retention and export for Declan chat turns."""
 import json
+import os
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -10,10 +11,16 @@ from threading import Lock
 
 
 DATABASE = Path(__file__).resolve().parent / ".data" / "conversations.sqlite3"
-RETENTION_SECONDS = 30 * 24 * 60 * 60
 SPEAKER_THRESHOLD = 0.75
 _SCHEMA_LOCK = Lock()
 _initialized = set()
+
+
+def retention_seconds():
+    value = os.environ.get('DECLAN_HISTORY_RETENTION_DAYS', '30')
+    if not re.fullmatch(r'(?:[1-9]|[12][0-9]|30)', value):
+        raise ValueError('DECLAN_HISTORY_RETENTION_DAYS must be a whole number from 1 to 30.')
+    return int(value) * 24 * 60 * 60
 
 
 def speaker_match(value):
@@ -81,7 +88,7 @@ def database():
 
 def prune():
     with database() as connection:
-        connection.execute("DELETE FROM turns WHERE created_at < ?", (time() - RETENTION_SECONDS,))
+        connection.execute("DELETE FROM turns WHERE created_at < ?", (time() - retention_seconds(),))
 
 
 def _intent_table(connection):
@@ -162,10 +169,10 @@ def record(session_id, source, message, reply, outcome=None, routine_status=None
 def recent(before=None, limit=50):
     with database() as connection:
         connection.row_factory = sqlite3.Row
-        query = "SELECT * FROM turns"
-        args = []
+        query = "SELECT * FROM turns WHERE created_at >= ?"
+        args = [time() - retention_seconds()]
         if before is not None:
-            query += " WHERE id < ?"
+            query += " AND id < ?"
             args.append(before)
         query += " ORDER BY id DESC"
         if limit is not None:
@@ -193,3 +200,4 @@ def edit_intent(phrase, target, previous):
             "UPDATE learned_intents SET target = ? WHERE phrase = ? AND target = ?", (target, phrase, previous))
         if changed.rowcount != 1:
             raise ValueError("This intention changed in another tab. Refresh before editing.")
+
