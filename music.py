@@ -2,6 +2,7 @@
 
 import json
 import diagnostics
+import approved_media_players
 import os
 import re
 import sqlite3
@@ -55,6 +56,10 @@ def room_key(name):
 
 
 def music_players(inventory, *, origin=None):
+    approved = approved_media_players.resolve(inventory)
+    if approved is not None:
+        entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
+        return approved, {entity: entities[entity] for entity in approved.values() if entity in entities}
     destinations = PLAYERS.copy()
     entities = {row["entity_id"]: row for row in inventory
                 if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
@@ -363,12 +368,12 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
             areas = read_areas(connection, origin) if origin and read_areas else {}
             room = next((room_key(name) for name in areas if room_key(name) in destinations), None)
             if room and destinations.get(room) is None:
-                return f"More than one available Music Assistant player is assigned to the {room}.", "unresolved"
+                return f"No approved Music Assistant player is configured for {room}.", "unresolved"
             if action in {"media_next_track", "media_previous_track"}:
                 if room and destinations[room] in members:
                     room = "everywhere"
                 elif room and players.get(destinations[room], {}).get("state") not in ACTIVE:
-                    room = None
+                    return f"No active playback in the {room}.", "unavailable"
             elif room is None:
                 return "Which room should I control?", "unresolved"
         if room is None:
