@@ -1491,6 +1491,55 @@ class Handler(BaseHTTPRequestHandler):
         return (len(token) >= 32 and token != os.environ.get("DECLAN_ASSIST_TOKEN", "")
                 and secrets.compare_digest(supplied.encode(), token.encode()))
 
+    def approved_player_settings(self, body=None):
+        connection = ha_device_connection()
+        if connection is None:
+            self.send_json(503, {"error": "Home Assistant is not configured."})
+            return
+        inventory, error = read_ha_inventory(connection)
+        if error:
+            self.send_json(503, {"error": "Home Assistant media inventory is unavailable."})
+            return
+        areas = read_ha_areas(connection)
+        if not areas:
+            self.send_json(503, {"error": "Home Assistant areas are unavailable."})
+            return
+        candidates = {row["entity_id"]: row for row in inventory
+                      if row.get("declan_music_assistant") is True
+                      and row["entity_id"].startswith("media_player.")}
+        rooms = sorted({music.room_key(name) for name in areas} | {"everywhere"})
+        if body is not None:
+            selected = body.get("rooms") if isinstance(body, dict) else None
+            if not isinstance(selected, dict) or any(
+                not isinstance(key, str) or key not in rooms
+                or not isinstance(value, str) or value not in candidates
+                for key, value in selected.items()
+            ):
+                self.send_json(400, {"error": "Select registered Music Assistant players for known Home Assistant areas."})
+                return
+            try:
+                approved_media_players.save(selected)
+            except (OSError, ValueError):
+                self.send_json(503, {"error": "Could not save approved players."})
+                return
+        try:
+            configured = approved_media_players.load()
+        except (OSError, ValueError):
+            self.send_json(503, {"error": "Approved media player configuration is invalid."})
+            return
+        self.send_json(200, {
+            "configured": configured is not None,
+            "rooms": rooms,
+            "selected": configured or {},
+            "players": [
+                {"entity_id": entity,
+                 "name": (row.get("attributes") or {}).get("friendly_name") or entity,
+                 "area": row.get("declan_area") or "",
+                 "state": row.get("state")}
+                for entity, row in sorted(candidates.items())
+            ],
+        })
+
     def do_GET(self):
         ingress = self.has_ingress_access()
         if not ingress and self.client_address[0] != "127.0.0.1":
@@ -1628,7 +1677,7 @@ class Handler(BaseHTTPRequestHandler):
             if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/voice-profiles", "/api/voicepipeline"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not self.has_ingress_access() and (
