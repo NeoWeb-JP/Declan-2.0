@@ -275,7 +275,7 @@ class APITests(TestCase):
         path = "/api/history/intents"
         headers = {"Origin": self.origin, "Content-Type": "application/json"}
         with patch.object(server, "run_sexy_time", return_value=("End routine.", "confirmed", None)) as routine:
-            self.assertEqual(self.ask("End 60 time.", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
+            self.assertEqual(self.ask("Finish bedroom session.", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             turn = json.loads(self.request("/api/history")[1])["turns"][0]
             self.assertTrue(turn["teachable"])
             correction = {"turn_id": turn["id"], "target": "end sexy time"}
@@ -284,12 +284,12 @@ class APITests(TestCase):
             self.assertEqual(self.request(path, body=correction, headers=headers)[0], 200)
             routine.assert_not_called()
 
-            self.assertEqual(self.ask("END  60 TIME!", path="/api/assist")["reply"], "End routine.")
+            self.assertEqual(self.ask("FINISH BEDROOM SESSION!", path="/api/assist")["reply"], "End routine.")
             self.assertEqual(routine.call_args.args[0], "end")
-            self.assertEqual(server.history.recent(limit=1)[0]["message"], "END  60 TIME!")
+            self.assertEqual(server.history.recent(limit=1)[0]["message"], "FINISH BEDROOM SESSION!")
             self.assertEqual(self.ask("end 61 time", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
-            self.assertEqual(self.request(path, body={"forget": "end 60 time"}, headers=headers)[0], 200)
-            self.assertEqual(self.ask("end 60 time", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
+            self.assertEqual(self.request(path, body={"forget": "finish bedroom session"}, headers=headers)[0], 200)
+            self.assertEqual(self.ask("finish bedroom session", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             routine.assert_called_once()
 
     def test_free_text_correction_uses_normal_time_handler_and_preserves_transcript(self):
