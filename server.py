@@ -1496,7 +1496,7 @@ class Handler(BaseHTTPRequestHandler):
         if connection is None:
             self.send_json(503, {"error": "Home Assistant is not configured."})
             return
-        inventory, error = read_ha_inventory(connection)
+        inventory, error = read_music_inventory(connection)
         if error:
             self.send_json(503, {"error": "Home Assistant media inventory is unavailable."})
             return
