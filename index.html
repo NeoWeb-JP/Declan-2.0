@@ -251,9 +251,20 @@ button:disabled { opacity: .55; }
       <button type="button" id="open-backup">Back up settings</button>
       <button type="button" id="open-voices">Voice profiles</button>
       <button type="button" id="open-spotify" aria-haspopup="dialog">Spotify settings</button>
+      <button type="button" id="open-media-players" aria-haspopup="dialog">Approved media players</button>
     </div>
   </details>
 </header>
+<dialog id="media-players-panel" class="history" aria-labelledby="media-players-heading">
+  <div class="history-heading"><h2 id="media-players-heading">Approved media players</h2>
+    <button type="button" data-close="media-players-panel">Close</button></div>
+  <div style="padding:1rem;display:grid;gap:.85rem">
+    <p>Choose the only Music Assistant player Declan may use in each Home Assistant area. Unassigned rooms will not play music once saved.</p>
+    <div id="media-player-rows" style="display:grid;gap:.7rem"></div>
+    <p id="media-player-status" role="status"></p>
+    <button type="button" id="save-media-players">Save approved players</button>
+  </div>
+</dialog>
 <div class="mono connection"><span id="ha-status" role="status">Checking Home Assistant.</span>
   <button id="open-updates" type="button" aria-haspopup="dialog">Updates</button>
 </div>
@@ -1518,6 +1529,49 @@ for (const [id, operation, question] of [
 ]) document.querySelector('#' + id).addEventListener('click', () => {
   const profile = voiceProfiles.find(value => value.name === profileSelect.value);
   if (profile) void changeVoice({operation, speaker_id: profile.id}, question);
+});
+
+
+const mediaPanel = document.getElementById('media-players-panel');
+const mediaRows = document.getElementById('media-player-rows');
+const mediaStatus = document.getElementById('media-player-status');
+document.getElementById('open-media-players').addEventListener('click', async () => {
+  mediaPanel.showModal();
+  mediaRows.replaceChildren();
+  mediaStatus.textContent = 'Reading Home Assistant areas and Music Assistant players…';
+  try {
+    const data = await managementRequest('settings/media-players');
+    for (const room of data.rooms) {
+      const label = document.createElement('label');
+      label.style.display = 'grid'; label.style.gap = '.3rem';
+      label.textContent = room === 'everywhere' ? 'Everywhere (whole house)' : room;
+      const select = document.createElement('select');
+      select.dataset.room = room;
+      select.style.cssText = 'padding:.65rem;color:#e7f7ff;background:#102635;border:1px solid #315568;border-radius:.4rem;max-width:100%';
+      const empty = document.createElement('option');
+      empty.value = ''; empty.textContent = 'Not approved'; select.append(empty);
+      for (const player of data.players) {
+        const option = document.createElement('option');
+        option.value = player.entity_id;
+        option.textContent = player.name + ' (' + player.entity_id + ', ' + player.state + ')';
+        select.append(option);
+      }
+      select.value = data.selected[room] || '';
+      label.append(select); mediaRows.append(label);
+    }
+    mediaStatus.textContent = data.configured ? 'Current approved players loaded.' : 'No approved player list saved yet.';
+  } catch (error) { mediaStatus.textContent = error.message; }
+});
+document.getElementById('save-media-players').addEventListener('click', async () => {
+  const rooms = {};
+  for (const select of mediaRows.querySelectorAll('select[data-room]')) {
+    if (select.value) rooms[select.dataset.room] = select.value;
+  }
+  mediaStatus.textContent = 'Saving…';
+  try {
+    await managementRequest('settings/media-players', {rooms});
+    mediaStatus.textContent = 'Approved media players saved. Declan will use only these selections.';
+  } catch (error) { mediaStatus.textContent = error.message; }
 });
 
 </script>

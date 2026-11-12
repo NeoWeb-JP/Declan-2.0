@@ -40,3 +40,20 @@ def test_invalid_mapping_is_rejected(tmp_path, monkeypatch):
         approved.save({"kitchen": "switch.kitchen"})
     with pytest.raises(ValueError):
         approved.save({"kitchen": "media_player.kitchen;bad"})
+
+
+def test_playback_control_does_not_use_unapproved_player(tmp_path, monkeypatch):
+    monkeypatch.setenv("DECLAN_APPROVED_MEDIA_PLAYERS_FILE", str(tmp_path / "players.json"))
+    approved.save({"kitchen": "media_player.kitchen_declan_voice_assistant"})
+    inventory = [
+        {"entity_id": "media_player.kitchen_declan_voice_assistant", "state": "idle",
+         "declan_music_assistant": True, "attributes": {}},
+        {"entity_id": "media_player.kitchen_sonos", "state": "playing",
+         "declan_music_assistant": True, "attributes": {}},
+    ]
+    calls = []
+    monkeypatch.setattr(music, "request", lambda *args, **kwargs: calls.append(args))
+    reply, outcome = music.control(("media_next_track", "kitchen"), object(),
+                                   lambda connection: (inventory, None))
+    assert outcome == "unavailable"
+    assert not calls
