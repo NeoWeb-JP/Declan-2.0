@@ -33,9 +33,16 @@ def read(connection, *, music=False):
                 "{% if key in entity.attributes %}"
                 "{% set attrs.values = dict(attrs.values, **{key: entity.attributes[key]}) %}"
                 "{% endif %}{% endfor %}"
-                "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, state=entity.state, attributes=attrs.values"
+                + ("{% set source = namespace(entities=[]) %}"
+                   "{% if entity.entity_id in ma %}"
+                   "{% for identifier in device_attr(entity.entity_id, 'identifiers') or [] %}"
+                   "{% if identifier[0] == 'music_assistant' and identifier[1] is string "
+                   "and identifier[1].startswith('media_player.') %}"
+                   "{% set source.entities = source.entities + [identifier[1]] %}"
+                   "{% endif %}{% endfor %}{% endif %}" if music else "")
+                + "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, state=entity.state, attributes=attrs.values"
                 + (", declan_area=area_name(entity.entity_id), declan_device=device_id(entity.entity_id), "
-                   "declan_music_assistant=entity.entity_id in ma" if music else "")
+                   "declan_music_assistant=entity.entity_id in ma, declan_source_entities=source.entities" if music else "")
                 + ")] %}{% endfor %}{{ dict(total=entities | count, rows=result.rows) | to_json }}"
             )
             request = Request(url + '/api/template', headers=headers,

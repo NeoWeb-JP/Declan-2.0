@@ -90,13 +90,15 @@ class InventoryTests(TestCase):
             env = SandboxedEnvironment()
             env.filters['to_json'] = json.dumps
             value = env.from_string(template).render(states=[entity], integration_entities=lambda _: ['media_player.test'],
-                                                    area_name=lambda _: 'Study', device_id=lambda _: 'device')
+                                                    area_name=lambda _: 'Study', device_id=lambda _: 'device',
+                                                    device_attr=lambda *_: [('music_assistant', 'media_player.source')])
             return io.BytesIO(value.encode())
         opener.open.side_effect = render
         rows, error = ha_inventory.read(('http://ha', {}, opener), music=True)
         self.assertIsNone(error)
         self.assertEqual(rows[0]['attributes'], {'friendly_name': 'Test', 'group_members': ['media_player.test']})
         self.assertTrue(rows[0]['declan_music_assistant'])
+        self.assertEqual(rows[0]['declan_source_entities'], ['media_player.source'])
 
 
 class WorkerTests(TestCase):

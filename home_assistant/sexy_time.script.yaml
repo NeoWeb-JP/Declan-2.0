@@ -3,6 +3,12 @@ description: Set or restore the bedroom lights, set the starting volume, and sto
 mode: queued
 max: 5
 fields:
+  music_player:
+    name: Music player resolved by Declan
+    description: Optional Music Assistant player. Declan manages its volume and playback when supplied.
+    selector:
+      entity:
+        domain: media_player
   operation:
     name: Operation
     default: start
@@ -23,7 +29,11 @@ sequence:
         {% endfor %}
         {{ result.players }}
   - variables:
-      player: "{{ bedroom_players[0] if bedroom_players | count == 1 else '' }}"
+      player: >-
+        {% set requested = music_player | default('', true) %}
+        {{ requested if requested in bedroom_players
+           else bedroom_players[0] if bedroom_players | count == 1 else '' }}
+      managed_music: "{{ music_player | default('', true) != '' }}"
   - if: "{{ op not in ['start', 'end'] }}"
     then:
       - stop: Unknown Sexy Time operation.
@@ -45,12 +55,14 @@ sequence:
             data:
               brightness_pct: 50
               rgb_color: [255, 0, 255]
-          - action: media_player.volume_set
-            target:
-              entity_id: "{{ player }}"
-            data:
-              volume_level: 0.2
-            continue_on_error: true
+          - if: "{{ not managed_music and player != '' }}"
+            then:
+              - action: media_player.volume_set
+                target:
+                  entity_id: "{{ player }}"
+                data:
+                  volume_level: 0.2
+                continue_on_error: true
     default:
       - action: light.turn_on
         target:
@@ -58,16 +70,18 @@ sequence:
         data:
           brightness_pct: 50
           color_temp_kelvin: 3000
-      - action: media_player.media_stop
-        target:
-          entity_id: "{{ player }}"
-        continue_on_error: true
+      - if: "{{ not managed_music and player != '' }}"
+        then:
+          - action: media_player.media_stop
+            target:
+              entity_id: "{{ player }}"
+            continue_on_error: true
   - wait_template: >-
       {{ is_state('light.master_bedroom_fairy_lights', 'on')
          and is_state('light.master_bedroom_queen_lamp', 'on')
          and is_state('light.master_bedroom_main_light', 'on')
          and is_state('light.master_bedroom_bedroom_lamp', 'off' if op == 'start' else 'on')
-         and (op == 'start' or states(player) in ['idle', 'off', 'standby']) }}
+         and (op == 'start' or managed_music or states(player) in ['idle', 'off', 'standby']) }}
     timeout: "00:00:03"
     continue_on_timeout: true
   - variables:

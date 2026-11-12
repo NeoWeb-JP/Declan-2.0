@@ -199,7 +199,12 @@ class APITests(TestCase):
         connection = ("http://ha.invalid", {}, opener)
         with patch.object(server, "ha_device_connection", return_value=connection), patch.object(
             server.music, "play", return_value=("Playback started.", "confirmed")
-        ) as play:
+        ) as play, patch.object(server, "read_music_inventory", return_value=([{
+            "entity_id": "media_player.master_bedroom_declan", "state": "idle", "attributes": {},
+            "declan_area": "Master Bedroom", "declan_music_assistant": True,
+        }], None)), patch.object(server.music, "control", return_value=("", "confirmed")), patch.object(
+            server.music, "request"
+        ):
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
                 opener.open.return_value = io.BytesIO(json.dumps({"service_response": {
                     "operation": operation, "lighting_ok": True, "music_stopped": operation == "end",
@@ -209,11 +214,12 @@ class APITests(TestCase):
                 request = opener.open.call_args.args[0]
                 self.assertEqual(request.full_url,
                                  "http://ha.invalid/api/services/script/declan_sexy_time_controller?return_response")
-                self.assertEqual(json.loads(request.data), {"operation": operation})
+                self.assertEqual(json.loads(request.data), {"operation": operation, "music_player": "media_player.master_bedroom_declan"})
                 self.assertIn(result["reply"], LINES[f"sexy_time_{operation}"][0])
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
-            self.assertEqual(play.call_count, 3)
-            play.assert_called_with(("bedroom", "sexy time music", "spotify"), connection, server.read_music_inventory)
+            self.assertEqual(play.call_count, sum(value == "start" for value in server.SEXY_TIME_COMMANDS.values()))
+            self.assertEqual(play.call_args.args[:2], (("bedroom", "sexy time music", "spotify"), connection))
+            self.assertEqual(play.call_args.args[2](connection)[0][0]["entity_id"], "media_player.master_bedroom_declan")
 
             play.return_value = ("Home Assistant took too long to respond.", "unverified")
             opener.open.return_value = io.BytesIO(b'{"service_response":{"operation":"start","lighting_ok":true}}')
