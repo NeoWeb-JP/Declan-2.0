@@ -558,7 +558,18 @@ def play(command, connection, read_inventory, *, origin=None):
             room = areas.pop()
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         destinations, players = music_players(inventory, origin=origin) if origin else music_players(inventory)
-        destination = destinations.get(room)
+        explicit = room.startswith('media_player.')
+        if explicit:
+            # Buttons can choose an exact HA Music Assistant wrapper without
+            # pretending to originate from a physical voice satellite.
+            if (not re.fullmatch(r'media_player\.[a-z0-9_]+', room)
+                    or players.get(room, {}).get('declan_music_assistant') is not True):
+                return "That target is not a registered Music Assistant player. I haven't changed playback.", "unresolved"
+            destination = room
+            label = (players[destination].get('attributes') or {}).get('friendly_name')
+            location = 'on ' + (label if isinstance(label, str) and label.strip() else destination)
+        else:
+            destination = destinations.get(room)
         if destination is None:
             return f"I couldn't identify one available Music Assistant player in the {room}. Check its Home Assistant area.", "unresolved"
         if players.get(destination, {}).get("state") in (None, "unknown", "unavailable"):
@@ -700,3 +711,4 @@ def play(command, connection, read_inventory, *, origin=None):
                 else "I couldn't verify the music request."), "unverified"
     finally:
         HANDOFF.release()
+
