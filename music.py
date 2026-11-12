@@ -118,7 +118,7 @@ def parse_feedback(phrase):
 
 
 def playback_sources(destinations, players):
-    group = destinations["everywhere"]
+    group = destinations.get("everywhere")
     group_state = players.get(group, {})
     members = ((group_state.get("attributes") or {}).get("group_members") or []
                if group_state.get("state") in ACTIVE else [])
@@ -355,7 +355,7 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
         if error:
             return "I couldn't check the music players.", error
         destinations, players = music_players(inventory)
-        group = destinations["everywhere"]
+        group = destinations.get("everywhere")
         grouped = players.get(group, {})
         members = ((grouped.get("attributes") or {}).get("group_members") or []
                    if grouped.get("state") in ACTIVE else [])
@@ -380,7 +380,7 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
             room = active[0]
         entity = destinations.get(room)
         if entity is None:
-            return f"I couldn't identify one available Music Assistant player in the {room}. Check its Home Assistant area.", "unresolved"
+            return f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         player = players.get(entity, {})
         state = player.get("state")
@@ -563,7 +563,8 @@ def play(command, connection, read_inventory, *, origin=None):
             # Buttons can choose an exact HA Music Assistant wrapper without
             # pretending to originate from a physical voice satellite.
             if (not re.fullmatch(r'media_player\.[a-z0-9_]+', room)
-                    or players.get(room, {}).get('declan_music_assistant') is not True):
+                    or players.get(room, {}).get('declan_music_assistant') is not True
+                    or (approved_media_players.load() is not None and room not in destinations.values())):
                 return "That target is not a registered Music Assistant player. I haven't changed playback.", "unresolved"
             destination = room
             label = (players[destination].get('attributes') or {}).get('friendly_name')
@@ -571,14 +572,14 @@ def play(command, connection, read_inventory, *, origin=None):
         else:
             destination = destinations.get(room)
         if destination is None:
-            return f"I couldn't identify one available Music Assistant player in the {room}. Check its Home Assistant area.", "unresolved"
+            return f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"
         if players.get(destination, {}).get("state") in (None, "unknown", "unavailable"):
             return f"The Music Assistant player {location} is unavailable.", "unavailable"
         previous_state = players[destination]["state"]
         previous_track = (players[destination].get("attributes") or {}).get("media_content_id")
         streams = {entity: player for entity, player in players.items()
                    if player.get("state") in ACTIVE and spotify_id(player)}
-        group = destinations["everywhere"]
+        group = destinations.get("everywhere")
         if group in streams:
             members = streams[group]["attributes"].get("group_members") or []
             for entity in tuple(streams):
