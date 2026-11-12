@@ -29,6 +29,7 @@ class DeclanTwoAgent(conversation.ConversationEntity):
         response = intent.IntentResponse(language=user_input.language)
         session_id = user_input.conversation_id
         error_reply = None
+        continue_conversation = False
         speaker = getattr(user_input.text, "jarvis_speaker", None)
         speaker_data = {}
         if isinstance(speaker, tuple) and len(speaker) == 3:
@@ -69,6 +70,7 @@ class DeclanTwoAgent(conversation.ConversationEntity):
                     if payload["reply"]:
                         response.async_set_speech(payload["reply"])
                     session_id = payload["session_id"]
+                    continue_conversation = payload.get('continue_conversation') is True
         except TimeoutError:
             _LOGGER.warning("Declan Assist request timed out")
             error_reply = "Declan took too long to respond. The command may still have run."
@@ -80,4 +82,6 @@ class DeclanTwoAgent(conversation.ConversationEntity):
                 intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
                 error_reply,
             )
-        return conversation.ConversationResult(response=response, conversation_id=session_id)
+        return conversation.ConversationResult(response=response, conversation_id=session_id,
+                                              continue_conversation=continue_conversation and not error_reply)
+

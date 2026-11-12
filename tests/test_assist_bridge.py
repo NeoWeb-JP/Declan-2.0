@@ -113,6 +113,18 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertEqual(self.session.post.call_args.kwargs["json"]["outcome"], "partial")
         self.assertTrue(await self.component.async_unload_entry(hass, self.entry))
 
+    async def test_confirmation_requests_continue_the_same_conversation_only_for_boolean_true(self):
+        agent = self.conversation.DeclanTwoAgent(self.entry)
+        agent.hass = object()
+        user = SimpleNamespace(text='good night', language='en', conversation_id='old', device_id='device',
+                               context=SimpleNamespace(user_id='user'))
+        for value, expected in ((True, True), (False, False), ('true', False), (1, False)):
+            self.response.json.return_value = {'reply': 'Please confirm.', 'session_id': 'pending',
+                                               'continue_conversation': value}
+            result = await agent.async_process(user)
+            self.assertEqual(result.conversation_id, 'pending')
+            self.assertIs(result.continue_conversation, expected)
+
     async def test_duplicate_and_stop_finish_without_setting_empty_speech(self):
         agent = self.conversation.DeclanTwoAgent(self.entry)
         agent.hass = object()
@@ -289,3 +301,4 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             )
             cache.assert_called_once_with("jarvis_voice_cache")
             self.assertEqual(cache.return_value.get_or_generate_audio.call_args.kwargs["voice_id"], "v1:declan-voice-id")
+

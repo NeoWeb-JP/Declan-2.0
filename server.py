@@ -21,6 +21,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 import webbrowser
 
 from arbitration import CaptureArbiter
+from authorization import Policy as RoutinePolicy, RoutineAuthorizer
 
 import conditions
 import diagnostics
@@ -39,6 +40,7 @@ from personality import add_sass, choose_line
 SESSIONS = OrderedDict()
 SESSION_LOCK = Lock()
 CAPTURE_ARBITER = CaptureArbiter()
+ROUTINE_AUTHORIZER = RoutineAuthorizer()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
 routine_last_attempts = {}
@@ -232,6 +234,18 @@ def select_routine_turn(phrase, origin):
             return routine, follow_on
     routine = select_routine(phrase, origin)
     return (routine, None) if routine else None
+
+
+def routine_kind(phrase):
+    """Use the execution parsers, with no area lookup or household side effects."""
+    if phrase.replace("\u2019", "'") in DINNER_PHRASES:
+        return 'dinner'
+    if phrase in SEXY_TIME_COMMANDS:
+        return 'sexy_time'
+    if phrase in GUEST_COMMANDS:
+        return 'guest' if GUEST_COMMANDS[phrase] != 'check' else None
+    turn = select_routine_turn(phrase, None)
+    return turn[0][0] if turn else None
 
 
 def execute_routine(selection, action_results):
@@ -1398,13 +1412,14 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
     return reply, outcome
 
 
-def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
+def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
+             new_session_id=None):
     now = monotonic()
     while SESSIONS and now - next(iter(SESSIONS.values()))["at"] >= IDLE_SECONDS:
         SESSIONS.popitem(last=False)
     state = SESSIONS.pop(session_id, None)
     if state is None:
-        session_id = secrets.token_urlsafe(24)
+        session_id = new_session_id or secrets.token_urlsafe(24)
         state = {"last": None, "name": None}
     command = message.casefold().strip(" .?!")
     name = NAME_PATTERN.fullmatch(message.strip(" .?!"))
@@ -1836,13 +1851,26 @@ class Handler(BaseHTTPRequestHandler):
                 # Interpret once through the normal handlers. Never follow alias chains.
                 effective_message = target
                 phrase = history.normalize_phrase(target)
+        with SESSION_LOCK:
+            existing = SESSIONS.get(session_id)
+            auth_session = (session_id if existing and monotonic() - existing['at'] < IDLE_SECONDS
+                            else secrets.token_urlsafe(24))
+        authorization = ROUTINE_AUTHORIZER.check(
+            history.normalize_phrase(message), phrase, source=source, session=auth_session, scope=scope,
+            bindable=source == 'browser_voice' or bool(satellite or origin_device),
+            speaker=body.get('speaker') if source == 'assist' else None, kind_for=routine_kind,
+        )
+        if authorization.authority == 'spoken_confirmation':
+            phrase = effective_message = authorization.phrase
         opener = build_opener(ProxyHandler({}), NoRedirect())
         timer_result = timers.handle(
             phrase, opener,
             satellite=satellite if isinstance(satellite, str) and len(satellite) <= 128 else None,
             device=origin_device, browser=source != "assist",
-        )
-        if timer_result:
+        ) if authorization.allowed else None
+        if not authorization.allowed:
+            routine_reply, outcome = authorization.reply, authorization.outcome
+        elif timer_result:
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
@@ -1956,7 +1984,11 @@ class Handler(BaseHTTPRequestHandler):
                     and failed_phrase["text"].casefold() != message.casefold()):
                 phrase_suggestion = failed_phrase["text"]
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
-                             scope=scope, guest_mode=guest_mode)
+                             scope=scope, guest_mode=guest_mode, new_session_id=auth_session)
+            if authorization.outcome == 'confirmation_required':
+                reply['continue_conversation'] = True
+            if authorization.authority:
+                reply['authorization'] = authorization.authority
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:
@@ -1997,6 +2029,10 @@ def main():
         parser.error("Assist LAN mode needs a fixed port. Omit --port to use 52737.")
     if args.assist_lan and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) < 32:
         parser.error("--assist-lan requires a DECLAN_ASSIST_TOKEN of at least 32 characters.")
+    try:
+        RoutinePolicy.from_env()
+    except ValueError as error:
+        parser.error(str(error))
     history.initialize()
     timers.initialize()
     bind_address = "0.0.0.0" if args.assist_lan else "127.0.0.1"
@@ -2050,3 +2086,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
