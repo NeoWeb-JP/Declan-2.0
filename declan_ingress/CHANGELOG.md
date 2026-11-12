@@ -1,3 +1,8 @@
+# 1.0.4
+
+- Expose Approved Media Players settings through Home Assistant sidebar Ingress (GET and POST).
+- Rebuild the sidebar app with the approved player route. Update the standalone Declan backend as well.
+
 # 1.0.3
 
 - Allow the authenticated VoicePipeline management route through the sidebar proxy. Update the standalone Declan server as well to use shared speaker profiles and recording review.
