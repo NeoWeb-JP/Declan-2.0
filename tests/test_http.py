@@ -43,8 +43,9 @@ class APITests(TestCase):
             with error:
                 return error.code, error.read()
 
-    def ask(self, message, session=None, *, path="/api/chat", device="bedroom"):
-        status, result = self.request(path, body={"message": message, "session_id": session, "device_id": device},
+    def ask(self, message, session=None, *, path="/api/chat", device="bedroom", speaker=None):
+        status, result = self.request(path, body={"message": message, "session_id": session, "device_id": device,
+                                                "speaker": speaker},
                                       headers={"Origin": self.origin, "Content-Type": "application/json",
                                                "Authorization": "Bearer test"})
         self.assertEqual(status, 200, result)
@@ -263,9 +264,11 @@ class APITests(TestCase):
             opener.open.assert_called_once()
 
     def test_guest_commands_record_the_reply_returned_to_assist(self):
-        with patch.object(server, "guest_assignment", return_value=("Guest reply.", "confirmed")) as guest:
+        with patch.object(server, "guest_assignment", return_value=("Guest reply.", "confirmed")) as guest, \
+                patch.dict(server.os.environ, {'DECLAN_ROUTINE_SPEAKERS': 'Test Owner'}):
             for phrase, operation in server.GUEST_COMMANDS.items():
-                result = self.ask(phrase + "?", path="/api/assist")
+                result = self.ask(phrase + "?", path="/api/assist",
+                                  speaker={'name': 'Test Owner', 'confidence': .99, 'interaction_id': 'test-match'})
                 self.assertEqual(result["reply"], "Guest reply.")
                 self.assertEqual(guest.call_args.args[0], operation)
                 turn = server.history.recent(limit=1)[0]
@@ -430,3 +433,4 @@ class StartupTests(TestCase):
             response = fixture.ask('hello', path='/api/assist')
             self.assertIsInstance(response['reply'], str)
         log.assert_called_once_with('Could not look up learned intention; using the original transcript.')
+
