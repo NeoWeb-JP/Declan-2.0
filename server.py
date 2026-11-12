@@ -49,8 +49,10 @@ if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION)
     RELEASE_VERSION = None
 RELEASE_VERSION = updates.installed_version(RELEASE_VERSION)
 SEXY_TIME_COMMANDS = {
-    "sexy time": "start", "start sexy time": "start", "activate sexy time": "start",
-    "end sexy time": "end", "stop sexy time": "end",
+    **{phrase: "start" for name in ("sexy time", "sixty time", "60 time", "bedroom mood", "romance mode")
+       for phrase in (name, f"start {name}", f"activate {name}")},
+    **{phrase: "end" for name in ("sexy time", "sixty time", "60 time", "bedroom mood", "romance mode")
+       for phrase in (f"end {name}", f"stop {name}")},
 }
 SEXY_TIME_LOCK = Lock()
 SEXY_TIME_SCRIPT = "script.declan_sexy_time_controller"
@@ -746,10 +748,17 @@ def run_sexy_time(operation, connection):
     if not SEXY_TIME_LOCK.acquire(blocking=False):
         return "I'm still handling the previous Sexy Time request.", "busy", None
     try:
+        inventory, inventory_error = read_music_inventory(connection)
+        if inventory_error:
+            return "I couldn't discover the bedroom music player.", inventory_error, None
+        destinations, _ = music.music_players(inventory)
+        player = destinations.get("bedroom")
+        if not player:
+            return "I couldn't identify one available bedroom satellite speaker. Check its Home Assistant device and area.", "unresolved", None
         url, headers, opener = connection
         request = Request(
             f"{url}/api/services/script/{SEXY_TIME_SCRIPT.split('.', 1)[1]}?return_response", headers=headers,
-            data=json.dumps({"operation": operation}).encode(), method="POST",
+            data=json.dumps({"operation": operation, "music_player": player}).encode(), method="POST",
         )
         try:
             with opener.open(request, timeout=8) as response:
@@ -768,7 +777,10 @@ def run_sexy_time(operation, connection):
 
         lighting_ok = result.get("lighting_ok") is True
         if operation == "end":
-            music_ok = result.get("music_stopped") is True
+            _, music_outcome = music.control(
+                ("media_stop", "bedroom"), connection, lambda _: (inventory, None),
+            )
+            music_ok = music_outcome == "confirmed"
             if lighting_ok:
                 detail = None if music_ok else "Bedroom lights restored. Bedroom music stop could not be verified."
                 return choose_line("sexy_time_end", read_guest_mode()), "confirmed" if music_ok else "partial", detail
@@ -777,11 +789,19 @@ def run_sexy_time(operation, connection):
 
         if not lighting_ok:
             return "I couldn't verify the bedroom lights, so I held off on the playlist.", "unverified", None
-        reply, outcome = music.play(("bedroom", "sexy time music", "spotify"), connection, read_music_inventory)
+        volume_ok = True
+        try:
+            music.request(connection, "/api/services/media_player/volume_set",
+                          {"entity_id": player, "volume_level": 0.2})
+        except (OSError, ValueError):
+            volume_ok = False
+        reply, outcome = music.play(("bedroom", "sexy time music", "spotify"), connection,
+                                    lambda _: (inventory, None))
         spoken = choose_line("sexy_time_start", read_guest_mode())
-        if outcome == "confirmed":
+        if outcome == "confirmed" and volume_ok:
             return spoken, "confirmed", None
-        return spoken, "partial", f"Bedroom lights set. {reply}"
+        volume_detail = "" if volume_ok else " Bedroom music volume could not be set."
+        return spoken, "partial", f"Bedroom lights set. {reply}{volume_detail}"
     finally:
         SEXY_TIME_LOCK.release()
 
@@ -1844,7 +1864,7 @@ class Handler(BaseHTTPRequestHandler):
                     command = music.parse(follow_on)
                     follow_reply, follow_outcome = (
                         music.play(command, ha_device_connection(), read_music_inventory,
-                                   **({"origin": satellite or origin_device} if command[0] is None else {})) if command
+                                   **({"origin": satellite or origin_device} if satellite or origin_device else {})) if command
                         else ("Tell me where to play the music.", "unresolved")
                     )
                 else:
@@ -1902,7 +1922,7 @@ class Handler(BaseHTTPRequestHandler):
             elif music_command := music.parse(phrase):
                 routine_reply, outcome = music.play(
                     music_command, ha_device_connection(), read_music_inventory,
-                    **({"origin": satellite or origin_device} if music_command[0] is None else {}),
+                    **({"origin": satellite or origin_device} if satellite or origin_device else {}),
                 )
             else:
                 media_result = search_media(phrase)

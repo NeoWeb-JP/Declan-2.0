@@ -54,7 +54,7 @@ def room_key(name):
     return " ".join(name.casefold().split()).removeprefix("master ")
 
 
-def music_players(inventory):
+def music_players(inventory, *, origin=None):
     destinations = PLAYERS.copy()
     entities = {row["entity_id"]: row for row in inventory
                 if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
@@ -74,9 +74,26 @@ def music_players(inventory):
             area = row.get("declan_area")
             if row.get("declan_music_assistant") is True and isinstance(area, str) and area.strip():
                 rooms.setdefault(room_key(area), []).append(entity)
+        def devices(row):
+            linked = {row.get("declan_device")} - {None, ""}
+            sources = row.get("declan_source_entities")
+            if isinstance(sources, list):
+                linked.update(entities[source].get("declan_device") for source in sources
+                              if isinstance(source, str) and source in entities)
+            return linked - {None, ""}
+
+        # MA wrappers can have their own HA device. Follow their registered
+        # source entities back to the satellite's device, never its name.
+        origin_row = entities.get(origin) if isinstance(origin, str) else None
+        origin_devices = devices(origin_row) if origin_row else ({origin} if origin else set())
+        satellite_devices = {row.get("declan_device") for entity, row in entities.items()
+                             if entity.startswith("assist_satellite.")} - {None, ""}
         for room, candidates in rooms.items():
             available = [entity for entity in candidates if entities[entity].get("state") not in (None, "unknown", "unavailable")]
-            destinations[room] = available[0] if len(available) == 1 else None
+            direct = [entity for entity in available if devices(entities[entity]) & origin_devices]
+            associated = [entity for entity in available if devices(entities[entity]) & satellite_devices]
+            preferred = direct or associated or available
+            destinations[room] = preferred[0] if len(preferred) == 1 else None
         players = {entity: row for entity, row in entities.items()
                    if row.get("declan_music_assistant") is True or entity == destinations["everywhere"]}
         return destinations, players
@@ -540,7 +557,7 @@ def play(command, connection, read_inventory, *, origin=None):
                 return "Which room should I play the music in?", "unresolved"
             room = areas.pop()
         location = "everywhere" if room == "everywhere" else f"in the {room}"
-        destinations, players = music_players(inventory)
+        destinations, players = music_players(inventory, origin=origin) if origin else music_players(inventory)
         destination = destinations.get(room)
         if destination is None:
             return f"I couldn't identify one available Music Assistant player in the {room}. Check its Home Assistant area.", "unresolved"
