@@ -98,7 +98,9 @@ class RoutineAuthorizer:
             if len(self.pending) >= self.capacity:
                 return Decision(phrase, 'Too many routines are awaiting confirmation. Try again shortly. Nothing ran.',
                                 'authorization_unavailable')
-            code = ''.join(str(secrets.randbelow(10)) for _ in range(4))
+            code = f'{secrets.randbelow(10000):04d}'
+            if pending and code == pending['code']:
+                code = f'{(int(code) + 1) % 10000:04d}'
             self.pending[key] = {'phrase': phrase, 'code': code, 'policy': policy, 'expires': now + 30}
             return Decision(phrase, f'To run "{phrase}", say "confirm routine {" ".join(code)}" within 30 seconds, '
                             'or say "cancel routine". Nothing has run yet.', 'confirmation_required')

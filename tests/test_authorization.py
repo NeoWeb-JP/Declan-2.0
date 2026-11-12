@@ -59,7 +59,9 @@ class AuthorizationTests(TestCase):
         headers = (f'POST {path} HTTP/1.0\r\nHost: 127.0.0.1:8765\r\nOrigin: http://127.0.0.1:8765\r\n'
                    f'Authorization: Bearer test\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n')
         socket = MemorySocket(headers.encode() + body)
-        server.Handler(socket, ('127.0.0.1', 1234), SimpleNamespace(server_port=8765))
+        # PR #29 adds throttling to the server fixture; these requests have valid credentials.
+        http = SimpleNamespace(server_port=8765, bad_tokens=SimpleNamespace(check=lambda peer, valid: 0))
+        server.Handler(socket, ('127.0.0.1', 1234), http)
         head, _, payload = bytes(socket.output).partition(b'\r\n\r\n')
         self.assertIn(b'200 OK', head, payload)
         return json.loads(payload)
@@ -123,6 +125,21 @@ class AuthorizationTests(TestCase):
         with patch.dict(os.environ, {'DECLAN_ROUTINE_SPEAKER_CONFIDENCE': '.95'}):
             self.assertEqual(self.confirm(prompt)['outcome'], 'confirmation_invalid')
         self.routine.assert_not_called()
+
+    def test_replacement_prompt_never_reuses_the_previous_code_and_words_are_supported(self):
+        with patch('authorization.secrets.randbelow', return_value=1234):
+            first = self.ask('good night')
+            replacement = self.ask('the guests have left', first['session_id'])
+        self.assertIn('1 2 3 5', replacement['reply'])
+        self.assertEqual(self.confirm(first)['outcome'], 'confirmation_invalid')
+        self.assertEqual(self.confirm(replacement)['outcome'], 'confirmation_invalid')
+        self.routine.assert_not_called()
+        self.guest.assert_not_called()
+        with patch('authorization.secrets.randbelow', return_value=1234):
+            prompt = self.ask('good night')
+        result = self.ask('confirm routine one two three four', prompt['session_id'])
+        self.assertEqual(result['authorization'], 'spoken_confirmation')
+        self.routine.assert_called_once()
 
     def test_learned_intention_and_chained_lights_are_one_bound_request(self):
         with server.history.database() as db:
