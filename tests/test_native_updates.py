@@ -71,7 +71,16 @@ class NativeUpdaterTests(unittest.TestCase):
             module = types.ModuleType(name)
             modules[name] = module
         modules["aiohttp"].web = modules["aiohttp.web"]
-        modules["aiohttp.web"].json_response = lambda body, status=200, **kw: (status, body)
+        class FakeResponse:
+            def __init__(self, body, status=200):
+                import json
+                self.status = status
+                self.body = json.dumps(body).encode("utf-8")
+
+            def __getitem__(self, index):
+                return (self.status, self.body)[index]
+
+        modules["aiohttp.web"].json_response = lambda body, status=200, **kw: FakeResponse(body, status)
         modules["homeassistant.components.http"].HomeAssistantView = type("HomeAssistantView", (), {})
         modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = lambda hass: None
         modules["aiohttp"].ClientError = type("ClientError", (Exception,), {})
