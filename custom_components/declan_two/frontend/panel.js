@@ -82,7 +82,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         </header>
         <nav class="tabs" aria-label="Declan management" role="tablist">
           <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
-          <button role="tab" id="tab-conversations" aria-controls="panel-conversations" aria-selected="false" data-tab="conversations">Conversations &amp; Voice</button>
+
           <button role="tab" id="tab-players" aria-controls="panel-players" aria-selected="false" data-tab="players">Media players</button>
           <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>\n          <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
         </nav>
@@ -90,9 +90,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <h2>Declan connection</h2>
           <div class="state" role="status" aria-live="polite">Waiting for Home Assistant…</div>
           <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
-        </section>
-        <section class="card panel" id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations" hidden>
-          <h2>Conversations &amp; Voice</h2>
+          <h2 class="overview-chat-heading">Chat &amp; Voice</h2>
           <form class="chat-form" aria-label="Chat with Declan">
             <label for="native-chat-input">Message</label>
             <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="Ask Declan anything" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
@@ -117,10 +115,25 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
           <h2>Settings</h2>
-          <p class="muted">Existing Spotify credentials are retained on the Declan backend. This screen never displays or changes the secret.</p>
+          <p class="muted">Spotify credentials remain saved until you explicitly replace both values. Other settings never change them.</p>
           <p class="spotify-status muted" role="status" aria-live="polite">Open Settings to check Spotify configuration.</p>
           <button class="settings-refresh" type="button">Refresh settings status</button>
-          <p class="muted">Configuration export, recovery and diagnostics are still available in the existing app while migration continues.</p>
+          <details class="settings-spotify"><summary>Replace Spotify API credentials</summary>
+            <form class="spotify-form" autocomplete="off">
+              <label>Client ID <input class="spotify-client-id" type="text" maxlength="256" required autocomplete="off"></label>
+              <label>New client secret <input class="spotify-client-secret" type="password" maxlength="256" required autocomplete="new-password"></label>
+              <button type="submit">Replace credentials</button>
+            </form>
+            <p class="spotify-save-status muted" role="status" aria-live="polite"></p>
+          </details>
+          <h3>Configuration backup and recovery</h3>
+          <p class="muted">Download non-secret settings or the previous import recovery snapshot. No Spotify secrets are included.</p>
+          <div class="history-actions"><button class="settings-export" type="button">Export settings</button><button class="settings-recovery" type="button">Download recovery snapshot</button></div>
+          <p class="settings-document-status muted" role="status" aria-live="polite"></p>
+          <h3>Diagnostics</h3><button class="settings-diagnostics" type="button">Load recent diagnostics</button>
+          <p class="settings-diagnostics-status muted" role="status" aria-live="polite"></p>
+          <pre class="settings-diagnostics-output mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+          <p class="muted">Import and restore actions remain in the existing Declan app until preview and confirmation safeguards are migrated.</p>
         </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Backend updates</h2>
@@ -138,6 +151,12 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelector('.mic-start').addEventListener('click', () => this.startMicrophone());
     this.shadowRoot.querySelector('.mic-stop').addEventListener('click', () => this.stopMicrophone());
     this.shadowRoot.querySelector('.settings-refresh').addEventListener('click', () => this.loadSettingsStatus());
+    this.shadowRoot.querySelector('.settings-export').addEventListener('click', () => this.downloadSettings('export'));
+    this.shadowRoot.querySelector('.settings-recovery').addEventListener('click', () => this.downloadSettings('recovery'));
+    this.shadowRoot.querySelector('.settings-diagnostics').addEventListener('click', () => this.loadDiagnostics());
+    this.shadowRoot.querySelector('.spotify-form').addEventListener('submit', event => {
+      event.preventDefault(); void this.replaceSpotifyCredentials();
+    });
     this.shadowRoot.querySelector('.chat-form').addEventListener('submit', event => {
       event.preventDefault();
       void this.sendChat();
@@ -195,7 +214,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelectorAll('.panel').forEach(panel => {
       panel.hidden = panel.id !== 'panel-' + name;
     });
-    if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
+    if (name === 'overview' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'settings') void this.loadSettingsStatus();
     if (name === 'updates') void this.loadUpdateStatus();
@@ -633,6 +652,64 @@ class DeclanTwoNativePanel extends HTMLElement {
       save.disabled = false;
     } finally {
       this._playersPending = false;
+    }
+  }
+
+  async replaceSpotifyCredentials() {
+    const form = this.shadowRoot.querySelector('.spotify-form');
+    const status = this.shadowRoot.querySelector('.spotify-save-status');
+    const client_id = form.querySelector('.spotify-client-id').value.trim();
+    const client_secret = form.querySelector('.spotify-client-secret').value.trim();
+    if (!client_id || !client_secret) {
+      status.textContent = 'Enter both values. Existing credentials have not been changed.';
+      return;
+    }
+    if (!window.confirm('Replace the currently saved Spotify credentials? This cannot be undone.')) return;
+    const button = form.querySelector('button');
+    button.disabled = true;
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/management/spotify',
+        {client_id, client_secret, confirm: true});
+      if (result.saved !== true) throw new Error('Not saved');
+      form.reset();
+      status.textContent = 'Spotify credentials replaced successfully.';
+      await this.loadSettingsStatus();
+    } catch {
+      status.textContent = 'Could not replace Spotify credentials. Check the values and backend connection.';
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async downloadSettings(operation) {
+    const status = this.shadowRoot.querySelector('.settings-document-status');
+    try {
+      const result = await this._hass.callApi('GET', 'declan_two/management/' + operation);
+      if (!result?.document) throw new Error('Missing document');
+      const blob = new Blob([JSON.stringify(result.document, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'declan-' + operation + '-settings.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      status.textContent = 'Settings file prepared. Keep your backup somewhere safe.';
+    } catch {
+      status.textContent = 'Unable to retrieve settings ' + operation + '.';
+    }
+  }
+
+  async loadDiagnostics() {
+    const status = this.shadowRoot.querySelector('.settings-diagnostics-status');
+    const output = this.shadowRoot.querySelector('.settings-diagnostics-output');
+    output.textContent = '';
+    try {
+      const result = await this._hass.callApi('GET', 'declan_two/management/diagnostics');
+      if (!Array.isArray(result.traces)) throw new Error('Invalid diagnostics');
+      output.textContent = JSON.stringify(result.traces, null, 2);
+      status.textContent = 'Showing up to 30 recent traces.';
+    } catch {
+      status.textContent = 'Unable to load diagnostics.';
     }
   }
 
