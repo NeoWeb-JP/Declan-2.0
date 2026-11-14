@@ -36,7 +36,7 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertIn('self.path == "/api/updates/status"', SERVER)
         self.assertIn('not updates_auth and self.client_address', SERVER)
         self.assertIn('not voice_review_auth and not updates_auth and (', SERVER)
-        self.assertIn('self.path == "/api/updates"\\n            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32', SERVER)
+        self.assertIn('self.path == "/api/updates"\n            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32', SERVER)
         self.assertIn('secrets.compare_digest(', SERVER)
 
     def test_prerelease_checkbox_selector_matches_markup(self):
