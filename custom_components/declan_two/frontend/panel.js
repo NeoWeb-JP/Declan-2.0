@@ -84,7 +84,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-voices" role="tabpanel" aria-labelledby="tab-voices" hidden>
           <h2>Voice profiles</h2>
-          <p class="muted">Read-only speaker profiles and pending recordings from VoicePipeline. Use the existing Declan app to confirm, correct or play recordings.</p>
+          <p class="muted">Review pending recordings: confirm the suggested speaker, choose another enrolled speaker, or reject a bad recording. Audio playback remains in the existing Declan app.</p>
           <button class="voices-refresh" type="button">Refresh voice profiles</button>
           <p class="voices-status muted" role="status" aria-live="polite">Open this tab to load profiles.</p>
           <div class="voices-list"></div>
@@ -148,6 +148,28 @@ class DeclanTwoNativePanel extends HTMLElement {
 
 
 
+  async resolveVoice(interactionId, action, assignedTo) {
+    if (this._voicesPending || !this._hass || !window.confirm(
+      action === 'dismiss' ? 'Reject this recording?' : 'Apply this speaker match to VoicePipeline?'
+    )) return;
+    this._voicesPending = true;
+    const status = this.shadowRoot.querySelector('.voices-status');
+    status.textContent = 'Submitting voice review…';
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
+        operation: 'resolve', interaction_id: interactionId, action,
+        assigned_to: assignedTo, confirm: true
+      });
+      if (!result || result.saved !== true) throw new Error('Not confirmed');
+      status.textContent = 'Review saved.';
+    } catch {
+      status.textContent = 'Could not confirm the review. Refresh before retrying to avoid duplicate actions.';
+    } finally {
+      this._voicesPending = false;
+      await this.loadVoices();
+    }
+  }
+
   async loadVoices() {
     if (this._voicesPending || !this._hass || typeof this._hass.callApi !== 'function') return;
     this._voicesPending = true;
@@ -189,11 +211,47 @@ class DeclanTwoNativePanel extends HTMLElement {
         detail.className = 'muted';
         detail.textContent = 'Suggested: ' + (interaction.matched_speaker || 'Unknown') + ' · Match: ' +
           (Number.isFinite(interaction.match_confidence) ? (interaction.match_confidence * 100).toFixed(1) + '%' : 'Unknown');
-        card.append(transcript, detail);
+        const actions = document.createElement('div');
+        actions.className = 'history-actions';
+        if (interaction.id) {
+          const confirm = document.createElement('button');
+          confirm.type = 'button';
+          confirm.textContent = 'Confirm match';
+          confirm.disabled = !interaction.matched_speaker;
+          confirm.addEventListener('click', () => this.resolveVoice(interaction.id, 'confirm', interaction.matched_speaker));
+          actions.append(confirm);
+          const select = document.createElement('select');
+          select.setAttribute('aria-label', 'Choose correct speaker');
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Other speaker…';
+          select.append(placeholder);
+          for (const profile of data.profiles) {
+            if (!profile.name) continue;
+            const option = document.createElement('option');
+            option.value = profile.name;
+            option.textContent = profile.name;
+            select.append(option);
+          }
+          actions.append(select);
+          const assign = document.createElement('button');
+          assign.type = 'button';
+          assign.textContent = 'Use selected speaker';
+          assign.addEventListener('click', () => {
+            if (select.value) void this.resolveVoice(interaction.id, 'assign', select.value);
+          });
+          actions.append(assign);
+          const dismiss = document.createElement('button');
+          dismiss.type = 'button';
+          dismiss.textContent = 'Reject recording';
+          dismiss.addEventListener('click', () => this.resolveVoice(interaction.id, 'dismiss', null));
+          actions.append(dismiss);
+        }
+        card.append(transcript, detail, actions);
         list.append(card);
       }
       this._voicesLoaded = true;
-      status.textContent = 'VoicePipeline data loaded. Review actions remain in the existing app.';
+      status.textContent = 'VoicePipeline matches loaded. Confirm, reassign or reject pending recordings.';
     } catch {
       status.textContent = 'Could not load VoicePipeline data. Check the backend connection and HA admin permissions.';
     } finally {
