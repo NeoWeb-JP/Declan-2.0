@@ -83,7 +83,11 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="players-list"></div>
         </section>
         <section class="card panel" id="panel-voices" role="tabpanel" aria-labelledby="tab-voices" hidden>
-          <h2>Voice profiles</h2><p class="muted">Voice profile review and audio playback remain in the existing Declan app until secure streaming and uploads are available here.</p>
+          <h2>Voice profiles</h2>
+          <p class="muted">Read-only speaker profiles and pending recordings from VoicePipeline. Use the existing Declan app to confirm, correct or play recordings.</p>
+          <button class="voices-refresh" type="button">Refresh voice profiles</button>
+          <p class="voices-status muted" role="status" aria-live="polite">Open this tab to load profiles.</p>
+          <div class="voices-list"></div>
         </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Updates</h2><p class="muted">Use the existing Declan updater for now. The native panel will not initiate installs until authenticated update operations and recovery are verified.</p>
@@ -94,6 +98,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       event.preventDefault();
       void this.sendChat();
     });
+    this.shadowRoot.querySelector('.voices-refresh').addEventListener('click', () => this.loadVoices());
     this.shadowRoot.querySelector('.players-refresh').addEventListener('click', () => this.loadPlayers());
     this.shadowRoot.querySelector('.players-save').addEventListener('click', () => this.savePlayers());
     this.shadowRoot.querySelector('.history-refresh').addEventListener('click', () => this.loadHistory());
@@ -128,6 +133,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     });
     if (name === 'conversations' && !this._historyLoaded) void this.loadHistory();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
+    if (name === 'voices' && !this._voicesLoaded) void this.loadVoices();
   }
 
   set hass(value) {
@@ -140,6 +146,60 @@ class DeclanTwoNativePanel extends HTMLElement {
 
 
 
+
+
+  async loadVoices() {
+    if (this._voicesPending || !this._hass || typeof this._hass.callApi !== 'function') return;
+    this._voicesPending = true;
+    const status = this.shadowRoot.querySelector('.voices-status');
+    const list = this.shadowRoot.querySelector('.voices-list');
+    status.textContent = 'Loading VoicePipeline profiles…';
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/voice-review');
+      if (!data || !Array.isArray(data.profiles) || !Array.isArray(data.interactions)) throw new Error('Invalid response');
+      list.replaceChildren();
+      const heading = document.createElement('h3');
+      heading.textContent = 'Enrolled speakers';
+      list.append(heading);
+      for (const profile of data.profiles) {
+        const card = document.createElement('article');
+        card.className = 'turn';
+        const name = document.createElement('strong');
+        name.textContent = profile.name || 'Unnamed speaker';
+        const details = document.createElement('p');
+        const avg = Number.isFinite(profile.avg_confidence) ? (profile.avg_confidence * 100).toFixed(1) + '%' : 'Not available';
+        details.textContent = 'Average confidence: ' + avg + ' · Reference clips: ' + (profile.reference_clip_count ?? 'Unknown') + ' · Interactions: ' + (profile.interaction_count ?? 'Unknown');
+        card.append(name, details);
+        list.append(card);
+      }
+      if (!data.profiles.length) {
+        const empty = document.createElement('p');
+        empty.textContent = 'No enrolled speakers found.';
+        list.append(empty);
+      }
+      const pending = document.createElement('h3');
+      pending.textContent = 'Pending recordings (' + data.interactions.length + ')';
+      list.append(pending);
+      for (const interaction of data.interactions) {
+        const card = document.createElement('article');
+        card.className = 'turn';
+        const transcript = document.createElement('p');
+        transcript.textContent = interaction.transcript || '(No transcript)';
+        const detail = document.createElement('p');
+        detail.className = 'muted';
+        detail.textContent = 'Suggested: ' + (interaction.matched_speaker || 'Unknown') + ' · Match: ' +
+          (Number.isFinite(interaction.match_confidence) ? (interaction.match_confidence * 100).toFixed(1) + '%' : 'Unknown');
+        card.append(transcript, detail);
+        list.append(card);
+      }
+      this._voicesLoaded = true;
+      status.textContent = 'VoicePipeline data loaded. Review actions remain in the existing app.';
+    } catch {
+      status.textContent = 'Could not load VoicePipeline data. Check the backend connection and HA admin permissions.';
+    } finally {
+      this._voicesPending = false;
+    }
+  }
 
   async loadPlayers() {
     if (this._playersPending || !this._hass || typeof this._hass.callApi !== 'function') return;
