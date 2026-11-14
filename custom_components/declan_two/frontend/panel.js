@@ -188,7 +188,10 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'review' && !this._voicesLoaded) void this.loadVoices();
     if (name === 'reviewed' && !this._voiceHistoryLoaded) {
       this._voiceHistoryLoaded = true;
-      void this.loadVoiceHistory();
+      void (async () => {
+        if (!this._voiceProfilesLoaded) await this.loadVoiceProfiles();
+        await this.loadVoiceHistory();
+      })();
     }
     if (name === 'profiles' && !this._voiceProfilesLoaded) void this.loadVoiceProfiles();
   }
@@ -457,7 +460,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         list.append(card);
       }
       this._voicesLoaded = true;
-      if (this._activityTab === 'reviewed') { this._voiceHistoryLoaded = true; void this.loadVoiceHistory(); }
+
       status.textContent = 'VoicePipeline matches loaded. Confirm, reassign or reject pending recordings.';
     } catch {
       status.textContent = 'Could not load VoicePipeline data. Check the backend connection and HA admin permissions.';
