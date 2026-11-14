@@ -6,6 +6,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     this._hass = null;
     this._loaded = false;
     this._pending = false;
+    this._updatePoll = null;
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; min-height:100%; color:#e7f7ff;
@@ -122,7 +123,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="update-controls"><button class="updates-check" type="button">Check for updates</button>
           <select class="updates-select" aria-label="Backend release"><option value="">Check for releases first</option></select>
           <button class="updates-install" type="button" disabled>Install selected release</button></div>
-          <p class="updates-status muted" role="status" aria-live="polite">Open Updates to check backend status.</p>
+          <p class="updates-status muted" role="status" aria-live="polite">Open Updates to check backend status.</p>\n          <p class="updates-recovery muted" hidden></p>
           <button class="updates-refresh" type="button">Refresh installation status</button>
         </section>
       </div>`;
@@ -187,23 +188,62 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'updates') void this.loadUpdateStatus();
+    else this.stopUpdatePolling();
 
+  }
+
+  stopUpdatePolling() {
+    if (this._updatePoll !== null) {
+      clearTimeout(this._updatePoll);
+      this._updatePoll = null;
+    }
+  }
+
+  disconnectedCallback() {
+    this.stopUpdatePolling();
+  }
+
+  scheduleUpdatePoll() {
+    this.stopUpdatePolling();
+    if (!this.isConnected || !this.shadowRoot.querySelector('#panel-updates') ||
+        this.shadowRoot.querySelector('#panel-updates').hidden) return;
+    this._updatePoll = setTimeout(() => {
+      this._updatePoll = null;
+      void this.loadUpdateStatus();
+    }, 4000);
   }
 
   async loadUpdateStatus() {
     const status = this.shadowRoot.querySelector('.updates-status');
+    const recovery = this.shadowRoot.querySelector('.updates-recovery');
+    this.stopUpdatePolling();
     try {
       const data = await this._hass.callApi('GET', 'declan_two/updates');
       this.shadowRoot.querySelector('.update-version').textContent = 'Backend version: ' + (data.current || 'unknown');
       if (data.integration_version) this.shadowRoot.querySelector('.integration-version').textContent = 'Integration version: ' + data.integration_version;
-      status.textContent = 'Updater: ' + (data.enabled ? (data.state || 'idle') : 'not enabled') +
+      const state = data.state || 'idle';
+      const labels = {
+        idle: 'Ready to check for releases.',
+        installing: 'Installing the selected release. Please wait.',
+        restarting: 'Restarting Declan and checking its health.',
+        failed: 'Installation failed. Check backend logs and confirm the previous release is healthy.'
+      };
+      status.textContent = data.enabled ? (labels[state] || 'Updater: ' + state) +
         (data.version ? ' (' + data.version + ')' : '') +
-        (data.error ? ' — ' + data.error : '');
+        (data.error ? ' — ' + data.error : '') : 'Backend updater is not enabled on this installation.';
+      recovery.hidden = state !== 'failed';
+      recovery.textContent = state === 'failed' ?
+        'The updater may have restored the previous release. Confirm backend health before trying again; do not repeatedly reinstall.' : '';
+      this.shadowRoot.querySelector('.updates-check').disabled = !data.enabled ||
+        state === 'installing' || state === 'restarting';
+      if (state === 'installing' || state === 'restarting') this.scheduleUpdatePoll();
       this.shadowRoot.querySelector('.updates-install').disabled = !data.enabled ||
         data.state === 'installing' || data.state === 'restarting' ||
         !this.shadowRoot.querySelector('.updates-select').value;
     } catch (error) {
       status.textContent = 'Cannot read backend update status. Check the connection and administrator permissions.';
+      recovery.hidden = false;
+      recovery.textContent = 'The backend may be restarting. Refresh the status after reconnecting; do not assume installation succeeded.';
     }
   }
 
