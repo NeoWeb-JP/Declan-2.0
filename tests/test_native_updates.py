@@ -39,6 +39,15 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertIn('self.path == "/api/updates"\n            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32', SERVER)
         self.assertIn('secrets.compare_digest(', SERVER)
 
+    def test_versions_and_compatibility_gate(self):
+        self.assertIn('"integration_version"', VIEW)
+        self.assertIn('manifest.json', VIEW)
+        self.assertIn('check_server_compatibility(capabilities)', VIEW)
+        self.assertIn('"/api/capabilities"', VIEW)
+        self.assertIn('"updates" not in capabilities["capabilities"]', VIEW)
+        self.assertIn('Integration version: checking', PANEL)
+        self.assertIn('data.integration_version', PANEL)
+
     def test_prerelease_checkbox_selector_matches_markup(self):
         import re
         self.assertIn('class="update-prereleases"', PANEL)
