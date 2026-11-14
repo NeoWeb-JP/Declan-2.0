@@ -155,18 +155,47 @@ class DeclanTwoNativePanel extends HTMLElement {
     this._voicesPending = true;
     const status = this.shadowRoot.querySelector('.voices-status');
     status.textContent = 'Submitting voice review…';
+    let feedback = 'Review saved.';
     try {
       const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
         operation: 'resolve', interaction_id: interactionId, action,
         assigned_to: assignedTo, confirm: true
       });
       if (!result || result.saved !== true) throw new Error('Not confirmed');
-      status.textContent = 'Review saved.';
-    } catch {
-      status.textContent = 'Could not confirm the review. Refresh before retrying to avoid duplicate actions.';
+    } catch (error) {
+      feedback = error?.message || 'Could not confirm the review. Refresh before retrying.';
     } finally {
       this._voicesPending = false;
       await this.loadVoices();
+      status.textContent = feedback;
+    }
+  }
+
+  async playVoice(interactionId, button) {
+    if (!this._hass || this._voicesPending) return;
+    button.disabled = true;
+    const status = this.shadowRoot.querySelector('.voices-status');
+    status.textContent = 'Loading recording…';
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
+        operation: 'audio', interaction_id: interactionId
+      });
+      if (!result || typeof result.audio !== 'string' || !result.audio) throw new Error('No audio returned');
+      if (this._voiceAudio) this._voiceAudio.pause();
+      const binary = atob(result.audio);
+      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+      const blob = new Blob([bytes], {type: 'audio/wav'});
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      this._voiceAudio = audio;
+      audio.addEventListener('ended', () => URL.revokeObjectURL(url), {once: true});
+      audio.addEventListener('error', () => URL.revokeObjectURL(url), {once: true});
+      await audio.play();
+      status.textContent = 'Playing recording.';
+    } catch {
+      status.textContent = 'Could not play the recording. Check VoicePipeline availability and browser audio permissions.';
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -217,7 +246,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           const confirm = document.createElement('button');
           confirm.type = 'button';
           confirm.textContent = 'Confirm match';
-          confirm.disabled = !interaction.matched_speaker;
+          confirm.disabled = !interaction.matched_speaker || ['unknown', 'unidentified', 'none'].includes(interaction.matched_speaker.toLowerCase());
           confirm.addEventListener('click', () => this.resolveVoice(interaction.id, 'confirm', interaction.matched_speaker));
           actions.append(confirm);
           const select = document.createElement('select');
@@ -241,6 +270,11 @@ class DeclanTwoNativePanel extends HTMLElement {
             if (select.value) void this.resolveVoice(interaction.id, 'assign', select.value);
           });
           actions.append(assign);
+          const play = document.createElement('button');
+          play.type = 'button';
+          play.textContent = 'Play recording';
+          play.addEventListener('click', () => void this.playVoice(interaction.id, play));
+          actions.append(play);
           const dismiss = document.createElement('button');
           dismiss.type = 'button';
           dismiss.textContent = 'Reject recording';

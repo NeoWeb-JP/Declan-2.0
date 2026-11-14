@@ -16,8 +16,9 @@ class VoiceReviewContractTests(unittest.TestCase):
         post = SERVER[SERVER.index("    def handle_post(self):"):]
         self.assertIn('self.path == "/api/voicepipeline"', get)
         self.assertIn('not voice_review_auth', get)
-        self.assertIn('body.get("operation") != "resolve"', post)
+        self.assertIn('body.get("operation") not in {"resolve", "audio"}', post)
         self.assertIn('body.get("action") not in {"confirm", "assign", "dismiss"}', post)
+        self.assertIn('set(body) != {"operation", "interaction_id"}', post)
 
     def test_ha_view_requires_admin_and_scopes_writes(self):
         ast.parse(VIEW)
