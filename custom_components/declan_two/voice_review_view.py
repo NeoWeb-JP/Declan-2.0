@@ -27,7 +27,7 @@ class DeclanVoiceReviewView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"status": "invalid_json"}, status=400)
-        if not isinstance(body, dict) or body.get("operation") not in {"resolve", "audio"}:
+        if not isinstance(body, dict) or body.get("operation") not in {"resolve", "audio", "correct"}:
             return web.json_response({"status": "invalid_operation"}, status=400)
         operation = body["operation"]
         action = body.get("action")
@@ -39,6 +39,14 @@ class DeclanVoiceReviewView(HomeAssistantView):
             return web.json_response({"status": "invalid_operation"}, status=400)
         if operation == "resolve" and (action not in {"confirm", "assign", "dismiss", "enrol"} or not isinstance(interaction_id, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,80}", interaction_id) is None):
             return web.json_response({"status": "invalid_operation"}, status=400)
+        if operation == "correct":
+            expected = body.get("expected_resolution_id")
+            if (set(body) != {"operation", "interaction_id", "assigned_to", "expected_resolution_id", "confirm"}
+                    or not isinstance(interaction_id, str)
+                    or re.fullmatch(r"[A-Za-z0-9_-]{1,80}", interaction_id) is None
+                    or (expected is not None and
+                        (not isinstance(expected, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,80}", expected) is None))):
+                return web.json_response({"status": "invalid_operation"}, status=400)
         name = body.get("assigned_to")
         if operation == "audio":
             pass
@@ -59,6 +67,9 @@ class DeclanVoiceReviewView(HomeAssistantView):
                 entry.data["url"] + "/api/voicepipeline",
                 headers={"Authorization": f"Bearer {entry.data['token']}"},
                 json=({"operation": "audio", "interaction_id": interaction_id} if operation == "audio" else
+                      {"operation": "correct", "interaction_id": interaction_id,
+                       "assigned_to": name, "expected_resolution_id": body["expected_resolution_id"],
+                       "confirm": True} if operation == "correct" else
                       {"operation": "resolve", "action": action,
                        "interaction_id": interaction_id, "assigned_to": name, "confirm": True}),
                 timeout=aiohttp.ClientTimeout(total=20),
@@ -124,6 +135,7 @@ class DeclanVoiceReviewView(HomeAssistantView):
                             "status": str(row.get("status") or "")[:50],
                             "match_confidence": row.get("match_confidence") if type(row.get("match_confidence")) in (int, float) else None,
                             "recorded_at": str(row.get("recorded_at") or "")[:50],
+                            "current_resolution_id": row.get("current_resolution_id") if isinstance(row.get("current_resolution_id"), str) and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", row["current_resolution_id"]) else None,
                         })
                     return web.json_response({"interactions": rows}, headers={"Cache-Control": "no-store"})
             async with async_get_clientsession(hass).get(
