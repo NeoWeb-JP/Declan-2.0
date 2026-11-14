@@ -65,7 +65,9 @@ class NativeUpdaterTests(unittest.TestCase):
                     return self["body"]
 
             def request(user, body):
-                obj = Request(hass_user=user, body=body)\n                obj.app = {"hass": types.SimpleNamespace(config_entries=types.SimpleNamespace(async_entries=lambda domain: []))}\n                return obj
+                obj = Request(hass_user=user, body=body)
+                obj.app = {"hass": types.SimpleNamespace(config_entries=types.SimpleNamespace(async_entries=lambda domain: []))}
+                return obj
 
             async def run():
                 admin = types.SimpleNamespace(is_admin=True)
