@@ -1766,7 +1766,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -1799,6 +1799,13 @@ class Handler(BaseHTTPRequestHandler):
             )
         ) and not (
             self.path == "/api/native/spotify-credentials"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
+            self.path == "/api/native/settings-import"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -1871,7 +1878,7 @@ class Handler(BaseHTTPRequestHandler):
                 except (OSError, sqlite3.Error):
                     self.send_json(503, {'error': 'Voice profiles could not be saved.'})
                 return
-            if self.path == "/api/settings/import":
+            if self.path in {"/api/settings/import", "/api/native/settings-import"}:
                 try:
                     if not isinstance(body, dict) or set(body) - {'document', 'confirm', 'expected'}:
                         raise ValueError('Send a settings file to preview.')
