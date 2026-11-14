@@ -5,6 +5,12 @@ import unittest
 JS = (Path(__file__).resolve().parents[1] / "custom_components/declan_two/frontend/panel.js").read_text()
 
 class UnifiedTimelineTests(unittest.TestCase):
+    def test_initial_mount_activates_selected_tab(self):
+        self.assertIn('connectedCallback() {', JS)
+        self.assertIn("this.selectTab(selected?.dataset.tab || 'overview');", JS)
+        self.assertIn("panel.hidden = panel.id !== 'panel-' + name;", JS)
+        self.assertIn("tab.setAttribute('aria-selected', String(active));", JS)
+
     def test_single_primary_activity_view(self):
         self.assertIn('data-tab="conversations">Conversations &amp; Voice', JS)
         self.assertNotIn('data-tab="voices"', JS)
