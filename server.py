@@ -1737,6 +1737,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
+            self.path == "/api/voicepipeline"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
             self.path == "/api/settings/media-players"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
