@@ -38,9 +38,11 @@ class NativeManagementContracts(unittest.TestCase):
     def test_chat_and_voice_are_on_overview(self):
         self.assertIn('id="panel-overview"', PANEL)
         self.assertIn('class="overview-chat-heading"', PANEL)
-        self.assertNotIn('id="panel-conversations"', PANEL)
-        self.assertNotIn('id="tab-conversations"', PANEL)
-        self.assertIn("if (name === 'overview' && !this._timelineLoaded)", PANEL)
+        self.assertIn('id="panel-conversations"', PANEL)
+        self.assertIn('id="tab-conversations"', PANEL)
+        self.assertIn("if (name === 'conversations' && !this._timelineLoaded)", PANEL)
+        self.assertLess(PANEL.index('class="chat-form"'), PANEL.index('id="panel-conversations"'))
+        self.assertGreater(PANEL.index('class="timeline-list"'), PANEL.index('id="panel-conversations"'))
 
 if __name__ == "__main__":
     unittest.main()
