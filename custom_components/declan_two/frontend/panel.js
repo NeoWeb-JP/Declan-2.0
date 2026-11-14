@@ -182,10 +182,10 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
-  async playVoice(interactionId, button) {
+  async playVoice(interactionId, button, feedbackStatus = null) {
     if (!this._hass || this._voicesPending) return;
     button.disabled = true;
-    const status = this.shadowRoot.querySelector('.voices-status');
+    const status = feedbackStatus || this.shadowRoot.querySelector('.voices-status');
     status.textContent = 'Loading recording…';
     try {
       const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
@@ -596,6 +596,32 @@ class DeclanTwoNativePanel extends HTMLElement {
         confidence.textContent = Number.isFinite(item.match_confidence)
           ? (item.match_confidence * 100).toFixed(1) + '% match' : 'Match unavailable';
         controls.append(confidence);
+        if (kind === 'pending' && item.id) {
+          const enrol = document.createElement('button');
+          enrol.type = 'button';
+          enrol.textContent = 'Enrol speaker';
+          enrol.addEventListener('click', async () => {
+            const name = window.prompt('Name for the new speaker:');
+            if (name === null) return;
+            const trimmed = name.trim();
+            if (!/^[\\p{L}][\\p{L}\\p{N}_ '\\u2019-]{0,39}$/u.test(trimmed)) {
+              this.shadowRoot.querySelector('.timeline-status').textContent = 'Enter a valid speaker name (1–40 characters).';
+              return;
+            }
+            if (this._voiceProfiles.some(profile => profile.name?.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
+              this.shadowRoot.querySelector('.timeline-status').textContent = 'Speaker already enrolled. Select the existing speaker.';
+              return;
+            }
+            await this.resolveVoice(item.id, 'enrol', trimmed);
+            await this.loadTimeline();
+          });
+          // Enrollment is less frequent, so keep it in the details dropdown.
+          const enrolDetails = document.createElement('details');
+          const enrolSummary = document.createElement('summary');
+          enrolSummary.textContent = 'New speaker';
+          enrolDetails.append(enrolSummary, enrol);
+          controls.append(enrolDetails);
+        }
         const save = document.createElement('button');
         save.type = 'button';
         save.textContent = kind === 'pending' ? 'Confirm' : 'Correct';
@@ -638,9 +664,9 @@ class DeclanTwoNativePanel extends HTMLElement {
             details.append(reject);
           }
         }
-        card.append(details);
+        card.append(controls, details);
       }
-      card.append(controls);
+      if (kind === 'conversation') card.append(controls);
       list.append(card);
     }
     if (!rows.length) {
