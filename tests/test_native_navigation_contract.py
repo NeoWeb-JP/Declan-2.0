@@ -30,7 +30,10 @@ class NativeNavigationTests(unittest.TestCase):
 
     def test_unmigrated_features_remain_in_existing_app(self):
         self.assertIn("existing Declan app", JS)
-        self.assertIn("existing Declan updater", JS)
+        self.assertIn("async checkUpdates()", JS)
+        self.assertIn("async installUpdate()", JS)
+        self.assertIn("async loadUpdateStatus()", JS)
+        self.assertNotIn("Use the existing Declan updater for now.", JS)
         self.assertNotIn("X-Declan-Ingress-Token", JS)
         self.assertNotIn("Bearer ", JS)
         self.assertIn("this._hass.callApi('GET', 'declan_two/capabilities')", JS)
