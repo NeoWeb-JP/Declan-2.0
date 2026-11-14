@@ -1,6 +1,10 @@
 """Admin-only, authenticated bridge to Declan's existing backend updater."""
 import re
 import logging
+from pathlib import Path
+import json
+
+from .compatibility import check_server_compatibility
 import aiohttp
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -16,7 +20,14 @@ class DeclanUpdatesView(HomeAssistantView):
     requires_auth = True
 
     async def get(self, request):
-        return await self._relay(request, "GET", "/api/updates/status")
+        response = await self._relay(request, "GET", "/api/updates/status")
+        if response.status == 200:
+            # Manifest is the installed HACS integration version, not the backend version.
+            manifest = json.loads((Path(__file__).parent / "manifest.json").read_text())
+            payload = json.loads(response.body)
+            payload["integration_version"] = manifest["version"]
+            return web.json_response(payload, headers={"Cache-Control": "no-store"})
+        return response
 
     async def post(self, request):
         if request.content_type != "application/json":
@@ -54,7 +65,18 @@ class DeclanUpdatesView(HomeAssistantView):
                 "timeout": aiohttp.ClientTimeout(total=25),
                 "allow_redirects": False,
             }
-            url = entry.data["url"].rstrip("/") + path
+            base = entry.data["url"].rstrip("/")
+            if method == "POST":
+                async with session.get(base + "/api/capabilities", **kwargs) as capability_response:
+                    if capability_response.status != 200:
+                        return web.json_response({"status": "compatibility_check_failed"}, status=502)
+                    capabilities = await capability_response.json(content_type="application/json")
+                    if not isinstance(capabilities, dict):
+                        raise ValueError("Invalid capabilities response")
+                    check = check_server_compatibility(capabilities)
+                    if not check.compatible or "updates" not in capabilities.get("capabilities", []):
+                        return web.json_response({"status": "backend_incompatible", "reason": check.reason}, status=409)
+            url = base + path
             async with (session.post(url, json=body, **kwargs) if method == "POST"
                         else session.get(url, **kwargs)) as response:
                 if response.status not in (200, 202, 409, 503):
