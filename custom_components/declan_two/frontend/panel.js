@@ -107,7 +107,15 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="players-list"></div>
         </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
-          <h2>Updates</h2><p class="muted">Use the existing Declan updater for now. The native panel will not initiate installs until authenticated update operations and recovery are verified.</p>
+          <h2>Backend updates</h2>
+          <p class="muted">The Declan backend runs on Proxmox. HACS updates this Home Assistant integration separately.</p>
+          <p class="update-version muted">Backend version: checking…</p>
+          <label><input class="update-prereleases" type="checkbox"> Include prerelease versions</label>
+          <div class="history-actions"><button class="updates-check" type="button">Check for updates</button>
+          <select class="updates-select" aria-label="Backend release"><option value="">Check for releases first</option></select>
+          <button class="updates-install" type="button" disabled>Install selected release</button></div>
+          <p class="updates-status muted" role="status" aria-live="polite">Open Updates to check backend status.</p>
+          <button class="updates-refresh" type="button">Refresh installation status</button>
         </section>
       </div>`;
     this.shadowRoot.querySelector('.refresh').addEventListener('click', () => this.refresh());
@@ -121,6 +129,16 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelector('.voices-history-refresh').addEventListener('click', () => this.loadVoiceHistory());
     this.shadowRoot.querySelector('.players-refresh').addEventListener('click', () => this.loadPlayers());
     this.shadowRoot.querySelector('.players-save').addEventListener('click', () => this.savePlayers());
+    this.shadowRoot.querySelector('.updates-check').addEventListener('click', () => this.checkUpdates());
+    this.shadowRoot.querySelector('.updates-install').addEventListener('click', () => this.installUpdate());
+    this.shadowRoot.querySelector('.updates-refresh').addEventListener('click', () => this.loadUpdateStatus());
+    this.shadowRoot.querySelector('.updates-prereleases').addEventListener('change', () => {
+      this.shadowRoot.querySelector('.updates-select').replaceChildren(new Option('Check for releases first', ''));
+      this.shadowRoot.querySelector('.updates-install').disabled = true;
+    });
+    this.shadowRoot.querySelector('.updates-select').addEventListener('change', () => {
+      this.shadowRoot.querySelector('.updates-install').disabled = !this.shadowRoot.querySelector('.updates-select').value;
+    });
     this.shadowRoot.querySelector('.history-refresh').addEventListener('click', () => this.loadHistory());
     this.shadowRoot.querySelector('.history-more').addEventListener('click', () => this.loadHistory(this._historyCursor));
     this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
@@ -160,7 +178,64 @@ class DeclanTwoNativePanel extends HTMLElement {
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
+    if (name === 'updates') void this.loadUpdateStatus();
 
+  }
+
+  async loadUpdateStatus() {
+    const status = this.shadowRoot.querySelector('.updates-status');
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/updates');
+      this.shadowRoot.querySelector('.update-version').textContent = 'Backend version: ' + (data.current || 'unknown');
+      status.textContent = 'Updater: ' + (data.enabled ? (data.state || 'idle') : 'not enabled') +
+        (data.version ? ' (' + data.version + ')' : '') +
+        (data.error ? ' — ' + data.error : '');
+      this.shadowRoot.querySelector('.updates-install').disabled = !data.enabled ||
+        data.state === 'installing' || data.state === 'restarting' ||
+        !this.shadowRoot.querySelector('.updates-select').value;
+    } catch (error) {
+      status.textContent = 'Cannot read backend update status. Check the connection and administrator permissions.';
+    }
+  }
+
+  async checkUpdates() {
+    const status = this.shadowRoot.querySelector('.updates-status');
+    const select = this.shadowRoot.querySelector('.updates-select');
+    const button = this.shadowRoot.querySelector('.updates-check');
+    button.disabled = true;
+    select.replaceChildren(new Option('Checking…', ''));
+    this.shadowRoot.querySelector('.updates-install').disabled = true;
+    try {
+      const data = await this._hass.callApi('POST', 'declan_two/updates', {
+        operation: 'check', include_prereleases: this.shadowRoot.querySelector('.updates-prereleases').checked
+      });
+      select.replaceChildren(new Option('Select a release', ''));
+      for (const version of data.versions || []) select.add(new Option(version, version));
+      status.textContent = data.versions?.length ? 'Choose a release to install.' : 'No eligible releases found.';
+      this.shadowRoot.querySelector('.update-version').textContent = 'Backend version: ' + (data.current || 'unknown');
+    } catch (error) {
+      select.replaceChildren(new Option('Check failed', ''));
+      status.textContent = 'Release check failed: ' + (error?.message || 'backend unavailable');
+    } finally { button.disabled = false; }
+  }
+
+  async installUpdate() {
+    const select = this.shadowRoot.querySelector('.updates-select');
+    const version = select.value;
+    if (!version || !window.confirm('Install Declan backend release ' + version +
+      '? The backend may restart and automatically roll back if its health check fails.')) return;
+    const button = this.shadowRoot.querySelector('.updates-install');
+    const status = this.shadowRoot.querySelector('.updates-status');
+    button.disabled = true;
+    try {
+      await this._hass.callApi('POST', 'declan_two/updates', {
+        operation: 'install', version,
+        include_prereleases: this.shadowRoot.querySelector('.updates-prereleases').checked
+      });
+      status.textContent = 'Installation queued. Use Refresh installation status to check progress.';
+    } catch (error) {
+      status.textContent = 'Install not queued: ' + (error?.message || 'backend unavailable');
+    }
   }
 
   set hass(value) {
