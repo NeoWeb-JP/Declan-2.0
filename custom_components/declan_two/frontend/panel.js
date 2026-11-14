@@ -175,10 +175,10 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
-  async playVoice(interactionId, button) {
+  async playVoice(interactionId, button, feedbackStatus = null) {
     if (!this._hass || this._voicesPending) return;
     button.disabled = true;
-    const status = this.shadowRoot.querySelector('.voices-status');
+    const status = feedbackStatus || this.shadowRoot.querySelector('.voices-status');
     status.textContent = 'Loading recording…';
     try {
       const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
@@ -247,6 +247,14 @@ class DeclanTwoNativePanel extends HTMLElement {
         detail.textContent = 'Speaker: ' + (item.current_assigned_to || item.matched_speaker || 'Unassigned') +
           ' · Status: ' + (item.status || 'Unknown') + ' · Recorded: ' + (item.recorded_at || 'Unknown');
         card.append(transcript, detail);
+        if (item.id) {
+          const playback = document.createElement('button');
+          playback.type = 'button';
+          playback.textContent = 'Play recording';
+          playback.setAttribute('aria-label', 'Play reviewed recording');
+          playback.addEventListener('click', () => void this.playVoice(item.id, playback, status));
+          card.append(playback);
+        }
         if (item.id && item.current_resolution_id) {
           const actions = document.createElement('div');
           actions.className = 'history-actions';
