@@ -18,8 +18,8 @@ class NativeMicrophoneSettingsTests(unittest.TestCase):
 
     def test_audio_relay_requires_admin_and_bounded_pcm(self):
         source = (COMPONENT / "microphone_view.py").read_text()
-        for expected in ("not user.is_admin", "application/octet-stream", "640000",
-                         "size % 2", "allow_redirects=False", "Bearer {entry.data['token']}"):
+        for expected in ("not user.is_admin", "application/json", "640000",
+                         "len(audio) % 2", "allow_redirects=False", "Bearer {entry.data['token']}"):
             self.assertIn(expected, source)
         self.assertIn('self.path == "/api/stt"', SERVER)
         self.assertIn("secrets.compare_digest(", SERVER)
