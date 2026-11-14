@@ -49,9 +49,12 @@ opening Home Assistant over HTTPS and granting microphone permission.
 
 Assign satellites, speakers and Music Assistant players to their real Home Assistant
 areas. Declan discovers the players through HA's registry for each music request.
-No Show entity IDs are needed in Declan's configuration. If several available
-Music Assistant players belong to one area, Declan asks for clarification instead
-of selecting one arbitrarily. Available players replace unavailable entries automatically.
+No Show entity IDs are needed in Declan's configuration. Playback prefers the Music
+Assistant player linked to the speaking satellite's device, including wrappers whose
+registered source entity belongs to that device. An explicit different room is still
+honoured. Within a room, a single available satellite-linked player takes priority
+over TVs and other players; otherwise the single available area player is used.
+Ambiguous matches ask for clarification. Available players replace unavailable entries automatically.
 
 An unqualified Assist **Stop** first uses the media player attached to the same
 Home Assistant device as the satellite. If that is unavailable, it uses the area's
@@ -67,6 +70,21 @@ identified different speakers are kept separate. Audio is not stored for arbitra
 Captures without valid loudness/timing metadata keep the existing processing path.
 Live kitchen/bedroom acceptance remains required before removing the legacy routine
 result fallback.
+
+### Bedroom mood commands
+
+Say **Start bedroom mood** or **End bedroom mood** after the usual wake word.
+**Start romance mode**, **End romance mode**, the existing **Sexy Time** commands,
+and the transcription variants **sixty time** and **60 time** also work.
+Start/activate and end/stop are accepted for each phrase. These are routine
+commands, not additional microphone wake words.
+
+The routine always targets the master-bedroom Music Assistant satellite player,
+even when requested from another room. Declan sets its starting volume to 20%,
+starts the playlist after lighting confirmation, and verifies Stop on that same
+resolved output when ending. The supplied HA script accepts the resolved
+`music_player` and leaves playback to Declan; update the script from
+`home_assistant/sexy_time.script.yaml` to avoid duplicate legacy music actions.
 
 ### Current NOW work
 

@@ -6,7 +6,7 @@ Tracks issue #17. These changes cover HTTP response policy, bad Assist token thr
 
 The standalone server and HA sidebar proxy send Content Security Policy, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and a Permissions Policy permitting the same-origin microphone while disabling camera and location access. Inline scripts receive a fresh random nonce for each page response. The proxy applies its own nonce to both the UI script and its panel-token script. Inline CSS remains allowed because the existing UI uses a style block and a style attribute; inline event handlers and arbitrary inline scripts are blocked.
 
-Direct standalone pages prohibit framing (`frame-ancestors 'none'`, `X-Frame-Options: DENY`). Authenticated ingress responses and the proxy allow only same-origin framing, matching HA's sidebar URL. No wildcard frame origins are accepted. Relative API calls, blob audio playback and same-origin microphone capture remain permitted. Upgrade the Declan Web HA app to **1.0.4**, update the standalone server and reload the panel. Live microphone and playback checks are still needed in HA and iPhone browsers.
+Direct standalone pages prohibit framing (`frame-ancestors 'none'`, `X-Frame-Options: DENY`). Authenticated ingress responses and the proxy allow only same-origin framing, matching HA's sidebar URL. No wildcard frame origins are accepted. Relative API calls, blob audio playback and same-origin microphone capture remain permitted. Upgrade the Declan Web HA app to **1.0.5**, update the standalone server and reload the panel. Live microphone and playback checks are still needed in HA and iPhone browsers.
 
 ## Failed Assist credentials
 

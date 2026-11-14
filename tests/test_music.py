@@ -126,6 +126,121 @@ class MusicTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(self.searches, [])
 
+
+    def bedroom_players(self):
+        # Reproduce the reported room: two TVs, one satellite wrapper, and the
+        # old bedroom entity repurposed as the Utility Room speaker.
+        for row in self.players.values():
+            row["declan_music_assistant"] = False
+        self.players[self.bedroom].update(state="idle", declan_area="Utility Room")
+        target = "media_player.master_bedroom_declan"
+        native = "media_player.renamed_native_speaker"
+        satellite = "assist_satellite.master_bedroom"
+        self.players[target] = {"entity_id": target, "state": "idle", "attributes": {},
+                                "declan_area": "Master Bedroom", "declan_device": "ma-device",
+                                "declan_music_assistant": True, "declan_source_entities": [native]}
+        self.players[native] = {"entity_id": native, "state": "idle", "attributes": {},
+                                "declan_area": "Master Bedroom", "declan_device": "satellite-device",
+                                "declan_music_assistant": False}
+        self.players[satellite] = {"entity_id": satellite, "state": "idle", "attributes": {},
+                                   "declan_area": "Master Bedroom", "declan_device": "satellite-device",
+                                   "declan_music_assistant": False}
+        for suffix in ("5", "3"):
+            tv = "media_player.43_qled_" + suffix
+            self.players[tv] = {"entity_id": tv, "state": "idle", "attributes": {},
+                                "declan_area": "Master Bedroom", "declan_device": "tv-" + suffix,
+                                "declan_music_assistant": True}
+        return target, native, satellite
+
+    def test_bedroom_wrapper_is_preferred_over_two_available_tvs(self):
+        target, native, satellite = self.bedroom_players()
+        self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
+        reply, outcome = music.play(music.parse("play country music"), ("http://ha", {}, self),
+                                    lambda _: (list(self.players.values()), None), origin=satellite)
+        self.assertEqual(outcome, "confirmed", reply)
+        self.assertEqual(self.calls[-1][1]["entity_id"], target)
+        self.assertEqual(self.searches[-1]["q"], "country music")
+        self.assertEqual(self.players[self.bedroom]["state"], "idle")
+        for suffix in ("5", "3"):
+            self.assertEqual(self.players["media_player.43_qled_" + suffix]["state"], "idle")
+
+    def test_same_device_and_remote_room_requests_choose_satellite_player(self):
+        target, native, satellite = self.bedroom_players()
+        rows = list(self.players.values())
+        self.assertEqual(music.music_players(rows)[0]["bedroom"], target)
+        self.assertEqual(music.music_players(rows, origin="satellite-device")[0]["bedroom"], target)
+        self.players[target]["declan_device"] = "satellite-device"
+        self.players[target].pop("declan_source_entities")
+        self.assertEqual(music.music_players(rows, origin=satellite)[0]["bedroom"], target)
+        self.players[self.kitchen].update(declan_music_assistant=True, declan_area="Kitchen")
+        self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
+        reply, outcome = music.play(music.parse("play country music in the kitchen"), ("http://ha", {}, self),
+                                    lambda _: (list(self.players.values()), None), origin=satellite)
+        self.assertEqual(outcome, "confirmed", reply)
+        self.assertEqual(self.calls[-1][1]["entity_id"], self.kitchen)
+
+    def test_missing_unavailable_or_ambiguous_links_do_not_guess_a_tv(self):
+        target, native, satellite = self.bedroom_players()
+        rows = list(self.players.values())
+        self.players[target]["declan_source_entities"] = ["media_player.removed"]
+        self.assertIsNone(music.music_players(rows, origin=satellite)[0]["bedroom"])
+        self.players[target]["declan_source_entities"] = [native]
+        self.players[target]["state"] = "unavailable"
+        self.assertIsNone(music.music_players(rows, origin=satellite)[0]["bedroom"])
+        self.players[target]["state"] = "idle"
+        other = "media_player.duplicate_wrapper"
+        self.players[other] = dict(self.players[target], entity_id=other)
+        self.assertIsNone(music.music_players(list(self.players.values()), origin=satellite)[0]["bedroom"])
+
+    def test_origin_breaks_tie_between_two_satellite_players_in_same_room(self):
+        target, native, satellite = self.bedroom_players()
+        other = "media_player.other_satellite_queue"
+        self.players[other] = dict(self.players[target], entity_id=other, declan_source_entities=[],
+                                  declan_device="other-device")
+        self.players["assist_satellite.other"] = {
+            "entity_id": "assist_satellite.other", "state": "idle", "attributes": {},
+            "declan_device": "other-device", "declan_area": "Master Bedroom"}
+        rows = list(self.players.values())
+        self.assertIsNone(music.music_players(rows)[0]["bedroom"])
+        self.assertEqual(music.music_players(rows, origin=satellite)[0]["bedroom"], target)
+        self.assertEqual(music.music_players(rows, origin="other-device")[0]["bedroom"], other)
+        self.assertEqual(music.music_players(rows, origin=satellite)[0]["everywhere"], self.group)
+
+    def test_sexy_time_uses_resolved_bedroom_speaker_for_start_and_end(self):
+        target, native, satellite = self.bedroom_players()
+        original_open = self.open
+        script_calls = []
+        operation = "start"
+
+        def open_request(request, timeout):
+            if "/api/services/script/" in request.full_url:
+                data = json.loads(request.data)
+                script_calls.append(data)
+                return io.BytesIO(json.dumps({"service_response": {
+                    "operation": operation, "lighting_ok": True, "music_stopped": False,
+                }}).encode())
+            if request.full_url.endswith("/volume_set"):
+                self.calls.append(("volume_set", json.loads(request.data)))
+                return io.BytesIO(b"[]")
+            return original_open(request, timeout)
+
+        self.search_results = {"playlists": [{"name": "Sexy Time", "id": "A" * 22}]}
+        with patch.object(self, "open", side_effect=open_request), patch.object(
+            server, "read_music_inventory", side_effect=lambda _: (list(self.players.values()), None)
+        ), patch.object(server, "read_guest_mode", return_value="off"):
+            reply, outcome, detail = server.run_sexy_time("start", ("http://ha", {}, self))
+            self.assertEqual(outcome, "confirmed", detail)
+            self.assertEqual(script_calls[-1], {"operation": "start", "music_player": target})
+            self.assertIn(("volume_set", {"entity_id": target, "volume_level": 0.2}), self.calls)
+            self.assertEqual(self.calls[-1][1]["entity_id"], target)
+            self.assertEqual(self.searches[-1]["q"], "sexy time music")
+            self.players[target]["state"] = "playing"
+            operation = "end"
+            reply, outcome, detail = server.run_sexy_time("end", ("http://ha", {}, self))
+            self.assertEqual(outcome, "confirmed", detail)
+            self.assertEqual(self.calls[-1], ("media_stop", {"entity_id": target}))
+            self.assertEqual(self.players[self.bedroom]["state"], "idle")
+
     def test_registry_area_mapping_follows_renamed_music_assistant_entities(self):
         self.players[self.bedroom]["declan_music_assistant"] = False
         replacement = "media_player.new_bedroom_queue"

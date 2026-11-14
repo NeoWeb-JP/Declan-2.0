@@ -1,7 +1,12 @@
+# 1.0.5
+
+- Add nonce-based Content Security Policy and browser security headers while preserving Home Assistant framing and microphone access.
+- Package the shared security module in the sidebar app image. Update the standalone server for bad-token throttling and configurable history retention.
+
 # 1.0.4
 
-- Add a nonce-based Content Security Policy and browser security headers to panel pages and errors. Keep same-origin Home Assistant framing and microphone access.
-- Update the standalone server too for bad-token throttling and configurable history retention.
+- Expose Approved Media Players settings through Home Assistant sidebar Ingress (GET and POST).
+- Rebuild the sidebar app with the approved player route. Update the standalone Declan backend as well.
 
 # 1.0.3
 

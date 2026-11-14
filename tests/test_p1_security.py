@@ -5,6 +5,9 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 from threading import Thread
 from unittest import TestCase
@@ -208,3 +211,20 @@ class RetentionTests(TestCase):
             with history.database() as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM turns').fetchone()[0], 2)
             self.assertEqual(history.learned_intent('alias'), 'good morning')
+
+
+class IngressPackagingTests(TestCase):
+    def test_packaged_files_support_standalone_proxy_import(self):
+        """Exercise imports using only the files shipped by the app image."""
+        root = Path(__file__).resolve().parents[1] / 'declan_ingress'
+        with TemporaryDirectory() as directory:
+            for line in (root / 'Dockerfile').read_text().splitlines():
+                if line.startswith('COPY '):
+                    for source in line.split()[1:-1]:
+                        shutil.copy2(root / source, Path(directory) / source)
+            result = subprocess.run(
+                [sys.executable, '-I', '-c',
+                 "import sys; sys.path.insert(0, '.'); import proxy; "
+                 "assert proxy.response_headers(ingress=True)['X-Frame-Options'] == 'SAMEORIGIN'"],
+                cwd=directory, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)

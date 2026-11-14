@@ -1,3 +1,4 @@
+import io
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from threading import Thread
@@ -68,8 +69,27 @@ class IngressTests(TestCase):
     def test_voicepipeline_management_route_is_allowed_with_same_panel_boundary(self):
         self.response.getheader.side_effect = lambda name, default=None: {'Content-Type': 'application/json', 'Content-Length': '2'}.get(name, default)
         for method in ('GET', 'POST'):
-            self.response.read.side_effect = [b'{}', b'']
+            # Each upstream response needs its own stream: the client can finish
+            # reading Content-Length before the previous proxy thread reads EOF.
+            response = mock.Mock()
+            response.status = 200
+            response.getheader.side_effect = self.response.getheader.side_effect
+            response.read.side_effect = io.BytesIO(b'{}').read
+            self.upstream.getresponse.return_value = response
             headers = {'Content-Type': 'application/json', 'X-Declan-Panel-Token': 'panel-secret'}
             self.assertEqual(self.request(method=method, headers=headers, path='/api/voicepipeline')[0], 200)
         self.assertEqual(self.request(path='/api/voicepipeline')[0], 403)
 
+    def test_approved_media_players_route_requires_panel_auth(self):
+        for method in ('GET', 'POST'):
+            response = mock.Mock()
+            response.status = 200
+            response.getheader.side_effect = lambda name, default=None: {
+                'Content-Type': 'application/json', 'Content-Length': '2'
+            }.get(name, default)
+            response.read.side_effect = io.BytesIO(b'{}').read
+            self.upstream.getresponse.return_value = response
+            headers = {'Content-Type': 'application/json', 'X-Declan-Panel-Token': 'panel-secret'}
+            self.assertEqual(self.request(method=method, headers=headers,
+                                          path='/api/settings/media-players')[0], 200)
+        self.assertEqual(self.request(path='/api/settings/media-players')[0], 403)

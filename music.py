@@ -2,6 +2,7 @@
 
 import json
 import diagnostics
+import approved_media_players
 import os
 import re
 import sqlite3
@@ -54,7 +55,11 @@ def room_key(name):
     return " ".join(name.casefold().split()).removeprefix("master ")
 
 
-def music_players(inventory):
+def music_players(inventory, *, origin=None):
+    approved = approved_media_players.resolve(inventory)
+    if approved is not None:
+        entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
+        return approved, {entity: entities[entity] for entity in approved.values() if entity in entities}
     destinations = PLAYERS.copy()
     entities = {row["entity_id"]: row for row in inventory
                 if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
@@ -74,9 +79,26 @@ def music_players(inventory):
             area = row.get("declan_area")
             if row.get("declan_music_assistant") is True and isinstance(area, str) and area.strip():
                 rooms.setdefault(room_key(area), []).append(entity)
+        def devices(row):
+            linked = {row.get("declan_device")} - {None, ""}
+            sources = row.get("declan_source_entities")
+            if isinstance(sources, list):
+                linked.update(entities[source].get("declan_device") for source in sources
+                              if isinstance(source, str) and source in entities)
+            return linked - {None, ""}
+
+        # MA wrappers can have their own HA device. Follow their registered
+        # source entities back to the satellite's device, never its name.
+        origin_row = entities.get(origin) if isinstance(origin, str) else None
+        origin_devices = devices(origin_row) if origin_row else ({origin} if origin else set())
+        satellite_devices = {row.get("declan_device") for entity, row in entities.items()
+                             if entity.startswith("assist_satellite.")} - {None, ""}
         for room, candidates in rooms.items():
             available = [entity for entity in candidates if entities[entity].get("state") not in (None, "unknown", "unavailable")]
-            destinations[room] = available[0] if len(available) == 1 else None
+            direct = [entity for entity in available if devices(entities[entity]) & origin_devices]
+            associated = [entity for entity in available if devices(entities[entity]) & satellite_devices]
+            preferred = direct or associated or available
+            destinations[room] = preferred[0] if len(preferred) == 1 else None
         players = {entity: row for entity, row in entities.items()
                    if row.get("declan_music_assistant") is True or entity == destinations["everywhere"]}
         return destinations, players
@@ -101,7 +123,7 @@ def parse_feedback(phrase):
 
 
 def playback_sources(destinations, players):
-    group = destinations["everywhere"]
+    group = destinations.get("everywhere")
     group_state = players.get(group, {})
     members = ((group_state.get("attributes") or {}).get("group_members") or []
                if group_state.get("state") in ACTIVE else [])
@@ -338,7 +360,7 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
         if error:
             return "I couldn't check the music players.", error
         destinations, players = music_players(inventory)
-        group = destinations["everywhere"]
+        group = destinations.get("everywhere")
         grouped = players.get(group, {})
         members = ((grouped.get("attributes") or {}).get("group_members") or []
                    if grouped.get("state") in ACTIVE else [])
@@ -346,12 +368,12 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
             areas = read_areas(connection, origin) if origin and read_areas else {}
             room = next((room_key(name) for name in areas if room_key(name) in destinations), None)
             if room and destinations.get(room) is None:
-                return f"More than one available Music Assistant player is assigned to the {room}.", "unresolved"
+                return f"No approved Music Assistant player is configured for {room}.", "unresolved"
             if action in {"media_next_track", "media_previous_track"}:
                 if room and destinations[room] in members:
                     room = "everywhere"
                 elif room and players.get(destinations[room], {}).get("state") not in ACTIVE:
-                    room = None
+                    return f"No active playback in the {room}.", "unavailable"
             elif room is None:
                 return "Which room should I control?", "unresolved"
         if room is None:
@@ -363,7 +385,7 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
             room = active[0]
         entity = destinations.get(room)
         if entity is None:
-            return f"I couldn't identify one available Music Assistant player in the {room}. Check its Home Assistant area.", "unresolved"
+            return f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         player = players.get(entity, {})
         state = player.get("state")
@@ -540,17 +562,29 @@ def play(command, connection, read_inventory, *, origin=None):
                 return "Which room should I play the music in?", "unresolved"
             room = areas.pop()
         location = "everywhere" if room == "everywhere" else f"in the {room}"
-        destinations, players = music_players(inventory)
-        destination = destinations.get(room)
+        destinations, players = music_players(inventory, origin=origin) if origin else music_players(inventory)
+        explicit = room.startswith('media_player.')
+        if explicit:
+            # Buttons can choose an exact HA Music Assistant wrapper without
+            # pretending to originate from a physical voice satellite.
+            if (not re.fullmatch(r'media_player\.[a-z0-9_]+', room)
+                    or players.get(room, {}).get('declan_music_assistant') is not True
+                    or (approved_media_players.load() is not None and room not in destinations.values())):
+                return "That target is not a registered Music Assistant player. I haven't changed playback.", "unresolved"
+            destination = room
+            label = (players[destination].get('attributes') or {}).get('friendly_name')
+            location = 'on ' + (label if isinstance(label, str) and label.strip() else destination)
+        else:
+            destination = destinations.get(room)
         if destination is None:
-            return f"I couldn't identify one available Music Assistant player in the {room}. Check its Home Assistant area.", "unresolved"
+            return f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"
         if players.get(destination, {}).get("state") in (None, "unknown", "unavailable"):
             return f"The Music Assistant player {location} is unavailable.", "unavailable"
         previous_state = players[destination]["state"]
         previous_track = (players[destination].get("attributes") or {}).get("media_content_id")
         streams = {entity: player for entity, player in players.items()
                    if player.get("state") in ACTIVE and spotify_id(player)}
-        group = destinations["everywhere"]
+        group = destinations.get("everywhere")
         if group in streams:
             members = streams[group]["attributes"].get("group_members") or []
             for entity in tuple(streams):
@@ -683,3 +717,4 @@ def play(command, connection, read_inventory, *, origin=None):
                 else "I couldn't verify the music request."), "unverified"
     finally:
         HANDOFF.release()
+
