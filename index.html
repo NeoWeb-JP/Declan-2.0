@@ -419,7 +419,7 @@ async function refreshAPIStatus() {
       const result = await response.json();
       // A successful HTML fallback or an unrelated JSON response is not a healthy API.
       if (result && typeof result.api_version === 'string' &&
-          /^1(?:\\.\\d+)*$/.test(result.api_version) &&
+          /^1(?:\.\d+)*$/.test(result.api_version) &&
           Array.isArray(result.capabilities)) {
         state = 'connected';
         const version = typeof result.server_version === 'string' && result.server_version.trim()
