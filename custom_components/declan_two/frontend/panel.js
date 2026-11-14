@@ -48,6 +48,15 @@ class DeclanTwoNativePanel extends HTMLElement {
         .timeline-filter,.timeline-speaker { min-width:0; max-width:100%; padding:9px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
         .timeline-row { border-top:1px solid #1d3d51; padding:14px 0; overflow-wrap:anywhere; }
         .timeline-row p { margin:6px 0; white-space:pre-wrap; }
+        .timeline-row--pending { border-left:3px solid #e6b85c; padding-left:12px; }
+        .timeline-row--confirmed { border-left:3px solid #5bbba7; padding-left:12px; }
+        .timeline-row--rejected { border-left:3px solid #8295a0; padding-left:12px; }
+        .timeline-status-label { display:inline-flex; align-items:center; border-radius:6px; padding:3px 8px; font-size:.8rem; font-weight:700; letter-spacing:.01em; }
+        .timeline-status-label--pending { color:#ffe0a0; background:#624719; }
+        .timeline-status-label--confirmed { color:#b5f5e4; background:#164d44; }
+        .timeline-status-label--rejected { color:#e0e7ed; background:#36434b; }
+        .timeline-heading { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+        .timeline-heading .muted { font-size:.8rem; }
         .timeline-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; }
         .timeline-row details { margin-top:8px; color:#a1ccdf; }
         .timeline-row summary,.timeline-management summary { cursor:pointer; padding:7px 0; }
@@ -81,7 +90,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           </form>
           <p class="chat-status muted" role="status" aria-live="polite"></p>
           <div class="chat-replies" aria-label="Current chat"></div>
-          <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Confirmed</option></select></div>
+          <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open Conversations & Voice to load activity.</p>
           <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
           <details class="timeline-management"><summary>Speaker profiles and older conversation history</summary><div class="timeline-management-body">
@@ -575,6 +584,26 @@ class DeclanTwoNativePanel extends HTMLElement {
       const {item,kind} = row;
       const card = document.createElement('article');
       card.className = 'timeline-row';
+      if (kind !== 'conversation') {
+        const rawStatus = String(item.status || '').toLowerCase();
+        const rejected = kind === 'reviewed' && /dismiss|reject|discard/.test(rawStatus);
+        const reviewState = kind === 'pending' ? 'pending' : rejected ? 'rejected' : 'confirmed';
+        card.classList.add('timeline-row--' + reviewState);
+        const heading = document.createElement('div');
+        heading.className = 'timeline-heading';
+        const state = document.createElement('span');
+        state.className = 'timeline-status-label timeline-status-label--' + reviewState;
+        state.textContent = reviewState === 'pending' ? 'Needs review' : reviewState === 'rejected' ? 'Rejected' : 'Confirmed';
+        heading.append(state);
+        if (item.recorded_at) {
+          const time = document.createElement('span');
+          time.className = 'muted';
+          const parsed = Date.parse(item.recorded_at);
+          time.textContent = Number.isFinite(parsed) ? new Date(parsed).toLocaleString() : item.recorded_at;
+          heading.append(time);
+        }
+        card.append(heading);
+      }
       const transcript = document.createElement('p');
       transcript.textContent = item.transcript || item.message || '(No transcript)';
       card.append(transcript);

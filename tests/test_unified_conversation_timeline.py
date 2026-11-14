@@ -32,6 +32,15 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("play.textContent = 'Play'", JS)
         self.assertIn("this.playVoice(item.id, play,", JS)
 
+    def test_clear_review_state(self):
+        self.assertIn("state.textContent = reviewState === 'pending' ? 'Needs review'", JS)
+        self.assertIn("'Rejected' : 'Confirmed'", JS)
+        self.assertIn("card.classList.add('timeline-row--' + reviewState)", JS)
+        self.assertIn("timeline-status-label--pending", JS)
+        self.assertIn("timeline-status-label--confirmed", JS)
+        self.assertIn("timeline-status-label--rejected", JS)
+        self.assertIn('value="reviewed">Reviewed', JS)
+
     def test_filters_and_collapsed_details(self):
         for snippet in ('value="all"', 'value="pending"', 'value="reviewed"',
                         "document.createElement('details')", "summary.textContent = 'More details'"):
