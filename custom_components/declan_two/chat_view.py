@@ -1,6 +1,5 @@
 """Admin-only Home Assistant authenticated chat relay."""
 import logging
-import secrets
 
 import aiohttp
 from aiohttp import web
@@ -27,11 +26,14 @@ class DeclanChatView(HomeAssistantView):
             payload = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"status": "invalid_json"}, status=400)
-        if not isinstance(payload, dict) or set(payload) != {"message"}:
+        if not isinstance(payload, dict) or set(payload) - {"message", "session_id"} or "message" not in payload:
             return web.json_response({"status": "invalid_message"}, status=400)
         message = payload["message"]
         if not isinstance(message, str) or not 0 < len(message.strip()) <= 1000:
             return web.json_response({"status": "invalid_message"}, status=400)
+        session_id = payload.get("session_id")
+        if session_id is not None and (not isinstance(session_id, str) or len(session_id) > 64):
+            return web.json_response({"status": "invalid_session"}, status=400)
         hass = request.app["hass"]
         entries = hass.config_entries.async_entries("declan_two")
         if len(entries) != 1:
@@ -41,7 +43,7 @@ class DeclanChatView(HomeAssistantView):
             async with async_get_clientsession(hass).post(
                 entry.data["url"] + "/api/chat",
                 headers={"Authorization": f"Bearer {entry.data['token']}"},
-                json={"message": message.strip(), "session_id": secrets.token_urlsafe(24)},
+                json={"message": message.strip(), "session_id": session_id},
                 timeout=aiohttp.ClientTimeout(total=45),
                 allow_redirects=False,
             ) as response:
@@ -53,7 +55,7 @@ class DeclanChatView(HomeAssistantView):
                 reply = result.get("reply")
                 if not isinstance(reply, str):
                     raise ValueError("Missing chat reply")
-                return web.json_response({"reply": reply[:8000]}, headers={"Cache-Control": "no-store"})
+                return web.json_response({"reply": reply[:8000], "session_id": result.get("session_id") if isinstance(result.get("session_id"), str) and len(result["session_id"]) <= 64 else None}, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
             _LOGGER.debug("Declan native chat proxy request failed")
             return web.json_response({"status": "backend_unavailable"}, status=502)
