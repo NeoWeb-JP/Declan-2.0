@@ -45,7 +45,7 @@ class DeclanVoiceReviewView(HomeAssistantView):
         elif action == "dismiss":
             if name is not None:
                 return web.json_response({"status": "invalid_speaker"}, status=400)
-        elif not isinstance(name, str) or not re.fullmatch(r"[^\\W\\d_][\\w '\\u2019-]{0,39}", name) or name.casefold() in {"unknown", "unidentified", "none"}:
+        elif not isinstance(name, str) or not re.fullmatch(r"[^\W\d_][\w '\u2019-]{0,39}", name) or name.casefold() in {"unknown", "unidentified", "none"}:
             return web.json_response({"status": "invalid_speaker"}, status=400)
         if operation == "resolve" and set(body) - {"operation", "action", "interaction_id", "assigned_to", "confirm"}:
             return web.json_response({"status": "invalid_operation"}, status=400)
