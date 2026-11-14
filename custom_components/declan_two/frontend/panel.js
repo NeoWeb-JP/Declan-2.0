@@ -278,7 +278,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             const name = window.prompt('Name for the new speaker:');
             if (name === null) return;
             const trimmed = name.trim();
-            if (!/^[\\p{L}][\\p{L}\\p{N}_ '\\u2019-]{0,39}$/u.test(trimmed)) {
+            if (!/^[\p{L}][\p{L}\p{N}_ '\u2019-]{0,39}$/u.test(trimmed)) {
               this.shadowRoot.querySelector('.voices-status').textContent = 'Enter a valid speaker name of 1–40 characters.';
               return;
             }
