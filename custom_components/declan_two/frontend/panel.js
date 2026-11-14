@@ -220,7 +220,7 @@ class DeclanTwoNativePanel extends HTMLElement {
   }
 
   async correctVoiceHistory(item, speaker) {
-    if (this._voiceHistoryPending || !this._hass || !item.id || !item.current_resolution_id || !speaker) return;
+    if (this._voiceHistoryPending || !this._hass || !item.id || !speaker) return;
     if (!window.confirm('Correct this reviewed recording to ' + speaker + '?')) return;
     const status = this.shadowRoot.querySelector('.voices-history-status');
     this._voiceHistoryPending = true;
@@ -687,7 +687,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         let editing = false;
         const syncSave = () => {
           save.disabled = reviewed
-            ? (!item.current_resolution_id || (editing && (!select.value || select.value === originalSpeaker)))
+            ? (!item.id || (editing && (!select.value || select.value === originalSpeaker)))
             : !select.value;
           save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';
         };
