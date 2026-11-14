@@ -63,7 +63,7 @@ class IngressTests(TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b'panel-secret', body)
         self.assertNotIn(b'upstream-secret', body)
-        self.assertTrue(body.startswith(b'<html><script>'))
+        self.assertTrue(body.startswith(b'<html><script nonce="'))
         self.assertTrue(body.endswith(b'</html>'))
 
     def test_voicepipeline_management_route_is_allowed_with_same_panel_boundary(self):

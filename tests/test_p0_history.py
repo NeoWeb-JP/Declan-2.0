@@ -24,10 +24,13 @@ class HistoryConcurrencyTests(TestCase):
             db.execute("INSERT INTO learned_intents VALUES ('miss', 'hello')")
         with patch.object(history.sqlite3, "connect", wraps=sqlite3.connect) as connect:
             self.assertEqual(history.learned_intent('miss'), 'hello')
-            self.assertEqual(len(history.recent()), 1)  # Reads must not prune old turns.
+            self.assertEqual(history.recent(), [])  # Expired rows are hidden, not pruned on read.
             self.assertEqual(connect.call_count, 2)
+        with history.database() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM turns').fetchone(), (1,))
         history.prune()
-        self.assertEqual(history.recent(), [])
+        with history.database() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM turns').fetchone(), (0,))
 
     def test_lookup_succeeds_while_another_connection_holds_write_lock(self):
         history.initialize()
@@ -53,3 +56,4 @@ class HistoryConcurrencyTests(TestCase):
             history.recent()
         self.assertTrue(statements)
         self.assertTrue(all(s.startswith('SELECT') for s in statements), statements)
+

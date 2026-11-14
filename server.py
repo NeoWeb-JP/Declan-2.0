@@ -1,5 +1,6 @@
 """Local Declan 2.0 chat prototype. Run with python server.py."""
 import argparse
+import ipaddress
 import json
 import logging
 import os
@@ -11,6 +12,7 @@ from collections import OrderedDict
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
+from declan_ingress.security import response_headers, secure_page
 import ha_inventory
 from pathlib import Path
 from threading import Lock, Thread
@@ -1447,7 +1449,16 @@ def traced_transcribe(*args, **kwargs):
 class Handler(BaseHTTPRequestHandler):
     timeout = 5
 
+    def end_headers(self):
+        for name, value in response_headers(ingress=hasattr(self, 'headers') and self.has_ingress_access(),
+                                            nonce=getattr(self, '_page_nonce', None)).items():
+            self.send_header(name, value)
+        super().end_headers()
+
     def send_body(self, status, data, content_type, filename=None):
+        self._page_nonce = None
+        if content_type.startswith('text/html'):
+            data, self._page_nonce = secure_page(data)
         trace = diagnostics.ACTIVE.get()
         if trace is not None:
             if trace['outcome'] == 'unknown':
@@ -1677,7 +1688,18 @@ class Handler(BaseHTTPRequestHandler):
         if self.path in {"/api/assist", "/api/assist/history"}:
             token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
             supplied = self.headers.get("Authorization", "")
-            if not token or not secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode()):
+            valid = bool(token) and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
+            retry = self.server.bad_tokens.check(self.client_address[0], valid)
+            if retry:
+                self.close_connection = True
+                self.send_response(429)
+                self.send_header('Retry-After', str(retry))
+                self.send_header('Content-Length', '0')
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                return
+            if not valid:
+                self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
         elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline"}:
@@ -2052,9 +2074,18 @@ def main():
         parser.error("Assist LAN mode needs a fixed port. Omit --port to use 52737.")
     if args.assist_lan and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) < 32:
         parser.error("--assist-lan requires a DECLAN_ASSIST_TOKEN of at least 32 characters.")
+    history.retention_seconds()  # Reject invalid retention before accepting requests.
     history.initialize()
     timers.initialize()
     bind_address = "0.0.0.0" if args.assist_lan else "127.0.0.1"
+    if args.assist_lan:
+        bind_address = os.environ.get('DECLAN_BIND_ADDRESS', bind_address)
+        try:
+            address = ipaddress.ip_address(bind_address)
+            if address.version != 4:
+                raise ValueError
+        except ValueError:
+            parser.error('DECLAN_BIND_ADDRESS must be an IPv4 address.')
     try:
         server = ThreadingHTTPServer((bind_address, port), Handler)
     except OSError as error:
@@ -2105,3 +2136,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

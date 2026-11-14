@@ -88,6 +88,8 @@ resolved output when ending. The supplied HA script accepts the resolved
 
 ### Current NOW work
 
+Security setup, HTTP policy and optional shorter history retention are documented in [P1 security and privacy](docs/p1-security.md).
+
 The [current work and live testing list](docs/now-work.md) tracks the agreed additions, remaining migration gaps and new GitHub issues. Settings includes request diagnostics, configuration export/import and shared VoicePipeline speaker management.
 
 ### One speaker profile store
@@ -103,3 +105,4 @@ Audio is fetched through the authenticated management route only when Listen is 
 The Assist bridge must still use **Declan 2.0 Wyoming Speaker Recognition** at `192.168.0.43:10300` to carry speaker identity alongside the transcript. Management API connectivity does not prove recognition works. Browser microphone STT currently returns text only and still needs a separate metadata-preservation change. Recognition accuracy and cross-room context remain live acceptance work.
 
 VoicePipeline's pending resolve endpoint has no atomic stale-edit token. Declan serialises its own changes and checks that a recording is still pending, but another VoicePipeline client could resolve it in the interval. Avoid reviewing the same pending recording in both interfaces simultaneously. Failed writes are never retried automatically; refresh the list before deciding what to do next.
+
