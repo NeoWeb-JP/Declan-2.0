@@ -265,7 +265,7 @@ button:disabled { opacity: .55; }
     <button type="button" id="save-media-players">Save approved players</button>
   </div>
 </dialog>
-<div class="mono connection"><span id="ha-status" role="status">Checking Home Assistant.</span>
+<div class="mono connection"><span id="api-status" role="status">Checking Declan API…</span>
   <button id="open-updates" type="button" aria-haspopup="dialog">Updates</button>
 </div>
 <main>
@@ -406,35 +406,39 @@ button:disabled { opacity: .55; }
   </div>
 </dialog>
 <script>
-const haStatus = document.querySelector('#ha-status');
-const haStatusLabels = {
-  connected: 'Home Assistant connected',
-  assist_recent: 'Home Assistant Assist active recently',
-  not_configured: 'Home Assistant not configured',
-  authentication_failed: 'Home Assistant sign-in failed',
-  disconnected: 'Home Assistant disconnected'
-};
-let buildLabel = '';
-async function refreshHAStatus() {
+const apiStatus = document.querySelector('#api-status');
+async function refreshAPIStatus() {
   let state = 'disconnected';
+  let label = 'Declan API unavailable';
   try {
-    const response = await fetch('./api/ha-status', {signal: AbortSignal.timeout(4500)});
+    const response = await fetch('./api/capabilities', {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(4500)
+    });
     if (response.ok) {
       const result = await response.json();
-      if (Object.hasOwn(haStatusLabels, result.status)) state = result.status;
-      if (Object.hasOwn(result, 'release_version')) {
-        buildLabel = result.release_version ? `Release ${result.release_version}` : 'Development build';
+      // A successful HTML fallback or an unrelated JSON response is not a healthy API.
+      if (result && typeof result.api_version === 'string' &&
+          /^1(?:\\.\\d+)*$/.test(result.api_version) &&
+          Array.isArray(result.capabilities)) {
+        state = 'connected';
+        const version = typeof result.server_version === 'string' && result.server_version.trim()
+          ? ` · ${result.server_version.trim()}` : '';
+        label = `Declan API connected${version}`;
+      } else {
+        label = 'Declan API incompatible';
       }
+    } else if (response.status === 401 || response.status === 403) {
+      label = 'Declan API access denied';
     }
   } catch {
-    // A failed connection check must never be shown as connected.
+    // A failed request must never be displayed as a successful connection.
   }
-  haStatus.dataset.state = state;
-  const label = [haStatusLabels[state], buildLabel].filter(Boolean).join(' · ');
-  if (haStatus.textContent !== label) haStatus.textContent = label;
-  setTimeout(refreshHAStatus, 15000);
+  apiStatus.dataset.state = state;
+  if (apiStatus.textContent !== label) apiStatus.textContent = label;
+  setTimeout(refreshAPIStatus, 15000);
 }
-void refreshHAStatus();
+void refreshAPIStatus();
 
 const updatesPanel = document.querySelector('#updates');
 const checkUpdates = document.querySelector('#check-updates');
