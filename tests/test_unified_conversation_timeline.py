@@ -49,6 +49,12 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';", JS)
         self.assertIn("cancel.textContent = 'Cancel';", JS)
 
+    def test_change_speaker_without_resolution_token(self):
+        self.assertIn("(!item.id || (editing && (!select.value || select.value === originalSpeaker)))", JS)
+        self.assertIn("!item.id || !speaker) return;", JS)
+        self.assertIn("expected_resolution_id: item.current_resolution_id", JS)
+        self.assertNotIn("!item.current_resolution_id || !speaker) return;", JS)
+
     def test_filters_and_collapsed_details(self):
         for snippet in ('value="all"', 'value="pending"', 'value="reviewed"',
                         "document.createElement('details')", "summary.textContent = 'More details'"):
