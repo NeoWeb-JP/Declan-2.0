@@ -1783,10 +1783,11 @@ class Handler(BaseHTTPRequestHandler):
                     and not self.has_ingress_access()
                     and self.client_address[0] != "127.0.0.1"
                     and (not isinstance(body, dict)
-                         or body.get("operation") not in {"resolve", "audio", "history"}
+                         or body.get("operation") not in {"resolve", "audio", "history", "correct"}
                          or (body.get("operation") == "resolve" and body.get("action") not in {"confirm", "assign", "dismiss", "enrol"})
                          or (body.get("operation") == "audio" and set(body) != {"operation", "interaction_id"})
-                         or (body.get("operation") == "history" and set(body) != {"operation"}))):
+                         or (body.get("operation") == "history" and set(body) != {"operation"})
+                         or (body.get("operation") == "correct" and (set(body) != {"operation", "interaction_id", "assigned_to", "expected_resolution_id", "confirm"} or body.get("confirm") is not True)))):
                 self.send_json(403, {"error": "This VoicePipeline action requires local access."})
                 return
             if self.path == "/api/settings/media-players":
