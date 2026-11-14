@@ -12,7 +12,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           background:#060d14; font-family:system-ui,sans-serif; }
         * { box-sizing:border-box; }
         .wrap { max-width:960px; margin:auto; padding:16px clamp(12px,3vw,28px) 48px; }
-        header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:8px 0 16px;
+        header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:8px 0 16px;
           border-bottom:1px solid #183341; }
         .brand { display:flex; align-items:center; gap:10px; flex:1; min-width:170px; }
         .orb { display:grid; place-items:center; width:38px; height:38px; border-radius:50%;
@@ -25,6 +25,14 @@ class DeclanTwoNativePanel extends HTMLElement {
         button:focus-visible { outline:2px solid #91e3ff; outline-offset:3px; }
         .tabs { display:flex; gap:8px; overflow-x:auto; padding:18px 0 6px; scrollbar-width:thin; }
         .tabs button { white-space:nowrap; flex-shrink:0; }
+        .update-controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:14px 0; }
+        .updates-select { min-width:0; max-width:100%; padding:10px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
+        @media(max-width:520px) {
+          header .refresh { flex:1 1 100%; }
+          .update-controls > button, .update-controls > select { flex:1 1 100%; width:100%; }
+          .card { padding:16px; }
+          .tabs { scroll-padding-inline:12px; }
+        }
         .tabs button[aria-selected="true"] { background:#184860; border-color:#76dbff; }
         .card { margin-top:14px; padding:22px; border:1px solid #1d3d51;
           background:#0b1a25; border-radius:14px; }
@@ -111,7 +119,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="muted">The Declan backend runs on Proxmox. HACS updates this Home Assistant integration separately.</p>
           <p class="update-version muted">Backend version: checking…</p>
           <label><input class="update-prereleases" type="checkbox"> Include prerelease versions</label>
-          <div class="history-actions"><button class="updates-check" type="button">Check for updates</button>
+          <div class="update-controls"><button class="updates-check" type="button">Check for updates</button>
           <select class="updates-select" aria-label="Backend release"><option value="">Check for releases first</option></select>
           <button class="updates-install" type="button" disabled>Install selected release</button></div>
           <p class="updates-status muted" role="status" aria-live="polite">Open Updates to check backend status.</p>
