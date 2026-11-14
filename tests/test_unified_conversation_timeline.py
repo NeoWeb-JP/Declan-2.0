@@ -12,8 +12,7 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("tab.setAttribute('aria-selected', String(active));", JS)
 
     def test_single_primary_activity_view(self):
-        self.assertIn('class="overview-chat-heading">Chat &amp; Voice', JS)
-        self.assertNotIn('data-tab="conversations"', JS)
+        self.assertIn('data-tab="conversations">History &amp; Voice Recognition', JS)
         self.assertNotIn('data-tab="voices"', JS)
         self.assertIn('class="timeline-list"', JS)
         self.assertIn('class="timeline-filter"', JS)
