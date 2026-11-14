@@ -529,9 +529,27 @@ class DeclanTwoNativePanel extends HTMLElement {
       const reviewedRows = reviewed.status === 'fulfilled' && Array.isArray(reviewed.value.interactions) ? reviewed.value.interactions : [];
       const conversationRows = conversations.status === 'fulfilled' && Array.isArray(conversations.value.turns) ? conversations.value.turns : [];
       // These sources have no verified shared interaction ID. Never join by transcript or timestamp.
+      // Pending and reviewed endpoints can briefly overlap while a review is being saved.
+      // Prefer the reviewed state for the same recording ID, and retain its timeline position.
+      const recordings = new Map();
+      for (const item of pendingRows) {
+        if (item.id) recordings.set(item.id, {kind:'pending', item});
+      }
+      for (const item of reviewedRows) {
+        if (item.id) recordings.set(item.id, {kind:'reviewed', item});
+      }
+      const recordingRows = [...recordings.values()].sort((a, b) => {
+        const aTime = Date.parse(a.item.recorded_at || '');
+        const bTime = Date.parse(b.item.recorded_at || '');
+        if (Number.isFinite(aTime) && Number.isFinite(bTime)) return bTime - aTime;
+        if (Number.isFinite(aTime)) return -1;
+        if (Number.isFinite(bTime)) return 1;
+        return 0;
+      });
+      // Conversation history lacks a verified timestamp/shared ID: display separately
+      // rather than inventing a chronological position or matching by transcript.
       this._timelineRows = [
-        ...pendingRows.map(item => ({kind:'pending', item})),
-        ...reviewedRows.map(item => ({kind:'reviewed', item})),
+        ...recordingRows,
         ...conversationRows.map(item => ({kind:'conversation', item}))
       ];
       this._timelineLoaded = true;
@@ -624,9 +642,9 @@ class DeclanTwoNativePanel extends HTMLElement {
         }
         const save = document.createElement('button');
         save.type = 'button';
-        save.textContent = kind === 'pending' ? 'Confirm' : 'Correct';
-        save.disabled = !select.value || (kind === 'reviewed' && !item.current_resolution_id);
-        select.addEventListener('change', () => { save.disabled = !select.value || (kind === 'reviewed' && !item.current_resolution_id); });
+        save.textContent = kind === 'pending' ? 'Confirm' : 'Change speaker';
+        save.disabled = !select.value || (kind === 'reviewed' && (!item.current_resolution_id || select.value === speaker));
+        select.addEventListener('change', () => { save.disabled = !select.value || (kind === 'reviewed' && (!item.current_resolution_id || select.value === speaker)); });
         save.addEventListener('click', async () => {
           if (!select.value) return;
           if (kind === 'pending') {
@@ -638,6 +656,14 @@ class DeclanTwoNativePanel extends HTMLElement {
           await this.loadTimeline();
         });
         controls.append(save);
+        if (item.id) {
+          const play = document.createElement('button');
+          play.type = 'button';
+          play.textContent = 'Play';
+          play.setAttribute('aria-label', 'Play voice recording');
+          play.addEventListener('click', () => void this.playVoice(item.id, play, this.shadowRoot.querySelector('.timeline-status')));
+          controls.append(play);
+        }
         const details = document.createElement('details');
         const summary = document.createElement('summary');
         summary.textContent = 'More details';
@@ -648,11 +674,6 @@ class DeclanTwoNativePanel extends HTMLElement {
           ' · Suggested speaker: ' + (item.matched_speaker || 'Unknown');
         details.append(info);
         if (item.id) {
-          const play = document.createElement('button');
-          play.type = 'button';
-          play.textContent = 'Play recording';
-          play.addEventListener('click', () => void this.playVoice(item.id, play, this.shadowRoot.querySelector('.timeline-status')));
-          details.append(play);
           if (kind === 'pending') {
             const reject = document.createElement('button');
             reject.type = 'button';
