@@ -220,7 +220,7 @@ class DeclanTwoNativePanel extends HTMLElement {
   }
 
   async correctVoiceHistory(item, speaker) {
-    if (this._voiceHistoryPending || !this._hass || !item.id || !item.current_resolution_id || !speaker) return;
+    if (this._voiceHistoryPending || !this._hass || !item.id || !speaker) return;
     if (!window.confirm('Correct this reviewed recording to ' + speaker + '?')) return;
     const status = this.shadowRoot.querySelector('.voices-history-status');
     this._voiceHistoryPending = true;
@@ -228,7 +228,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
         operation: 'correct', interaction_id: item.id, assigned_to: speaker,
-        expected_resolution_id: item.current_resolution_id, confirm: true
+        expected_resolution_id: item.current_resolution_id || null, confirm: true
       });
       if (!result || result.saved !== true) throw new Error('Save not confirmed');
       this._voiceHistoryPending = false;
@@ -678,7 +678,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           controls.append(enrolDetails);
         }
         const reviewed = kind === 'reviewed';
-        const originalSpeaker = item.current_assigned_to || item.matched_speaker || '';
+        const originalSpeaker = item.current_assigned_to || (kind === 'reviewed' ? '' : item.matched_speaker) || '';
         // A reviewed (including dismissed) recording is read-only until explicitly unlocked.
         select.disabled = reviewed;
         const save = document.createElement('button');
@@ -687,7 +687,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         let editing = false;
         const syncSave = () => {
           save.disabled = reviewed
-            ? (!item.current_resolution_id || (editing && (!select.value || select.value === originalSpeaker)))
+            ? (editing && (!select.value || select.value === originalSpeaker))
             : !select.value;
           save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';
         };

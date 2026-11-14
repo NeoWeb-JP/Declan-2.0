@@ -22,7 +22,8 @@ class NativeVoiceCorrectionContract(unittest.TestCase):
         self.assertIn('body.get("confirm") is not True', SERVER)
 
     def test_ui_requires_review_revision_and_confirmation(self):
-        self.assertIn('!item.current_resolution_id', PANEL)
+        self.assertNotIn('!item.current_resolution_id || !speaker) return;', PANEL)
+        self.assertIn('expected_resolution_id: item.current_resolution_id || null', PANEL)
         self.assertIn("window.confirm('Correct this reviewed recording", PANEL)
         self.assertIn('expected_resolution_id: item.current_resolution_id', PANEL)
         self.assertIn('this.correctVoiceHistory(item, select.value)', PANEL)
