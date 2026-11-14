@@ -77,7 +77,14 @@ class NativeUpdaterTests(unittest.TestCase):
         modules["aiohttp"].ClientError = type("ClientError", (Exception,), {})
         modules["aiohttp"].ClientTimeout = lambda **kw: kw
 
-        spec = importlib.util.spec_from_file_location("declan_updates_test_view",
+        # Load the view as a package module so its relative compatibility import works.
+        package = types.ModuleType("declan_updates_test_pkg")
+        package.__path__ = []
+        modules[package.__name__] = package
+        compatibility = types.ModuleType("declan_updates_test_pkg.compatibility")
+        compatibility.check_server_compatibility = lambda payload: types.SimpleNamespace(compatible=True, reason="Compatible")
+        modules[compatibility.__name__] = compatibility
+        spec = importlib.util.spec_from_file_location("declan_updates_test_pkg.updates_view",
             ROOT / "custom_components/declan_two/updates_view.py")
         with patch.dict(sys.modules, modules):
             module = importlib.util.module_from_spec(spec)
