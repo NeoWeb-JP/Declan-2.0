@@ -24,6 +24,14 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("textContent = item.transcript || item.message", JS)
         self.assertNotIn("transcript.innerHTML", JS)
 
+    def test_confirmed_recordings_stay_visible_and_playable(self):
+        self.assertIn("recordings.set(item.id, {kind:'pending', item})", JS)
+        self.assertIn("recordings.set(item.id, {kind:'reviewed', item})", JS)
+        self.assertIn("Date.parse(a.item.recorded_at || '')", JS)
+        self.assertIn("textContent = kind === 'pending' ? 'Confirm' : 'Change speaker'", JS)
+        self.assertIn("play.textContent = 'Play'", JS)
+        self.assertIn("this.playVoice(item.id, play,", JS)
+
     def test_filters_and_collapsed_details(self):
         for snippet in ('value="all"', 'value="pending"', 'value="reviewed"',
                         "document.createElement('details')", "summary.textContent = 'More details'"):

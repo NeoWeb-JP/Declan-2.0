@@ -166,6 +166,7 @@ class DeclanVoiceReviewView(HomeAssistantView):
                     interactions.append({
                         "id": row.get("id") if isinstance(row.get("id"), str) and len(row["id"]) <= 80 else None,
                         "transcript": str(row.get("transcript") or "")[:1000],
+                        "recorded_at": str(row.get("recorded_at") or "")[:50],
                         "matched_speaker": str(row.get("matched_speaker") or "")[:80],
                         "match_confidence": row.get("match_confidence") if type(row.get("match_confidence")) in (int, float) else None,
                         "status": str(row.get("status") or "")[:50],
