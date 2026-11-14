@@ -142,6 +142,13 @@ class DeclanTwoNativePanel extends HTMLElement {
   }
 
 
+  connectedCallback() {
+    // Apply the same tab visibility state on initial mount as on user navigation.
+    // HA may attach the panel before the hass setter supplies backend state.
+    const selected = this.shadowRoot.querySelector('[data-tab][aria-selected="true"]');
+    this.selectTab(selected?.dataset.tab || 'overview');
+  }
+
   selectTab(name) {
     this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
       const active = tab.dataset.tab === name;
