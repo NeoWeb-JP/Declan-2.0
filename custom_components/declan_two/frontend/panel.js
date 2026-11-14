@@ -45,6 +45,15 @@ class DeclanTwoNativePanel extends HTMLElement {
         .player-row select { width:100%; min-width:0; padding:10px; border-radius:9px; border:1px solid #315568; background:#102635; color:#e7f7ff; font:inherit; }
         @media(max-width:520px) { .player-row { grid-template-columns:1fr; gap:6px; } }
         .history-actions { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+        .timeline-filter,.timeline-speaker { min-width:0; max-width:100%; padding:9px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
+        .timeline-row { border-top:1px solid #1d3d51; padding:14px 0; overflow-wrap:anywhere; }
+        .timeline-row p { margin:6px 0; white-space:pre-wrap; }
+        .timeline-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; }
+        .timeline-row details { margin-top:8px; color:#a1ccdf; }
+        .timeline-row summary,.timeline-management summary { cursor:pointer; padding:7px 0; }
+        .timeline-management { border-top:1px solid #1d3d51; margin-top:16px; }
+        .timeline-management-body { padding:12px 0; }
+        @media(max-width:520px) { .timeline-controls button { padding:8px 10px; } }
         @media(max-width:800px) { .menu {display:inline-flex;} .wrap {padding:12px 12px 40px;} }
       </style>
       <div class="wrap">
@@ -55,9 +64,8 @@ class DeclanTwoNativePanel extends HTMLElement {
         </header>
         <nav class="tabs" aria-label="Declan management" role="tablist">
           <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
-          <button role="tab" id="tab-conversations" aria-controls="panel-conversations" aria-selected="false" data-tab="conversations">Conversations</button>
+          <button role="tab" id="tab-conversations" aria-controls="panel-conversations" aria-selected="false" data-tab="conversations">Conversations &amp; Voice</button>
           <button role="tab" id="tab-players" aria-controls="panel-players" aria-selected="false" data-tab="players">Media players</button>
-          <button role="tab" id="tab-voices" aria-controls="panel-voices" aria-selected="false" data-tab="voices">Voice profiles</button>
           <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
         </nav>
         <section class="card panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
@@ -66,14 +74,21 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
         </section>
         <section class="card panel" id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations" hidden>
-          <h2>Conversations</h2>
+          <h2>Conversations &amp; Voice</h2>
           <form class="chat-form" aria-label="Chat with Declan">
             <label for="native-chat-input">Message</label>
             <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="Ask Declan anything" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
           </form>
           <p class="chat-status muted" role="status" aria-live="polite"></p>
           <div class="chat-replies" aria-label="Current chat"></div>
+          <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Confirmed</option></select></div>
+          <p class="timeline-status muted" role="status" aria-live="polite">Open Conversations & Voice to load activity.</p>
+          <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
+          <details class="timeline-management"><summary>Speaker profiles and older conversation history</summary><div class="timeline-management-body">
+          <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
+          <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
           <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Chat and editing remain in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
+          </div></details>
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
           <h2>Approved media players</h2>
@@ -81,16 +96,6 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="history-actions"><button type="button" class="players-refresh">Refresh players</button><button type="button" class="players-save" disabled>Save mappings</button></div>
           <p class="players-status muted" role="status" aria-live="polite">Open this tab to load areas and players.</p>
           <div class="players-list"></div>
-        </section>
-        <section class="card panel" id="panel-voices" role="tabpanel" aria-labelledby="tab-voices" hidden>
-          <h2>Voice profiles</h2>
-          <p class="muted">Review pending recordings: choose an enrolled speaker and confirm, play the recording, or reject a bad recording.</p>
-          <button class="voices-refresh" type="button">Refresh voice profiles</button>
-          <p class="voices-status muted" role="status" aria-live="polite">Open this tab to load profiles.</p>
-          <div class="voices-list"></div>
-          <div class="history-actions"><button class="voices-history-refresh" type="button">Refresh reviewed recordings</button></div>
-          <p class="voices-history-status muted" role="status" aria-live="polite">View recordings already reviewed in VoicePipeline.</p>
-          <div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
         </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Updates</h2><p class="muted">Use the existing Declan updater for now. The native panel will not initiate installs until authenticated update operations and recovery are verified.</p>
@@ -101,6 +106,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       event.preventDefault();
       void this.sendChat();
     });
+    this.shadowRoot.querySelector('.timeline-refresh').addEventListener('click', () => this.loadTimeline());
+    this.shadowRoot.querySelector('.timeline-filter').addEventListener('change', () => this.renderTimeline());
     this.shadowRoot.querySelector('.voices-refresh').addEventListener('click', () => this.loadVoices());
     this.shadowRoot.querySelector('.voices-history-refresh').addEventListener('click', () => this.loadVoiceHistory());
     this.shadowRoot.querySelector('.players-refresh').addEventListener('click', () => this.loadPlayers());
@@ -135,9 +142,9 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelectorAll('.panel').forEach(panel => {
       panel.hidden = panel.id !== 'panel-' + name;
     });
-    if (name === 'conversations' && !this._historyLoaded) void this.loadHistory();
+    if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
-    if (name === 'voices' && !this._voicesLoaded) void this.loadVoices();
+
   }
 
   set hass(value) {
@@ -175,10 +182,10 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
-  async playVoice(interactionId, button) {
+  async playVoice(interactionId, button, feedbackStatus = null) {
     if (!this._hass || this._voicesPending) return;
     button.disabled = true;
-    const status = this.shadowRoot.querySelector('.voices-status');
+    const status = feedbackStatus || this.shadowRoot.querySelector('.voices-status');
     status.textContent = 'Loading recording…';
     try {
       const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
@@ -500,6 +507,173 @@ class DeclanTwoNativePanel extends HTMLElement {
     } finally {
       this._chatPending = false;
       send.disabled = false;
+    }
+  }
+
+  async loadTimeline() {
+    if (!this._hass || this._timelinePending) return;
+    this._timelinePending = true;
+    const status = this.shadowRoot.querySelector('.timeline-status');
+    status.textContent = 'Loading conversations and recordings…';
+    try {
+      const [pending, reviewed, conversations] = await Promise.allSettled([
+        this._hass.callApi('GET', 'declan_two/voice-review'),
+        this._hass.callApi('GET', 'declan_two/voice-review?history=1'),
+        this._hass.callApi('GET', 'declan_two/history')
+      ]);
+      if (pending.status !== 'fulfilled' && reviewed.status !== 'fulfilled' && conversations.status !== 'fulfilled') {
+        throw new Error('No activity source available');
+      }
+      this._voiceProfiles = pending.status === 'fulfilled' && Array.isArray(pending.value.profiles) ? pending.value.profiles : [];
+      const pendingRows = pending.status === 'fulfilled' && Array.isArray(pending.value.interactions) ? pending.value.interactions : [];
+      const reviewedRows = reviewed.status === 'fulfilled' && Array.isArray(reviewed.value.interactions) ? reviewed.value.interactions : [];
+      const conversationRows = conversations.status === 'fulfilled' && Array.isArray(conversations.value.turns) ? conversations.value.turns : [];
+      // These sources have no verified shared interaction ID. Never join by transcript or timestamp.
+      this._timelineRows = [
+        ...pendingRows.map(item => ({kind:'pending', item})),
+        ...reviewedRows.map(item => ({kind:'reviewed', item})),
+        ...conversationRows.map(item => ({kind:'conversation', item}))
+      ];
+      this._timelineLoaded = true;
+      this.renderTimeline();
+      const missing = [pending, reviewed, conversations].filter(result => result.status !== 'fulfilled').length;
+      status.textContent = this._timelineRows.length + ' activity entries' +
+        (missing ? ' · ' + missing + ' source(s) unavailable. Some entries may be missing.' : ' · Voice recordings and chat history shown separately until a verified link is available.');
+    } catch (error) {
+      status.textContent = 'Could not load the timeline. Check the Declan connection and HA permissions.';
+    } finally {
+      this._timelinePending = false;
+    }
+  }
+
+  renderTimeline() {
+    const list = this.shadowRoot.querySelector('.timeline-list');
+    const filter = this.shadowRoot.querySelector('.timeline-filter').value;
+    list.replaceChildren();
+    const rows = (this._timelineRows || []).filter(row =>
+      filter === 'all' || (filter === 'pending' && row.kind === 'pending') ||
+      (filter === 'reviewed' && row.kind === 'reviewed'));
+    for (const row of rows) {
+      const {item,kind} = row;
+      const card = document.createElement('article');
+      card.className = 'timeline-row';
+      const transcript = document.createElement('p');
+      transcript.textContent = item.transcript || item.message || '(No transcript)';
+      card.append(transcript);
+      const controls = document.createElement('div');
+      controls.className = 'timeline-controls';
+      if (kind === 'conversation') {
+        const label = document.createElement('span');
+        label.className = 'muted';
+        label.textContent = 'Conversation · Speaker not linked';
+        controls.append(label);
+        if (item.reply) {
+          const reply = document.createElement('p');
+          reply.className = 'reply';
+          reply.textContent = 'Declan: ' + item.reply;
+          card.append(reply);
+        }
+      } else {
+        const speaker = item.current_assigned_to || item.matched_speaker || '';
+        const select = document.createElement('select');
+        select.className = 'timeline-speaker';
+        select.setAttribute('aria-label', 'Speaker for recording');
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Unknown speaker';
+        select.append(placeholder);
+        for (const profile of this._voiceProfiles) {
+          if (!profile.name) continue;
+          const option = document.createElement('option');
+          option.value = profile.name;
+          option.textContent = profile.name;
+          select.append(option);
+        }
+        if ([...select.options].some(option => option.value === speaker)) select.value = speaker;
+        controls.append(select);
+        const confidence = document.createElement('span');
+        confidence.className = 'muted';
+        confidence.textContent = Number.isFinite(item.match_confidence)
+          ? (item.match_confidence * 100).toFixed(1) + '% match' : 'Match unavailable';
+        controls.append(confidence);
+        if (kind === 'pending' && item.id) {
+          const enrol = document.createElement('button');
+          enrol.type = 'button';
+          enrol.textContent = 'Enrol speaker';
+          enrol.addEventListener('click', async () => {
+            const name = window.prompt('Name for the new speaker:');
+            if (name === null) return;
+            const trimmed = name.trim();
+            if (!/^[\p{L}][\p{L}\p{N}_ '\u2019-]{0,39}$/u.test(trimmed)) {
+              this.shadowRoot.querySelector('.timeline-status').textContent = 'Enter a valid speaker name (1–40 characters).';
+              return;
+            }
+            if (this._voiceProfiles.some(profile => profile.name?.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
+              this.shadowRoot.querySelector('.timeline-status').textContent = 'Speaker already enrolled. Select the existing speaker.';
+              return;
+            }
+            await this.resolveVoice(item.id, 'enrol', trimmed);
+            await this.loadTimeline();
+          });
+          // Enrollment is less frequent, so keep it in the details dropdown.
+          const enrolDetails = document.createElement('details');
+          const enrolSummary = document.createElement('summary');
+          enrolSummary.textContent = 'New speaker';
+          enrolDetails.append(enrolSummary, enrol);
+          controls.append(enrolDetails);
+        }
+        const save = document.createElement('button');
+        save.type = 'button';
+        save.textContent = kind === 'pending' ? 'Confirm' : 'Correct';
+        save.disabled = !select.value || (kind === 'reviewed' && !item.current_resolution_id);
+        select.addEventListener('change', () => { save.disabled = !select.value || (kind === 'reviewed' && !item.current_resolution_id); });
+        save.addEventListener('click', async () => {
+          if (!select.value) return;
+          if (kind === 'pending') {
+            const suggested = item.matched_speaker || '';
+            await this.resolveVoice(item.id, select.value === suggested ? 'confirm' : 'assign', select.value);
+          } else {
+            await this.correctVoiceHistory(item, select.value);
+          }
+          await this.loadTimeline();
+        });
+        controls.append(save);
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'More details';
+        details.append(summary);
+        const info = document.createElement('p');
+        info.textContent = 'Status: ' + (item.status || kind) +
+          ' · Recorded: ' + (item.recorded_at || 'Unknown') +
+          ' · Suggested speaker: ' + (item.matched_speaker || 'Unknown');
+        details.append(info);
+        if (item.id) {
+          const play = document.createElement('button');
+          play.type = 'button';
+          play.textContent = 'Play recording';
+          play.addEventListener('click', () => void this.playVoice(item.id, play, this.shadowRoot.querySelector('.timeline-status')));
+          details.append(play);
+          if (kind === 'pending') {
+            const reject = document.createElement('button');
+            reject.type = 'button';
+            reject.textContent = 'Reject recording';
+            reject.addEventListener('click', async () => {
+              await this.resolveVoice(item.id, 'dismiss', null);
+              await this.loadTimeline();
+            });
+            details.append(reject);
+          }
+        }
+        card.append(controls, details);
+      }
+      if (kind === 'conversation') card.append(controls);
+      list.append(card);
+    }
+    if (!rows.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'No entries for this filter.';
+      list.append(empty);
     }
   }
 
