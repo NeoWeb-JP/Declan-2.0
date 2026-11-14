@@ -18,12 +18,14 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         module_names = (
             "aiohttp", "voluptuous", "homeassistant", "homeassistant.helpers",
             "homeassistant.helpers.aiohttp_client", "homeassistant.components",
-            "homeassistant.components.tts", "homeassistant.exceptions", "homeassistant.helpers.storage",
+            "homeassistant.components.tts", "homeassistant.components.http", "homeassistant.exceptions", "homeassistant.helpers.storage",
             "wyoming", "wyoming.client", "wyoming.asr", "wyoming.audio", "wyoming.error",
         )
         modules = {name: ModuleType(name) for name in module_names}
         modules["aiohttp"].ClientError = OSError
         modules["aiohttp"].ClientTimeout = Mock()
+        modules["aiohttp"].web = SimpleNamespace(json_response=Mock())
+        modules["homeassistant.components.http"].HomeAssistantView = object
         self.form = modules["aiohttp"].FormData = Mock()
         modules["voluptuous"].Schema = Mock()
         modules["voluptuous"].Required = lambda name, **kwargs: name
