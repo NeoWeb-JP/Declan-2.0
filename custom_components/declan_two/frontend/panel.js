@@ -88,6 +88,9 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button class="voices-refresh" type="button">Refresh voice profiles</button>
           <p class="voices-status muted" role="status" aria-live="polite">Open this tab to load profiles.</p>
           <div class="voices-list"></div>
+          <div class="history-actions"><button class="voices-history-refresh" type="button">Refresh reviewed recordings</button></div>
+          <p class="voices-history-status muted" role="status" aria-live="polite">View recordings already reviewed in VoicePipeline.</p>
+          <div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
         </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Updates</h2><p class="muted">Use the existing Declan updater for now. The native panel will not initiate installs until authenticated update operations and recovery are verified.</p>
@@ -99,6 +102,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       void this.sendChat();
     });
     this.shadowRoot.querySelector('.voices-refresh').addEventListener('click', () => this.loadVoices());
+    this.shadowRoot.querySelector('.voices-history-refresh').addEventListener('click', () => this.loadVoiceHistory());
     this.shadowRoot.querySelector('.players-refresh').addEventListener('click', () => this.loadPlayers());
     this.shadowRoot.querySelector('.players-save').addEventListener('click', () => this.savePlayers());
     this.shadowRoot.querySelector('.history-refresh').addEventListener('click', () => this.loadHistory());
@@ -196,6 +200,41 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Could not play the recording. Check VoicePipeline availability and browser audio permissions.';
     } finally {
       button.disabled = false;
+    }
+  }
+
+  async loadVoiceHistory() {
+    if (!this._hass || this._voiceHistoryPending) return;
+    this._voiceHistoryPending = true;
+    const status = this.shadowRoot.querySelector('.voices-history-status');
+    const list = this.shadowRoot.querySelector('.voices-history-list');
+    status.textContent = 'Loading reviewed recordings…';
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/voice-review?history=1');
+      if (!data || !Array.isArray(data.interactions)) throw new Error('Invalid history');
+      list.replaceChildren();
+      const heading = document.createElement('h3');
+      heading.textContent = 'Reviewed recordings';
+      list.append(heading);
+      for (const item of data.interactions) {
+        const card = document.createElement('article');
+        card.className = 'turn';
+        const transcript = document.createElement('p');
+        transcript.textContent = item.transcript || '(No transcript)';
+        const detail = document.createElement('p');
+        detail.className = 'muted';
+        detail.textContent = 'Speaker: ' + (item.current_assigned_to || item.matched_speaker || 'Unassigned') +
+          ' · Status: ' + (item.status || 'Unknown') + ' · Recorded: ' + (item.recorded_at || 'Unknown');
+        card.append(transcript, detail);
+        list.append(card);
+      }
+      status.textContent = data.interactions.length
+        ? 'Showing ' + data.interactions.length + ' reviewed recordings (read-only).'
+        : 'No reviewed recordings found.';
+    } catch {
+      status.textContent = 'Could not load reviewed recordings. Check VoicePipeline availability.';
+    } finally {
+      this._voiceHistoryPending = false;
     }
   }
 
