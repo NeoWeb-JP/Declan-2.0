@@ -1,5 +1,7 @@
 """Authenticated bounded PCM microphone relay for the native HA panel."""
 import logging
+import base64
+import binascii
 import aiohttp
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -17,16 +19,22 @@ class DeclanMicrophoneView(HomeAssistantView):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             return web.json_response({"status": "forbidden"}, status=403)
-        if request.content_type != "application/octet-stream":
+        if request.content_type != "application/json":
             return web.json_response({"status": "invalid_content_type"}, status=415)
         size = request.content_length
-        if size is None or not 0 < size <= MAX_BYTES or size % 2:
+        if size is None or not 0 < size <= 900000:
             return web.json_response({"status": "invalid_size"}, status=413)
         entries = request.app["hass"].config_entries.async_entries("declan_two")
         if len(entries) != 1:
             return web.json_response({"status": "not_configured"}, status=503)
-        audio = await request.content.read(MAX_BYTES + 1)
-        if len(audio) != size:
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or set(body) != {"audio"} or not isinstance(body["audio"], str):
+                raise ValueError("Invalid audio")
+            audio = base64.b64decode(body["audio"], validate=True)
+        except (ValueError, TypeError, binascii.Error):
+            return web.json_response({"status": "invalid_audio"}, status=400)
+        if not 0 < len(audio) <= MAX_BYTES or len(audio) % 2:
             return web.json_response({"status": "invalid_size"}, status=413)
         entry = entries[0]
         try:
