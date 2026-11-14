@@ -14,10 +14,10 @@ class NativeHistoryContractTests(unittest.TestCase):
         source = BACKEND[BACKEND.index("    def do_GET(self):"):BACKEND.index("    def do_POST(self):")]
         self.assertIn('urlsplit(self.path).path == "/api/history"', source)
         self.assertIn('len(token) >= 32', source)
-        self.assertIn('not ingress and not history_auth', source)
-        self.assertIn('if not ingress and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (', source)
+        self.assertIn('not ingress and not native_settings_auth and not history_auth', source)
+        self.assertIn('if not ingress and not native_settings_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (', source)
         self.assertIn('self.path == "/api/settings/media-players"', source)
-        self.assertIn('not ingress and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth', source)
+        self.assertIn('not ingress and not native_settings_auth and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth', source)
         self.assertNotIn('self.path.startswith("/api/history") and len(token)', source)
 
     def test_ha_proxy_requires_admin_and_does_not_forward_metadata(self):

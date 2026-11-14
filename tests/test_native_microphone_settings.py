@@ -29,7 +29,9 @@ class NativeMicrophoneSettingsTests(unittest.TestCase):
         self.assertIn("spotify_configured", source)
         self.assertIn("spotify_source", source)
         self.assertNotIn("client_secret", source)
-        self.assertNotIn("client_secret", PANEL)
+        self.assertIn("window.confirm(", PANEL)
+        self.assertIn("form.reset()", PANEL)
+        self.assertNotIn("client_secret", source)
         self.assertIn('source in {"saved", "environment"}', SERVER)
         self.assertIn("Existing credentials have not been changed", PANEL)
 

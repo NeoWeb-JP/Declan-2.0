@@ -1579,6 +1579,12 @@ class Handler(BaseHTTPRequestHandler):
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
+        native_settings_auth = (
+            self.path in {"/api/native/settings-status", "/api/native/settings-export",
+                          "/api/native/settings-recovery", "/api/native/diagnostics"}
+            and len(token) >= 32
+            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
+        )
         updates_auth = (
             self.path == "/api/updates/status"
             and len(token) >= 32
@@ -1589,10 +1595,10 @@ class Handler(BaseHTTPRequestHandler):
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
-        if not ingress and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and self.client_address[0] != "127.0.0.1":
+        if not ingress and not native_settings_auth and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and self.client_address[0] != "127.0.0.1":
             self.send_json(403, {"error": "Local access only."})
             return
-        if not ingress and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (
+        if not ingress and not native_settings_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (
             self.path.startswith("/api/history")
             or self.path.startswith("/api/settings/") or self.path in {"/api/voice-profiles", "/api/voicepipeline"}
             or self.path in {"/api/diagnostics", "/api/settings/spotify", "/api/updates", "/api/updates/status"}
@@ -1620,6 +1626,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"spotify_configured": source in {"saved", "environment"}, "spotify_source": source})
             except (OSError, ValueError):
                 self.send_json(503, {"error": "Spotify configuration status unavailable."})
+        elif self.path in {"/api/native/settings-export", "/api/native/settings-recovery"}:
+            try:
+                document = (configuration.recovery() if self.path.endswith("recovery") else configuration.export())
+                self.send_json(200, {"document": document})
+            except (OSError, ValueError, sqlite3.Error):
+                self.send_json(503, {"error": "Settings document unavailable."})
+        elif self.path == "/api/native/diagnostics":
+            try:
+                self.send_json(200, {"traces": diagnostics.recent()})
+            except (OSError, ValueError, sqlite3.Error):
+                self.send_json(503, {"error": "Diagnostics unavailable."})
         elif self.path == "/api/ha-status":
             self.send_json(200, {"status": home_assistant_status(), "release_version": RELEASE_VERSION})
         elif self.path == "/api/updates/status":
@@ -1749,7 +1766,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -1775,6 +1792,13 @@ class Handler(BaseHTTPRequestHandler):
             )
         ) and not (
             self.path == "/api/stt"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
+            self.path == "/api/native/spotify-credentials"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -1819,6 +1843,12 @@ class Handler(BaseHTTPRequestHandler):
                          or (body.get("operation") == "history" and set(body) != {"operation"})
                          or (body.get("operation") == "correct" and (set(body) != {"operation", "interaction_id", "assigned_to", "expected_resolution_id", "confirm"} or body.get("confirm") is not True)))):
                 self.send_json(403, {"error": "This VoicePipeline action requires local access."})
+                return
+            if self.path == "/api/native/spotify-credentials":
+                if not isinstance(body, dict) or set(body) != {"client_id", "client_secret", "confirm"} or body.get("confirm") is not True:
+                    self.send_json(400, {"error": "Explicit confirmation and both credentials required."})
+                    return
+                self.spotify_settings(body)
                 return
             if self.path == "/api/settings/media-players":
                 self.approved_player_settings(body)

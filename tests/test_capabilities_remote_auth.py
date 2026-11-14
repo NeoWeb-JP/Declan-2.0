@@ -12,7 +12,7 @@ class RemoteCapabilitiesAuthTests(unittest.TestCase):
         block = SOURCE[start:end]
         self.assertIn('self.path == "/api/capabilities" and len(token) >= 32', block)
         self.assertIn('secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())', block)
-        self.assertIn('not ingress and not settings_status_auth and not capabilities_auth', block)
+        self.assertIn('not ingress and not native_settings_auth and not settings_status_auth and not capabilities_auth', block)
         self.assertIn('self.path.startswith("/api/settings/")', block)
         self.assertIn('self.path in {"/api/diagnostics"', block)
 
