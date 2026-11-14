@@ -31,6 +31,15 @@ class NativeUpdaterTests(unittest.TestCase):
             self.assertIn(phrase, PANEL)
         self.assertNotIn('Use the existing Declan updater for now.', PANEL)
 
+    def test_prerelease_checkbox_selector_matches_markup(self):
+        import re
+        self.assertIn('class="update-prereleases"', PANEL)
+        self.assertEqual(PANEL.count("querySelector('.update-prereleases')"), 3)
+        self.assertNotIn("querySelector('.updates-prereleases')", PANEL)
+        # Every update control queried during construction must exist in the template.
+        for selector in re.findall(r"this\\.shadowRoot\\.querySelector\\('([.]updates?-[a-z-]+)'\\)", PANEL):
+            self.assertIn(selector[1:], PANEL)
+
     def test_endpoint_rejects_unauthorized_and_malformed_requests(self):
         import asyncio
         import importlib.util

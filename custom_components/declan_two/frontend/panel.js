@@ -132,7 +132,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelector('.updates-check').addEventListener('click', () => this.checkUpdates());
     this.shadowRoot.querySelector('.updates-install').addEventListener('click', () => this.installUpdate());
     this.shadowRoot.querySelector('.updates-refresh').addEventListener('click', () => this.loadUpdateStatus());
-    this.shadowRoot.querySelector('.updates-prereleases').addEventListener('change', () => {
+    this.shadowRoot.querySelector('.update-prereleases').addEventListener('change', () => {
       this.shadowRoot.querySelector('.updates-select').replaceChildren(new Option('Check for releases first', ''));
       this.shadowRoot.querySelector('.updates-install').disabled = true;
     });
@@ -207,7 +207,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelector('.updates-install').disabled = true;
     try {
       const data = await this._hass.callApi('POST', 'declan_two/updates', {
-        operation: 'check', include_prereleases: this.shadowRoot.querySelector('.updates-prereleases').checked
+        operation: 'check', include_prereleases: this.shadowRoot.querySelector('.update-prereleases').checked
       });
       select.replaceChildren(new Option('Select a release', ''));
       for (const version of data.versions || []) select.add(new Option(version, version));
@@ -230,7 +230,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       await this._hass.callApi('POST', 'declan_two/updates', {
         operation: 'install', version,
-        include_prereleases: this.shadowRoot.querySelector('.updates-prereleases').checked
+        include_prereleases: this.shadowRoot.querySelector('.update-prereleases').checked
       });
       status.textContent = 'Installation queued. Use Refresh installation status to check progress.';
     } catch (error) {
