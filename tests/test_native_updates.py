@@ -48,6 +48,13 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertIn('Integration version: checking', PANEL)
         self.assertIn('data.integration_version', PANEL)
 
+    def test_updater_lifecycle_and_recovery_feedback(self):
+        for phrase in ('scheduleUpdatePoll()', 'stopUpdatePolling()', 'disconnectedCallback()',
+                       'state === \'installing\'', 'state === \'restarting\'',
+                       'The backend may be restarting', 'previous release is healthy',
+                       'updates-recovery', 'clearTimeout(this._updatePoll)'):
+            self.assertIn(phrase, PANEL)
+
     def test_prerelease_checkbox_selector_matches_markup(self):
         import re
         self.assertIn('class="update-prereleases"', PANEL)
