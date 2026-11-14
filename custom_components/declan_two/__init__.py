@@ -6,8 +6,16 @@ import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 
+from .capabilities_view import DeclanCapabilitiesView
+
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["conversation", "stt", "tts"]
+
+
+async def async_setup(hass, config):
+    """Register the authenticated API route once per HA integration."""
+    hass.http.register_view(DeclanCapabilitiesView())
+    return True
 
 
 async def async_setup_entry(hass, entry):
