@@ -83,6 +83,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         <nav class="tabs" aria-label="Declan management" role="tablist">
           <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
 
+          <button role="tab" id="tab-conversations" aria-controls="panel-conversations" aria-selected="false" data-tab="conversations">History &amp; Voice Recognition</button>
           <button role="tab" id="tab-players" aria-controls="panel-players" aria-selected="false" data-tab="players">Media players</button>
           <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>
           <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
@@ -100,13 +101,16 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="mic-status muted" role="status" aria-live="polite">Record up to 20 seconds. Audio is sent to Home Assistant for transcription.</p>
           <p class="chat-status muted" role="status" aria-live="polite"></p>
           <div class="chat-replies" aria-label="Current chat"></div>
+        </section>
+        <section class="card panel" id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations" hidden>
+          <h2>Chat History &amp; Voice Recognition</h2>
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
-          <p class="timeline-status muted" role="status" aria-live="polite">Open Overview to load activity.</p>
+          <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load activity.</p>
           <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
           <details class="timeline-management"><summary>Speaker profiles and older conversation history</summary><div class="timeline-management-body">
           <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
           <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
-          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open Overview to load recent conversations. Advanced editing remains in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
+          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Advanced editing remains in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
           </div></details>
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
@@ -219,7 +223,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelectorAll('.panel').forEach(panel => {
       panel.hidden = panel.id !== 'panel-' + name;
     });
-    if (name === 'overview' && !this._timelineLoaded) void this.loadTimeline();
+    if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'settings') void this.loadSettingsStatus();
     if (name === 'updates') void this.loadUpdateStatus();
