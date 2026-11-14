@@ -19,7 +19,7 @@ class NativeVoicePlaybackContract(unittest.TestCase):
         self.assertIn('allow_redirects=False', VIEW)
 
     def test_backend_limits_remote_audio_requests(self):
-        self.assertIn('body.get("operation") not in {"resolve", "audio"}', SERVER)
+        self.assertIn('body.get("operation") not in {"resolve", "audio", "history"}', SERVER)
         self.assertIn('set(body) != {"operation", "interaction_id"}', SERVER)
 
     def test_native_panel_handles_unknown_and_audio(self):
