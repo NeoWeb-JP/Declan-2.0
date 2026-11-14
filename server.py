@@ -1777,6 +1777,16 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
+            # The HA Assist token only authorizes pending match resolution, never
+            # speaker deletion, clip clearing or correction of historical records.
+            if (self.path == "/api/voicepipeline"
+                    and not self.has_ingress_access()
+                    and self.client_address[0] != "127.0.0.1"
+                    and (not isinstance(body, dict)
+                         or body.get("operation") != "resolve"
+                         or body.get("action") not in {"confirm", "assign", "dismiss"})):
+                self.send_json(403, {"error": "This VoicePipeline action requires local access."})
+                return
             if self.path == "/api/settings/media-players":
                 self.approved_player_settings(body)
                 return
