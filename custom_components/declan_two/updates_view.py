@@ -74,7 +74,7 @@ class DeclanUpdatesView(HomeAssistantView):
                     if not isinstance(capabilities, dict):
                         raise ValueError("Invalid capabilities response")
                     check = check_server_compatibility(capabilities)
-                    if not check.compatible or "updates" not in capabilities.get("capabilities", []):
+                    if not check.compatible or not isinstance(capabilities.get("capabilities"), list) or "updates" not in capabilities["capabilities"]:
                         return web.json_response({"status": "backend_incompatible", "reason": check.reason}, status=409)
             url = base + path
             async with (session.post(url, json=body, **kwargs) if method == "POST"
