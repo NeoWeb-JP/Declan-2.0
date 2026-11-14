@@ -15,6 +15,8 @@ PLATFORMS = ["conversation", "stt", "tts"]
 async def async_setup(hass, config):
     """Register the authenticated API route once per HA integration."""
     hass.http.register_view(DeclanCapabilitiesView())
+    from .native_panel import async_register_native_panel
+    await async_register_native_panel(hass)
     return True
 
 
