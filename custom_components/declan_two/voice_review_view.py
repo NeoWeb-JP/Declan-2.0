@@ -95,7 +95,37 @@ class DeclanVoiceReviewView(HomeAssistantView):
         if len(entries) != 1:
             return web.json_response({"status": "not_configured"}, status=503)
         entry = entries[0]
+        history = request.query.get("history") == "1"
+        if request.query and (set(request.query) != {"history"} or not history):
+            return web.json_response({"status": "invalid_query"}, status=400)
         try:
+            if history:
+                async with async_get_clientsession(hass).post(
+                    entry.data["url"] + "/api/voicepipeline",
+                    headers={"Authorization": f"Bearer {entry.data['token']}"},
+                    json={"operation": "history"},
+                    timeout=aiohttp.ClientTimeout(total=15),
+                    allow_redirects=False,
+                ) as response:
+                    if response.status != 200:
+                        return web.json_response({"status": "backend_unavailable"}, status=502)
+                    data = await response.json(content_type="application/json")
+                    if not isinstance(data, dict) or not isinstance(data.get("interactions"), list):
+                        raise ValueError("Invalid VoicePipeline history")
+                    rows = []
+                    for row in data["interactions"][:100]:
+                        if not isinstance(row, dict):
+                            continue
+                        rows.append({
+                            "id": row.get("id") if isinstance(row.get("id"), str) and len(row["id"]) <= 80 else None,
+                            "transcript": str(row.get("transcript") or "")[:1000],
+                            "matched_speaker": str(row.get("matched_speaker") or "")[:80],
+                            "current_assigned_to": str(row.get("current_assigned_to") or "")[:80],
+                            "status": str(row.get("status") or "")[:50],
+                            "match_confidence": row.get("match_confidence") if type(row.get("match_confidence")) in (int, float) else None,
+                            "recorded_at": str(row.get("recorded_at") or "")[:50],
+                        })
+                    return web.json_response({"interactions": rows}, headers={"Cache-Control": "no-store"})
             async with async_get_clientsession(hass).get(
                 entry.data["url"] + "/api/voicepipeline",
                 headers={"Authorization": f"Bearer {entry.data['token']}"},
