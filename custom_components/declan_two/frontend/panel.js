@@ -271,6 +271,24 @@ class DeclanTwoNativePanel extends HTMLElement {
             void this.resolveVoice(interaction.id, action, select.value);
           });
           actions.append(select, confirm);
+          const enrol = document.createElement('button');
+          enrol.type = 'button';
+          enrol.textContent = 'Enrol new speaker';
+          enrol.addEventListener('click', () => {
+            const name = window.prompt('Name for the new speaker:');
+            if (name === null) return;
+            const trimmed = name.trim();
+            if (!/^[\\p{L}][\\p{L}\\p{N}_ '\\u2019-]{0,39}$/u.test(trimmed)) {
+              this.shadowRoot.querySelector('.voices-status').textContent = 'Enter a valid speaker name of 1–40 characters.';
+              return;
+            }
+            if (data.profiles.some(profile => profile.name.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
+              this.shadowRoot.querySelector('.voices-status').textContent = 'Speaker already enrolled. Select their existing profile.';
+              return;
+            }
+            void this.resolveVoice(interaction.id, 'enrol', trimmed);
+          });
+          actions.append(enrol);
           const play = document.createElement('button');
           play.type = 'button';
           play.textContent = 'Play recording';
