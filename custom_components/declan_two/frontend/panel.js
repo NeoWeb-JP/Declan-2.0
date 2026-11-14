@@ -34,6 +34,10 @@ class DeclanTwoNativePanel extends HTMLElement {
         .menu { display:none; }
         .panel[hidden] { display:none; }
         .panel h2 { margin:0 0 12px; font-size:1.1rem; }
+        .turn { padding:14px 0; border-top:1px solid #1d3d51; overflow-wrap:anywhere; }
+        .turn p { margin:6px 0; white-space:pre-wrap; }
+        .turn .reply { color:#a1ccdf; }
+        .history-actions { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
         @media(max-width:800px) { .menu {display:inline-flex;} .wrap {padding:12px 12px 40px;} }
       </style>
       <div class="wrap">
@@ -55,7 +59,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
         </section>
         <section class="card panel" id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations" hidden>
-          <h2>Conversations</h2><p class="muted">Conversation history and chat are still available in the existing Declan app while their authenticated native API is developed.</p>
+          <h2>Conversations</h2><div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Chat and editing remain in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
           <h2>Approved media players</h2><p class="muted">Room-to-player mappings remain managed by the existing Declan app until the native settings proxy is ready.</p>
@@ -68,6 +72,8 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
       </div>`;
     this.shadowRoot.querySelector('.refresh').addEventListener('click', () => this.refresh());
+    this.shadowRoot.querySelector('.history-refresh').addEventListener('click', () => this.loadHistory());
+    this.shadowRoot.querySelector('.history-more').addEventListener('click', () => this.loadHistory(this._historyCursor));
     this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
       tab.addEventListener('click', () => this.selectTab(tab.dataset.tab));
       tab.addEventListener('keydown', event => {
@@ -96,6 +102,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelectorAll('.panel').forEach(panel => {
       panel.hidden = panel.id !== 'panel-' + name;
     });
+    if (name === 'conversations' && !this._historyLoaded) void this.loadHistory();
   }
 
   set hass(value) {
@@ -103,6 +110,42 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (!this._loaded && value) {
       this._loaded = true;
       void this.refresh();
+    }
+  }
+
+
+  async loadHistory(before = null) {
+    if (this._historyPending || !this._hass || typeof this._hass.callApi !== 'function') return;
+    this._historyPending = true;
+    const status = this.shadowRoot.querySelector('.history-status');
+    const list = this.shadowRoot.querySelector('.history-list');
+    const more = this.shadowRoot.querySelector('.history-more');
+    status.textContent = 'Loading conversations…';
+    try {
+      const path = 'declan_two/history' + (before ? '?before=' + encodeURIComponent(before) : '');
+      const result = await this._hass.callApi('GET', path);
+      if (!result || !Array.isArray(result.turns)) throw new Error('Invalid history response');
+      if (!before) list.replaceChildren();
+      for (const turn of result.turns) {
+        const article = document.createElement('article');
+        article.className = 'turn';
+        const message = document.createElement('p');
+        message.textContent = turn.message || '';
+        const reply = document.createElement('p');
+        reply.className = 'reply';
+        reply.textContent = turn.reply || '';
+        article.append(message, reply);
+        list.append(article);
+      }
+      this._historyLoaded = true;
+      this._historyCursor = Number.isSafeInteger(result.next) && result.next > 0 ? result.next : null;
+      more.hidden = !this._historyCursor;
+      status.textContent = list.children.length
+        ? 'Conversation history (read-only)' : 'No conversations found.';
+    } catch {
+      status.textContent = 'Unable to load conversation history. Check your HA admin permissions and Declan connection.';
+    } finally {
+      this._historyPending = false;
     }
   }
 

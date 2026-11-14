@@ -1562,10 +1562,17 @@ class Handler(BaseHTTPRequestHandler):
             self.path == "/api/capabilities" and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
-        if not ingress and not capabilities_auth and self.client_address[0] != "127.0.0.1":
+        # Read-only history is accessible to the HA integration using its
+        # existing Assist token. All write/export/update routes stay protected.
+        history_auth = (
+            urlsplit(self.path).path == "/api/history"
+            and len(token) >= 32
+            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
+        )
+        if not ingress and not capabilities_auth and not history_auth and self.client_address[0] != "127.0.0.1":
             self.send_json(403, {"error": "Local access only."})
             return
-        if not ingress and (
+        if not ingress and not history_auth and (
             self.path.startswith("/api/history")
             or self.path.startswith("/api/settings/") or self.path in {"/api/voice-profiles", "/api/voicepipeline"}
             or self.path in {"/api/diagnostics", "/api/settings/spotify", "/api/updates", "/api/updates/status"}
