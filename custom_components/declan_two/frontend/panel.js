@@ -677,13 +677,32 @@ class DeclanTwoNativePanel extends HTMLElement {
           enrolDetails.append(enrolSummary, enrol);
           controls.append(enrolDetails);
         }
+        const reviewed = kind === 'reviewed';
+        const originalSpeaker = item.current_assigned_to || item.matched_speaker || '';
+        // A reviewed (including dismissed) recording is read-only until explicitly unlocked.
+        select.disabled = reviewed;
         const save = document.createElement('button');
         save.type = 'button';
-        save.textContent = kind === 'pending' ? 'Confirm' : 'Change speaker';
-        save.disabled = !select.value || (kind === 'reviewed' && (!item.current_resolution_id || select.value === speaker));
-        select.addEventListener('change', () => { save.disabled = !select.value || (kind === 'reviewed' && (!item.current_resolution_id || select.value === speaker)); });
+        save.textContent = reviewed ? 'Change speaker' : 'Confirm';
+        let editing = false;
+        const syncSave = () => {
+          save.disabled = reviewed
+            ? (!item.current_resolution_id || (editing && (!select.value || select.value === originalSpeaker)))
+            : !select.value;
+          save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';
+        };
+        syncSave();
+        select.addEventListener('change', syncSave);
         save.addEventListener('click', async () => {
+          if (reviewed && !editing) {
+            editing = true;
+            select.disabled = false;
+            syncSave();
+            select.focus();
+            return;
+          }
           if (!select.value) return;
+          save.disabled = true;
           if (kind === 'pending') {
             const suggested = item.matched_speaker || '';
             await this.resolveVoice(item.id, select.value === suggested ? 'confirm' : 'assign', select.value);
@@ -692,6 +711,21 @@ class DeclanTwoNativePanel extends HTMLElement {
           }
           await this.loadTimeline();
         });
+        if (reviewed) {
+          const cancel = document.createElement('button');
+          cancel.type = 'button';
+          cancel.textContent = 'Cancel';
+          cancel.hidden = true;
+          save.addEventListener('click', () => { cancel.hidden = !editing; });
+          cancel.addEventListener('click', () => {
+            editing = false;
+            select.value = [...select.options].some(option => option.value === originalSpeaker) ? originalSpeaker : '';
+            select.disabled = true;
+            cancel.hidden = true;
+            syncSave();
+          });
+          controls.append(cancel);
+        }
         controls.append(save);
         if (item.id) {
           const play = document.createElement('button');

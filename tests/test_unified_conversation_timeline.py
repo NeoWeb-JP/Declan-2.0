@@ -28,7 +28,7 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("recordings.set(item.id, {kind:'pending', item})", JS)
         self.assertIn("recordings.set(item.id, {kind:'reviewed', item})", JS)
         self.assertIn("Date.parse(a.item.recorded_at || '')", JS)
-        self.assertIn("textContent = kind === 'pending' ? 'Confirm' : 'Change speaker'", JS)
+        self.assertIn("save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';", JS)
         self.assertIn("play.textContent = 'Play'", JS)
         self.assertIn("this.playVoice(item.id, play,", JS)
 
@@ -40,6 +40,14 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("timeline-status-label--confirmed", JS)
         self.assertIn("timeline-status-label--rejected", JS)
         self.assertIn('value="reviewed">Reviewed', JS)
+
+    def test_reviewed_speaker_is_locked_until_change_clicked(self):
+        self.assertIn("select.disabled = reviewed;", JS)
+        self.assertIn("if (reviewed && !editing)", JS)
+        self.assertIn("select.disabled = false;", JS)
+        self.assertIn("select.disabled = true;", JS)
+        self.assertIn("save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';", JS)
+        self.assertIn("cancel.textContent = 'Cancel';", JS)
 
     def test_filters_and_collapsed_details(self):
         for snippet in ('value="all"', 'value="pending"', 'value="reviewed"',
