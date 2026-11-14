@@ -1574,6 +1574,33 @@ document.getElementById('save-media-players').addEventListener('click', async ()
   } catch (error) { mediaStatus.textContent = error.message; }
 });
 
+
+/* Opt-in initial paint diagnostics; logs geometry only, never page content. */
+if (new URLSearchParams(location.search).get('declan_debug_render') === '1') {
+  const probe = (reason) => {
+    const main = document.querySelector('main');
+    const rect = main?.getBoundingClientRect();
+    const style = main ? getComputedStyle(main) : null;
+    console.info('[Declan render]', {
+      reason,
+      viewport: [innerWidth, innerHeight],
+      visualViewport: window.visualViewport
+        ? [visualViewport.width, visualViewport.height] : null,
+      visibility: document.visibilityState,
+      mainRect: rect ? [rect.x, rect.y, rect.width, rect.height] : null,
+      display: style?.display,
+      cssVisibility: style?.visibility,
+      opacity: style?.opacity
+    });
+  };
+  window.addEventListener('pageshow', () => {
+    probe('pageshow');
+    requestAnimationFrame(() => requestAnimationFrame(() => probe('after-two-frames')));
+  });
+  document.querySelector('details.settings')?.addEventListener('toggle', () => probe('menu-toggle'));
+  window.visualViewport?.addEventListener('resize', () => probe('viewport-resize'));
+}
+
 </script>
 </html>
 
