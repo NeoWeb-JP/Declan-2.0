@@ -37,7 +37,7 @@ class DeclanVoiceReviewView(HomeAssistantView):
                 return web.json_response({"status": "invalid_operation"}, status=400)
         elif body.get("confirm") is not True:
             return web.json_response({"status": "invalid_operation"}, status=400)
-        if operation == "resolve" and (action not in {"confirm", "assign", "dismiss"} or not isinstance(interaction_id, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,80}", interaction_id) is None):
+        if operation == "resolve" and (action not in {"confirm", "assign", "dismiss", "enrol"} or not isinstance(interaction_id, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,80}", interaction_id) is None):
             return web.json_response({"status": "invalid_operation"}, status=400)
         name = body.get("assigned_to")
         if operation == "audio":
@@ -45,7 +45,7 @@ class DeclanVoiceReviewView(HomeAssistantView):
         elif action == "dismiss":
             if name is not None:
                 return web.json_response({"status": "invalid_speaker"}, status=400)
-        elif not isinstance(name, str) or not 0 < len(name) <= 40:
+        elif not isinstance(name, str) or not re.fullmatch(r"[^\\W\\d_][\\w '\\u2019-]{0,39}", name) or name.casefold() in {"unknown", "unidentified", "none"}:
             return web.json_response({"status": "invalid_speaker"}, status=400)
         if operation == "resolve" and set(body) - {"operation", "action", "interaction_id", "assigned_to", "confirm"}:
             return web.json_response({"status": "invalid_operation"}, status=400)
