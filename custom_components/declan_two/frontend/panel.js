@@ -717,14 +717,12 @@ class DeclanTwoNativePanel extends HTMLElement {
       pcm[i] = sample < 0 ? sample * 32768 : sample * 32767;
     }
     try {
-      const token = this._hass?.auth?.accessToken || this._hass?.connection?.options?.auth?.accessToken;
-      if (!token) throw new Error('HA session unavailable');
-      const response = await fetch('/api/declan_two/microphone', {
-        method: 'POST', headers: {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/octet-stream'},
-        body: pcm.buffer, credentials: 'same-origin'
-      });
-      if (!response.ok) throw new Error('Transcription unavailable');
-      const result = await response.json();
+      const bytes = new Uint8Array(pcm.buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 8192) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      }
+      const result = await this._hass.callApi('POST', 'declan_two/microphone', {audio: btoa(binary)});
       if (typeof result.text !== 'string' || !result.text.trim()) throw new Error('No speech recognized');
       this.shadowRoot.querySelector('#native-chat-input').value = result.text.trim();
       status.textContent = 'Transcribed. Review the text and press Send.';
