@@ -155,18 +155,19 @@ class DeclanTwoNativePanel extends HTMLElement {
     this._voicesPending = true;
     const status = this.shadowRoot.querySelector('.voices-status');
     status.textContent = 'Submitting voice review…';
+    let feedback = 'Review saved.';
     try {
       const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
         operation: 'resolve', interaction_id: interactionId, action,
         assigned_to: assignedTo, confirm: true
       });
       if (!result || result.saved !== true) throw new Error('Not confirmed');
-      status.textContent = 'Review saved.';
     } catch (error) {
-      status.textContent = error?.message || 'Could not confirm the review. Refresh before retrying.';
+      feedback = error?.message || 'Could not confirm the review. Refresh before retrying.';
     } finally {
       this._voicesPending = false;
       await this.loadVoices();
+      status.textContent = feedback;
     }
   }
 
