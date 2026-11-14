@@ -90,7 +90,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           </form>
           <p class="chat-status muted" role="status" aria-live="polite"></p>
           <div class="chat-replies" aria-label="Current chat"></div>
-          <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Confirmed</option></select></div>
+          <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open Conversations & Voice to load activity.</p>
           <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
           <details class="timeline-management"><summary>Speaker profiles and older conversation history</summary><div class="timeline-management-body">
