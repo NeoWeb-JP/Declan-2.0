@@ -1,9 +1,20 @@
 {
   "domain": "declan_two",
   "name": "Declan 2.0 Assist Bridge",
-  "codeowners": ["@NeoWeb-JP"],
+  "codeowners": [
+    "@NeoWeb-JP"
+  ],
   "config_flow": true,
-  "dependencies": ["conversation", "stt", "tts", "ffmpeg", "wyoming"],
+  "dependencies": [
+    "conversation",
+    "stt",
+    "tts",
+    "ffmpeg",
+    "wyoming",
+    "frontend",
+    "panel_custom",
+    "http"
+  ],
   "documentation": "https://github.com/NeoWeb-JP/Declan-2.0",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/NeoWeb-JP/Declan-2.0/issues",
