@@ -117,7 +117,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Backend updates</h2>
           <p class="muted">The Declan backend runs on Proxmox. HACS updates this Home Assistant integration separately.</p>
-          <p class="update-version muted">Backend version: checking…</p>
+          <p class="update-version muted">Backend version: checking…</p>\n          <p class="integration-version muted">Integration version: checking…</p>
           <label><input class="update-prereleases" type="checkbox"> Include prerelease versions</label>
           <div class="update-controls"><button class="updates-check" type="button">Check for updates</button>
           <select class="updates-select" aria-label="Backend release"><option value="">Check for releases first</option></select>
@@ -195,6 +195,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const data = await this._hass.callApi('GET', 'declan_two/updates');
       this.shadowRoot.querySelector('.update-version').textContent = 'Backend version: ' + (data.current || 'unknown');
+      if (data.integration_version) this.shadowRoot.querySelector('.integration-version').textContent = 'Integration version: ' + data.integration_version;
       status.textContent = 'Updater: ' + (data.enabled ? (data.state || 'idle') : 'not enabled') +
         (data.version ? ' (' + data.version + ')' : '') +
         (data.error ? ' — ' + data.error : '');
@@ -240,7 +241,8 @@ class DeclanTwoNativePanel extends HTMLElement {
         operation: 'install', version,
         include_prereleases: this.shadowRoot.querySelector('.update-prereleases').checked
       });
-      status.textContent = 'Installation queued. Use Refresh installation status to check progress.';
+      status.textContent = 'Installation queued. Refresh installation status to follow progress.';
+      void this.loadUpdateStatus();
     } catch (error) {
       status.textContent = 'Install not queued: ' + (error?.message || 'backend unavailable');
     }

@@ -39,6 +39,15 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertIn('self.path == "/api/updates"\n            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32', SERVER)
         self.assertIn('secrets.compare_digest(', SERVER)
 
+    def test_versions_and_compatibility_gate(self):
+        self.assertIn('"integration_version"', VIEW)
+        self.assertIn('manifest.json', VIEW)
+        self.assertIn('check_server_compatibility(capabilities)', VIEW)
+        self.assertIn('"/api/capabilities"', VIEW)
+        self.assertIn('"updates" not in capabilities["capabilities"]', VIEW)
+        self.assertIn('Integration version: checking', PANEL)
+        self.assertIn('data.integration_version', PANEL)
+
     def test_prerelease_checkbox_selector_matches_markup(self):
         import re
         self.assertIn('class="update-prereleases"', PANEL)
@@ -62,13 +71,29 @@ class NativeUpdaterTests(unittest.TestCase):
             module = types.ModuleType(name)
             modules[name] = module
         modules["aiohttp"].web = modules["aiohttp.web"]
-        modules["aiohttp.web"].json_response = lambda body, status=200, **kw: (status, body)
+        class FakeResponse:
+            def __init__(self, body, status=200):
+                import json
+                self.status = status
+                self.body = json.dumps(body).encode("utf-8")
+
+            def __getitem__(self, index):
+                return (self.status, self.body)[index]
+
+        modules["aiohttp.web"].json_response = lambda body, status=200, **kw: FakeResponse(body, status)
         modules["homeassistant.components.http"].HomeAssistantView = type("HomeAssistantView", (), {})
         modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = lambda hass: None
         modules["aiohttp"].ClientError = type("ClientError", (Exception,), {})
         modules["aiohttp"].ClientTimeout = lambda **kw: kw
 
-        spec = importlib.util.spec_from_file_location("declan_updates_test_view",
+        # Load the view as a package module so its relative compatibility import works.
+        package = types.ModuleType("declan_updates_test_pkg")
+        package.__path__ = []
+        modules[package.__name__] = package
+        compatibility = types.ModuleType("declan_updates_test_pkg.compatibility")
+        compatibility.check_server_compatibility = lambda payload: types.SimpleNamespace(compatible=True, reason="Compatible")
+        modules[compatibility.__name__] = compatibility
+        spec = importlib.util.spec_from_file_location("declan_updates_test_pkg.updates_view",
             ROOT / "custom_components/declan_two/updates_view.py")
         with patch.dict(sys.modules, modules):
             module = importlib.util.module_from_spec(spec)
