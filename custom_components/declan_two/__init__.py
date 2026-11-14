@@ -8,6 +8,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .capabilities_view import DeclanCapabilitiesView
 from .history_view import DeclanHistoryView
+from .chat_view import DeclanChatView
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["conversation", "stt", "tts"]
@@ -17,6 +18,7 @@ async def async_setup(hass, config):
     """Register the authenticated API route once per HA integration."""
     hass.http.register_view(DeclanCapabilitiesView())
     hass.http.register_view(DeclanHistoryView())
+    hass.http.register_view(DeclanChatView())
     from .native_panel import async_register_native_panel
     await async_register_native_panel(hass)
     return True

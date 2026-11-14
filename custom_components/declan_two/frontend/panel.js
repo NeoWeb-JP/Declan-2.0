@@ -37,6 +37,10 @@ class DeclanTwoNativePanel extends HTMLElement {
         .turn { padding:14px 0; border-top:1px solid #1d3d51; overflow-wrap:anywhere; }
         .turn p { margin:6px 0; white-space:pre-wrap; }
         .turn .reply { color:#a1ccdf; }
+        .chat-controls { display:flex; gap:8px; margin:8px 0 14px; }
+        .chat-controls input { flex:1; min-width:0; padding:12px; border-radius:9px; border:1px solid #315568; background:#102635; color:#e7f7ff; font:inherit; }
+        .chat-form label { display:block; margin-top:14px; }
+        .chat-replies { margin-bottom:18px; }
         .history-actions { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
         @media(max-width:800px) { .menu {display:inline-flex;} .wrap {padding:12px 12px 40px;} }
       </style>
@@ -59,7 +63,14 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
         </section>
         <section class="card panel" id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations" hidden>
-          <h2>Conversations</h2><div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Chat and editing remain in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
+          <h2>Conversations</h2>
+          <form class="chat-form" aria-label="Chat with Declan">
+            <label for="native-chat-input">Message</label>
+            <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="Ask Declan anything" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
+          </form>
+          <p class="chat-status muted" role="status" aria-live="polite"></p>
+          <div class="chat-replies" aria-label="Current chat"></div>
+          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Chat and editing remain in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
           <h2>Approved media players</h2><p class="muted">Room-to-player mappings remain managed by the existing Declan app until the native settings proxy is ready.</p>
@@ -72,6 +83,10 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
       </div>`;
     this.shadowRoot.querySelector('.refresh').addEventListener('click', () => this.refresh());
+    this.shadowRoot.querySelector('.chat-form').addEventListener('submit', event => {
+      event.preventDefault();
+      void this.sendChat();
+    });
     this.shadowRoot.querySelector('.history-refresh').addEventListener('click', () => this.loadHistory());
     this.shadowRoot.querySelector('.history-more').addEventListener('click', () => this.loadHistory(this._historyCursor));
     this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
@@ -113,6 +128,42 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
+
+
+  async sendChat() {
+    if (this._chatPending || !this._hass || typeof this._hass.callApi !== 'function') return;
+    const input = this.shadowRoot.querySelector('#native-chat-input');
+    const status = this.shadowRoot.querySelector('.chat-status');
+    const send = this.shadowRoot.querySelector('.chat-send');
+    const message = input.value.trim();
+    if (!message || message.length > 1000) return;
+    this._chatPending = true;
+    send.disabled = true;
+    status.textContent = 'Waiting for Declan…';
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/chat', {
+        message, session_id: this._chatSession || null
+      });
+      if (!result || typeof result.reply !== 'string') throw new Error('Invalid reply');
+      if (typeof result.session_id === 'string') this._chatSession = result.session_id;
+      const article = document.createElement('article');
+      article.className = 'turn';
+      const question = document.createElement('p');
+      question.textContent = message;
+      const reply = document.createElement('p');
+      reply.className = 'reply';
+      reply.textContent = result.reply || '(No spoken reply)';
+      article.append(question, reply);
+      this.shadowRoot.querySelector('.chat-replies').prepend(article);
+      input.value = '';
+      status.textContent = 'Reply received.';
+    } catch {
+      status.textContent = 'Unable to send message. Check the Declan connection and try again.';
+    } finally {
+      this._chatPending = false;
+      send.disabled = false;
+    }
+  }
 
   async loadHistory(before = null) {
     if (this._historyPending || !this._hass || typeof this._hass.callApi !== 'function') return;

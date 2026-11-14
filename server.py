@@ -1726,7 +1726,14 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline"}:
             self.send_json(404, {"error": "Not found."})
             return
-        elif not self.has_ingress_access() and (
+        elif not (
+            self.path == "/api/chat"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not self.has_ingress_access() and (
             self.client_address[0] != "127.0.0.1" or self.headers.get("Origin") not in {
                 f"http://127.0.0.1:{self.server.server_port}",
                 f"http://localhost:{self.server.server_port}",
