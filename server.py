@@ -1554,7 +1554,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         ingress = self.has_ingress_access()
-        if not ingress and self.client_address[0] != "127.0.0.1":
+        # The HA integration uses its Assist bearer token for this one read-only
+        # endpoint. Do not extend this exception to management or update routes.
+        token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
+        supplied = self.headers.get("Authorization", "")
+        capabilities_auth = (
+            self.path == "/api/capabilities" and len(token) >= 32
+            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
+        )
+        if not ingress and not capabilities_auth and self.client_address[0] != "127.0.0.1":
             self.send_json(403, {"error": "Local access only."})
             return
         if not ingress and (
