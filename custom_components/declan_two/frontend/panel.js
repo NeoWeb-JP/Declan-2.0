@@ -263,6 +263,14 @@ class DeclanTwoNativePanel extends HTMLElement {
         detail.textContent = 'Speaker: ' + (item.current_assigned_to || item.matched_speaker || 'Unassigned') +
           ' · Status: ' + (item.status || 'Unknown') + ' · Recorded: ' + (item.recorded_at || 'Unknown');
         card.append(transcript, detail);
+        if (item.id) {
+          const playback = document.createElement('button');
+          playback.type = 'button';
+          playback.textContent = 'Play recording';
+          playback.setAttribute('aria-label', 'Play reviewed recording');
+          playback.addEventListener('click', () => void this.playVoice(item.id, playback, status));
+          card.append(playback);
+        }
         if (item.id && item.current_resolution_id) {
           const actions = document.createElement('div');
           actions.className = 'history-actions';
