@@ -41,6 +41,14 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("timeline-status-label--rejected", JS)
         self.assertIn('value="reviewed">Reviewed', JS)
 
+    def test_reviewed_speaker_is_locked_until_change_clicked(self):
+        self.assertIn("select.disabled = reviewed;", JS)
+        self.assertIn("if (reviewed && !editing)", JS)
+        self.assertIn("select.disabled = false;", JS)
+        self.assertIn("select.disabled = true;", JS)
+        self.assertIn("save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';", JS)
+        self.assertIn("cancel.textContent = 'Cancel';", JS)
+
     def test_filters_and_collapsed_details(self):
         for snippet in ('value="all"', 'value="pending"', 'value="reviewed"',
                         "document.createElement('details')", "summary.textContent = 'More details'"):
