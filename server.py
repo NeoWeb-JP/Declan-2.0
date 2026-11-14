@@ -1569,10 +1569,15 @@ class Handler(BaseHTTPRequestHandler):
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
-        if not ingress and not capabilities_auth and not history_auth and self.client_address[0] != "127.0.0.1":
+        players_auth = (
+            self.path == "/api/settings/media-players"
+            and len(token) >= 32
+            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
+        )
+        if not ingress and not capabilities_auth and not history_auth and not players_auth and self.client_address[0] != "127.0.0.1":
             self.send_json(403, {"error": "Local access only."})
             return
-        if not ingress and not history_auth and (
+        if not ingress and not history_auth and not players_auth and (
             self.path.startswith("/api/history")
             or self.path.startswith("/api/settings/") or self.path in {"/api/voice-profiles", "/api/voicepipeline"}
             or self.path in {"/api/diagnostics", "/api/settings/spotify", "/api/updates", "/api/updates/status"}
@@ -1727,6 +1732,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
+            self.path == "/api/settings/media-players"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
             self.path == "/api/chat"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
