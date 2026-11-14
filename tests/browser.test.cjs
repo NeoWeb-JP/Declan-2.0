@@ -36,7 +36,7 @@ function browser(t, {voice = false, microphone = false, browserRecognition = fal
     assert.ok(resolved.pathname.startsWith(prefix + '/'), 'Request escaped the Ingress path');
     url = resolved.pathname.slice(prefix.length) + resolved.search;
     calls.push({url, options});
-    let response = responses.get(url) ?? {status: 'connected', release_version: 'v1.2.3'};
+    let response = responses.get(url) ?? (url === '/api/capabilities' ? {api_version: '1.0', server_version: 'v1.2.3', capabilities: ['updates', 'ha_status']} : {status: 'connected', release_version: 'v1.2.3'});
     if (typeof response === 'function') response = await response(options);
     if (response instanceof Error) throw response;
     return {ok: !response.error, json: async () => response};
@@ -136,17 +136,20 @@ test('Spotify credentials are entered locally and cleared after saving', async t
   assert.equal(ui.element('#spotify-settings').open, false);
 });
 
-test('shows build information and reports a disconnected Home Assistant', async t => {
+test('reports Declan API health, outage and incompatible responses', async t => {
   const ui = browser(t);
   await flush();
-  assert.match(ui.element('#ha-status').textContent, /connected.*Release v1\.2\.3/);
+  assert.match(ui.element('#api-status').textContent, /Declan API connected.*v1\.2\.3/);
   assert.match(ui.element('#voice-status').textContent, /unavailable/);
-  ui.responses.set('/api/ha-status', new Error('connection lost'));
+  ui.responses.set('/api/capabilities', new Error('connection lost'));
   await ui.tick(15000);
-  assert.match(ui.element('#ha-status').textContent, /disconnected.*Release v1\.2\.3/);
-  ui.responses.set('/api/ha-status', {status: 'connected', release_version: null});
+  assert.match(ui.element('#api-status').textContent, /Declan API unavailable/);
+  ui.responses.set('/api/capabilities', {api_version: '2.0', capabilities: []});
   await ui.tick(15000);
-  assert.match(ui.element('#ha-status').textContent, /Development build/);
+  assert.match(ui.element('#api-status').textContent, /Declan API incompatible/);
+  ui.responses.set('/api/capabilities', {api_version: '1.0', server_version: null, capabilities: []});
+  await ui.tick(15000);
+  assert.equal(ui.element('#api-status').textContent, 'Declan API connected');
 });
 
 test('keyboard chat retains the session and shows send errors', async t => {
