@@ -84,7 +84,8 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
 
           <button role="tab" id="tab-players" aria-controls="panel-players" aria-selected="false" data-tab="players">Media players</button>
-          <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>\n          <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
+          <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>
+          <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
         </nav>
         <section class="card panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
           <h2>Declan connection</h2>
@@ -95,15 +96,17 @@ class DeclanTwoNativePanel extends HTMLElement {
             <label for="native-chat-input">Message</label>
             <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="Ask Declan anything" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
           </form>
-          <div class="history-actions"><button class="mic-start" type="button">Record microphone</button><button class="mic-stop" type="button" disabled>Stop and transcribe</button></div>\n          <p class="mic-status muted" role="status" aria-live="polite">Record up to 20 seconds. Audio is sent to Home Assistant for transcription.</p>\n          <p class="chat-status muted" role="status" aria-live="polite"></p>
+          <div class="history-actions"><button class="mic-start" type="button">Record microphone</button><button class="mic-stop" type="button" disabled>Stop and transcribe</button></div>
+          <p class="mic-status muted" role="status" aria-live="polite">Record up to 20 seconds. Audio is sent to Home Assistant for transcription.</p>
+          <p class="chat-status muted" role="status" aria-live="polite"></p>
           <div class="chat-replies" aria-label="Current chat"></div>
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
-          <p class="timeline-status muted" role="status" aria-live="polite">Open Conversations & Voice to load activity.</p>
+          <p class="timeline-status muted" role="status" aria-live="polite">Open Overview to load activity.</p>
           <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
           <details class="timeline-management"><summary>Speaker profiles and older conversation history</summary><div class="timeline-management-body">
           <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
           <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
-          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Chat and editing remain in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
+          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open Overview to load recent conversations. Advanced editing remains in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
           </div></details>
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
@@ -138,12 +141,14 @@ class DeclanTwoNativePanel extends HTMLElement {
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Backend updates</h2>
           <p class="muted">The Declan backend runs on Proxmox. HACS updates this Home Assistant integration separately.</p>
-          <p class="update-version muted">Backend version: checking…</p>\n          <p class="integration-version muted">Integration version: checking…</p>
+          <p class="update-version muted">Backend version: checking…</p>
+          <p class="integration-version muted">Integration version: checking…</p>
           <label><input class="update-prereleases" type="checkbox"> Include prerelease versions</label>
           <div class="update-controls"><button class="updates-check" type="button">Check for updates</button>
           <select class="updates-select" aria-label="Backend release"><option value="">Check for releases first</option></select>
           <button class="updates-install" type="button" disabled>Install selected release</button></div>
-          <p class="updates-status muted" role="status" aria-live="polite">Open Updates to check backend status.</p>\n          <p class="updates-recovery muted" hidden></p>
+          <p class="updates-status muted" role="status" aria-live="polite">Open Updates to check backend status.</p>
+          <p class="updates-recovery muted" hidden></p>
           <button class="updates-refresh" type="button">Refresh installation status</button>
         </section>
       </div>`;
