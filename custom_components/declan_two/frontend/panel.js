@@ -49,6 +49,15 @@ class DeclanTwoNativePanel extends HTMLElement {
         .chat-controls { display:flex; gap:8px; margin:8px 0 14px; }
         .chat-controls input { flex:1; min-width:0; padding:12px; border-radius:9px; border:1px solid #315568; background:#102635; color:#e7f7ff; font:inherit; }
         .chat-form label { display:block; margin-top:14px; }
+        .settings-spotify { margin-top:18px; padding:14px 16px; border:1px solid #1d3d51; border-radius:12px; background:#0e202d; }
+        .settings-spotify summary { cursor:pointer; font-weight:600; padding:4px 0; }
+        .spotify-form { display:grid; gap:16px; margin-top:18px; }
+        .spotify-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
+        .spotify-form input { display:block; width:100%; min-width:0; padding:12px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; font-weight:400; }
+        .spotify-form input:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
+        .spotify-form button { justify-self:start; }
+        .spotify-save-status { margin:12px 0 0; overflow-wrap:anywhere; }
+        @media(max-width:520px) { .settings-spotify { padding:12px; } .spotify-form button { width:100%; } }
         .chat-replies { margin-bottom:18px; }
         .player-row { display:grid; grid-template-columns:minmax(120px,1fr) minmax(160px,2fr); gap:12px; align-items:center; padding:12px 0; border-top:1px solid #1d3d51; }
         .player-row select { width:100%; min-width:0; padding:10px; border-radius:9px; border:1px solid #315568; background:#102635; color:#e7f7ff; font:inherit; }
