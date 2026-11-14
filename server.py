@@ -1617,7 +1617,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/native/settings-status":
             try:
                 _, source = music.spotify_credentials()
-                self.send_json(200, {"spotify_configured": source != "missing", "spotify_source": source})
+                self.send_json(200, {"spotify_configured": source in {"saved", "environment"}, "spotify_source": source})
             except (OSError, ValueError):
                 self.send_json(503, {"error": "Spotify configuration status unavailable."})
         elif self.path == "/api/ha-status":
