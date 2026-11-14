@@ -20,7 +20,6 @@ from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
-import webbrowser
 
 from arbitration import CaptureArbiter
 
@@ -1567,6 +1566,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(403, {"error": "Use the local Declan address."})
             return
         if self.path == "/":
+            if not ingress:
+                self.send_json(404, {"error": "Declan is managed through the Home Assistant app."})
+                return
             page = Path(__file__).with_name("index.html").read_bytes()
             self.send_body(200, page, "text/html; charset=utf-8")
         elif self.path == "/logo.png":
@@ -2063,7 +2065,6 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--open", action="store_true", help="Open chat in the default browser.")
     parser.add_argument("--assist-lan", action="store_true", help="Allow the authenticated Assist endpoint on the LAN.")
     parser.add_argument("--port", type=int, help="Override the default port (8765, or 52737 in Assist LAN mode).")
     args = parser.parse_args()
@@ -2101,9 +2102,7 @@ def main():
             with opener.open(url + "/health", timeout=3) as response:
                 if json.load(response) != {"status": "ok"}:
                     raise ValueError("Unexpected health response.")
-            print(f"Declan 2.0 is ready at {url}/", flush=True)
-            if args.open:
-                webbrowser.open(url + "/")
+            print(f"Declan 2.0 API is ready at {url}/health", flush=True)
             while worker.is_alive():
                 worker.join(timeout=0.5)
                 if updates.RESTART.is_set():

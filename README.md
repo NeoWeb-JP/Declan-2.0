@@ -1,6 +1,6 @@
 # Declan 2.0
 
-Declan 2.0 is a household voice assistant with a standalone web service and a Home Assistant Assist integration.
+Declan 2.0 is a household voice assistant with a backend API, a Home Assistant Ingress management app, and a Home Assistant Assist integration. The standalone browser dashboard is retired.
 
 ## Install the Assist Bridge with HACS
 
@@ -23,9 +23,9 @@ In **Settings → Voice assistants**, select the Declan 2.0 conversation agent, 
 HACS manages the files in `custom_components/declan_two`. The standalone service on Proxmox has its own release lifecycle. See [Proxmox release updates](PROXMOX-UPDATES.md) for that service.
 
 
-## Open Declan Web from Home Assistant
+## Manage Declan through Home Assistant
 
-The **Declan 2.0 Web** Home Assistant app proxies the existing Proxmox server through
+The **Declan 2.0 Web** Home Assistant app is the supported management interface. It proxies the existing Proxmox server through
 Home Assistant Ingress. The sidebar panel requires an HA administrator. The HACS Assist
 Bridge is a separate integration and can keep its existing configuration.
 
@@ -37,7 +37,7 @@ Bridge is a separate integration and can keep its existing configuration.
    `https://github.com/NeoWeb-JP/Declan-2.0` as an app repository. Install
    **Declan 2.0 Web** and enter the Proxmox Declan URL and the new token in its Configuration.
 4. Start the app, enable **Show in sidebar**, and open **Declan 2.0**. Chat and history use
-   the same running server and data as the SSH-tunnel UI.
+   the running server and its existing data.
 
 Use HTTPS for the upstream Declan URL if the network between HA and Proxmox is
 untrusted. For the default LAN HTTP URL, restrict the existing Declan port to the
@@ -106,3 +106,7 @@ The Assist bridge must still use **Declan 2.0 Wyoming Speaker Recognition** at `
 
 VoicePipeline's pending resolve endpoint has no atomic stale-edit token. Declan serialises its own changes and checks that a recording is still pending, but another VoicePipeline client could resolve it in the interval. Avoid reviewing the same pending recording in both interfaces simultaneously. Failed writes are never retried automatically; refresh the list before deciding what to do next.
 
+
+## Standalone dashboard retirement
+
+The direct server root (`/`) no longer serves the management dashboard to localhost clients. The authenticated Home Assistant Ingress app continues to receive the existing `index.html` interface. Do not delete `index.html`, `logo.png`, the Ingress token or management APIs: the HA app still depends on them. `/health`, Assist and other backend APIs remain available under their existing access controls. The old `server.py --open` browser-launch option is removed. Use the Home Assistant sidebar for management.
