@@ -1573,6 +1573,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(200, Path(__file__).with_name("logo.png").read_bytes(), "image/png")
         elif self.path == "/health":
             self.send_json(200, {"status": "ok"})
+        elif self.path == "/api/capabilities":
+            self.send_json(200, {
+                "api_version": "1.0",
+                "server_version": RELEASE_VERSION,
+                "capabilities": ["updates", "ha_status"],
+            })
         elif self.path == "/api/ha-status":
             self.send_json(200, {"status": home_assistant_status(), "release_version": RELEASE_VERSION})
         elif self.path == "/api/updates/status":
