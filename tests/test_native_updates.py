@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VIEW = (ROOT / "custom_components/declan_two/updates_view.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
+SERVER = (ROOT / "server.py").read_text()
 
 
 class NativeUpdaterTests(unittest.TestCase):
@@ -30,6 +31,13 @@ class NativeUpdaterTests(unittest.TestCase):
                        "window.confirm('Install Declan backend release", 'declan_two/updates'):
             self.assertIn(phrase, PANEL)
         self.assertNotIn('Use the existing Declan updater for now.', PANEL)
+
+    def test_backend_update_routes_require_valid_bearer_or_existing_local_access(self):
+        self.assertIn('self.path == "/api/updates/status"', SERVER)
+        self.assertIn('not updates_auth and self.client_address', SERVER)
+        self.assertIn('not voice_review_auth and not updates_auth and (', SERVER)
+        self.assertIn('self.path == "/api/updates"\\n            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32', SERVER)
+        self.assertIn('secrets.compare_digest(', SERVER)
 
     def test_prerelease_checkbox_selector_matches_markup(self):
         import re
