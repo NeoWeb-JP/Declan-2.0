@@ -84,7 +84,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
           <button role="tab" id="tab-conversations" aria-controls="panel-conversations" aria-selected="false" data-tab="conversations">Conversations &amp; Voice</button>
           <button role="tab" id="tab-players" aria-controls="panel-players" aria-selected="false" data-tab="players">Media players</button>
-          <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
+          <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>\n          <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
         </nav>
         <section class="card panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
           <h2>Declan connection</h2>
@@ -97,7 +97,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             <label for="native-chat-input">Message</label>
             <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="Ask Declan anything" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
           </form>
-          <p class="chat-status muted" role="status" aria-live="polite"></p>
+          <div class="history-actions"><button class="mic-start" type="button">Record microphone</button><button class="mic-stop" type="button" disabled>Stop and transcribe</button></div>\n          <p class="mic-status muted" role="status" aria-live="polite">Record up to 20 seconds. Audio is sent to Home Assistant for transcription.</p>\n          <p class="chat-status muted" role="status" aria-live="polite"></p>
           <div class="chat-replies" aria-label="Current chat"></div>
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open Conversations & Voice to load activity.</p>
@@ -115,6 +115,13 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="players-status muted" role="status" aria-live="polite">Open this tab to load areas and players.</p>
           <div class="players-list"></div>
         </section>
+        <section class="card panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+          <h2>Settings</h2>
+          <p class="muted">Existing Spotify credentials are retained on the Declan backend. This screen never displays or changes the secret.</p>
+          <p class="spotify-status muted" role="status" aria-live="polite">Open Settings to check Spotify configuration.</p>
+          <button class="settings-refresh" type="button">Refresh settings status</button>
+          <p class="muted">Configuration export, recovery and diagnostics are still available in the existing app while migration continues.</p>
+        </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Backend updates</h2>
           <p class="muted">The Declan backend runs on Proxmox. HACS updates this Home Assistant integration separately.</p>
@@ -128,6 +135,9 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
       </div>`;
     this.shadowRoot.querySelector('.refresh').addEventListener('click', () => this.refresh());
+    this.shadowRoot.querySelector('.mic-start').addEventListener('click', () => this.startMicrophone());
+    this.shadowRoot.querySelector('.mic-stop').addEventListener('click', () => this.stopMicrophone());
+    this.shadowRoot.querySelector('.settings-refresh').addEventListener('click', () => this.loadSettingsStatus());
     this.shadowRoot.querySelector('.chat-form').addEventListener('submit', event => {
       event.preventDefault();
       void this.sendChat();
@@ -187,6 +197,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
+    if (name === 'settings') void this.loadSettingsStatus();
     if (name === 'updates') void this.loadUpdateStatus();
     else this.stopUpdatePolling();
 
@@ -200,6 +211,7 @@ class DeclanTwoNativePanel extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.cancelMicrophone();
     this.stopUpdatePolling();
   }
 
@@ -621,6 +633,101 @@ class DeclanTwoNativePanel extends HTMLElement {
       save.disabled = false;
     } finally {
       this._playersPending = false;
+    }
+  }
+
+  async loadSettingsStatus() {
+    const status = this.shadowRoot.querySelector('.spotify-status');
+    if (!this._hass) return;
+    status.textContent = 'Checking saved Spotify configuration…';
+    try {
+      const result = await this._hass.callApi('GET', 'declan_two/settings-status');
+      status.textContent = result.spotify_configured
+        ? 'Spotify is configured (' + result.spotify_source + '). Existing credentials have not been changed.'
+        : 'Spotify credentials are not configured on the backend.';
+    } catch {
+      status.textContent = 'Could not check Spotify status. Existing credentials have not been changed.';
+    }
+  }
+
+  cancelMicrophone() {
+    if (this._micTimer) clearTimeout(this._micTimer);
+    this._micTimer = null;
+    if (this._micProcessor) this._micProcessor.disconnect();
+    if (this._micSource) this._micSource.disconnect();
+    if (this._micStream) this._micStream.getTracks().forEach(track => track.stop());
+    if (this._micContext) void this._micContext.close();
+    this._micProcessor = this._micSource = this._micStream = this._micContext = null;
+    this.shadowRoot.querySelector('.mic-start').disabled = false;
+    this.shadowRoot.querySelector('.mic-stop').disabled = true;
+  }
+
+  async startMicrophone() {
+    if (this._micStream) return;
+    const status = this.shadowRoot.querySelector('.mic-status');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      status.textContent = 'Microphone access is unavailable in this browser or app.';
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1, echoCancellation: true}, video: false});
+      const context = new (window.AudioContext || window.webkitAudioContext)();
+      await context.resume();
+      const source = context.createMediaStreamSource(stream);
+      const processor = context.createScriptProcessor(4096, 1, 1);
+      const samples = [];
+      processor.onaudioprocess = event => {
+        if (!this._micStream) return;
+        const input = event.inputBuffer.getChannelData(0);
+        samples.push(new Float32Array(input));
+      };
+      source.connect(processor);
+      processor.connect(context.destination);
+      this._micStream = stream;
+      this._micContext = context;
+      this._micSource = source;
+      this._micProcessor = processor;
+      this._micSamples = samples;
+      this._micTimer = setTimeout(() => void this.stopMicrophone(), 20000);
+      this.shadowRoot.querySelector('.mic-start').disabled = true;
+      this.shadowRoot.querySelector('.mic-stop').disabled = false;
+      status.textContent = 'Recording… tap Stop and transcribe when finished.';
+    } catch {
+      this.cancelMicrophone();
+      status.textContent = 'Microphone permission denied or recording unavailable.';
+    }
+  }
+
+  async stopMicrophone() {
+    if (!this._micStream) return;
+    const status = this.shadowRoot.querySelector('.mic-status');
+    const rate = this._micContext.sampleRate;
+    const chunks = this._micSamples;
+    this.cancelMicrophone();
+    status.textContent = 'Transcribing…';
+    const count = chunks.reduce((n, chunk) => n + chunk.length, 0);
+    if (!count) { status.textContent = 'No audio captured.'; return; }
+    const merged = new Float32Array(count);
+    let offset = 0;
+    for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
+    const size = Math.min(320000, Math.floor(merged.length * 16000 / rate));
+    const pcm = new Int16Array(size);
+    for (let i = 0; i < size; i++) {
+      const sample = Math.max(-1, Math.min(1, merged[Math.min(merged.length - 1, Math.floor(i * rate / 16000))]));
+      pcm[i] = sample < 0 ? sample * 32768 : sample * 32767;
+    }
+    try {
+      const bytes = new Uint8Array(pcm.buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 8192) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      }
+      const result = await this._hass.callApi('POST', 'declan_two/microphone', {audio: btoa(binary)});
+      if (typeof result.text !== 'string' || !result.text.trim()) throw new Error('No speech recognized');
+      this.shadowRoot.querySelector('#native-chat-input').value = result.text.trim();
+      status.textContent = 'Transcribed. Review the text and press Send.';
+    } catch {
+      status.textContent = 'Could not transcribe audio. Check microphone permissions and the Declan backend.';
     }
   }
 
