@@ -84,7 +84,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-voices" role="tabpanel" aria-labelledby="tab-voices" hidden>
           <h2>Voice profiles</h2>
-          <p class="muted">Review pending recordings: confirm the suggested speaker, choose another enrolled speaker, or reject a bad recording. Audio playback remains in the existing Declan app.</p>
+          <p class="muted">Review pending recordings: choose an enrolled speaker and confirm, play the recording, or reject a bad recording.</p>
           <button class="voices-refresh" type="button">Refresh voice profiles</button>
           <p class="voices-status muted" role="status" aria-live="polite">Open this tab to load profiles.</p>
           <div class="voices-list"></div>
@@ -243,17 +243,11 @@ class DeclanTwoNativePanel extends HTMLElement {
         const actions = document.createElement('div');
         actions.className = 'history-actions';
         if (interaction.id) {
-          const confirm = document.createElement('button');
-          confirm.type = 'button';
-          confirm.textContent = 'Confirm match';
-          confirm.disabled = !interaction.matched_speaker || ['unknown', 'unidentified', 'none'].includes(interaction.matched_speaker.toLowerCase());
-          confirm.addEventListener('click', () => this.resolveVoice(interaction.id, 'confirm', interaction.matched_speaker));
-          actions.append(confirm);
           const select = document.createElement('select');
           select.setAttribute('aria-label', 'Choose correct speaker');
           const placeholder = document.createElement('option');
           placeholder.value = '';
-          placeholder.textContent = 'Other speaker…';
+          placeholder.textContent = 'Choose a speaker…';
           select.append(placeholder);
           for (const profile of data.profiles) {
             if (!profile.name) continue;
@@ -262,14 +256,21 @@ class DeclanTwoNativePanel extends HTMLElement {
             option.textContent = profile.name;
             select.append(option);
           }
-          actions.append(select);
-          const assign = document.createElement('button');
-          assign.type = 'button';
-          assign.textContent = 'Use selected speaker';
-          assign.addEventListener('click', () => {
-            if (select.value) void this.resolveVoice(interaction.id, 'assign', select.value);
+          const suggested = typeof interaction.matched_speaker === 'string'
+            ? interaction.matched_speaker.trim() : '';
+          const known = suggested && !['unknown', 'unidentified', 'none'].includes(suggested.toLowerCase());
+          if (known && [...select.options].some(option => option.value === suggested)) select.value = suggested;
+          const confirm = document.createElement('button');
+          confirm.type = 'button';
+          confirm.textContent = 'Confirm speaker';
+          confirm.disabled = !select.value;
+          select.addEventListener('change', () => { confirm.disabled = !select.value; });
+          confirm.addEventListener('click', () => {
+            if (!select.value) return;
+            const action = known && select.value === suggested ? 'confirm' : 'assign';
+            void this.resolveVoice(interaction.id, action, select.value);
           });
-          actions.append(assign);
+          actions.append(select, confirm);
           const play = document.createElement('button');
           play.type = 'button';
           play.textContent = 'Play recording';
