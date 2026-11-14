@@ -17,7 +17,7 @@ class VoiceReviewContractTests(unittest.TestCase):
         self.assertIn('self.path == "/api/voicepipeline"', get)
         self.assertIn('not voice_review_auth', get)
         self.assertIn('body.get("operation") not in {"resolve", "audio"}', post)
-        self.assertIn('body.get("action") not in {"confirm", "assign", "dismiss"}', post)
+        self.assertIn('body.get("action") not in {"confirm", "assign", "dismiss", "enrol"}', post)
         self.assertIn('set(body) != {"operation", "interaction_id"}', post)
 
     def test_ha_view_requires_admin_and_scopes_writes(self):
@@ -27,8 +27,9 @@ class VoiceReviewContractTests(unittest.TestCase):
         self.assertIn('allow_redirects=False', VIEW)
         self.assertIn('"Cache-Control": "no-store"', VIEW)
         self.assertIn('async def post(', VIEW)
-        self.assertIn('action not in {"confirm", "assign", "dismiss"}', VIEW)
+        self.assertIn('action not in {"confirm", "assign", "dismiss", "enrol"}', VIEW)
         self.assertIn('body.get("confirm") is not True', VIEW)
+        self.assertIn('"enrol"', VIEW)
         self.assertIn('DeclanVoiceReviewView()', INIT)
 
     def test_ui_displays_plain_text_and_review_actions(self):
@@ -37,6 +38,7 @@ class VoiceReviewContractTests(unittest.TestCase):
         self.assertIn('name.textContent = profile.name', JS)
         self.assertNotIn('transcript.innerHTML', JS)
         self.assertIn("this._hass.callApi('POST', 'declan_two/voice-review'", JS)
+        self.assertIn("this.resolveVoice(interaction.id, 'enrol', trimmed)", JS)
 
 
 if __name__ == "__main__":
