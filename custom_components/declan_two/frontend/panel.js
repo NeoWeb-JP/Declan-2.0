@@ -203,6 +203,27 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
+  async correctVoiceHistory(item, speaker) {
+    if (this._voiceHistoryPending || !this._hass || !item.id || !item.current_resolution_id || !speaker) return;
+    if (!window.confirm('Correct this reviewed recording to ' + speaker + '?')) return;
+    const status = this.shadowRoot.querySelector('.voices-history-status');
+    this._voiceHistoryPending = true;
+    status.textContent = 'Saving historical correction…';
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/voice-review', {
+        operation: 'correct', interaction_id: item.id, assigned_to: speaker,
+        expected_resolution_id: item.current_resolution_id, confirm: true
+      });
+      if (!result || result.saved !== true) throw new Error('Save not confirmed');
+      this._voiceHistoryPending = false;
+      await this.loadVoiceHistory();
+      status.textContent = 'Historical speaker correction saved.';
+    } catch (error) {
+      this._voiceHistoryPending = false;
+      status.textContent = 'Correction failed or recording changed. Refresh and retry. ' + (error?.message || '');
+    }
+  }
+
   async loadVoiceHistory() {
     if (!this._hass || this._voiceHistoryPending) return;
     this._voiceHistoryPending = true;
@@ -226,6 +247,31 @@ class DeclanTwoNativePanel extends HTMLElement {
         detail.textContent = 'Speaker: ' + (item.current_assigned_to || item.matched_speaker || 'Unassigned') +
           ' · Status: ' + (item.status || 'Unknown') + ' · Recorded: ' + (item.recorded_at || 'Unknown');
         card.append(transcript, detail);
+        if (item.id && item.current_resolution_id) {
+          const actions = document.createElement('div');
+          actions.className = 'history-actions';
+          const select = document.createElement('select');
+          select.setAttribute('aria-label', 'Correct reviewed speaker');
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Choose corrected speaker…';
+          select.append(placeholder);
+          for (const profile of (this._voiceProfiles || [])) {
+            if (!profile.name) continue;
+            const option = document.createElement('option');
+            option.value = profile.name;
+            option.textContent = profile.name;
+            select.append(option);
+          }
+          const correct = document.createElement('button');
+          correct.type = 'button';
+          correct.textContent = 'Correct speaker';
+          correct.disabled = true;
+          select.addEventListener('change', () => { correct.disabled = !select.value; });
+          correct.addEventListener('click', () => void this.correctVoiceHistory(item, select.value));
+          actions.append(select, correct);
+          card.append(actions);
+        }
         list.append(card);
       }
       status.textContent = data.interactions.length
@@ -247,6 +293,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const data = await this._hass.callApi('GET', 'declan_two/voice-review');
       if (!data || !Array.isArray(data.profiles) || !Array.isArray(data.interactions)) throw new Error('Invalid response');
+      this._voiceProfiles = data.profiles;
       list.replaceChildren();
       const heading = document.createElement('h3');
       heading.textContent = 'Enrolled speakers';
@@ -343,6 +390,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         list.append(card);
       }
       this._voicesLoaded = true;
+      if (!this._voiceHistoryLoaded) { this._voiceHistoryLoaded = true; void this.loadVoiceHistory(); }
       status.textContent = 'VoicePipeline matches loaded. Confirm, reassign or reject pending recordings.';
     } catch {
       status.textContent = 'Could not load VoicePipeline data. Check the backend connection and HA admin permissions.';
