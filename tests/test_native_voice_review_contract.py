@@ -16,7 +16,7 @@ class VoiceReviewContractTests(unittest.TestCase):
         post = SERVER[SERVER.index("    def handle_post(self):"):]
         self.assertIn('self.path == "/api/voicepipeline"', get)
         self.assertIn('not voice_review_auth', get)
-        self.assertIn('body.get("operation") not in {"resolve", "audio", "history"}', post)
+        self.assertIn('body.get("operation") not in {"resolve", "audio", "history", "correct"}', post)
         self.assertIn('body.get("action") not in {"confirm", "assign", "dismiss", "enrol"}', post)
         self.assertIn('set(body) != {"operation", "interaction_id"}', post)
         self.assertIn('set(body) != {"operation"}', post)
