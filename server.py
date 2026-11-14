@@ -1584,7 +1584,12 @@ class Handler(BaseHTTPRequestHandler):
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
-        if not ingress and not capabilities_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and self.client_address[0] != "127.0.0.1":
+        settings_status_auth = (
+            self.path == "/api/native/settings-status"
+            and len(token) >= 32
+            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
+        )
+        if not ingress and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and self.client_address[0] != "127.0.0.1":
             self.send_json(403, {"error": "Local access only."})
             return
         if not ingress and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (
@@ -1609,6 +1614,12 @@ class Handler(BaseHTTPRequestHandler):
                 "server_version": RELEASE_VERSION,
                 "capabilities": ["updates", "ha_status"],
             })
+        elif self.path == "/api/native/settings-status":
+            try:
+                _, source = music.spotify_credentials()
+                self.send_json(200, {"spotify_configured": source != "missing", "spotify_source": source})
+            except (OSError, ValueError):
+                self.send_json(503, {"error": "Spotify configuration status unavailable."})
         elif self.path == "/api/ha-status":
             self.send_json(200, {"status": home_assistant_status(), "release_version": RELEASE_VERSION})
         elif self.path == "/api/updates/status":
