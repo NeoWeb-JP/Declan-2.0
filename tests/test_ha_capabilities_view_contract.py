@@ -23,7 +23,7 @@ class CapabilitiesViewContractTests(unittest.TestCase):
         self.assertIn('"Cache-Control": "no-store"', source)
         self.assertIn('check_server_compatibility(payload)', source)
         self.assertNotIn('"token":', source)
-        self.assertNotIn('"Authorization":', source)
+        self.assertIn('headers={"Authorization": f"Bearer {entry.data[\\'token\']}"}', source)
 
     def test_route_registered_once_at_integration_setup(self):
         source = (ROOT / "__init__.py").read_text(encoding="utf-8")
