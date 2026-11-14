@@ -7,7 +7,7 @@ JS = (Path(__file__).resolve().parents[1] / "custom_components" / "declan_two" /
 
 class NativeNavigationTests(unittest.TestCase):
     def test_each_tab_has_matching_panel(self):
-        for name in ("overview", "players", "settings", "updates"):
+        for name in ("overview", "conversations", "players", "settings", "updates"):
             with self.subTest(tab=name):
                 self.assertIn(f'id="tab-{name}"', JS)
                 self.assertIn(f'id="panel-{name}"', JS)
@@ -16,7 +16,7 @@ class NativeNavigationTests(unittest.TestCase):
 
     def test_voice_review_is_in_conversation_timeline(self):
         self.assertIn('class="timeline-list"', JS)
-        self.assertNotIn('id="tab-conversations"', JS)
+        self.assertIn('id="tab-conversations"', JS)
         self.assertIn('class="overview-chat-heading"', JS)
         self.assertIn('class="voices-list"', JS)
         self.assertNotIn('id="tab-voices"', JS)
