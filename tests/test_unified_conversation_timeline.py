@@ -28,7 +28,7 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("recordings.set(item.id, {kind:'pending', item})", JS)
         self.assertIn("recordings.set(item.id, {kind:'reviewed', item})", JS)
         self.assertIn("Date.parse(a.item.recorded_at || '')", JS)
-        self.assertIn("textContent = kind === 'pending' ? 'Confirm' : 'Change speaker'", JS)
+        self.assertIn("save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';", JS)
         self.assertIn("play.textContent = 'Play'", JS)
         self.assertIn("this.playVoice(item.id, play,", JS)
 
