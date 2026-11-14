@@ -26,6 +26,10 @@ class DeclanTwoNativePanel extends HTMLElement {
         .tabs { display:flex; gap:8px; overflow-x:auto; padding:18px 0 6px; scrollbar-width:thin; }
         .tabs button { white-space:nowrap; flex-shrink:0; }
         .tabs button[aria-selected="true"] { background:#184860; border-color:#76dbff; }
+        .subtabs { display:flex; gap:8px; overflow-x:auto; padding:6px 0 12px; scrollbar-width:thin; }
+        .subtabs button { flex-shrink:0; white-space:nowrap; }
+        .subtabs button[aria-selected="true"] { background:#184860; border-color:#76dbff; }
+        .activity-view[hidden] { display:none; }
         .card { margin-top:14px; padding:22px; border:1px solid #1d3d51;
           background:#0b1a25; border-radius:14px; }
         .state { font-weight:600; }
@@ -55,9 +59,8 @@ class DeclanTwoNativePanel extends HTMLElement {
         </header>
         <nav class="tabs" aria-label="Declan management" role="tablist">
           <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
-          <button role="tab" id="tab-conversations" aria-controls="panel-conversations" aria-selected="false" data-tab="conversations">Conversations</button>
+          <button role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="false" data-tab="activity">Conversations &amp; Voice</button>
           <button role="tab" id="tab-players" aria-controls="panel-players" aria-selected="false" data-tab="players">Media players</button>
-          <button role="tab" id="tab-voices" aria-controls="panel-voices" aria-selected="false" data-tab="voices">Voice profiles</button>
           <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
         </nav>
         <section class="card panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
@@ -65,8 +68,15 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="state" role="status" aria-live="polite">Waiting for Home Assistant…</div>
           <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
         </section>
-        <section class="card panel" id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations" hidden>
-          <h2>Conversations</h2>
+        <section class="card panel" id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+          <h2>Conversations &amp; Voice</h2>
+          <nav class="subtabs" aria-label="Conversation and voice views" role="tablist">
+            <button type="button" role="tab" data-activity="conversations" aria-selected="true" aria-controls="activity-conversations">Conversations</button>
+            <button type="button" role="tab" data-activity="review" aria-selected="false" aria-controls="activity-review">Review</button>
+            <button type="button" role="tab" data-activity="reviewed" aria-selected="false" aria-controls="activity-reviewed">Reviewed</button>
+            <button type="button" role="tab" data-activity="profiles" aria-selected="false" aria-controls="activity-profiles">Profiles</button>
+          </nav>
+          <div class="activity-view" id="activity-conversations" role="tabpanel">
           <form class="chat-form" aria-label="Chat with Declan">
             <label for="native-chat-input">Message</label>
             <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="Ask Declan anything" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
@@ -74,6 +84,26 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="chat-status muted" role="status" aria-live="polite"></p>
           <div class="chat-replies" aria-label="Current chat"></div>
           <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Chat and editing remain in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
+          </div>
+          <div class="activity-view" id="activity-review" role="tabpanel" hidden>
+            <h3>Pending voice reviews</h3>
+            <p class="muted">Choose an enrolled speaker and confirm, enrol a new speaker, play or reject a recording.</p>
+            <button class="voices-refresh" type="button">Refresh pending recordings</button>
+            <p class="voices-status muted" role="status" aria-live="polite">Open Review to load pending recordings.</p>
+            <div class="voices-list"></div>
+          </div>
+          <div class="activity-view" id="activity-reviewed" role="tabpanel" hidden>
+            <h3>Reviewed recordings</h3>
+            <div class="history-actions"><button class="voices-history-refresh" type="button">Refresh reviewed recordings</button></div>
+            <p class="voices-history-status muted" role="status" aria-live="polite">Open Reviewed to load recordings.</p>
+            <div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
+          </div>
+          <div class="activity-view" id="activity-profiles" role="tabpanel" hidden>
+            <h3>Enrolled speakers</h3>
+            <button class="voices-profiles-refresh" type="button">Refresh profiles</button>
+            <p class="voices-profiles-status muted" role="status" aria-live="polite">Open Profiles to load enrolled speakers.</p>
+            <div class="voices-profiles-list"></div>
+          </div>
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
           <h2>Approved media players</h2>
@@ -81,16 +111,6 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="history-actions"><button type="button" class="players-refresh">Refresh players</button><button type="button" class="players-save" disabled>Save mappings</button></div>
           <p class="players-status muted" role="status" aria-live="polite">Open this tab to load areas and players.</p>
           <div class="players-list"></div>
-        </section>
-        <section class="card panel" id="panel-voices" role="tabpanel" aria-labelledby="tab-voices" hidden>
-          <h2>Voice profiles</h2>
-          <p class="muted">Review pending recordings: choose an enrolled speaker and confirm, play the recording, or reject a bad recording.</p>
-          <button class="voices-refresh" type="button">Refresh voice profiles</button>
-          <p class="voices-status muted" role="status" aria-live="polite">Open this tab to load profiles.</p>
-          <div class="voices-list"></div>
-          <div class="history-actions"><button class="voices-history-refresh" type="button">Refresh reviewed recordings</button></div>
-          <p class="voices-history-status muted" role="status" aria-live="polite">View recordings already reviewed in VoicePipeline.</p>
-          <div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
         </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Updates</h2><p class="muted">Use the existing Declan updater for now. The native panel will not initiate installs until authenticated update operations and recovery are verified.</p>
@@ -103,6 +123,20 @@ class DeclanTwoNativePanel extends HTMLElement {
     });
     this.shadowRoot.querySelector('.voices-refresh').addEventListener('click', () => this.loadVoices());
     this.shadowRoot.querySelector('.voices-history-refresh').addEventListener('click', () => this.loadVoiceHistory());
+    this.shadowRoot.querySelector('.voices-profiles-refresh').addEventListener('click', () => this.loadVoiceProfiles());
+    this.shadowRoot.querySelectorAll('[data-activity]').forEach(tab => {
+      tab.addEventListener('click', () => this.selectActivity(tab.dataset.activity));
+      tab.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const tabs = [...this.shadowRoot.querySelectorAll('[data-activity]')];
+        const index = tabs.indexOf(tab);
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+          : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        this.selectActivity(tabs[next].dataset.activity);
+        tabs[next].focus();
+      });
+    });
     this.shadowRoot.querySelector('.players-refresh').addEventListener('click', () => this.loadPlayers());
     this.shadowRoot.querySelector('.players-save').addEventListener('click', () => this.savePlayers());
     this.shadowRoot.querySelector('.history-refresh').addEventListener('click', () => this.loadHistory());
@@ -135,9 +169,61 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelectorAll('.panel').forEach(panel => {
       panel.hidden = panel.id !== 'panel-' + name;
     });
-    if (name === 'conversations' && !this._historyLoaded) void this.loadHistory();
+    if (name === 'activity') this.selectActivity(this._activityTab || 'conversations');
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
-    if (name === 'voices' && !this._voicesLoaded) void this.loadVoices();
+
+  }
+
+  selectActivity(name) {
+    this._activityTab = name;
+    this.shadowRoot.querySelectorAll('[data-activity]').forEach(tab => {
+      const active = tab.dataset.activity === name;
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+    });
+    this.shadowRoot.querySelectorAll('.activity-view').forEach(panel => {
+      panel.hidden = panel.id !== 'activity-' + name;
+    });
+    if (name === 'conversations' && !this._historyLoaded) void this.loadHistory();
+    if (name === 'review' && !this._voicesLoaded) void this.loadVoices();
+    if (name === 'reviewed' && !this._voiceHistoryLoaded) {
+      this._voiceHistoryLoaded = true;
+      void this.loadVoiceHistory();
+    }
+    if (name === 'profiles' && !this._voiceProfilesLoaded) void this.loadVoiceProfiles();
+  }
+
+  async loadVoiceProfiles() {
+    if (!this._hass || this._voiceProfilesPending) return;
+    this._voiceProfilesPending = true;
+    const status = this.shadowRoot.querySelector('.voices-profiles-status');
+    const list = this.shadowRoot.querySelector('.voices-profiles-list');
+    status.textContent = 'Loading enrolled speakers…';
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/voice-review');
+      if (!data || !Array.isArray(data.profiles)) throw new Error('Invalid profiles');
+      this._voiceProfiles = data.profiles;
+      this._voiceProfilesLoaded = true;
+      list.replaceChildren();
+      for (const profile of data.profiles) {
+        const card = document.createElement('article');
+        card.className = 'turn';
+        const name = document.createElement('strong');
+        name.textContent = profile.name || 'Unnamed speaker';
+        const details = document.createElement('p');
+        details.textContent = 'Average confidence: ' +
+          (Number.isFinite(profile.avg_confidence) ? (profile.avg_confidence * 100).toFixed(1) + '%' : 'Not available') +
+          ' · Reference clips: ' + (profile.reference_clip_count ?? 'Unknown') +
+          ' · Interactions: ' + (profile.interaction_count ?? 'Unknown');
+        card.append(name, details);
+        list.append(card);
+      }
+      status.textContent = data.profiles.length ? data.profiles.length + ' enrolled speakers.' : 'No enrolled speakers found.';
+    } catch {
+      status.textContent = 'Could not load enrolled speakers.';
+    } finally {
+      this._voiceProfilesPending = false;
+    }
   }
 
   set hass(value) {
@@ -295,25 +381,6 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (!data || !Array.isArray(data.profiles) || !Array.isArray(data.interactions)) throw new Error('Invalid response');
       this._voiceProfiles = data.profiles;
       list.replaceChildren();
-      const heading = document.createElement('h3');
-      heading.textContent = 'Enrolled speakers';
-      list.append(heading);
-      for (const profile of data.profiles) {
-        const card = document.createElement('article');
-        card.className = 'turn';
-        const name = document.createElement('strong');
-        name.textContent = profile.name || 'Unnamed speaker';
-        const details = document.createElement('p');
-        const avg = Number.isFinite(profile.avg_confidence) ? (profile.avg_confidence * 100).toFixed(1) + '%' : 'Not available';
-        details.textContent = 'Average confidence: ' + avg + ' · Reference clips: ' + (profile.reference_clip_count ?? 'Unknown') + ' · Interactions: ' + (profile.interaction_count ?? 'Unknown');
-        card.append(name, details);
-        list.append(card);
-      }
-      if (!data.profiles.length) {
-        const empty = document.createElement('p');
-        empty.textContent = 'No enrolled speakers found.';
-        list.append(empty);
-      }
       const pending = document.createElement('h3');
       pending.textContent = 'Pending recordings (' + data.interactions.length + ')';
       list.append(pending);
@@ -390,7 +457,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         list.append(card);
       }
       this._voicesLoaded = true;
-      if (!this._voiceHistoryLoaded) { this._voiceHistoryLoaded = true; void this.loadVoiceHistory(); }
+      if (this._activityTab === 'reviewed') { this._voiceHistoryLoaded = true; void this.loadVoiceHistory(); }
       status.textContent = 'VoicePipeline matches loaded. Confirm, reassign or reject pending recordings.';
     } catch {
       status.textContent = 'Could not load VoicePipeline data. Check the backend connection and HA admin permissions.';
