@@ -1763,6 +1763,13 @@ class Handler(BaseHTTPRequestHandler):
                 f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
             )
         ) and not (
+            self.path == "/api/stt"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
             self.path == "/api/updates"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
