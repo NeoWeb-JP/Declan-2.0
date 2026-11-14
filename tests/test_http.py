@@ -150,7 +150,7 @@ class APITests(TestCase):
         ):
             status, data = self.request("/api/ha-status")
         self.assertEqual((status, json.loads(data)), (200, {"status": "disconnected", "release_version": "v1.2.3"}))
-        self.assertIn(b"ha-status", self.request("/")[1])
+        self.assertIn(b'id="api-status"', self.request("/")[1])
         self.assertTrue(self.request("/logo.png")[1].startswith(b"\x89PNG"))
         self.assertEqual(json.loads(self.request("/health")[1]), {"status": "ok"})
         self.assertEqual(self.request("/unknown")[0], 404)
