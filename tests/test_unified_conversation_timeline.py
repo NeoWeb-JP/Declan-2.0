@@ -7,12 +7,12 @@ JS = (Path(__file__).resolve().parents[1] / "custom_components/declan_two/fronte
 class UnifiedTimelineTests(unittest.TestCase):
     def test_initial_mount_activates_selected_tab(self):
         self.assertIn('connectedCallback() {', JS)
-        self.assertIn("this.selectTab(selected?.value || 'overview');", JS)
+        self.assertIn("this.selectTab('overview');", JS)
         self.assertIn("panel.hidden = panel.id !== 'panel-' + name;", JS)
-        self.assertIn("if (selector && selector.value !== name) selector.value = name;", JS)
+        self.assertIn("this.closePageMenu();", JS)
 
     def test_single_primary_activity_view(self):
-        self.assertIn('<option value="conversations">History &amp; Voice', JS)
+        self.assertIn('data-page="conversations">History &amp; Voice', JS)
         self.assertNotIn('data-tab="voices"', JS)
         self.assertIn('class="timeline-list"', JS)
         self.assertIn('class="timeline-filter"', JS)
