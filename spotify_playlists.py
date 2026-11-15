@@ -3,7 +3,7 @@ import json
 import os
 import re
 from pathlib import Path
-from threading import RLock
+from threading import RLock, Thread
 
 CATEGORIES = ("country", "braai", "romantic", "sexy_time", "rock", "afrikaans",
               "80s", "90s", "work_focus", "adhd_focus", "massage")
@@ -11,6 +11,7 @@ CAPACITY = 25
 URI = re.compile(r"(?:spotify(?::|://)playlist[:/]|https://open\.spotify\.com/playlist/)([A-Za-z0-9]{22})(?:\?[^#]*)?\Z")
 LOCK = RLock()
 DEFAULT_PATH = Path(__file__).with_name(".data") / "spotify-playlists.json"
+_REFRESH = {"running": False, "category": None, "error": None, "completed": None}
 
 
 def canonical(value):
@@ -83,7 +84,7 @@ def manage(body):
 
 def listing():
     with LOCK:
-        return {"categories": load(), "max_playlists": CAPACITY}
+        return {"categories": load(), "max_playlists": CAPACITY, "refresh": dict(_REFRESH)}
 
 
 def refresh(discovered):
@@ -112,16 +113,45 @@ QUERIES = {
 }
 
 
-def discover(opener):
-    """Search Spotify through Declan 2.0's existing credentials/token cache."""
+def discover(opener, category=None):
+    """Search Spotify playlists and preserve existing results on failed searches."""
     import music
+    targets = (category,) if category else CATEGORIES
     results = {}
-    for category, terms in QUERIES.items():
+    for name in targets:
         found = []
-        for term in terms:
+        for term in QUERIES[name]:
             for link, kind, _title in music.spotify_search(opener, term, "", ("playlist",)):
                 selected = canonical(link)
                 if kind == "playlist" and selected and selected not in found:
                     found.append(selected)
-        results[category] = found
+        # A legitimate empty search should not wipe a previously curated list.
+        if found:
+            results[name] = found
     return refresh(results)
+
+
+def start_refresh(category, opener_factory):
+    """Start one bounded refresh outside the HTTP request thread."""
+    if category not in CATEGORIES:
+        raise ValueError("Unknown Spotify category")
+    with LOCK:
+        if _REFRESH["running"]:
+            return {"refresh": dict(_REFRESH), "categories": load(), "max_playlists": CAPACITY}
+        _REFRESH.update(running=True, category=category, error=None, completed=None)
+
+    def work():
+        from datetime import datetime, timezone
+        try:
+            discover(opener_factory(), category)
+        except Exception as error:
+            # Keep the previous catalogue on failures, including Spotify 429.
+            with LOCK:
+                _REFRESH["error"] = "Spotify discovery failed: " + type(error).__name__
+        finally:
+            with LOCK:
+                _REFRESH["running"] = False
+                _REFRESH["completed"] = datetime.now(timezone.utc).isoformat()
+
+    Thread(target=work, daemon=True, name="spotify-playlist-refresh").start()
+    return listing()
