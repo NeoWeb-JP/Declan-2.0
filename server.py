@@ -331,6 +331,10 @@ def run_custom_routine(name, action_results=None):
     if connection is None:
         return "Home Assistant is not connected.", "not_configured", None
     url, headers, opener = connection
+    if parameters and "room" in parameters:
+        areas = read_ha_areas(connection)
+        if parameters["room"] not in areas:
+            return "I could not match that room to a Home Assistant area.", "unresolved", None
     script = item["script"]
     # No script guessing or fallback: only a script selected in Settings may execute.
     request_id = "declan-" + secrets.token_hex(16)
