@@ -171,6 +171,11 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                 await announce(SimpleNamespace(data={"kind": "reminder", "message": "Lunch",
                                                      "entity_id": "media_player.other"}))
             hass.services.async_call.assert_not_awaited()
+        for category in ("unknown", "ev_reminder", "music", "routine", "", None):
+            hass.services.async_call.reset_mock()
+            await announce(SimpleNamespace(data={"kind": category, "message": "Reminder",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_not_awaited()
         for invalid_destination in (
             "media_player.", "media_player.kitchen,media_player.other",
             "media_player.Kitchen", "media_player.kitchen extra",
