@@ -1450,8 +1450,6 @@ def _bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None
 
 def guarded_openai_fallback(message, *, source, exposed_entities=()):
     """Opt-in fallback after local handlers. Sensitive targets excluded."""
-    if os.environ.get("DECLAN_OPENAI_FALLBACK_ENABLED") != "1":
-        return None
     try:
         settings = ai_settings.read()
     except (OSError, ValueError, sqlite3.Error):
