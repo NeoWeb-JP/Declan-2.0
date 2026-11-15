@@ -1744,7 +1744,13 @@ class Handler(BaseHTTPRequestHandler):
         candidates = {row["entity_id"]: row for row in inventory
                       if row.get("declan_music_assistant") is True
                       and row["entity_id"].startswith("media_player.")}
-        room_labels = {music.room_key(name): name for name in areas}
+        room_labels = {}
+        # read_ha_areas includes compatibility aliases (e.g. bedroom for
+        # Master Bedroom). Prefer the full HA area name over its alias.
+        for name in areas:
+            key = music.room_key(name)
+            if len(name) > len(room_labels.get(key, "")):
+                room_labels[key] = name.title()
         room_labels["everywhere"] = "Everywhere"
         rooms = sorted(room_labels)
         if body is not None:
