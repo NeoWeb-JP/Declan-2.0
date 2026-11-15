@@ -800,7 +800,7 @@ def ha_device_connection():
 
 
 @diagnostics.timed("bedroom_routine")
-def run_sexy_time(operation, connection):
+def run_sexy_time(operation, connection, *, approved=False):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured", None
     try:
@@ -809,6 +809,8 @@ def run_sexy_time(operation, connection):
         sexy_mapping = None
     if not sexy_mapping:
         return "Map the Sexy Time script in Declan Settings.", "not_configured", None
+    if sexy_mapping["sensitive"] and not approved:
+        return "Sexy Time requires explicit confirmation.", "unresolved", None
     sexy_script = sexy_mapping["script"]
     if not SEXY_TIME_LOCK.acquire(blocking=False):
         return "I'm still handling the previous Sexy Time request.", "busy", None
@@ -872,7 +874,7 @@ def run_sexy_time(operation, connection):
 
 
 @diagnostics.timed("dinner_dispatch")
-def start_dinner(connection):
+def start_dinner(connection, *, approved=False):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
     try:
@@ -881,6 +883,8 @@ def start_dinner(connection):
         dinner_mapping = None
     if not dinner_mapping:
         return "Map the Dinner script in Declan Settings.", "not_configured"
+    if dinner_mapping["sensitive"] and not approved:
+        return "Dinner routine requires explicit confirmation.", "unresolved"
     url, headers, opener = connection
     announcement = choose_line("dinner_announcement", read_guest_mode())
     request = Request(
@@ -2383,9 +2387,9 @@ class Handler(BaseHTTPRequestHandler):
         elif phrase == "stop":
             routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
         elif phrase.replace("’", "'") in DINNER_PHRASES:
-            routine_reply, outcome = start_dinner(ha_device_connection())
+            routine_reply, outcome = start_dinner(ha_device_connection(), approved=routine_approved)
         elif phrase in SEXY_TIME_COMMANDS:
-            routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection())
+            routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection(), approved=routine_approved)
         elif phrase in GUEST_COMMANDS:
             routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
