@@ -233,6 +233,29 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-settings" role="region" aria-label="Declan page" hidden>
           <h2>Settings</h2>
+          <details class="settings-section" open>
+            <summary>AI Intelligence <small>OpenAI fallback, permissions and spending</small></summary>
+            <div class="settings-section-content">
+              <form class="ai-settings-form">
+                <label><input type="checkbox" name="enabled"> Enable OpenAI fallback</label>
+                <label>Model <input name="model" maxlength="80" required></label>
+                <label>Monthly budget (USD) <input name="monthly_budget_usd" inputmode="decimal" required></label>
+                <label>Maximum per request (USD) <input name="request_ceiling_usd" inputmode="decimal" required></label>
+                <label>Maximum actions <input name="max_actions" type="number" min="1" max="8" required></label>
+                <fieldset><legend>AI permitted device categories</legend>
+                  <label><input type="checkbox" name="domain_light"> Lights</label>
+                  <label><input type="checkbox" name="domain_switch"> Switches</label>
+                  <label><input type="checkbox" name="domain_fan"> Fans</label>
+                  <label><input type="checkbox" name="domain_cover"> Covers</label>
+                </fieldset>
+                <p class="muted">Sensitive actions require confirmation. Only mapped routines are permitted. Ambiguous requests trigger clarification.</p>
+                <label><input type="checkbox" name="diagnostics"> Record diagnostics</label>
+                <label><input type="checkbox" name="show_proposals"> Show AI proposals in History</label>
+                <button type="submit">Save AI settings</button>
+              </form>
+              <p class="ai-settings-status muted" role="status" aria-live="polite">Open Settings to load AI configuration.</p>
+            </div>
+          </details>
           <div class="settings-sections">
             <details class="settings-section settings-section--voice">
               <summary><span class="settings-section-icon" aria-hidden="true">◉</span><span class="settings-section-title">Voice &amp; learning<small>Profiles, reviewed recordings and learned commands</small></span></summary>
@@ -293,6 +316,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
       this.bindPanelEvent('.mic-stop', 'click', () => this.stopMicrophone());
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
+      this.bindPanelEvent('.ai-settings-form', 'submit', event => {
+        event.preventDefault(); void this.saveAISettings();
+      });
       this._settingsImportPreview = null;
       this.bindPanelEvent('.settings-import-file', 'change', () => this.resetSettingsImport());
       this.bindPanelEvent('.settings-import-preview', 'click', () => this.previewSettingsImport());
@@ -881,6 +907,49 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Showing up to 30 recent traces.';
     } catch {
       status.textContent = 'Unable to load diagnostics.';
+    }
+  }
+
+  async loadAISettings() {
+    if (!this._hass) return;
+    const form = this.shadowRoot.querySelector('.ai-settings-form');
+    const status = this.shadowRoot.querySelector('.ai-settings-status');
+    status.textContent = 'Loading AI settings…';
+    try {
+      const {settings: data} = await this._hass.callApi('GET', 'declan_two/ai-settings');
+      this._aiSettings = data;
+      for (const [key, value] of Object.entries(data)) {
+        const field = form.elements.namedItem(key);
+        if (field) {
+          if (field.type === 'checkbox') field.checked = value === true;
+          else field.value = String(value);
+        }
+      }
+      for (const domain of ['light', 'switch', 'fan', 'cover']) {
+        form.elements.namedItem('domain_' + domain).checked = data.allowed_domains.includes(domain);
+      }
+      status.textContent = 'AI settings loaded. OpenAI API credentials must be configured on the backend.';
+    } catch {
+      status.textContent = 'Could not load AI settings. Changes are not saved.';
+    }
+  }
+
+  async saveAISettings() {
+    const form = this.shadowRoot.querySelector('.ai-settings-form');
+    const status = this.shadowRoot.querySelector('.ai-settings-status');
+    if (!this._aiSettings) { status.textContent = 'Load settings before saving.'; return; }
+    const data = {...this._aiSettings};
+    for (const key of ['enabled', 'diagnostics', 'show_proposals']) data[key] = form.elements.namedItem(key).checked;
+    for (const key of ['model', 'monthly_budget_usd', 'request_ceiling_usd']) data[key] = form.elements.namedItem(key).value.trim();
+    data.max_actions = Number(form.elements.namedItem('max_actions').value);
+    data.allowed_domains = ['light', 'switch', 'fan', 'cover'].filter(domain => form.elements.namedItem('domain_' + domain).checked);
+    status.textContent = 'Saving AI settings…';
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/ai-settings', {settings: data});
+      this._aiSettings = result.settings;
+      status.textContent = 'AI settings saved.';
+    } catch {
+      status.textContent = 'Could not save AI settings. Check budget, model and permissions.';
     }
   }
 
