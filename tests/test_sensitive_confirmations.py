@@ -29,9 +29,9 @@ class SensitiveConfirmationTests(unittest.TestCase):
         self.assertEqual(self.check(phrase="confirm")[0], "allow")
     def test_missing_origin_fails_closed(self):
         self.assertEqual(self.check(origin=None)[0], "denied")
-    def test_trusted_requires_explicit_allowlist_and_confidence(self):
+    def test_speaker_recognition_never_bypasses_confirmation(self):
         with patch.dict(os.environ, {"DECLAN_TRUSTED_SPEAKERS":"Jaco,Edd"}):
-            self.assertEqual(self.check(speaker={"name":"Jaco","confidence":0.95})[0], "allow")
+            self.assertEqual(self.check(speaker={"name":"Jaco","confidence":0.95})[0], "prompt")
             self.assertEqual(self.check(speaker={"name":"Jaco","confidence":0.7})[0], "prompt")
             self.assertEqual(self.check(speaker={"name":"Jaco","confidence":"0.99"})[0], "prompt")
             self.assertEqual(self.check(speaker={"name":"Jaco","confidence":float("nan")})[0], "prompt")
