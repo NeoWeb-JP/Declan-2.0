@@ -116,6 +116,11 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.entry.options = {"tts_enabled": True, "primary_tts": "tts.example",
                               "overnight_announcement_outputs": "media_player.kitchen"}
         self.assertTrue(await self.component.async_setup_entry(hass, self.entry))
+        # The production callback must have its own clock imports. A mocked
+        # clock in this test must not conceal missing runtime imports.
+        from datetime import datetime as real_datetime, time as real_time
+        self.assertIs(announce.__globals__["datetime"], real_datetime)
+        self.assertIs(announce.__globals__["time"], real_time)
         domain, service, announce = hass.services.async_register.call_args.args
         self.assertEqual((domain, service), ("declan_two", "announce"))
         with patch.dict(announce.__globals__, {"datetime": Mock(), "time": __import__("datetime").time}) as globals_:
