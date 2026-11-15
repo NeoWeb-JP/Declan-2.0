@@ -2377,7 +2377,7 @@ class Handler(BaseHTTPRequestHandler):
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
             lighting_context = ()
             routine, follow_on = routine_turn
-            routine_reply, outcome, routine_status = execute_routine(routine, action_results, approved=routine_approved)
+            routine_reply, outcome, routine_status = (execute_routine(routine, action_results, approved=routine_approved) if routine[0].startswith("custom:") else execute_routine(routine, action_results))
             if follow_on:
                 light_steps = []
                 if follow_on.startswith("play "):
