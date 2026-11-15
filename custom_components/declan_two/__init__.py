@@ -88,6 +88,9 @@ async def async_setup_entry(hass, entry):
         # Use Home Assistant's configured household timezone rather than the
         # host/container timezone (often UTC, which differs during BST).
         zone_name = getattr(getattr(hass, "config", None), "time_zone", None)
+        if zone_name is not None and (not isinstance(zone_name, str) or not zone_name.strip()):
+            _LOGGER.warning("Invalid Home Assistant timezone; suppressing announcement")
+            return
         if isinstance(zone_name, str) and zone_name:
             from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
             try:
