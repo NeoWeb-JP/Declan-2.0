@@ -84,7 +84,14 @@ async def async_setup_entry(hass, entry):
                 "overnight_announcement_outputs", "").split(",") if name.strip()
         }
         destination = call.data.get("entity_id", "")
-        provider = entry.options.get("primary_tts", "")
+        # Route announcements through Declan's own speech entity so quiet-hour
+        # PCM attenuation applies without altering the Music Assistant volume.
+        # Never bypass that policy by calling the raw upstream TTS provider.
+        provider = (
+            f"tts.declan_2_0_voice_manager"
+            if entry.options.get("tts_enabled", False)
+            else ""
+        )
         if not isinstance(destination, str) or not destination.startswith("media_player.") or (
             overnight and destination not in approved
         ):
@@ -93,7 +100,7 @@ async def async_setup_entry(hass, entry):
         if not isinstance(message, str) or not message.strip():
             return
         if not isinstance(provider, str) or not provider.startswith("tts."):
-            _LOGGER.warning("Declan announcement has no configured TTS provider")
+            _LOGGER.warning("Declan announcements require the Declan voice manager to be enabled")
             return
         await hass.services.async_call(
             "tts", "speak",
