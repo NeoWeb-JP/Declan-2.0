@@ -2576,7 +2576,8 @@ class Handler(BaseHTTPRequestHandler):
                 for variants in __import__("personality").LINES.values()
                 for group in variants for line in group
             )
-            if routine_reply is not None and outcome == "confirmed" and not existing_lines:
+            if (routine_reply is not None and outcome == "confirmed" and not existing_lines
+                    and (music.parse(phrase) or music.parse_control(phrase))):
                 reply["reply"] = personality_policy.decorate(
                     reply["reply"], outcome=outcome,
                     guest=read_guest_mode() != "off",
