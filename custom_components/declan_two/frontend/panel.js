@@ -1393,12 +1393,12 @@ class DeclanTwoNativePanel extends HTMLElement {
         reply.className = 'reply';
         reply.textContent = turn.reply || '';
         article.append(message, reply);
-        if (showProposals && Array.isArray(turn.action_results) && turn.action_results.length) {
+        if (showProposals && Array.isArray(turn.action_results) && turn.action_results.some(step => step.ai_generated === true)) {
           const details = document.createElement('details');
           const summary = document.createElement('summary');
           summary.textContent = 'AI action proposals and verified outcomes';
           details.append(summary);
-          for (const step of turn.action_results) {
+          for (const step of turn.action_results.filter(step => step.ai_generated === true)) {
             const line = document.createElement('p');
             line.textContent = [step.entity_id, step.action, step.status, step.detail].filter(Boolean).join(' · ');
             details.append(line);
