@@ -41,6 +41,11 @@ def run_guarded_fallback(
     )
     # Fail closed: retain the full reservation on exceptions or uncertain costs.
     plan = planner(utterance, tuple(exposed))
+    # Charge even clarification-only responses. Missing usage retains the
+    # full reservation, so a failed API accounting response cannot overspend.
+    if charge_micro_usd is not None:
+        actual = charge_micro_usd()
+        settle(budget_db, reservation, actual)
     if not plan:
         return {"reply": "I couldn't safely identify an action. Please be more specific.",
                 "outcome": "unresolved", "actions": ()}
@@ -52,11 +57,6 @@ def run_guarded_fallback(
         raise ValueError("Planner returned invalid candidates") from None
     validated = validate_plan(raw, exposed)
     checked = preflight(validated, inventory, confirmed_sensitive=sensitive_confirmed)
-    # Cost settlement is deliberately after planning, before side effects.
-    # A missing actual-charge callback retains the full reserved ceiling.
-    if charge_micro_usd is not None:
-        actual = charge_micro_usd()
-        settle(budget_db, reservation, actual)
     results = execute_verified(checked, dispatcher)
     reply, outcome = summarise(results)
     return {"reply": reply, "outcome": outcome, "actions": results}
