@@ -266,7 +266,7 @@ def select_routine(phrase, origin):
             return key, {}
         if key in {"movie", "movie_bedroom"}:
             return "movie", {"movie_action": "start", "movie_room": "bedroom" if key == "movie_bedroom" else "lounge", "requested_app": None}
-        return "custom:" + key, {}
+        return "custom:" + key, mapped_phrase[2]
     if phrase in GOOD_MORNING_PHRASES:
         return "morning", {}
     if phrase in GOOD_NIGHT_PHRASES:
@@ -274,7 +274,7 @@ def select_routine(phrase, origin):
     movie = parse_movie_request(phrase)
     if not movie:
         custom = routine_registry.match(phrase)
-        return ("custom:" + custom[0], {}) if custom else None
+        return ("custom:" + custom[0], custom[2]) if custom else None
     direction, room, app = movie
     if room in (None, "here"):
         area = None
@@ -306,7 +306,7 @@ def select_routine_turn(phrase, origin):
 def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
     if period.startswith("custom:"):
-        return run_custom_routine(period[7:], action_results, approved=approved)
+        return run_custom_routine(period[7:], action_results, approved=approved, parameters=options)
     if options is None:
         return "Which room do you mean for Movie Time?", "unresolved", None
     options = options.copy()
@@ -334,7 +334,7 @@ def run_custom_routine(name, action_results=None):
     script = item["script"]
     # No script guessing or fallback: only a script selected in Settings may execute.
     request_id = "declan-" + secrets.token_hex(16)
-    payload = {**item["fields"], "request_id": request_id, "routine_id": script}
+    payload = {**item["fields"], **(parameters or {}), "request_id": request_id, "routine_id": script}
     request = Request(f"{url}/api/services/script/{script.split('.', 1)[1]}?return_response",
                       data=json.dumps(payload).encode(), headers=headers, method="POST")
     with track_routine(name, script):
