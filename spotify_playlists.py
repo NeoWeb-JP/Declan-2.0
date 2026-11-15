@@ -2,6 +2,8 @@
 import json
 import os
 import re
+import logging
+from urllib.error import HTTPError
 from pathlib import Path
 from threading import RLock, Thread
 
@@ -10,6 +12,7 @@ CATEGORIES = ("country", "braai", "romantic", "sexy_time", "rock", "afrikaans",
 CAPACITY = 25
 URI = re.compile(r"(?:spotify(?::|://)playlist[:/]|https://open\.spotify\.com/playlist/)([A-Za-z0-9]{22})(?:\?[^#]*)?\Z")
 LOCK = RLock()
+LOGGER = logging.getLogger(__name__)
 DEFAULT_PATH = Path(__file__).with_name(".data") / "spotify-playlists.json"
 _REFRESH = {"running": False, "category": None, "error": None, "completed": None}
 
@@ -155,8 +158,21 @@ def start_refresh(category, opener_factory):
         from datetime import datetime, timezone
         try:
             discover(opener_factory(), category)
+        except HTTPError as error:
+            status = error.code
+            endpoint = "Spotify token" if "accounts.spotify.com" in error.url else "Spotify search"
+            message = {
+                400: "Spotify rejected the request (400).",
+                401: "Spotify rejected authentication (401). Check Spotify credentials.",
+                403: "Spotify denied API access (403). Check app permissions and API restrictions.",
+                429: "Spotify rate limit reached (429). Retry later.",
+            }.get(status, f"Spotify returned HTTP {status}.")
+            LOGGER.warning("Spotify playlist discovery failed: %s HTTP %s", endpoint, status)
+            error.close()
+            with LOCK:
+                _REFRESH["error"] = f"{endpoint}: {message}"
         except Exception as error:
-            # Keep the previous catalogue on failures, including Spotify 429.
+            LOGGER.exception("Spotify playlist discovery failed")
             with LOCK:
                 _REFRESH["error"] = "Spotify discovery failed: " + type(error).__name__
         finally:
