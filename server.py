@@ -1452,7 +1452,10 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
     """Opt-in fallback after local handlers. Sensitive targets excluded."""
     if os.environ.get("DECLAN_OPENAI_FALLBACK_ENABLED") != "1":
         return None
-    settings = ai_settings.read()
+    try:
+        settings = ai_settings.read()
+    except (OSError, ValueError, sqlite3.Error):
+        return "AI settings are unavailable; local commands still work.", "unresolved", []
     if not settings["enabled"]:
         return None
     connection = ha_device_connection()
