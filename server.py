@@ -1964,7 +1964,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            max_size = 450000 if self.path == "/api/voice-profiles" else 196608 if self.path == "/api/settings/import" else 65536 if self.path == "/api/assist/history" else 8192
+            max_size = 450000 if self.path == "/api/voice-profiles" else 196608 if self.path == "/api/settings/import" else 65536 if self.path in {"/api/assist/history", "/api/assist", "/api/chat"} else 8192
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
