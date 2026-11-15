@@ -2588,7 +2588,7 @@ class Handler(BaseHTTPRequestHandler):
                     and routine_reply is not None
                     and (light_result is not None
                          or music.parse(phrase) or music.parse_control(phrase))
-                    and not re.match(r"^(?:preview|dry[ -]run)\\b", phrase)
+                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
                     and not any(word in phrase.casefold() for word in
                                 ("smoke", "fire alarm", "carbon monoxide", "security alert",
                                  "emergency", "intruder", "panic alarm"))):
