@@ -16,7 +16,7 @@ MAX_CONTEXT = 100
 MAX_OUTPUT_TOKENS = 600
 
 
-def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_key=None):
+def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_key=None, usage_sink=None):
     """Return validated candidates only; never dispatch services.
 
     Fail closed on missing configuration, bad network responses or malformed
@@ -73,6 +73,10 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
         raise ValueError("OpenAI response too large")
     try:
         result = json.loads(raw)
+        if usage_sink is not None:
+            if not callable(usage_sink):
+                raise ValueError("Invalid usage receiver")
+            usage_sink(result.get("usage"))
         if result.get("status") != "completed":
             raise ValueError("Incomplete model response")
         pieces = [
