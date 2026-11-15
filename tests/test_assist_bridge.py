@@ -171,6 +171,12 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                 await announce(SimpleNamespace(data={"kind": "reminder", "message": "Lunch",
                                                      "entity_id": "media_player.other"}))
             hass.services.async_call.assert_not_awaited()
+        self.entry.options["overnight_announcement_outputs"] = None
+        hass.services.async_call.reset_mock()
+        await announce(SimpleNamespace(data={"kind": "security", "message": "Alert",
+                                             "entity_id": "media_player.kitchen"}))
+        hass.services.async_call.assert_not_awaited()
+        self.entry.options["overnight_announcement_outputs"] = "media_player.kitchen"
         name, handler = hass.bus.async_listen.call_args.args
         self.assertEqual(name, "declan_two_assist_reply")
         await handler(SimpleNamespace(data={"message": ""}))
