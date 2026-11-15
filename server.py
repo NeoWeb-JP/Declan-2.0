@@ -25,6 +25,7 @@ import webbrowser
 from arbitration import CaptureArbiter
 
 import conditions
+import sensitive_confirmations
 import diagnostics
 import configuration
 import voice_profiles
@@ -42,6 +43,7 @@ from personality import add_sass, choose_line
 SESSIONS = OrderedDict()
 SESSION_LOCK = Lock()
 CAPTURE_ARBITER = CaptureArbiter()
+SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
 routine_last_attempts = {}
@@ -116,6 +118,28 @@ def home_assistant_status():
                 or parsed.username or parsed.password or parsed.query or parsed.fragment):
             return "not_configured"
         request = Request(url + "/api/", headers={"Authorization": f"Bearer {token}"})
+        if source == "assist":
+            spoken = history.normalize_phrase(message)
+            candidate = spoken if spoken in sensitive_confirmations.YES | sensitive_confirmations.NO else phrase
+            routine_candidate = select_routine_turn(candidate, origin_device or satellite)
+            group = sensitive_confirmations.sensitive_group(candidate, routine_candidate, GUEST_COMMANDS)
+            if not session_id:
+                session_id = secrets.token_urlsafe(24)
+            decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate(
+                session=session_id, origin=satellite or origin_device,
+                phrase=candidate, group=group, speaker=body.get("speaker"))
+            if decision in {"prompt", "cancelled", "denied"}:
+                response = {
+                    "prompt": "I need confirmation before running that routine. Say confirm or cancel within 30 seconds.",
+                    "cancelled": "Cancelled. I haven't run that routine.",
+                    "denied": "I can't verify which satellite requested that sensitive routine.",
+                }[decision]
+                self.send_json(200, {"reply": response, "session_id": session_id,
+                                     "outcome": "confirmation_" + decision})
+                return
+            if decision == "confirmed":
+                phrase = approved_phrase
+                effective_message = approved_phrase
         opener = build_opener(ProxyHandler({}), NoRedirect())
         with opener.open(request, timeout=3) as response:
             payload = json.loads(response.read(4096))
