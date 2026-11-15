@@ -1110,6 +1110,55 @@ def read_ha_areas(connection, origin=None):
     return {}
 
 
+
+def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
+    """Only switch entities explicitly marked as lights may receive light commands."""
+    if desired_state not in {"on", "off"}:
+        return None
+    eligible = []
+    for row in inventory:
+        entity = row.get("entity_id", "") if isinstance(row, dict) else ""
+        attributes = row.get("attributes", {}) if isinstance(row, dict) else {}
+        if not re.fullmatch(r"switch\.[a-z0-9_]+", entity) or not isinstance(attributes, dict):
+            continue
+        if attributes.get("declan_as_light") is not True:
+            continue
+        label = str(attributes.get("friendly_name") or entity.split(".", 1)[1].replace("_", " ")).casefold()
+        if name.casefold() in {label, entity.casefold(), entity.split(".", 1)[1].replace("_", " ")}:
+            eligible.append((entity, row.get("state"), label))
+    if not eligible:
+        return None
+    if len(eligible) != 1:
+        return "More than one marked light switch matches. Please use its exact entity ID.", "unresolved"
+    entity, previous, label = eligible[0]
+    if previous not in {"on", "off"}:
+        return f"{label} is unavailable in Home Assistant.", "unavailable"
+    if preview:
+        return f"Preview: I would turn {desired_state} {label}.", "preview"
+    if previous == desired_state:
+        return f"{label} is already {desired_state}.", "confirmed"
+    url, headers, opener = connection
+    request = Request(f"{url}/api/services/switch/turn_{desired_state}", headers=headers,
+                      data=json.dumps({"entity_id": entity}).encode(), method="POST")
+    try:
+        with opener.open(request, timeout=4) as response:
+            response.read(4096)
+        state_request = Request(f"{url}/api/states/{entity}", headers=headers)
+        with opener.open(state_request, timeout=4) as response:
+            observed = json.loads(response.read(8192))
+        verified = isinstance(observed, dict) and observed.get("state") == desired_state
+    except HTTPError as error:
+        error.close()
+        verified = False
+    except (OSError, ValueError):
+        verified = False
+    if action_results is not None:
+        action_results.append({"target": label, "entity_id": entity, "action": "turn_" + desired_state,
+                               "status": "confirmed" if verified else "unverified"})
+    return (f"{label} is {desired_state}." if verified else f"I couldn't verify {label} is {desired_state}.",
+            "confirmed" if verified else "unverified")
+
+
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
     """Resolve Home Assistant lights before dispatch and verify their reported states."""
@@ -1348,6 +1397,10 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
     skipped_details = "".join(f" {message}" for message, _ in skipped)
     if not selected:
+        if brightness is None and not require_all and len(resolved_targets) == 1:
+            switch_result = set_switch_as_light(name, desired_state, inventory, connection, preview=preview, action_results=action_results)
+            if switch_result is not None:
+                return switch_result
         return (skipped_details.strip(), skipped[0][1]) if skipped else (
             "Tell me which lights to switch.", "unresolved"
         )
