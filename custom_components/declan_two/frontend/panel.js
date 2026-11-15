@@ -354,16 +354,8 @@ class DeclanTwoNativePanel extends HTMLElement {
               <summary><span class="settings-section-icon" aria-hidden="true">♫</span><span class="settings-section-title">Spotify playlists<small>Browse and curate 25 playlists per category</small></span></summary>
               <div class="settings-section-content">
                 <p class="muted playlists-help">Add pins to keep playlists through discovery refreshes. Remove takes a playlist out of the current category (discovery may add it again). Delete excludes it from future discovery in this category.</p>
-                <div class="playlists-toolbar">
-                  <label class="playlists-category-field">Category <select class="playlists-category" aria-label="Spotify playlist category"></select></label>
-                  <button type="button" class="playlists-refresh">Refresh playlists</button>
-                </div>
                 <p class="playlists-status muted" role="status" aria-live="polite">Expand this section to load your Spotify categories.</p>
-                <div class="playlists-list" aria-label="Playlists in selected category"></div>
-                <form class="playlists-add-form">
-                  <label>Spotify playlist link or URI <input class="playlists-new-uri" required placeholder="https://open.spotify.com/playlist/…" autocomplete="off"></label>
-                  <button type="submit">Add playlist</button>
-                </form>
+                <div class="playlists-list" aria-label="Playlists grouped by category"></div>
               </div>
             </details>
             <details class="settings-section">
@@ -454,15 +446,21 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-section--playlists', 'toggle', event => {
         if (event.target.open) void this.loadPlaylists();
       });
-      this.bindPanelEvent('.playlists-category', 'change', () => this.renderPlaylists());
-      this.bindPanelEvent('.playlists-refresh', 'click', () => this.refreshPlaylists());
-      this.bindPanelEvent('.playlists-add-form', 'submit', event => {
-        event.preventDefault();
-        void this.updatePlaylist('add', this.shadowRoot.querySelector('.playlists-new-uri').value);
-      });
       this.bindPanelEvent('.playlists-list', 'click', event => {
-        const button = event.target.closest('button[data-playlist-operation]');
-        if (button) void this.updatePlaylist(button.dataset.playlistOperation, button.dataset.playlistUri);
+        const button = event.target.closest('button');
+        if (!button) return;
+        const category = button.closest('details[data-playlist-category]')?.dataset.playlistCategory;
+        if (!category) return;
+        if (button.classList.contains('playlists-refresh')) void this.refreshPlaylists(category);
+        else if (button.dataset.playlistOperation)
+          void this.updatePlaylist(button.dataset.playlistOperation, button.dataset.playlistUri, category);
+      });
+      this.bindPanelEvent('.playlists-list', 'submit', event => {
+        const form = event.target.closest('form.playlists-add-form');
+        if (!form) return;
+        event.preventDefault();
+        const category = form.closest('details[data-playlist-category]')?.dataset.playlistCategory;
+        if (category) void this.updatePlaylist('add', form.querySelector('input').value, category);
       });
       this.bindPanelEvent('.players-refresh', 'click', () => this.loadPlayers());
       this.bindPanelEvent('.players-save', 'click', () => this.savePlayers());
@@ -954,14 +952,10 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
-  async refreshPlaylists() {
-    if (this._playlistsPending || !this._hass) return;
-    const category = this.shadowRoot.querySelector('.playlists-category').value;
-    if (!category) return;
+  async refreshPlaylists(category) {
+    if (this._playlistsPending || !this._hass || !category) return;
     const status = this.shadowRoot.querySelector('.playlists-status');
-    const button = this.shadowRoot.querySelector('.playlists-refresh');
     this._playlistsPending = true;
-    button.disabled = true;
     status.textContent = 'Searching Spotify for ' + category.replace(/_/g, ' ') + ' playlists…';
     try {
       const response = await this._hass.callApi('POST', 'declan_two/music-playlists',
@@ -973,21 +967,18 @@ class DeclanTwoNativePanel extends HTMLElement {
         if (!current || !current.categories) throw new Error('Discovery status unavailable');
         if (!current.refresh?.running) {
           this._playlistCatalogue = current.categories;
-          this.renderPlaylists();
-          if (current.refresh?.error) {
-            status.textContent = 'Spotify search failed. Existing playlists were kept. ' + current.refresh.error;
-          } else {
-            const count = current.categories[category]?.playlists?.length || 0;
-            status.textContent = 'Spotify discovery finished: ' + count + ' of 25 playlists in ' + category.replace(/_/g, ' ') + '.';
-          }
+          this.renderPlaylists(category);
+          status.textContent = current.refresh?.error
+            ? 'Spotify search failed for ' + category + '. Existing playlists were kept. ' + current.refresh.error
+            : 'Spotify discovery finished for ' + category + ': ' +
+              (current.categories[category]?.playlists?.length || 0) + ' of 25 playlists. Other categories preserved.';
           return;
         }
       }
       status.textContent = 'Spotify discovery is still running. Check again shortly.';
-    } catch (error) {
-      status.textContent = 'Could not refresh Spotify playlists. Check Spotify credentials and the Declan 2.0 connection.';
+    } catch {
+      status.textContent = 'Could not refresh ' + category + '. Check the Declan connection.';
     } finally {
-      button.disabled = false;
       this._playlistsPending = false;
     }
   }
@@ -1001,16 +992,6 @@ class DeclanTwoNativePanel extends HTMLElement {
       const data = await this._hass.callApi('GET', 'declan_two/music-playlists');
       if (!data || !data.categories || typeof data.categories !== 'object') throw new Error('Invalid playlist response');
       this._playlistCatalogue = data.categories;
-      const select = this.shadowRoot.querySelector('.playlists-category');
-      const selected = select.value;
-      select.replaceChildren();
-      for (const category of Object.keys(data.categories)) {
-        const option = document.createElement('option');
-        option.value = category;
-        option.textContent = category.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
-        select.append(option);
-      }
-      if (Object.hasOwn(data.categories, selected)) select.value = selected;
       this.renderPlaylists();
     } catch {
       status.textContent = 'Could not load Spotify playlists. Check the Declan 2.0 connection and try again.';
@@ -1019,93 +1000,121 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
-  renderPlaylists() {
+  renderPlaylists(openCategory = null) {
     const status = this.shadowRoot.querySelector('.playlists-status');
     const list = this.shadowRoot.querySelector('.playlists-list');
-    const category = this.shadowRoot.querySelector('.playlists-category').value;
-    const data = this._playlistCatalogue?.[category];
+    const catalogue = this._playlistCatalogue || {};
+    const previouslyOpen = new Set(Array.from(list.querySelectorAll('details[open][data-playlist-category]'))
+      .map(node => node.dataset.playlistCategory));
+    if (openCategory) previouslyOpen.add(openCategory);
     list.replaceChildren();
-    if (!data) { status.textContent = 'No category selected.'; return; }
-    const playlists = Array.isArray(data.playlists) ? data.playlists : [];
-    status.textContent = category.replace(/_/g, ' ') + ': ' + playlists.length + ' of 25 playlists';
-    if (!playlists.length) {
-      const empty = document.createElement('p');
-      empty.className = 'muted';
-      empty.textContent = 'No playlists saved yet. Add a Spotify playlist link below.';
-      list.append(empty);
-    }
-    for (const uri of playlists) {
-      const row = document.createElement('div');
-      row.className = 'player-row';
-      const title = document.createElement('span');
-      title.className = 'playlist-entry-title';
-      title.style.overflowWrap = 'anywhere';
-      const name = data.titles?.[uri];
-      title.textContent = name || uri;
-      row.append(title);
-      if (name) {
-        const link = document.createElement('a');
-        link.href = uri.replace('spotify://playlist/', 'https://open.spotify.com/playlist/');
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.className = 'playlist-entry-link';
-        link.textContent = 'Open in Spotify';
-        row.append(link);
+    for (const [category, data] of Object.entries(catalogue)) {
+      const playlists = Array.isArray(data.playlists) ? data.playlists : [];
+      const details = document.createElement('details');
+      details.className = 'settings-subsection playlist-category-accordion';
+      details.dataset.playlistCategory = category;
+      details.open = previouslyOpen.has(category);
+      const summary = document.createElement('summary');
+      const label = category.replace(/_/g, ' ').replace(/\\b\\w/g, letter => letter.toUpperCase());
+      summary.textContent = label + ' (' + playlists.length + '/25)';
+      details.append(summary);
+      const refresh = document.createElement('button');
+      refresh.type = 'button';
+      refresh.className = 'playlists-refresh';
+      refresh.textContent = 'Refresh ' + label;
+      details.append(refresh);
+      if (!playlists.length) {
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = 'No playlists saved yet.';
+        details.append(empty);
       }
-      if ((data.favourites || []).includes(uri)) {
-        const pinned = document.createElement('span');
-        pinned.textContent = 'Pinned';
-        row.append(pinned);
-      }
-      for (const [operation, label] of [['remove', 'Remove'], ['delete', 'Delete / exclude']]) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.dataset.playlistOperation = operation;
-        button.dataset.playlistUri = uri;
-        button.textContent = label;
-        button.setAttribute('aria-label', label + ' ' + uri);
-        row.append(button);
-      }
-      list.append(row);
-    }
-    if (Array.isArray(data.excluded) && data.excluded.length) {
-      const heading = document.createElement('h3');
-      heading.textContent = 'Excluded from discovery';
-      list.append(heading);
-      for (const uri of data.excluded) {
+      for (const uri of playlists) {
         const row = document.createElement('div');
         row.className = 'player-row';
         const title = document.createElement('span');
-        title.className = 'mono';
+        title.className = 'playlist-entry-title';
         title.style.overflowWrap = 'anywhere';
-        title.textContent = uri;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = 'Restore';
-        button.dataset.playlistOperation = 'remove';
-        button.dataset.playlistUri = uri;
-        row.append(title, button);
-        list.append(row);
+        const name = data.titles?.[uri];
+        title.textContent = name || uri;
+        row.append(title);
+        if (name) {
+          const link = document.createElement('a');
+          link.href = uri.replace('spotify://playlist/', 'https://open.spotify.com/playlist/');
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.className = 'playlist-entry-link';
+          link.textContent = 'Open in Spotify';
+          row.append(link);
+        }
+        if ((data.favourites || []).includes(uri)) {
+          const pinned = document.createElement('span');
+          pinned.textContent = 'Pinned';
+          row.append(pinned);
+        }
+        for (const [operation, action] of [['remove', 'Remove'], ['delete', 'Delete / exclude']]) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.dataset.playlistOperation = operation;
+          button.dataset.playlistUri = uri;
+          button.textContent = action;
+          button.setAttribute('aria-label', action + ' ' + uri);
+          row.append(button);
+        }
+        details.append(row);
       }
+      if (Array.isArray(data.excluded) && data.excluded.length) {
+        const heading = document.createElement('h3');
+        heading.textContent = 'Excluded from discovery';
+        details.append(heading);
+        for (const uri of data.excluded) {
+          const row = document.createElement('div');
+          row.className = 'player-row';
+          const title = document.createElement('span');
+          title.textContent = uri;
+          title.style.overflowWrap = 'anywhere';
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = 'Restore';
+          button.dataset.playlistOperation = 'remove';
+          button.dataset.playlistUri = uri;
+          row.append(title, button);
+          details.append(row);
+        }
+      }
+      const form = document.createElement('form');
+      form.className = 'playlists-add-form';
+      const labelInput = document.createElement('label');
+      labelInput.textContent = 'Spotify playlist link or URI';
+      const input = document.createElement('input');
+      input.required = true;
+      input.placeholder = 'https://open.spotify.com/playlist/…';
+      input.autocomplete = 'off';
+      labelInput.append(input);
+      const add = document.createElement('button');
+      add.type = 'submit';
+      add.textContent = 'Add playlist';
+      form.append(labelInput, add);
+      details.append(form);
+      list.append(details);
     }
+    status.textContent = Object.keys(catalogue).length + ' Spotify categories loaded. Expand a genre to manage its playlists.';
   }
 
-  async updatePlaylist(operation, playlist) {
-    if (this._playlistsPending || !this._hass || !playlist) return;
-    const category = this.shadowRoot.querySelector('.playlists-category').value;
-    if (!category) return;
+  async updatePlaylist(operation, playlist, category) {
+    if (this._playlistsPending || !this._hass || !playlist || !category) return;
     this._playlistsPending = true;
     const status = this.shadowRoot.querySelector('.playlists-status');
-    status.textContent = 'Saving playlist change…';
+    status.textContent = 'Saving ' + category + ' playlist change…';
     try {
       const data = await this._hass.callApi('POST', 'declan_two/music-playlists',
                                            {category, playlist: playlist.trim(), operation});
       if (!data || !data.categories) throw new Error('Save not confirmed');
       this._playlistCatalogue = data.categories;
-      this.shadowRoot.querySelector('.playlists-new-uri').value = '';
-      this.renderPlaylists();
+      this.renderPlaylists(category);
+      status.textContent = 'Saved playlist change for ' + category + '.';
     } catch {
-      status.textContent = 'Playlist change failed. Check the link, the 25-playlist limit and Declan 2.0 connection.';
+      status.textContent = 'Playlist change failed. Check the link, the 25-playlist limit and Declan connection.';
     } finally {
       this._playlistsPending = false;
     }
