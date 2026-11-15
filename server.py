@@ -120,7 +120,7 @@ DINNER_PHRASES = {
 }
 GUEST_MODE_ENTITY = "input_boolean.guest_mode"
 GUEST_REGISTER_ENTITY = "input_text.guests_in_charge"
-VISITORS_PRESENT_ENTITY = "input_boolean.visitors_present"
+VISITORS_PRESENT_ENTITY = "input_boolean.visitors_present"  # fallback when no explicit mapping exists
 GUEST_COMMANDS = {
     "who is in charge": "check",
     "who is looking after the house": "check",
@@ -217,7 +217,10 @@ def read_visitors_present():
         if (not token or parsed.scheme not in {"http", "https"} or not parsed.hostname
                 or parsed.username or parsed.password or parsed.query or parsed.fragment):
             return None
-        request = Request(f"{url}/api/states/{VISITORS_PRESENT_ENTITY}",
+        visitor_entity = configuration.get("DECLAN_VISITORS_ENTITY", VISITORS_PRESENT_ENTITY)
+        if not re.fullmatch(r"input_boolean\\.[a-z0-9_]+", visitor_entity):
+            return None
+        request = Request(f"{url}/api/states/{visitor_entity}",
                           headers={"Authorization": f"Bearer {token}"})
         with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=1) as response:
             state = json.loads(response.read(4096)).get("state")
