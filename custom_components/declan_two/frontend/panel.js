@@ -76,6 +76,27 @@ class DeclanTwoNativePanel extends HTMLElement {
         @media(max-width:520px) { .player-row { grid-template-columns:1fr; gap:6px; } }
         .history-actions { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
         .timeline-filter,.timeline-speaker { min-width:0; max-width:100%; padding:9px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
+        /* History: distinct section cards, readable collapsed rows, touch-friendly controls. */
+        .timeline-list { display:grid; gap:12px; min-width:0; }
+        .timeline-group { min-width:0; overflow:hidden; border:1px solid #315568; border-radius:14px; background:#0e2230; }
+        .timeline-group[open] { border-color:#47758b; background:#0b1d29; }
+        .timeline-group > summary { display:flex; align-items:center; gap:12px; list-style:none; cursor:pointer; padding:16px; font-weight:700; color:#e7f7ff; min-height:56px; }
+        .timeline-group > summary::-webkit-details-marker, .timeline-entry > summary::-webkit-details-marker { display:none; }
+        .timeline-group > summary::before, .timeline-entry > summary::before { content:''; width:9px; height:9px; flex:0 0 9px; border-right:2px solid #9dc9db; border-bottom:2px solid #9dc9db; transform:rotate(-45deg); transition:transform .15s ease; }
+        .timeline-group[open] > summary::before, .timeline-entry[open] > summary::before { transform:rotate(45deg); }
+        .timeline-group > summary:focus-visible, .timeline-entry > summary:focus-visible { outline:2px solid #76dbff; outline-offset:-3px; border-radius:12px; }
+        .timeline-group > summary .timeline-count { margin-left:auto; padding:4px 10px; border-radius:999px; background:#1c4053; color:#c9eaf8; font-size:.78rem; font-weight:700; }
+        .timeline-group[open] > summary { border-bottom:1px solid #28495b; }
+        .timeline-group > .timeline-row, .timeline-group > .timeline-entry { margin:10px 12px; }
+        .timeline-entry { border:1px solid #29495a; border-radius:10px; background:#102938; overflow:hidden; }
+        .timeline-entry > summary { display:flex; align-items:flex-start; gap:12px; padding:13px 14px; cursor:pointer; list-style:none; line-height:1.45; overflow-wrap:anywhere; font-weight:550; }
+        .timeline-entry > summary::before { margin-top:5px; }
+        .timeline-entry[open] > summary { border-bottom:1px solid #29495a; }
+        .timeline-entry > .timeline-row { padding:14px; border:0; }
+        .timeline-group > .timeline-row { padding:14px; border-radius:10px; background:#102938; border-top:0; }
+        .timeline-group .timeline-controls { gap:10px; }
+        .timeline-group .timeline-controls button { min-height:42px; }
+        @media(max-width:520px) { .timeline-group > summary { padding:14px; } .timeline-group > .timeline-row, .timeline-group > .timeline-entry { margin:8px; } .timeline-entry > summary { padding:12px; font-size:.94rem; } .timeline-entry > .timeline-row { padding:12px; } }
         .timeline-row { border-top:1px solid #1d3d51; padding:14px 0; overflow-wrap:anywhere; }
         .timeline-row p { margin:6px 0; white-space:pre-wrap; }
         .timeline-row--pending { border-left:3px solid #e6b85c; padding-left:12px; }
@@ -1043,6 +1064,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       section.open = label === 'Unconfirmed';
       const summary = document.createElement('summary');
       summary.textContent = label;
+      const count = document.createElement('span');
+      count.className = 'timeline-count';
+      count.textContent = String(rows.filter(row => row.kind === (label === 'Conversation history' ? 'conversation' : label === 'Unconfirmed' ? 'pending' : 'reviewed') && (label === 'Confirmed' ? !/dismiss|reject|discard/.test(String(row.item.status || '').toLowerCase()) : label === 'Rejected' ? /dismiss|reject|discard/.test(String(row.item.status || '').toLowerCase()) : true)).length);
+      summary.append(count);
       section.append(summary);
       list.append(section);
       groups.set(label, section);
