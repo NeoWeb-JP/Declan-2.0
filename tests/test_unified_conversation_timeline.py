@@ -49,7 +49,7 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("this.resolveVoice(item.id, select.value === suggested ? 'confirm' : 'assign', select.value)", TIMELINE)
         self.assertIn("this.correctVoiceHistory(item, select.value)", TIMELINE)
         self.assertIn("this.resolveVoice(item.id, 'dismiss', null)", TIMELINE)
-        self.assertIn("this.resolveVoice(item.id, 'enrol', trimmed)", TIMELINE)
+        self.assertNotIn("Enrol new speaker", TIMELINE)
         self.assertIn("this.playVoice(item.id, play,", TIMELINE)
         self.assertIn("select.disabled = reviewed;", TIMELINE)
         self.assertIn("if (reviewed && !editing)", TIMELINE)
