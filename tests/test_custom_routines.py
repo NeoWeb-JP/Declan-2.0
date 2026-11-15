@@ -26,11 +26,25 @@ class CustomRoutineTests(unittest.TestCase):
         class Opener:
             def open(self, request, timeout):
                 self.payload = json.loads(request.data)
-                return io.BytesIO(json.dumps({"service_response": {"request_id": self.payload["request_id"], "routine_id": self.payload["routine_id"], "outcome": "success", "steps": []}}).encode())
+                return io.BytesIO(json.dumps({"service_response": {"request_id": self.payload["request_id"], "routine_id": self.payload["routine_id"], "outcome": "success", "steps": [{"target": "tea", "status": "confirmed"}]}}).encode())
         opener = Opener()
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)):
             self.assertEqual(server.run_custom_routine("tea")[1], "reported_success")
         self.assertEqual(opener.payload["strength"], "strong")
+
+    def test_stop_reports_request_not_completed_rollback(self):
+        class Opener:
+            def open(self, request, timeout):
+                self.path = request.full_url
+                return io.BytesIO(b"[]")
+        opener = Opener()
+        with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)):
+            with server.track_routine("tea", "script.make_tea"):
+                reply, outcome, _ = server.stop_pending_routines()
+        self.assertIn("Cancellation requested", reply)
+        self.assertIn("not rolled back", reply)
+        self.assertEqual(outcome, "unverified")
+        self.assertTrue(opener.path.endswith("/api/services/script/turn_off"))
 
     def test_unverified_response_is_not_success(self):
         class Opener:
