@@ -18,7 +18,15 @@ class BoundedHTTPServer(ThreadingHTTPServer):
     def process_request(self, request, client_address):
         if not self._slots.acquire(blocking=False):
             try:
-                request.settimeout(0.1)
+                # Drain the already-sent HTTP request before closing. Windows can
+                # reset the peer connection if unread request bytes remain.
+                request.settimeout(0.2)
+                received = bytearray()
+                while b"\r\n\r\n" not in received and len(received) < 8192:
+                    chunk = request.recv(min(2048, 8192 - len(received)))
+                    if not chunk:
+                        break
+                    received.extend(chunk)
                 request.sendall(b"HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\n"
                                 b"Connection: close\r\nContent-Length: 0\r\n\r\n")
             except OSError:

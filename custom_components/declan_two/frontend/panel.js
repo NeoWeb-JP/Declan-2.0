@@ -48,6 +48,18 @@ class DeclanTwoNativePanel extends HTMLElement {
         .turn .reply { color:#a1ccdf; }
         .chat-controls { display:flex; gap:8px; margin:8px 0 14px; }
         .chat-controls input { flex:1; min-width:0; padding:12px; border-radius:9px; border:1px solid #315568; background:#102635; color:#e7f7ff; font:inherit; }
+        .intents-list { display:grid; gap:12px; margin:12px 0 18px; }
+        .intent-row { display:grid; gap:8px; padding:12px; border:1px solid #315568; border-radius:9px; }
+        .intent-row input { width:100%; min-width:0; padding:12px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
+        .settings-spotify { margin-top:18px; padding:14px 16px; border:1px solid #1d3d51; border-radius:12px; background:#0e202d; }
+        .settings-spotify summary { cursor:pointer; font-weight:600; padding:4px 0; }
+        .spotify-form { display:grid; gap:16px; margin-top:18px; }
+        .spotify-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
+        .spotify-form input { display:block; width:100%; min-width:0; padding:12px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; font-weight:400; }
+        .spotify-form input:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
+        .spotify-form button { justify-self:start; }
+        .spotify-save-status { margin:12px 0 0; overflow-wrap:anywhere; }
+        @media(max-width:520px) { .settings-spotify { padding:12px; } .spotify-form button { width:100%; } }
         .chat-form label { display:block; margin-top:14px; }
         .settings-spotify { margin-top:18px; padding:14px 16px; border:1px solid #1d3d51; border-radius:12px; background:#0e202d; }
         .settings-spotify summary { cursor:pointer; font-weight:600; padding:4px 0; }
@@ -119,7 +131,12 @@ class DeclanTwoNativePanel extends HTMLElement {
           <details class="timeline-management"><summary>Speaker profiles and older conversation history</summary><div class="timeline-management-body">
           <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
           <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
-          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Advanced editing remains in the existing Declan app.</p><div class="history-list" aria-label="Recent conversations"></div>
+          <h3>Learned routines and commands</h3>
+          <p class="muted">Edit or forget the phrases Declan has learned. Saving never runs the command.</p>
+          <button class="intents-refresh" type="button">Refresh learned commands</button>
+          <p class="intents-status muted" role="status" aria-live="polite"></p>
+          <div class="intents-list"></div>
+          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Edit learned commands above.</p><div class="history-list" aria-label="Recent conversations"></div>
           </div></details>
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
@@ -205,6 +222,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelector('.updates-select').addEventListener('change', () => {
       this.shadowRoot.querySelector('.updates-install').disabled = !this.shadowRoot.querySelector('.updates-select').value;
     });
+    this.shadowRoot.querySelector('.intents-refresh').addEventListener('click', () => this.loadLearnedIntents());
     this.shadowRoot.querySelector('.history-refresh').addEventListener('click', () => this.loadHistory());
     this.shadowRoot.querySelector('.history-more').addEventListener('click', () => this.loadHistory(this._historyCursor));
     this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
@@ -243,6 +261,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       panel.hidden = panel.id !== 'panel-' + name;
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
+    if (name === 'conversations' && !this._intentsLoaded) void this.loadLearnedIntents();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'settings') void this.loadSettingsStatus();
     if (name === 'updates') void this.loadUpdateStatus();
@@ -1167,6 +1186,61 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
+  async loadLearnedIntents() {
+    const status = this.shadowRoot.querySelector('.intents-status');
+    const list = this.shadowRoot.querySelector('.intents-list');
+    status.textContent = 'Loading learned commands…';
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/management/intents');
+      if (!data?.intents || typeof data.intents !== 'object') throw new Error('Invalid list');
+      list.replaceChildren();
+      for (const [phrase, target] of Object.entries(data.intents).sort(([a], [b]) => a.localeCompare(b))) {
+        const row = document.createElement('div');
+        row.className = 'intent-row';
+        const name = document.createElement('strong');
+        name.textContent = phrase;
+        const field = document.createElement('input');
+        field.type = 'text';
+        field.maxLength = 120;
+        field.value = target;
+        field.setAttribute('aria-label', 'Command for ' + phrase);
+        const save = document.createElement('button');
+        save.type = 'button';
+        save.textContent = 'Save change';
+        save.addEventListener('click', async () => {
+          const next = field.value.trim();
+          if (!next || next === target) return;
+          await this.changeLearnedIntent({phrase, target:next, previous:target});
+        });
+        const forget = document.createElement('button');
+        forget.type = 'button';
+        forget.textContent = 'Forget';
+        forget.addEventListener('click', async () => {
+          if (!window.confirm('Forget the learned command for "' + phrase + '"?')) return;
+          await this.changeLearnedIntent({forget:phrase, previous:target});
+        });
+        row.append(name, field, save, forget);
+        list.append(row);
+      }
+      this._intentsLoaded = true;
+      status.textContent = list.children.length ? 'Learned commands loaded.' : 'No learned commands yet.';
+    } catch {
+      status.textContent = 'Unable to load learned commands.';
+    }
+  }
+
+  async changeLearnedIntent(body) {
+    const status = this.shadowRoot.querySelector('.intents-status');
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/management/intents', body);
+      if (result.saved !== true) throw new Error('Not saved');
+      status.textContent = 'Command updated.';
+      await this.loadLearnedIntents();
+    } catch {
+      status.textContent = 'Change rejected. Refresh the list and try again.';
+    }
+  }
+
   async loadHistory(before = null) {
     if (this._historyPending || !this._hass || typeof this._hass.callApi !== 'function') return;
     this._historyPending = true;
@@ -1188,6 +1262,17 @@ class DeclanTwoNativePanel extends HTMLElement {
         reply.className = 'reply';
         reply.textContent = turn.reply || '';
         article.append(message, reply);
+        if (turn.teachable && Number.isSafeInteger(turn.id) && turn.id > 0) {
+          const teach = document.createElement('button');
+          teach.type = 'button';
+          teach.textContent = 'Teach Declan';
+          teach.addEventListener('click', async () => {
+            const target = window.prompt('What command should Declan use for this phrase?');
+            if (!target || !target.trim() || target.length > 120) return;
+            await this.changeLearnedIntent({turn_id:turn.id, target:target.trim()});
+          });
+          article.append(teach);
+        }
         list.append(article);
       }
       this._historyLoaded = true;

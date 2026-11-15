@@ -1,3 +1,47 @@
+## Final owner-approved decisions (15 November 2026)
+
+These decisions supersede older requirements and the previous 11 November status notes.
+
+### Quiet hours and announcements
+- Quiet hours: **23:00–07:00 local time**.
+- Speech replies during quiet hours: **20% of normal volume**; restore the previous speech volume after quiet hours, not a fixed default.
+- Only **urgent unsolicited announcements** overnight.
+- Music and Sexy Time are exempt from quiet-hour restrictions; ordinary spoken responses remain quiet.
+- Announcement speakers are selected from approved outputs in **native Declan Settings**, not always Everywhere.
+
+### Speaker context
+- Conversation context expires **5 minutes after the last interaction**.
+- Unknown-speaker context is isolated to the originating satellite.
+- At least **85% recognition confidence** is required before treating a speaker as recognized for context.
+- **No cross-room conversational follow-ups**, including for recognized speakers. Earlier cross-room sharing work in PR #81 must be disabled/removed; do not interpret it as accepted functionality.
+
+### Routines
+- Map scripts with **native Declan Settings dropdowns**. Actual scripts/automations remain in Home Assistant.
+- Support **custom named routines** with voice phrase mappings to HA scripts.
+- Claim success only after Home Assistant **verifies required actions**.
+- For partial failure, speak a brief warning; record detailed step outcomes in History.
+- If a script is missing, explain configuration is needed; **do not run fallback routines**.
+
+### Music and voice
+- Music without an explicit destination plays on the **approved Music Assistant player mapped to the originating room**. Explicit room/Everywhere requests override.
+- Microphone support must include **both iPhone Home Assistant app and desktop browser**.
+- When two satellites capture the same command, **first accepted capture wins**; suppress duplicate execution.
+- **Stop means stop playback Everywhere**, replacing the earlier origin-scoped Stop requirement.
+
+### Acceptance
+- **Automated CI passing is the owner's required release acceptance gate.** Live household tests are optional post-release validation and must not be represented as completed.
+- Keep issue #12 open until the final decisions are implemented, tests cover them, and CI is green. Do not close based on these decisions alone.
+
+### Implementation and verification status
+- Native learned-intent editing, music mappings, and several routine outcome mechanisms exist, but this does not prove every agreed behavior is implemented.
+- Quiet-hour scheduling, 20% speech-volume handling and restoration, urgent-only announcements, approved announcement output selectors, native arbitrary routine selectors/custom routines, 85% speaker threshold with cross-room sharing disabled, and house-wide Stop require code inspection/implementation and automated tests.
+- iPhone/desktop microphone, first-capture arbitration, music playback, and voice recognition need CI coverage; real-device behavior is **not live-verified**.
+- PR #81 is the consolidated implementation branch; do not merge/deploy/retire the legacy UI without a passing final CI run.
+
+---
+
+## Historical work log (superseded where decisions differ)
+
 # Current work and live testing
 
 The core voice migration is working, but the original NOW requirements are not all complete. On 11 November 2026 Jaco agreed to bring four focused additions into NOW. This list separates code from live household tests.

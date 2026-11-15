@@ -50,6 +50,7 @@ class DeclanHistoryView(HomeAssistantView):
                         "message": str(item.get("message") or "")[:1000],
                         "reply": str(item.get("reply") or "")[:4000],
                         "source": str(item.get("source") or "")[:50],
+                        "teachable": item.get("teachable") is True,
                     })
                 next_cursor = payload.get("next")
                 return web.json_response({

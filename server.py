@@ -25,6 +25,7 @@ import webbrowser
 from arbitration import CaptureArbiter
 
 import conditions
+import sensitive_confirmations
 import diagnostics
 import configuration
 import voice_profiles
@@ -42,6 +43,7 @@ from personality import add_sass, choose_line
 SESSIONS = OrderedDict()
 SESSION_LOCK = Lock()
 CAPTURE_ARBITER = CaptureArbiter()
+SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
 routine_last_attempts = {}
@@ -937,6 +939,35 @@ def read_music_inventory(connection):
     return ha_inventory.read(connection, music=True)
 
 
+def stop_everywhere_output(connection):
+    """Stop all active approved Music Assistant destinations, including Everywhere."""
+    if connection is None:
+        return "", "not_configured", "Home Assistant is not configured."
+    inventory, error = read_music_inventory(connection)
+    if error:
+        return "", error, "Could not discover the approved music players."
+    destinations, players = music.music_players(inventory)
+    targets = sorted({entity for entity in destinations.values()
+                      if entity and players.get(entity, {}).get("state") in music.ACTIVE})
+    if not targets:
+        return "", "confirmed", "No approved music players are currently playing."
+    failed = []
+    for entity in targets:
+        try:
+            music.request(connection, "/api/services/media_player/media_stop", {"entity_id": entity}, timeout=2)
+            if not music.wait_for(connection, entity, lambda row: row.get("state") in music.STOPPED):
+                failed.append(entity)
+        except HTTPError as exc:
+            exc.close()
+            failed.append(entity)
+        except (OSError, ValueError):
+            failed.append(entity)
+    if failed:
+        return "", "partial" if len(failed) < len(targets) else "unverified", (
+            "Could not verify Stop for: " + ", ".join(failed))
+    return "", "confirmed", "Stopped playback on all active approved music players."
+
+
 def stop_origin_output(connection, satellite, device):
     if connection is None or not (satellite or device):
         return "", "unresolved", "Stop needs an identifiable Assist satellite or device."
@@ -1581,7 +1612,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         native_settings_auth = (
             self.path in {"/api/native/settings-status", "/api/native/settings-export",
-                          "/api/native/settings-recovery", "/api/native/diagnostics"}
+                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/intents"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1632,6 +1663,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"document": document})
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings document unavailable."})
+        elif self.path == "/api/native/intents":
+            try:
+                self.send_json(200, {"intents": history.learned_intents()})
+            except (OSError, sqlite3.Error):
+                self.send_json(503, {"error": "Learned intentions unavailable."})
         elif self.path == "/api/native/diagnostics":
             try:
                 self.send_json(200, {"traces": diagnostics.recent()})
@@ -1766,7 +1802,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -1806,6 +1842,13 @@ class Handler(BaseHTTPRequestHandler):
             )
         ) and not (
             self.path == "/api/native/settings-import"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
+            self.path == "/api/native/intents"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -1893,6 +1936,27 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {'error': str(error)})
                 except (OSError, sqlite3.Error):
                     self.send_json(503, {'error': 'Settings could not be imported.'})
+                return
+            if self.path == "/api/native/intents":
+                try:
+                    if not isinstance(body, dict):
+                        raise ValueError("Invalid intention change.")
+                    if set(body) == {"phrase", "target", "previous"}:
+                        history.edit_intent(body["phrase"], body["target"], body["previous"])
+                    elif set(body) == {"forget", "previous"}:
+                        phrase = body["forget"]
+                        if not isinstance(phrase, str) or not isinstance(body["previous"], str) or history.learned_intent(phrase) != body["previous"]:
+                            raise ValueError("Intention changed. Refresh before forgetting.")
+                        history.forget_intent(phrase)
+                    elif set(body) == {"turn_id", "target"} and type(body["turn_id"]) is int:
+                        history.teach_intent(body["turn_id"], body["target"], UNMATCHED_REPLY)
+                    else:
+                        raise ValueError("Invalid intention change.")
+                    self.send_json(200, {"saved": True})
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Intention change unavailable."})
                 return
             if self.path == "/api/history/intents":
                 try:
@@ -2010,7 +2074,7 @@ class Handler(BaseHTTPRequestHandler):
             speaker = body.get("speaker")
             speaker_name = (speaker.get("name") if isinstance(speaker, dict)
                             and type(speaker.get("confidence")) in (int, float)
-                            and speaker["confidence"] >= 0.75 and isinstance(speaker.get("name"), str) else None)
+                            and speaker["confidence"] >= 0.85 and isinstance(speaker.get("name"), str) else None)
             if not CAPTURE_ARBITER.claim(history.normalize_phrase(message), satellite or origin_device,
                                          body.get("capture"), speaker_name):
                 self.send_json(200, {"reply": "", "session_id": session_id or secrets.token_urlsafe(24),
@@ -2046,6 +2110,29 @@ class Handler(BaseHTTPRequestHandler):
                 effective_message = target
                 phrase = history.normalize_phrase(target)
         opener = build_opener(ProxyHandler({}), NoRedirect())
+        if source == "assist":
+            spoken = history.normalize_phrase(message)
+            candidate = spoken if spoken in sensitive_confirmations.YES | sensitive_confirmations.NO else phrase
+            routine_candidate = select_routine_turn(candidate, origin_device or satellite)
+            group = sensitive_confirmations.sensitive_group(
+                candidate, routine_candidate, GUEST_COMMANDS, SEXY_TIME_COMMANDS, DINNER_PHRASES)
+            if not session_id:
+                session_id = secrets.token_urlsafe(24)
+            decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate(
+                session=session_id, origin=satellite or origin_device,
+                phrase=candidate, group=group, speaker=body.get("speaker"))
+            if decision in {"prompt", "cancelled", "denied"}:
+                response = {
+                    "prompt": "Please confirm or cancel this routine within 30 seconds.",
+                    "cancelled": "Cancelled. I haven't run that routine.",
+                    "denied": "I can't identify the originating satellite for that sensitive routine.",
+                }[decision]
+                self.send_json(200, {"reply": response, "session_id": session_id,
+                                     "outcome": "confirmation_" + decision})
+                return
+            if decision == "confirmed":
+                phrase = approved_phrase
+                effective_message = approved_phrase
         timer_result = timers.handle(
             phrase, opener,
             satellite=satellite if isinstance(satellite, str) and len(satellite) <= 128 else None,
@@ -2056,7 +2143,7 @@ class Handler(BaseHTTPRequestHandler):
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
         elif phrase == "stop":
-            routine_reply, outcome, routine_status = stop_origin_output(ha_device_connection(), satellite, origin_device)
+            routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
         elif phrase.replace("’", "'") in DINNER_PHRASES:
             routine_reply, outcome = start_dinner(ha_device_connection())
         elif phrase in SEXY_TIME_COMMANDS:
