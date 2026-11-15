@@ -19,7 +19,7 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertNotIn("Conversation history", TIMELINE)
         self.assertNotIn("Saved phrase corrections", HISTORY)
         self.assertNotIn('class="timeline-filter"', HISTORY)
-        self.assertNotIn("declan_two/history", TIMELINE)
+        self.assertIn("declan_two/history?recording_ids=", TIMELINE)
         self.assertIn('class="timeline-list"', HISTORY)
 
     def test_no_duplicate_recordings_or_conversation_only_rows(self):
@@ -40,8 +40,8 @@ class UnifiedTimelineTests(unittest.TestCase):
             self.assertIn(section, TIMELINE)
         self.assertIn("entry.open = pending;", TIMELINE)
         self.assertIn("subsection(card, 'Voice matching', pending)", TIMELINE)
-        self.assertIn("train.disabled = true;", TIMELINE)
-        self.assertIn("issue #97", TIMELINE)
+        self.assertIn("train.disabled = !verified;", TIMELINE)
+        self.assertIn("verified conversation link", TIMELINE)
         self.assertIn("item.reply || 'Not available'", TIMELINE)
         self.assertIn("Recording ID:", TIMELINE)
 
