@@ -79,6 +79,12 @@ async def async_setup_entry(hass, entry):
         # unexpected values as noncritical rather than trusting free text.
         if not isinstance(kind, str):
             kind = "routine"
+        # An arbitrary service caller must not be able to bypass quiet hours
+        # by putting an unknown category into a free-text safety label.
+        kind = kind.strip().lower()
+        if kind not in {"security", "smoke", "carbon_monoxide", "critical_safety",
+                        "routine", "dinner", "ev_reminder", "music"}:
+            kind = "routine"
         # Use Home Assistant's configured household timezone rather than the
         # host/container timezone (often UTC, which differs during BST).
         zone_name = getattr(getattr(hass, "config", None), "time_zone", None)
