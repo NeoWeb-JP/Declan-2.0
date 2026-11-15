@@ -42,7 +42,7 @@ def read(connection, *, music=False):
                    "{% endif %}{% endfor %}{% endif %}" if music else "")
                 + "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, state=entity.state, attributes=attrs.values"
                 + (", declan_area=area_name(entity.entity_id), declan_device=device_id(entity.entity_id), "
-                   "declan_music_assistant=entity.entity_id in ma, declan_source_entities=source.entities" if music else "")
+                   "declan_music_assistant=entity.entity_id in ma, declan_source_entities=source.entities" if music else ", declan_area=area_name(entity.entity_id)")
                 + ")] %}{% endfor %}{{ dict(total=entities | count, rows=result.rows) | to_json }}"
             )
             request = Request(url + '/api/template', headers=headers,
