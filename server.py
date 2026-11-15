@@ -596,56 +596,7 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
                         "detail": f"{note} Remote: {remote}. Command: app:{movie_app[1]}.",
                     })
             return reply, outcome, detail
-        status = result.get("status") if isinstance(result, dict) else None
-        steps = result.get("steps") if isinstance(result, dict) else None
-        if action_results is not None:
-            action_results.extend(routine_action_results(steps))
-        guest_mode = result.get("guest_mode") if isinstance(result, dict) else None
-        if status == "success" and isinstance(result, dict) and "guest_mode" not in result:
-            guest_mode = read_guest_mode()
-        greeting = add_sass(salutation, f"good_{period}", guest_mode) if status == "success" else salutation
-        bedtime = result.get("bedtime") if isinstance(result, dict) else None
-        if period == "night" and guest_mode == "off" and isinstance(bedtime, dict):
-            battery = bedtime.get("battery_percent")
-            temperature = bedtime.get("indoor_temperature")
-            if type(battery) is int and 0 <= battery <= 50:
-                reminder = f"The Peugeot is at {battery}% and isn't plugged in."
-                if status == "success":
-                    reminder = add_sass(reminder, "bedtime_ev", guest_mode)
-                greeting += f" {reminder}"
-            if type(temperature) in (int, float) and -40 <= temperature <= 16:
-                greeting += f" It's {temperature:g} degrees indoors and the heating isn't running."
-        if period == "morning" and status == "unverified" and isinstance(steps, dict):
-            checks = {
-                "lounge_wall_lights": ("the lounge wall lights are on", "the lounge wall lights"),
-                "dining_lights": ("the dining lights are at ten percent", "the dining light level"),
-            }
-            confirmed = [phrases[0] for key, phrases in checks.items() if steps.get(key) == "confirmed"]
-            unverified = [phrases[1] for key, phrases in checks.items() if steps.get(key) != "confirmed"]
-            details = []
-            if confirmed:
-                details.append("Home Assistant shows " + ", and ".join(confirmed) + ".")
-            if unverified:
-                details.append("I couldn't confirm " + ", or ".join(unverified) + ".")
-            detail = " ".join(details)
-            return f"{greeting} {detail}".strip(), "unverified", detail
-        if period == "night" and status in (None, "unverified", "success"):
-            detail = result.get("routine_status") if isinstance(result, dict) else None
-            verified = status == "success"
-            fallback = ("Home Assistant reports the routine completed." if verified
-                        else "Home Assistant did not confirm the bedtime routine completed.")
-            detail = detail if isinstance(detail, str) and detail.strip() else fallback
-            return (greeting if verified else f"{greeting} {detail}"), (
-                "reported_success" if verified else "unverified"), detail
-        if status == "success":
-            return greeting, "reported_success", "Home Assistant reports the routine completed."
-        if status == "partial":
-            return f"{salutation} Part of the routine failed. Check its Home Assistant trace.", "partial", None
-        if status == "failed":
-            return f"{salutation} Home Assistant reported a failure in the routine.", "failed", None
-        if status == "busy":
-            return f"{salutation} Home Assistant reports the routine is already running.", "busy", None
-        return f"{salutation} Home Assistant answered, but I couldn't verify the device changes.", "unverified", None
+        return f"{salutation} Home Assistant did not return a correlated completion result.", "unverified", None
     finally:
         lock.release()
 
