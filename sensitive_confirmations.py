@@ -34,7 +34,12 @@ def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_
     if dinner_phrases and phrase in dinner_phrases:
         return "dinner"
     if routine:
-        return routine[0][0]
+        group = routine[0][0]
+        if group.startswith("custom:"):
+            import routine_registry
+            item = routine_registry.load().get(group[7:])
+            return group if item and item["sensitive"] else None
+        return group
     if phrase.startswith(("good night", "goodnight", "time for bed", "shut the house down")):
         return "night"
     return None
@@ -62,9 +67,9 @@ class ConfirmationGate:
                 return "confirmed", existing["phrase"]
             if phrase in YES | NO:
                 return "allow", None
-            if not group or group not in groups():
+            if not group or (not group.startswith("custom:") and group not in groups()):
                 return "allow", None
-            if trusted_speaker(speaker):
+            if not group.startswith("custom:") and trusted_speaker(speaker):
                 return "allow", None
             if not session or not origin:
                 return "denied", None
