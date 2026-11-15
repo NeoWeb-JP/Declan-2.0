@@ -120,6 +120,12 @@ async def async_setup_entry(hass, entry):
             provider = registry.async_get_entity_id(
                 "tts", "declan_two", f"{entry.entry_id}_voice_manager"
             ) or ""
+            # A disabled or unavailable entity must not silently fall back
+            # to an upstream TTS provider that bypasses quiet-hour handling.
+            if provider:
+                state = hass.states.get(provider) if hasattr(hass, "states") else None
+                if state is not None and state.state in {"unavailable", "unknown"}:
+                    provider = ""
         if not isinstance(destination, str) or not re.fullmatch(r"media_player\.[a-z0-9_]+", destination) or (
             overnight and destination not in approved
         ):
