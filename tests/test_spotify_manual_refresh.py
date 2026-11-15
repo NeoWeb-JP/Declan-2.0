@@ -3,6 +3,7 @@ import os
 import tempfile
 import time
 import unittest
+from urllib.error import HTTPError
 from unittest.mock import patch
 import spotify_playlists as sp
 
@@ -45,6 +46,18 @@ class PlaylistRefreshTests(unittest.TestCase):
             self.wait()
         self.assertIn(uri, sp.listing()["categories"]["country"]["playlists"])
         self.assertIn("TimeoutError", sp.listing()["refresh"]["error"])
+
+    def test_spotify_forbidden_reports_status_and_keeps_catalogue(self):
+        import music
+        uri = "spotify://playlist/" + "B"*22
+        sp.manage({"category":"country","playlist":uri,"operation":"add"})
+        with patch.object(music, "spotify_search", side_effect=HTTPError(
+                "https://api.spotify.com/v1/search", 403, "Forbidden", {}, None)):
+            sp.start_refresh("country", lambda: object())
+            self.wait()
+        self.assertIn("403", sp.listing()["refresh"]["error"])
+        self.assertIn("API access", sp.listing()["refresh"]["error"])
+        self.assertIn(uri, sp.listing()["categories"]["country"]["playlists"])
 
     def test_invalid_category_is_rejected(self):
         with self.assertRaises(ValueError):
