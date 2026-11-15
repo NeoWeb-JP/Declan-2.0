@@ -68,6 +68,40 @@ async def async_setup_entry(hass, entry):
         except (aiohttp.ClientError, TimeoutError):
             _LOGGER.warning("Declan could not save a Home Assistant sentence reply")
 
+    # Central gate for unsolicited speech. Home Assistant automations can
+    # invoke declan_two.announce, but never bypass the overnight allowlist.
+    async def announce(call):
+        kind = call.data.get("kind", "routine")
+        message = call.data.get("message", "")
+        clock = datetime.now().astimezone().time()
+        overnight = clock >= time(23) or clock < time(7)
+        allowed = {"security", "smoke", "carbon_monoxide", "critical_safety"}
+        if overnight and kind not in allowed:
+            _LOGGER.info("Suppressed noncritical overnight announcement: %s", kind)
+            return
+        approved = {
+            name.strip() for name in entry.options.get(
+                "overnight_announcement_outputs", "").split(",") if name.strip()
+        }
+        destination = call.data.get("entity_id", "")
+        if not destination.startswith("media_player.") or (
+            overnight and destination not in approved
+        ):
+            _LOGGER.warning("Declan announcement destination is not approved: %s", destination)
+            return
+        if not isinstance(message, str) or not message.strip():
+            return
+        await hass.services.async_call(
+            "tts", "speak",
+            {"entity_id": entry.options.get("primary_tts", ""),
+             "media_player_entity_id": destination,
+             "message": message},
+            blocking=True,
+        )
+
+    hass.services.async_register("declan_two", "announce", announce)
+    entry.async_on_unload(lambda: hass.services.async_remove("declan_two", "announce"))
+
     entry.async_on_unload(hass.bus.async_listen("declan_two_assist_reply", record_assist_reply))
     return True
 
