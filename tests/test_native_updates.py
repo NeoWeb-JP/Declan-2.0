@@ -58,7 +58,7 @@ class NativeUpdaterTests(unittest.TestCase):
     def test_prerelease_checkbox_selector_matches_markup(self):
         import re
         self.assertIn('class="update-prereleases"', PANEL)
-        self.assertGreaterEqual(PANEL.count("querySelector('.update-prereleases')"), 3)
+        self.assertGreaterEqual(PANEL.count("querySelector('.update-prereleases')") + PANEL.count("bindPanelEvent('.update-prereleases'"), 3)
         self.assertNotIn("querySelector('.updates-prereleases')", PANEL)
         # Every update control queried during construction must exist in the template.
         for selector in re.findall(r"this\\.shadowRoot\\.querySelector\\('([.]updates?-[a-z-]+)'\\)", PANEL):
