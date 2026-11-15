@@ -106,3 +106,11 @@ The Assist bridge must still use **Declan 2.0 Wyoming Speaker Recognition** at `
 
 VoicePipeline's pending resolve endpoint has no atomic stale-edit token. Declan serialises its own changes and checks that a recording is still pending, but another VoicePipeline client could resolve it in the interval. Avoid reviewing the same pending recording in both interfaces simultaneously. Failed writes are never retried automatically; refresh the list before deciding what to do next.
 
+
+## Native Home Assistant panel and legacy dashboard retirement
+
+The supported management interface is the **native Declan Home Assistant panel**. The legacy standalone Declan browser dashboard at the backend root (`GET /`) is retired and returns HTTP 404. The `--open` browser-launch flag is removed.
+
+**Do not retire the Declan backend.** Keep its Assist, health, music, update, history, and settings APIs, stored credentials, Spotify configuration, speaker profiles, and backups intact. The native Home Assistant integration and its frontend assets must remain available. This change does not migrate or delete existing user data.
+
+Before merging this retirement PR, verify the deployed native panel remains usable on iPhone and desktop and that music, voice, settings, and updates work. To roll back, restore the prior backend release; do not remove the HA integration or its data.
