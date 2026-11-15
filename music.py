@@ -60,6 +60,11 @@ def music_players(inventory, *, origin=None):
     if approved is not None:
         entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
         return approved, {entity: entities[entity] for entity in approved.values() if entity in entities}
+    # Strict by default: registered MA devices are only candidates until the
+    # user approves the room mapping in Settings. The opt-in compatibility
+    # switch exists solely for installations migrating older auto-discovery.
+    if os.environ.get("DECLAN_ALLOW_UNCONFIGURED_MA", "") != "1":
+        return {}, {}
     entities = {row["entity_id"]: row for row in inventory
                 if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
     registered = any("declan_music_assistant" in row for row in entities.values())
