@@ -196,6 +196,12 @@ class DeclanTwoNativePanel extends HTMLElement {
           .settings-section--playlists .playlists-add-form button { width:100%; }
           .settings-section--playlists .playlists-list .player-row button { flex:1 1 auto; }
         }
+        .settings-section--logs .declan-log-controls { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+        .settings-section--logs .declan-log-controls label { display:grid; gap:6px; flex:1 1 130px; min-width:0; }
+        .settings-section--logs .declan-log-controls select { min-height:44px; width:100%; background:#102635; color:#e7f7ff; border:1px solid #315568; border-radius:9px; padding:8px; font:inherit; }
+        .settings-section--logs .declan-log-controls button { min-height:44px; }
+        .settings-section--logs .declan-logs-output { max-height:380px; overflow:auto; padding:12px; background:#081924; border:1px solid #315568; border-radius:10px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:.78rem; line-height:1.55; margin:0; }
+        @media(max-width:520px) { .settings-section--logs .declan-log-controls button { flex:1 1 100%; } }
         .settings-section pre, .settings-section input { max-width:100%; }
         @media(max-width:520px) { .settings-section > summary { padding:14px; gap:10px; } .settings-section-content { padding:14px; } .settings-section-icon { flex-basis:34px; height:34px; } }
         .timeline-row { border-top:1px solid #1d3d51; padding:14px 0; overflow-wrap:anywhere; }
@@ -374,6 +380,21 @@ class DeclanTwoNativePanel extends HTMLElement {
                 </div>
               </div>
             </details>
+            <details class="settings-section settings-section--logs">
+              <summary><span class="settings-section-icon" aria-hidden="true">≡</span><span class="settings-section-title">Declan logs<small>Recent backend events, Spotify errors and troubleshooting</small></span></summary>
+              <div class="settings-section-content">
+                <p class="muted">Recent Declan backend messages only. No Home Assistant startup noise. Log entries are kept in memory until the backend restarts.</p>
+                <div class="declan-log-controls">
+                  <label>Minimum level
+                    <select class="declan-log-level"><option value="ALL">All</option><option value="INFO">Info</option><option value="WARNING">Warnings</option><option value="ERROR">Errors</option></select>
+                  </label>
+                  <button class="declan-logs-refresh" type="button">Refresh logs</button>
+                  <button class="declan-logs-copy" type="button">Copy logs</button>
+                </div>
+                <p class="declan-logs-status muted" role="status" aria-live="polite"></p>
+                <pre class="declan-logs-output mono" aria-label="Declan backend log entries"></pre>
+              </div>
+            </details>
             <details class="settings-section">
               <summary><span class="settings-section-icon" aria-hidden="true">⚙</span><span class="settings-section-title">Diagnostics<small>Connection and troubleshooting information</small></span></summary>
               <div class="settings-section-content"><button class="settings-diagnostics" type="button">Load recent diagnostics</button><p class="settings-diagnostics-status muted" role="status" aria-live="polite"></p><pre class="settings-diagnostics-output mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
@@ -415,6 +436,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-export', 'click', () => this.downloadSettings('export'));
       this.bindPanelEvent('.settings-recovery', 'click', () => this.downloadSettings('recovery'));
       this.bindPanelEvent('.settings-diagnostics', 'click', () => this.loadDiagnostics());
+      this.bindPanelEvent('.declan-logs-refresh', 'click', () => this.loadDeclanLogs());
+      this.bindPanelEvent('.declan-log-level', 'change', () => this.renderDeclanLogs());
+      this.bindPanelEvent('.declan-logs-copy', 'click', () => this.copyDeclanLogs());
+      this.bindPanelEvent('.settings-section--logs', 'toggle', event => { if (event.target.open) void this.loadDeclanLogs(); });
       this.bindPanelEvent('.spotify-form', 'submit', event => {
         event.preventDefault(); void this.replaceSpotifyCredentials();
       });
@@ -1249,6 +1274,40 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Settings file prepared. Keep your backup somewhere safe.';
     } catch {
       status.textContent = 'Unable to retrieve settings ' + operation + '.';
+    }
+  }
+
+  renderDeclanLogs() {
+    const root = this.shadowRoot;
+    const level = root.querySelector('.declan-log-level').value;
+    const rank = {ALL: 0, INFO: 20, WARNING: 30, ERROR: 40, CRITICAL: 50};
+    const entries = (this._declanLogEntries || []).filter(item => (rank[item.level] || 0) >= rank[level]);
+    const lines = entries.map(item => item.time + ' [' + item.level + '] [' + item.source + '] ' + item.message);
+    this._declanLogText = lines.join('\n');
+    root.querySelector('.declan-logs-output').textContent = this._declanLogText || 'No Declan log entries at this level.';
+    root.querySelector('.declan-logs-status').textContent = entries.length + ' recent log entries shown (newest first).';
+  }
+
+  async loadDeclanLogs() {
+    const status = this.shadowRoot.querySelector('.declan-logs-status');
+    status.textContent = 'Loading Declan logs…';
+    try {
+      const result = await this._hass.callApi('GET', 'declan_two/management/logs');
+      if (!Array.isArray(result.entries)) throw new Error('Invalid log response');
+      this._declanLogEntries = result.entries;
+      this.renderDeclanLogs();
+    } catch {
+      status.textContent = 'Could not load Declan backend logs. Check the Declan connection.';
+    }
+  }
+
+  async copyDeclanLogs() {
+    const status = this.shadowRoot.querySelector('.declan-logs-status');
+    try {
+      await navigator.clipboard.writeText(this._declanLogText || '');
+      status.textContent = 'Declan logs copied.';
+    } catch {
+      status.textContent = 'Copy unavailable. Select the log text to copy it.';
     }
   }
 
