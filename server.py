@@ -16,6 +16,7 @@ from declan_ingress.security import response_headers, secure_page
 import ha_inventory
 from pathlib import Path
 from threading import Lock, Thread
+from contextlib import contextmanager
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
@@ -57,6 +58,47 @@ SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
 routine_last_attempts = {}
+ACTIVE_ROUTINES = {}
+ACTIVE_ROUTINES_LOCK = Lock()
+
+@contextmanager
+def track_routine(name, script):
+    with ACTIVE_ROUTINES_LOCK:
+        ACTIVE_ROUTINES[name] = script
+    try:
+        yield
+    finally:
+        with ACTIVE_ROUTINES_LOCK:
+            ACTIVE_ROUTINES.pop(name, None)
+
+def stop_pending_routines():
+    connection = ha_device_connection()
+    if connection is None:
+        return "Home Assistant is not connected.", "not_configured", None
+    with ACTIVE_ROUTINES_LOCK:
+        active = dict(ACTIVE_ROUTINES)
+    if not active:
+        return "No mapped routine is currently awaiting completion.", "confirmed", None
+    url, headers, opener = connection
+    stopped, unknown = [], []
+    for name, script in active.items():
+        request = Request(f"{url}/api/services/script/turn_off", headers=headers,
+                          data=json.dumps({"entity_id": script}).encode(), method="POST")
+        try:
+            with opener.open(request, timeout=4) as response:
+                response.read(4096)
+            stopped.append(name)
+        except HTTPError as error:
+            error.close()
+            unknown.append(name)
+        except (OSError, ValueError):
+            unknown.append(name)
+    message = ("Cancellation requested for: " + ", ".join(stopped) + ". " if stopped else "")
+    if unknown:
+        message += "Could not confirm cancellation request for: " + ", ".join(unknown) + "."
+    message += " Already completed actions were not rolled back."
+    return message, "unverified" if unknown or stopped else "confirmed", None
+
 IDLE_SECONDS = 300
 ASSIST_PORT = 52737
 RELEASE_VERSION = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
@@ -284,27 +326,28 @@ def run_custom_routine(name, action_results=None):
     payload = {**item["fields"], "request_id": request_id, "routine_id": script}
     request = Request(f"{url}/api/services/script/{script.split('.', 1)[1]}?return_response",
                       data=json.dumps(payload).encode(), headers=headers, method="POST")
-    try:
-        with opener.open(request, timeout=55) as response:
-            result = json.loads(response.read(65536))
-    except HTTPError as error:
-        code = error.code
-        error.close()
-        return f"Home Assistant rejected {name} (HTTP {code}).", "failed", None
-    except (OSError, ValueError):
-        return f"I couldn't verify {name}. Check its Home Assistant trace.", "unverified", None
-    value = result.get("service_response") if isinstance(result, dict) else None
-    if isinstance(value, dict) and set(value) == {script}:
-        value = value[script]
-    if not isinstance(value, dict) or value.get("request_id") != request_id or value.get("routine_id") != script:
-        return f"{name} was requested, but completion was not verified.", "unverified", None
-    status = value.get("outcome")
-    if status not in {"success", "partial", "failed", "cancelled"}:
-        return f"{name} returned no verified completion outcome.", "unverified", None
-    if action_results is not None:
-        action_results.extend(routine_action_results(value.get("steps")))
-    outcome = {"success": "reported_success", "partial": "partial", "failed": "failed", "cancelled": "cancelled"}[status]
-    return f"{name} {status}.", outcome, None
+    with track_routine(name, script):
+        try:
+            with opener.open(request, timeout=55) as response:
+                result = json.loads(response.read(65536))
+        except HTTPError as error:
+            code = error.code
+            error.close()
+            return f"Home Assistant rejected {name} (HTTP {code}).", "failed", None
+        except (OSError, ValueError):
+            return f"I couldn't verify {name}. Check its Home Assistant trace.", "unverified", None
+        value = result.get("service_response") if isinstance(result, dict) else None
+        if isinstance(value, dict) and set(value) == {script}:
+            value = value[script]
+        if not isinstance(value, dict) or value.get("request_id") != request_id or value.get("routine_id") != script:
+            return f"{name} was requested, but completion was not verified.", "unverified", None
+        status = value.get("outcome")
+        if status not in {"success", "partial", "failed", "cancelled"}:
+            return f"{name} returned no verified completion outcome.", "unverified", None
+        if action_results is not None:
+            action_results.extend(routine_action_results(value.get("steps")))
+        outcome = {"success": "reported_success", "partial": "partial", "failed": "failed", "cancelled": "cancelled"}[status]
+        return f"{name} {status}.", outcome, None
 
 
 def chained_outcome(routine, lighting):
@@ -2317,6 +2360,8 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
+        elif phrase in {"stop routine", "cancel routine", "stop the routine", "cancel the routine"}:
+            routine_reply, outcome, routine_status = stop_pending_routines()
         elif phrase == "stop":
             routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
         elif phrase.replace("’", "'") in DINNER_PHRASES:
