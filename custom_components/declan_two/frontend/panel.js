@@ -284,6 +284,15 @@ class DeclanTwoNativePanel extends HTMLElement {
             </div>
           </details>
 
+            <details class="settings-section settings-section--routines">
+              <summary><span class="settings-section-icon" aria-hidden="true">⌘</span><span class="settings-section-title">Home Assistant routines<small>Script mappings, phrases and parameters</small></span></summary>
+              <div class="settings-section-content">
+                <p class="muted">Map a routine to a Home Assistant script. Parameters are JSON values passed as script fields. Sensitive routines require confirmation before running.</p>
+                <div class="routine-entries"></div>
+                <div class="history-actions"><button class="routines-add" type="button">Add routine</button><button class="routines-save" type="button">Save routines</button><button class="routines-refresh" type="button">Reload</button></div>
+                <p class="routines-status muted" role="status" aria-live="polite"></p>
+              </div>
+            </details>
             <details class="settings-section settings-section--voice">
               <summary><span class="settings-section-icon" aria-hidden="true">◉</span><span class="settings-section-title">Voice &amp; learning<small>Profiles, reviewed recordings and learned commands</small></span></summary>
               <div class="settings-section-content">
@@ -343,6 +352,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
       this.bindPanelEvent('.mic-stop', 'click', () => this.stopMicrophone());
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
+      this.bindPanelEvent('.routines-add', 'click', () => this.addRoutineRow());
+      this.bindPanelEvent('.routines-save', 'click', () => this.saveRoutines());
+      this.bindPanelEvent('.routines-refresh', 'click', () => this.loadRoutines());
       this.bindPanelEvent('.ai-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveAISettings();
       });
@@ -446,10 +458,84 @@ class DeclanTwoNativePanel extends HTMLElement {
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
-    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); if (!this._voicesLoaded) void this.loadVoices(); }
+    if (name === 'settings') { void this.loadRoutines(); void this.loadSettingsStatus(); void this.loadAISettings(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
+  }
+
+  addRoutineRow(name = '', item = {}) {
+    const root = this.shadowRoot.querySelector('.routine-entries');
+    const row = document.createElement('div');
+    row.className = 'settings-subsection routine-entry';
+    row.style.cssText = 'border:1px solid #315568;border-radius:12px;padding:14px;margin-bottom:12px';
+    const fields = [
+      ['name', 'Routine key', name],
+      ['script', 'HA script entity ID', item.script || ''],
+      ['phrases', 'Trigger phrases (one per line)', (item.phrases || []).join('\n')],
+      ['fields', 'Script parameters (JSON object)', JSON.stringify(item.fields || {})]
+    ];
+    for (const [key, label, value] of fields) {
+      const wrapper = document.createElement('label');
+      wrapper.textContent = label;
+      wrapper.style.cssText = 'display:grid;gap:5px;margin-bottom:12px';
+      const input = key === 'phrases' || key === 'fields' ? document.createElement('textarea') : document.createElement('input');
+      input.dataset.field = key;
+      input.value = value;
+      input.style.cssText = 'width:100%;background:#091923;color:#e7f7ff;border:1px solid #315568;border-radius:8px;padding:9px';
+      wrapper.append(input);
+      row.append(wrapper);
+    }
+    const label = document.createElement('label');
+    label.textContent = 'Require confirmation ';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.dataset.field = 'sensitive';
+    checkbox.checked = item.sensitive === true;
+    label.append(checkbox);
+    row.append(label);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', () => row.remove());
+    row.append(remove);
+    root.append(row);
+  }
+
+  async loadRoutines() {
+    const status = this.shadowRoot.querySelector('.routines-status');
+    try {
+      const result = await this._hass.callApi('GET', 'declan_two/management/routines');
+      const root = this.shadowRoot.querySelector('.routine-entries');
+      root.replaceChildren();
+      for (const [name, item] of Object.entries(result.routines || {})) this.addRoutineRow(name, item);
+      status.textContent = 'Routine mappings loaded.';
+    } catch (error) {
+      status.textContent = 'Could not load routine mappings.';
+    }
+  }
+
+  async saveRoutines() {
+    const status = this.shadowRoot.querySelector('.routines-status');
+    try {
+      const routines = {};
+      for (const row of this.shadowRoot.querySelectorAll('.routine-entry')) {
+        const field = key => row.querySelector('[data-field="' + key + '"]');
+        const name = field('name').value.trim();
+        if (!name || Object.hasOwn(routines, name)) throw new Error('Routine names must be unique.');
+        routines[name] = {
+          script: field('script').value.trim(),
+          phrases: field('phrases').value.split('\n').map(x => x.trim().toLowerCase()).filter(Boolean),
+          fields: JSON.parse(field('fields').value),
+          sensitive: field('sensitive').checked
+        };
+      }
+      const result = await this._hass.callApi('POST', 'declan_two/management/routines', {routines});
+      if (!result.saved) throw new Error('Save not confirmed');
+      status.textContent = 'Routine mappings saved.';
+    } catch (error) {
+      status.textContent = 'Could not save routines: ' + (error.message || error);
+    }
   }
 
   async openUpdatesPage() {
