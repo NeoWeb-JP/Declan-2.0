@@ -1021,6 +1021,12 @@ def stop_everywhere_output(connection):
     destinations, players = music.music_players(inventory)
     targets = sorted({entity for entity in destinations.values()
                       if entity and players.get(entity, {}).get("state") in music.ACTIVE})
+    # A running Everywhere group owns its members: one stop on the group
+    # must not dispatch additional stop requests to the same stream.
+    group = destinations.get("everywhere")
+    if group in targets:
+        members = (players[group].get("attributes") or {}).get("group_members") or []
+        targets = [entity for entity in targets if entity == group or entity not in members]
     if not targets:
         return "", "confirmed", "No approved music players are currently playing."
     failed = []
