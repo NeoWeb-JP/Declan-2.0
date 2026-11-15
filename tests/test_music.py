@@ -36,6 +36,7 @@ class MusicTests(unittest.TestCase):
         self.enterContext(patch.dict(music.os.environ, {
             "DECLAN_SPOTIFY_PRESETS": "{}", "DECLAN_SPOTIFY_CLIENT_ID": "test-client",
             "DECLAN_SPOTIFY_CLIENT_SECRET": "test-secret",
+            "DECLAN_ALLOW_UNCONFIGURED_MA": "1",
         }))
         self.enterContext(patch.object(music, "spotify_token", None))
         folder = self.enterContext(TemporaryDirectory())
