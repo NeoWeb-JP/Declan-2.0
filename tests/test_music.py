@@ -208,7 +208,7 @@ class MusicTests(unittest.TestCase):
         self.assertIsNone(music.music_players(rows)[0]["bedroom"])
         self.assertEqual(music.music_players(rows, origin=satellite)[0]["bedroom"], target)
         self.assertEqual(music.music_players(rows, origin="other-device")[0]["bedroom"], other)
-        self.assertEqual(music.music_players(rows, origin=satellite)[0]["everywhere"], self.group)
+        self.assertIsNone(music.music_players(rows, origin=satellite)[0]["everywhere"])  # Group is not MA-registered.
 
     def test_sexy_time_uses_resolved_bedroom_speaker_for_start_and_end(self):
         target, native, satellite = self.bedroom_players()
