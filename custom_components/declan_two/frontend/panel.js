@@ -157,7 +157,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         </nav>
         <section class="panel overview-panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
           <div class="overview-chat card">
-            <div class="overview-chat-heading overview-chat-intro"><span class="overview-chat-icon" aria-hidden="true">D</span><div><h2>Talk to Declan</h2><p class="muted">Ask a question, give a command or start speaking.</p></div></div>
+            <div class="overview-chat-intro"><span class="overview-chat-icon" aria-hidden="true">D</span><div><h2 class="overview-chat-heading">Talk to Declan</h2><p class="muted">Ask a question, give a command or start speaking.</p></div></div>
             <form class="chat-form" aria-label="Chat with Declan">
               <label for="native-chat-input">Your message</label>
               <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="What can I help with?" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
