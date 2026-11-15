@@ -2386,10 +2386,6 @@ class Handler(BaseHTTPRequestHandler):
         last_lights = ()
         last_device = None
         last_information = None
-        if "response_guest_mode" not in locals():
-            guest_mode = read_guest_mode()
-            visitor_present = read_visitors_present()
-            response_guest_mode = "on" if visitor_present is not False else guest_mode
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             if (scope is not None and previous and previous.get("device_status_scope") == scope
@@ -2562,15 +2558,12 @@ class Handler(BaseHTTPRequestHandler):
                 routine_reply, outcome, fallback_steps = fallback
                 action_results.extend(fallback_steps)
         chat_kind = effective_message.casefold().strip(" .?!")
-        guest_mode = None
-        if routine_reply is None and (chat_kind in CHAT_COMMANDS or NAME_PATTERN.fullmatch(chat_kind)):
-            guest_mode = read_guest_mode()
-            # Visitor presence changes the response persona, not Guest Mode
-            # authority or any handover state.
-            visitor_present = read_visitors_present()
-            response_guest_mode = "on" if visitor_present is not False else guest_mode
-            if CHAT_COMMANDS.get(chat_kind) == "time":
-                information_context = ("time", None, None)
+        guest_mode = read_guest_mode()
+        visitor_present = read_visitors_present()
+        # Presence affects the persona, never Guest Mode authority.
+        response_guest_mode = "on" if visitor_present is not False else guest_mode
+        if routine_reply is None and CHAT_COMMANDS.get(chat_kind) == "time":
+            information_context = ("time", None, None)
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             failed_phrase = previous.get("failed_light_phrase") if previous else None
