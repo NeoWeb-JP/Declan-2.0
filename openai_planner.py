@@ -71,6 +71,21 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
         "input": json.dumps({"utterance": utterance, "allowed_entities": entities,
                              "current_state": context}),
         "max_output_tokens": MAX_OUTPUT_TOKENS,
+        "text": {"format": {"type": "json_schema", "name": "declan_action_plan",
+                            "strict": True, "schema": {
+                                "type": "object",
+                                "properties": {"actions": {"type": "array", "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "entity_id": {"type": "string"},
+                                        "service": {"type": "string"},
+                                        "depends_on": {"type": "array", "items": {"type": "integer"}},
+                                    },
+                                    "required": ["entity_id", "service", "depends_on"],
+                                    "additionalProperties": False,
+                                }}},
+                                "required": ["actions"], "additionalProperties": False,
+                            }}},
         "store": False,
     }
     request = Request(
