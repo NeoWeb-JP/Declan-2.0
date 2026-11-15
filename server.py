@@ -256,6 +256,17 @@ def parse_movie_request(phrase):
 
 def select_routine(phrase, origin):
     phrase = phrase.removeprefix("run ").removeprefix("the ")
+    try:
+        mapped_phrase = routine_registry.match(phrase)
+    except (OSError, ValueError, sqlite3.Error):
+        mapped_phrase = None
+    if mapped_phrase:
+        key = mapped_phrase[0]
+        if key in {"morning", "night"}:
+            return key, {}
+        if key in {"movie", "movie_bedroom"}:
+            return "movie", {"movie_action": "start", "movie_room": "bedroom" if key == "movie_bedroom" else "lounge", "requested_app": None}
+        return "custom:" + key, {}
     if phrase in GOOD_MORNING_PHRASES:
         return "morning", {}
     if phrase in GOOD_NIGHT_PHRASES:
