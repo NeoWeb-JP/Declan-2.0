@@ -128,16 +128,8 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load activity.</p>
           <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
-          <details class="timeline-management"><summary>Speaker profiles and older conversation history</summary><div class="timeline-management-body">
-          <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
-          <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
-          <h3>Learned routines and commands</h3>
-          <p class="muted">Edit or forget the phrases Declan has learned. Saving never runs the command.</p>
-          <button class="intents-refresh" type="button">Refresh learned commands</button>
-          <p class="intents-status muted" role="status" aria-live="polite"></p>
-          <div class="intents-list"></div>
-          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Edit learned commands above.</p><div class="history-list" aria-label="Recent conversations"></div>
-          </div></details>
+          <p class="muted">Unconfirmed recordings remain expanded. Open reviewed entries to see details.</p>
+
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
           <h2>Approved media players</h2>
@@ -148,6 +140,16 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
           <h2>Settings</h2>
+          <details class="timeline-management"><summary>Voice recognition and learned commands</summary><div class="timeline-management-body">
+          <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
+          <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
+          <h3>Learned routines and commands</h3>
+          <p class="muted">Edit or forget the phrases Declan has learned. Saving never runs the command.</p>
+          <button class="intents-refresh" type="button">Refresh learned commands</button>
+          <p class="intents-status muted" role="status" aria-live="polite"></p>
+          <div class="intents-list"></div>
+          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Edit learned commands above.</p><div class="history-list" aria-label="Recent conversations"></div>
+          </div></details>
           <p class="muted">Spotify credentials remain saved until you explicitly replace both values. Other settings never change them.</p>
           <p class="spotify-status muted" role="status" aria-live="polite">Open Settings to check Spotify configuration.</p>
           <button class="settings-refresh" type="button">Refresh settings status</button>
