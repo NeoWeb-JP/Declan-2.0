@@ -36,6 +36,16 @@ import approved_media_players
 import timers
 import updates
 import web_stt
+import openai_planner
+import ai_settings
+import ai_credentials
+import ai_pricing
+import ai_budget
+import ai_context
+import ai_intent_gate
+import guarded_fallback
+import ha_dispatcher
+from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 
 
@@ -1431,6 +1441,71 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
     return reply, outcome
 
 
+
+def _bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None):
+    plan = openai_planner.request_plan(message, exposed, model=settings["model"], api_key=ai_credentials.get_key(), usage_sink=usage_sink, inventory=inventory,
+        max_cost_micro_usd=ai_settings._money(settings["request_ceiling_usd"], allow_zero=False))
+    if len(plan) > settings["max_actions"]:
+        raise ValueError("Too many proposed actions")
+    return plan
+
+
+def guarded_openai_fallback(message, *, source, exposed_entities=()):
+    """Opt-in fallback after local handlers. Sensitive targets excluded."""
+    try:
+        settings = ai_settings.read()
+    except (OSError, ValueError, sqlite3.Error):
+        return "AI settings are unavailable; local commands still work.", "unresolved", []
+    if not settings["enabled"] or not ai_intent_gate.is_action_request(message):
+        return None
+    connection = ha_device_connection()
+    if connection is None:
+        return "Home Assistant is unavailable.", "unavailable", []
+    inventory, error = read_ha_inventory(connection)
+    if error or inventory is None:
+        return "I couldn't verify Home Assistant devices.", "unavailable", []
+    # Only the authenticated HA integration supplies its effective Assist
+    # exposure set. Never use all inventory rows as implicit permission.
+    if not isinstance(exposed_entities, (list, tuple)) or len(exposed_entities) > 20000:
+        return "AI device permissions are unavailable.", "unresolved", []
+    permitted = set(exposed_entities)
+    if not permitted or len(permitted) != len(exposed_entities) or any(
+            not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", item)
+            for item in exposed_entities):
+        return "AI device permissions are unavailable.", "unresolved", []
+    safe = [row for row in inventory if row["entity_id"] in permitted
+            and row["entity_id"].split(".", 1)[0] in settings["allowed_domains"]]
+    try:
+        safe = ai_context.select(safe, message, limit=openai_planner.MAX_CONTEXT)
+        limit = ai_settings._money(settings["monthly_budget_usd"], allow_zero=True)
+        ceiling = ai_settings._money(settings["request_ceiling_usd"], allow_zero=False)
+        usage = {}
+        with history.database() as db:
+            result = guarded_fallback.run_guarded_fallback(
+                message, safe,
+                planner=lambda text, exposed: _bounded_ai_plan(
+                    text, exposed, settings, usage_sink=lambda value: usage.update({"value": value}),
+                    inventory=safe),
+                dispatcher=lambda action: ha_dispatcher.dispatch_verified(
+                    action, connection,
+                    authorised=lambda candidate: candidate.entity_id in {
+                        row["entity_id"] for row in safe
+                        if row["state"] not in ("unknown", "unavailable")
+                    }),
+                budget_db=db, monthly_limit_micro_usd=limit,
+                request_ceiling_micro_usd=ceiling,
+                charge_micro_usd=lambda: ai_pricing.charge(settings["model"], usage.get("value")),
+            )
+        return result["reply"], result["outcome"], [
+            {"entity_id": action.entity_id, "action": action.service,
+             "ai_generated": True, "status": action.status,
+             **({"detail": action.detail} if settings["diagnostics"] else {})}
+            for action in result["actions"]
+        ]
+    except (ValueError, OSError, sqlite3.Error):
+        return "I couldn't safely complete that request using OpenAI.", "unresolved", []
+
+
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
     now = monotonic()
     while SESSIONS and now - next(iter(SESSIONS.values()))["at"] >= IDLE_SECONDS:
@@ -1600,7 +1675,7 @@ class Handler(BaseHTTPRequestHandler):
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
         players_auth = (
-            self.path == "/api/settings/media-players"
+            self.path in {"/api/settings/media-players", "/api/settings/ai"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1704,6 +1779,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(503, {"error": "Diagnostics are unavailable."})
         elif self.path == "/api/settings/spotify":
             self.spotify_settings()
+        elif self.path == "/api/settings/ai":
+            try:
+                with history.database() as db:
+                    usage_micro_usd = ai_budget.monthly_reserved(db)
+                self.send_json(200, {"settings": ai_settings.read(),
+                                     "key_configured": ai_credentials.configured(),
+                                     "month_usage_micro_usd": usage_micro_usd})
+            except (OSError, sqlite3.Error, ValueError):
+                self.send_json(503, {"error": "AI settings unavailable."})
         elif self.path == "/api/settings/media-players":
             self.approved_player_settings()
         elif self.path == "/api/history/export":
@@ -1799,11 +1883,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
             self.path == "/api/voicepipeline"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
+            self.path == "/api/settings/ai"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -1874,7 +1965,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            max_size = 450000 if self.path == "/api/voice-profiles" else 196608 if self.path == "/api/settings/import" else 65536 if self.path == "/api/assist/history" else 8192
+            max_size = 450000 if self.path == "/api/voice-profiles" else 196608 if self.path == "/api/settings/import" else 65536 if self.path in {"/api/assist/history", "/api/assist", "/api/chat"} else 8192
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
@@ -1896,6 +1987,23 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {"error": "Explicit confirmation and both credentials required."})
                     return
                 self.spotify_settings(body)
+                return
+            if self.path == "/api/settings/ai":
+                try:
+                    if not isinstance(body, dict):
+                        raise ValueError("Invalid AI settings payload")
+                    if set(body) == {"api_key"}:
+                        ai_credentials.replace_key(body["api_key"])
+                        self.send_json(200, {"key_configured": True})
+                    elif set(body) == {"settings"}:
+                        self.send_json(200, {"settings": ai_settings.save(body["settings"]),
+                                             "key_configured": ai_credentials.configured()})
+                    else:
+                        raise ValueError("Invalid AI settings payload")
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Could not save AI settings."})
                 return
             if self.path == "/api/settings/media-players":
                 self.approved_player_settings(body)
@@ -2094,8 +2202,13 @@ class Handler(BaseHTTPRequestHandler):
         lighting_context = None
         status_target = None
         information_context = None
-        phrase = history.normalize_phrase(message)
-        effective_message = message
+        # Resolve explicit spoken self-corrections before any routine, lighting,
+        # media or learned-intent side effect. Do not split ambiguous conjunctions.
+        try:
+            effective_message = preprocess_speech(message).commands[0]
+        except ValueError:
+            effective_message = message
+        phrase = history.normalize_phrase(effective_message)
         if source in {"assist", "browser_voice"} and len(phrase) <= 120:
             try:
                 target = history.learned_intent(phrase)
@@ -2231,6 +2344,17 @@ class Handler(BaseHTTPRequestHandler):
                         step["entity_id"] for step in action_results
                         if step["status"] in ("confirmed", "already_set") and "entity_id" in step
                     )) if outcome == "confirmed" and scope is not None and len(action_results) < 200 else ()
+        if routine_reply is None and light_result is None:
+            bridge_token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
+            authenticated_ha = len(bridge_token) >= 32 and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                ("Bearer " + bridge_token).encode())
+            exposed = body.get("ai_exposed_entities", ()) if authenticated_ha else ()
+            fallback = guarded_openai_fallback(
+                effective_message, source=source, exposed_entities=exposed)
+            if fallback is not None:
+                routine_reply, outcome, fallback_steps = fallback
+                action_results.extend(fallback_steps)
         chat_kind = effective_message.casefold().strip(" .?!")
         guest_mode = None
         if routine_reply is None and (chat_kind in CHAT_COMMANDS or NAME_PATTERN.fullmatch(chat_kind)):

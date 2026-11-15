@@ -9,7 +9,7 @@ MAX_PAGES = 100
 MAX_PAGE_BYTES = 1024 * 1024
 DEVICE_DOMAINS = ('binary_sensor', 'climate', 'cover', 'fan', 'light', 'media_player',
                   'switch', 'script', 'remote', 'input_boolean')
-DEVICE_FIELDS = ('friendly_name', 'current_position', 'brightness', 'supported_color_modes', 'entity_id')
+DEVICE_FIELDS = ('friendly_name', 'current_position', 'brightness', 'supported_color_modes', 'entity_id', 'device_class', 'supported_features')
 MUSIC_FIELDS = ('friendly_name', 'media_title', 'media_artist', 'media_content_id', 'group_members')
 
 
@@ -42,7 +42,7 @@ def read(connection, *, music=False):
                    "{% endif %}{% endfor %}{% endif %}" if music else "")
                 + "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, state=entity.state, attributes=attrs.values"
                 + (", declan_area=area_name(entity.entity_id), declan_device=device_id(entity.entity_id), "
-                   "declan_music_assistant=entity.entity_id in ma, declan_source_entities=source.entities" if music else "")
+                   "declan_music_assistant=entity.entity_id in ma, declan_source_entities=source.entities" if music else ", declan_area=area_name(entity.entity_id)")
                 + ")] %}{% endfor %}{{ dict(total=entities | count, rows=result.rows) | to_json }}"
             )
             request = Request(url + '/api/template', headers=headers,

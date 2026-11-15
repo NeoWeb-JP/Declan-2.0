@@ -1,3 +1,5 @@
+> **Canonical requirements:** [Issue #12](https://github.com/NeoWeb-JP/Declan-2.0/issues/12). The issue's 61 owner-approved acceptance criteria supersede any conflicting historical text below. This document is an archived implementation log, not a second requirements source. In particular, Stop is Everywhere, cross-room context is disabled, and History review is seven days.
+
 ## Final owner-approved decisions (15 November 2026)
 
 These decisions supersede older requirements and the previous 11 November status notes.

@@ -5,6 +5,7 @@ import aiohttp
 from homeassistant.components import conversation
 from homeassistant.helpers import intent
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from .ai_exposure import exposed_for_declan
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class DeclanTwoAgent(conversation.ConversationEntity):
                     "device_id": user_input.device_id,
                     "satellite_id": getattr(user_input, "satellite_id", None),
                     "user_id": user_input.context.user_id,
+                    "ai_exposed_entities": exposed_for_declan(self.hass),
                     **speaker_data,
                 },
                 headers={"Authorization": f"Bearer {self._token}"},
