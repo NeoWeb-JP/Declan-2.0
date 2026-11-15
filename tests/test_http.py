@@ -103,28 +103,23 @@ class APITests(TestCase):
             play.assert_called_once_with((None, "country music", "spotify"), None,
                                          server.read_music_inventory, origin="utility-device")
 
-    def test_stop_discovers_the_speaking_device_and_replies_silently(self):
+    def test_stop_everywhere_replies_silently(self):
         rows = [
-            {"entity_id": "assist_satellite.new_bedroom", "declan_device": "bedroom", "declan_area": "Master Bedroom"},
-            {"entity_id": "media_player.new_bedroom_speaker", "declan_device": "bedroom",
-             "declan_area": "Master Bedroom", "declan_music_assistant": False, "state": "playing", "attributes": {}},
-            {"entity_id": "media_player.kitchen", "declan_device": "kitchen",
-             "declan_music_assistant": False, "state": "playing", "attributes": {}},
+            {"entity_id": "media_player.everywhere", "state": "playing"},
+            {"entity_id": "media_player.kitchen", "state": "playing"},
         ]
+        destinations = {"everywhere": "media_player.everywhere", "kitchen": "media_player.kitchen"}
+        players = {row["entity_id"]: row for row in rows}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), patch.object(
             server, "read_music_inventory", return_value=(rows, None)
-        ), patch.object(server.music, "request") as request, patch.object(
+        ), patch.object(server.music, "music_players", return_value=(destinations, players)), patch.object(
+            server.music, "request") as request, patch.object(
             server.music, "wait_for", return_value=True
-        ), patch.object(server.timers, "stop_due") as alarms:
+        ):
             result = self.ask("stop", path="/api/assist", device="bedroom")
             self.assertEqual((result["reply"], result["outcome"]), ("", "confirmed"))
-            self.assertEqual(request.call_args.args[2], {"entity_id": "media_player.new_bedroom_speaker"})
-            alarms.assert_called_once_with("assist_satellite.new_bedroom")
+            self.assertEqual(request.call_count, 2)
             self.assertEqual(server.history.recent(limit=1)[0]["reply"], "")
-            rows.append({**rows[1], "entity_id": "media_player.second_bedroom_speaker"})
-            request.reset_mock()
-            self.assertEqual(self.ask("stop", path="/api/assist", device="bedroom")["outcome"], "unresolved")
-            request.assert_not_called()
 
     def test_two_satellites_execute_and_record_one_command(self):
         self.enterContext(patch.object(server, "CAPTURE_ARBITER", server.CaptureArbiter(window=0.03)))
