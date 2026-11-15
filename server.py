@@ -1447,7 +1447,7 @@ def _bounded_ai_plan(message, exposed, settings, usage_sink=None):
     return plan
 
 
-def guarded_openai_fallback(message, *, source):
+def guarded_openai_fallback(message, *, source, exposed_entities=()):
     """Opt-in fallback after local handlers. Sensitive targets excluded."""
     if os.environ.get("DECLAN_OPENAI_FALLBACK_ENABLED") != "1":
         return None
@@ -1460,13 +1460,15 @@ def guarded_openai_fallback(message, *, source):
     inventory, error = read_ha_inventory(connection)
     if error or inventory is None:
         return "I couldn't verify Home Assistant devices.", "unavailable", []
-    # Until HA's Assist exposure policy is available to the backend, require
-    # an explicit server-side allowlist. Never treat inventory as authorisation.
-    permitted = {item.strip() for item in
-                 os.environ.get("DECLAN_OPENAI_ALLOWED_ENTITIES", "").split(",")
-                 if item.strip()}
-    if not permitted:
-        return "AI device permissions are not configured.", "unresolved", []
+    # Only the authenticated HA integration supplies its effective Assist
+    # exposure set. Never use all inventory rows as implicit permission.
+    if not isinstance(exposed_entities, (list, tuple)) or len(exposed_entities) > 20000:
+        return "AI device permissions are unavailable.", "unresolved", []
+    permitted = set(exposed_entities)
+    if not permitted or len(permitted) != len(exposed_entities) or any(
+            not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\\.[a-z0-9_]+", item)
+            for item in exposed_entities):
+        return "AI device permissions are unavailable.", "unresolved", []
     safe = [row for row in inventory if row["entity_id"] in permitted
             and row["entity_id"].split(".", 1)[0] in settings["allowed_domains"]]
     # Refuse partial exposure rather than silently omit targets or permit
@@ -2340,7 +2342,13 @@ class Handler(BaseHTTPRequestHandler):
                         if step["status"] in ("confirmed", "already_set") and "entity_id" in step
                     )) if outcome == "confirmed" and scope is not None and len(action_results) < 200 else ()
         if routine_reply is None and light_result is None:
-            fallback = guarded_openai_fallback(effective_message, source=source)
+            bridge_token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
+            authenticated_ha = len(bridge_token) >= 32 and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                ("Bearer " + bridge_token).encode())
+            exposed = body.get("ai_exposed_entities", ()) if authenticated_ha else ()
+            fallback = guarded_openai_fallback(
+                effective_message, source=source, exposed_entities=exposed)
             if fallback is not None:
                 routine_reply, outcome, fallback_steps = fallback
                 action_results.extend(fallback_steps)
