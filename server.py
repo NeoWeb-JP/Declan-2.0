@@ -2579,10 +2579,15 @@ class Handler(BaseHTTPRequestHandler):
                              scope=scope, guest_mode=response_guest_mode)
             # Decorate successful normal replies exactly once. Keep errors,
             # ambiguous requests, safety notices and routine diagnostics clear.
-            existing_lines = any(
-                line in reply["reply"]
-                for variants in __import__("personality").LINES.values()
-                for group in variants for line in group
+            existing_lines = (
+                any(
+                    line in reply["reply"]
+                    for variants in __import__("personality").LINES.values()
+                    for group in variants for line in group
+                )
+                or any(line in reply["reply"] for line in (
+                    *personality_policy._SAVAGE, *personality_policy._GUEST
+                ))
             )
             if (outcome == "confirmed" and not existing_lines
                     and routine_reply is not None
