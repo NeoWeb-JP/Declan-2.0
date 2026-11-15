@@ -39,6 +39,19 @@ class RoutineTests(TestCase):
         return {"schema_version": 1, **parameters, "outcome": "success", "guest_mode": "off",
                 "steps": [{"target": "lights", "status": "confirmed"}], **extra}
 
+    def test_native_custom_phrases_select_builtins(self):
+        self.mappings["morning"]["phrases"] = ["wake the house"]
+        self.assertEqual(server.select_routine("wake the house", None), ("morning", {}))
+        self.mappings["movie_bedroom"]["phrases"] = ["bedroom cinema"]
+        self.assertEqual(server.select_routine("bedroom cinema", None)[1]["movie_room"], "bedroom")
+
+    def test_builtin_sensitive_flag_fails_closed(self):
+        self.mappings["morning"]["sensitive"] = True
+        self.respond(self.confirmed)
+        self.assertEqual(server.run_routine("morning")[1], "unresolved")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(server.run_routine("morning", approved=True)[1], "reported_success")
+
     def test_morning_dispatches_once_and_rejects_duplicate(self):
         self.respond(self.confirmed)
         steps = []
