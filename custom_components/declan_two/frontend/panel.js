@@ -50,6 +50,14 @@ class DeclanTwoNativePanel extends HTMLElement {
         .page-select:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
         @media(max-width:380px) { .brand h1 { font-size:15px; } .brand { gap:5px; } }
         .tabs button[aria-selected="true"] { background:#184860; border-color:#76dbff; }
+        /* Navigation stays hidden until the settings icon is pressed. */
+        .wrap { position:relative; }
+        header { position:relative; }
+        .page-menu-toggle { display:grid; place-items:center; flex:0 0 34px; width:34px; height:34px; padding:0; border-radius:9px; }
+        .page-navigation[hidden] { display:none !important; }
+        .page-navigation { position:absolute; right:12px; top:64px; z-index:30; display:grid; gap:4px; width:min(300px,calc(100% - 24px)); padding:8px; background:#102635; border:1px solid #315568; border-radius:12px; box-shadow:0 12px 30px #0009; }
+        .page-choice { display:block; width:100%; text-align:left; border:0; background:transparent; padding:11px 12px; }
+        .page-choice[aria-current="page"] { background:#184860; color:#eaffff; }
         .card { margin-top:14px; padding:22px; border:1px solid #1d3d51;
           background:#0b1a25; border-radius:14px; }
         .state { font-weight:600; }
@@ -180,16 +188,14 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button class="menu" type="button" aria-label="Open Home Assistant sidebar">☰</button>
           <div class="brand"><span class="orb declan-mark" aria-hidden="true"><svg viewBox="0 0 48 48" width="32" height="32" fill="none"><path d="M14 8h11c10 0 17 7 17 16s-7 16-17 16H14V8Z" stroke="currentColor" stroke-width="4"/><path d="M21 16h4c5 0 8 3 8 8s-3 8-8 8h-4V16Z" fill="currentColor"/></svg></span><h1>DECLAN <small>2.0</small></h1></div>
           <button class="refresh connection-action" type="button" aria-label="Check Declan connection" title="Check Declan connection"><span class="connection-dot" aria-hidden="true"></span><span class="connection-action-label">Check status</span></button>
+          <button class="page-menu-toggle" type="button" aria-label="Open Declan pages" aria-controls="declan-pages" aria-expanded="false" title="Pages and settings"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2 2-.06-.06A1.7 1.7 0 0 0 15.86 18l-.06.02V21h-3v-.1a1.7 1.7 0 0 0-1.3-1.65 1.7 1.7 0 0 0-1.86.33l-.07.07-2-2 .07-.07A1.7 1.7 0 0 0 7.98 15.7L7.96 15H5v-3h.1a1.7 1.7 0 0 0 1.65-1.3 1.7 1.7 0 0 0-.33-1.86l-.07-.07 2-2 .07.07A1.7 1.7 0 0 0 10.3 7.2L11 7V4h3v.1a1.7 1.7 0 0 0 1.3 1.65 1.7 1.7 0 0 0 1.86-.33l.07-.07 2 2-.07.07A1.7 1.7 0 0 0 18.8 9.3L19 10h2v3h-.1A1.7 1.7 0 0 0 19.4 15Z"/></svg></button>
         </header>
-        <nav class="page-navigation" aria-label="Declan pages">
-          <label for="declan-page">Page</label>
-          <select id="declan-page" class="page-select" aria-label="Choose Declan page">
-            <option value="overview">Overview</option>
-            <option value="conversations">History &amp; Voice</option>
-            <option value="players">Media players</option>
-            <option value="settings">Settings</option>
-            <option value="updates">Updates</option>
-          </select>
+        <nav id="declan-pages" class="page-navigation" aria-label="Declan pages" hidden>
+          <button type="button" class="page-choice" data-page="overview">Overview</button>
+          <button type="button" class="page-choice" data-page="conversations">History &amp; Voice Recognition</button>
+          <button type="button" class="page-choice" data-page="players">Media players</button>
+          <button type="button" class="page-choice" data-page="settings">Settings</button>
+          <button type="button" class="page-choice" data-page="updates">Updates</button>
         </nav>
         <section class="panel overview-panel" id="panel-overview" role="region" aria-label="Declan page">
           <div class="overview-chat card">
@@ -214,6 +220,10 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load activity.</p>
           <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
+          <details class="timeline-training"><summary>Saved phrase corrections</summary>                <div class="settings-subsection"><h3>Phrase training</h3><p class="muted">Edit or forget existing phrase corrections. Every conversation entry below can be trained.</p>
+                  <p class="intents-status muted" role="status" aria-live="polite"></p><div class="intents-list"></div>
+                </div>
+</details>
           <p class="muted">Unconfirmed recordings remain expanded. Open reviewed entries to see details.</p>
 
         </section>
@@ -233,11 +243,6 @@ class DeclanTwoNativePanel extends HTMLElement {
                 <div class="settings-subsection"><h3>Voice profiles</h3><p class="muted">Manage speakers and review their recognition records.</p>
                   <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
                 </div>
-                <div class="settings-subsection"><h3>Reviewed recordings</h3><button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div></div>
-                <div class="settings-subsection"><h3>Learned commands</h3><p class="muted">Edit or forget phrases Declan has learned. Saving does not run the command.</p>
-                  <button class="intents-refresh" type="button">Refresh learned commands</button><p class="intents-status muted" role="status" aria-live="polite"></p><div class="intents-list"></div>
-                </div>
-                <div class="settings-subsection"><h3>Conversation archive</h3><div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this section to load recent conversations.</p><div class="history-list" aria-label="Recent conversations"></div></div>
               </div>
             </details>
             <details class="settings-section" open>
@@ -308,7 +313,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.timeline-refresh', 'click', () => this.loadTimeline());
       this.bindPanelEvent('.timeline-filter', 'change', () => this.renderTimeline());
       this.bindPanelEvent('.voices-refresh', 'click', () => this.loadVoices());
-      this.bindPanelEvent('.voices-history-refresh', 'click', () => this.loadVoiceHistory());
+
       this.bindPanelEvent('.players-refresh', 'click', () => this.loadPlayers());
       this.bindPanelEvent('.players-save', 'click', () => this.savePlayers());
       this.bindPanelEvent('.updates-check', 'click', () => this.checkUpdates());
@@ -321,10 +326,18 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.updates-select', 'change', () => {
         this.shadowRoot.querySelector('.updates-install').disabled = !this.shadowRoot.querySelector('.updates-select').value;
       });
-      this.bindPanelEvent('.intents-refresh', 'click', () => this.loadLearnedIntents());
+
       this.bindPanelEvent('.history-refresh', 'click', () => this.loadHistory());
       this.bindPanelEvent('.history-more', 'click', () => this.loadHistory(this._historyCursor));
-      this.bindPanelEvent('.page-select', 'change', () => this.selectTab(this.shadowRoot.querySelector('.page-select').value));
+      this.bindPanelEvent('.page-menu-toggle', 'click', () => {
+        const nav = this.shadowRoot.querySelector('.page-navigation');
+        nav.hidden = !nav.hidden;
+        this.shadowRoot.querySelector('.page-menu-toggle').setAttribute('aria-expanded', String(!nav.hidden));
+      });
+      this.shadowRoot.querySelectorAll('.page-choice').forEach(button => button.addEventListener('click', () => this.selectTab(button.dataset.page)));
+      this.shadowRoot.addEventListener('keydown', event => {
+        if (event.key === 'Escape') this.closePageMenu();
+      });
       this.bindPanelEvent('.menu', 'click', () => {
         this.dispatchEvent(new Event('hass-toggle-menu', {bubbles:true, composed:true}));
       });
@@ -357,22 +370,30 @@ class DeclanTwoNativePanel extends HTMLElement {
   connectedCallback() {
     // Apply the same tab visibility state on initial mount as on user navigation.
     // HA may attach the panel before the hass setter supplies backend state.
-    const selected = this.shadowRoot.querySelector('.page-select');
     try {
-      this.selectTab(selected?.value || 'overview');
+      this.selectTab('overview');
     } catch (error) {
       this.showStartupError(error);
     }
   }
 
+  closePageMenu() {
+    const nav = this.shadowRoot.querySelector('.page-navigation');
+    nav.hidden = true;
+    this.shadowRoot.querySelector('.page-menu-toggle').setAttribute('aria-expanded', 'false');
+  }
+
   selectTab(name) {
-    const selector = this.shadowRoot.querySelector('.page-select');
-    if (selector && selector.value !== name) selector.value = name;
+    this.closePageMenu();
+    this.shadowRoot.querySelectorAll('.page-choice').forEach(button => {
+      if (button.dataset.page === name) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
     this.shadowRoot.querySelectorAll('.panel').forEach(panel => {
       panel.hidden = panel.id !== 'panel-' + name;
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
-    if (name === 'settings' && !this._intentsLoaded) void this.loadLearnedIntents();
+    if (name === 'conversations' && !this._intentsLoaded) void this.loadLearnedIntents();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'settings') { void this.loadSettingsStatus(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.loadUpdateStatus();
@@ -1100,7 +1121,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         label.className = 'muted';
         label.textContent = 'Conversation · Speaker not linked';
         controls.append(label);
-        if (item.teachable && Number.isSafeInteger(item.id) && item.id > 0) {
+        if (Number.isSafeInteger(item.id) && item.id > 0) {
           const teach = document.createElement('button');
           teach.type = 'button';
           teach.textContent = 'Teach Declan';
