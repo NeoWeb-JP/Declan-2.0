@@ -2603,6 +2603,17 @@ def main():
         worker.start()
         next_prune = monotonic()
         next_music_check = monotonic() + 5
+        next_discovery_check = monotonic() + 10
+        discovery_running = False
+
+        def refresh_discovery():
+            nonlocal discovery_running
+            try:
+                spotify_playlists.discover(build_opener())
+            except Exception:
+                logging.exception("Spotify playlist discovery refresh failed.")
+            finally:
+                discovery_running = False
         url = f"http://127.0.0.1:{server.server_port}"
         try:
             opener = build_opener(ProxyHandler({}))
@@ -2625,6 +2636,18 @@ def main():
                         music.skip_blocked_tracks(ha_device_connection(), read_music_inventory)
                     except Exception:
                         logging.exception("Blocked music could not be checked.")
+                if monotonic() >= next_discovery_check:
+                    next_discovery_check = monotonic() + 3600
+                    if not discovery_running:
+                        try:
+                            catalogue = spotify_playlists.catalogue_path()
+                            stale = not catalogue.exists() or (datetime.now().timestamp() - catalogue.stat().st_mtime) >= 7 * 86400
+                            credentials, _ = music.spotify_credentials()
+                            if stale and all(credentials):
+                                discovery_running = True
+                                Thread(target=refresh_discovery, daemon=True).start()
+                        except (OSError, ValueError):
+                            logging.exception("Spotify playlist discovery schedule unavailable.")
                 if monotonic() >= next_prune:
                     try:
                         history.prune()
