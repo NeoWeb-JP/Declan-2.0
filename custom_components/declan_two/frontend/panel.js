@@ -588,7 +588,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       }
       status.textContent = 'Routine mappings loaded.';
     } catch (error) {
-      status.textContent = 'Could not load routine mappings.';
+      status.textContent = 'Could not load routine mappings: ' + (error?.body?.error || error?.body?.status || error?.message || 'Unknown error');
     }
   }
 
@@ -599,9 +599,12 @@ class DeclanTwoNativePanel extends HTMLElement {
       for (const row of this.shadowRoot.querySelectorAll('.routine-entry')) {
         const field = key => row.querySelector('[data-field="' + key + '"]');
         const name = field('name').value.trim();
-        if (!name || Object.hasOwn(routines, name)) throw new Error('Routine names must be unique.');
-        if (!field('script').value.trim() && ['morning', 'night', 'movie', 'movie_bedroom'].includes(name)) continue;
-        routines[name] = {
+        if (!name) throw new Error('Enter a routine key.');
+        if (!field('script').value.trim() && !field('remote').value.trim()) continue;
+        const key = name === 'movie_time' ? 'movie' : name === 'good_morning' ? 'morning' : name === 'good_night' ? 'night' : name;
+        if (Object.hasOwn(routines, key)) throw new Error('Duplicate routine key: ' + key);
+        if (!field('script').value.trim()) throw new Error('Select an HA script for ' + name + '.');
+        routines[key] = {
           script: field('script').value.trim(),
           remote: field('remote').value.trim(),
           phrases: field('phrases').value.split('\n').map(x => x.trim().toLowerCase()).filter(Boolean),
@@ -613,7 +616,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (!result.saved) throw new Error('Save not confirmed');
       status.textContent = 'Routine mappings saved.';
     } catch (error) {
-      status.textContent = 'Could not save routines: ' + (error.message || error);
+      const detail = error?.body?.error || error?.body?.status || error?.message || error?.status || 'Unknown error';
+      status.textContent = 'Could not save routines: ' + (typeof detail === 'string' ? detail : JSON.stringify(detail));
     }
   }
 
