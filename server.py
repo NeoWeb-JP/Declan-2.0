@@ -50,6 +50,7 @@ import ha_dispatcher
 import routine_registry
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
+import personality_policy
 
 
 SESSIONS = OrderedDict()
@@ -2543,6 +2544,20 @@ class Handler(BaseHTTPRequestHandler):
                 phrase_suggestion = failed_phrase["text"]
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
                              scope=scope, guest_mode=guest_mode)
+            # Apply a central policy to successful replies that have not already
+            # received a command-specific personality line. Preserve the exact
+            # result text on failures and ambiguous or safety-sensitive actions.
+            existing_lines = any(
+                line in reply["reply"]
+                for variants in __import__("personality").LINES.values()
+                for group in variants for line in group
+            )
+            if routine_reply is not None and outcome == "confirmed" and not existing_lines:
+                reply["reply"] = personality_policy.decorate(
+                    reply["reply"], outcome=outcome,
+                    guest=read_guest_mode() != "off",
+                    visitor_present=None,
+                )
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:
