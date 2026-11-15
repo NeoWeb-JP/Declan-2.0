@@ -62,6 +62,14 @@ class OpenAIPlannerTests(unittest.TestCase):
                          api_key="test", inventory=[{"entity_id": "light.private",
                                                     "state": "off", "attributes": {}}])
 
+    def test_cost_ceiling_blocks_api_request(self):
+        opener = FakeOpener(response({"actions": []}))
+        with self.assertRaises(ValueError):
+            request_plan("turn on kitchen", ["light.kitchen"], opener=opener,
+                         model="gpt-5-mini", api_key="test",
+                         max_cost_micro_usd=1)
+        self.assertIsNone(opener.request)
+
     def test_missing_credentials_fail_closed(self):
         with self.assertRaises(ValueError):
             request_plan("lights on", ["light.kitchen"], model="gpt-5-mini", api_key="")
