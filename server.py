@@ -2283,6 +2283,7 @@ class Handler(BaseHTTPRequestHandler):
                 effective_message = target
                 phrase = history.normalize_phrase(target)
         opener = build_opener(ProxyHandler({}), NoRedirect())
+        routine_approved = False
         if source == "assist":
             spoken = history.normalize_phrase(message)
             candidate = spoken if spoken in sensitive_confirmations.YES | sensitive_confirmations.NO else phrase
@@ -2304,6 +2305,7 @@ class Handler(BaseHTTPRequestHandler):
                                      "outcome": "confirmation_" + decision})
                 return
             if decision == "confirmed":
+                routine_approved = True
                 phrase = approved_phrase
                 effective_message = approved_phrase
         timer_result = timers.handle(
@@ -2326,7 +2328,7 @@ class Handler(BaseHTTPRequestHandler):
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
             lighting_context = ()
             routine, follow_on = routine_turn
-            routine_reply, outcome, routine_status = execute_routine(routine, action_results)
+            routine_reply, outcome, routine_status = execute_routine(routine, action_results, approved=routine_approved)
             if follow_on:
                 light_steps = []
                 if follow_on.startswith("play "):
