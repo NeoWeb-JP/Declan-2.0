@@ -38,7 +38,10 @@ def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_
         group = routine[0][0]
         if group.startswith("custom:"):
             import routine_registry
-            item = routine_registry.load().get(group[7:])
+            try:
+                item = routine_registry.load().get(group[7:])
+            except (ValueError, OSError, sqlite3.Error):
+                return group
             return group if item and item["sensitive"] else None
         try:
             import routine_registry
