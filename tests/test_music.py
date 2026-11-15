@@ -218,6 +218,7 @@ class MusicTests(unittest.TestCase):
                 script_calls.append(data)
                 return io.BytesIO(json.dumps({"service_response": {
                     "operation": operation, "lighting_ok": True, "music_stopped": False,
+                    "request_id": data["request_id"], "routine_id": data["routine_id"],
                 }}).encode())
             if request.full_url.endswith("/volume_set"):
                 self.calls.append(("volume_set", json.loads(request.data)))
@@ -227,10 +228,13 @@ class MusicTests(unittest.TestCase):
         self.search_results = {"playlists": [{"name": "Sexy Time", "id": "A" * 22}]}
         with patch.object(self, "open", side_effect=open_request), patch.object(
             server, "read_music_inventory", side_effect=lambda _: (list(self.players.values()), None)
-        ), patch.object(server, "read_guest_mode", return_value="off"):
+        ), patch.object(server, "read_guest_mode", return_value="off"), patch.object(
+            server.routine_registry, "load", return_value={"sexy_time": {"script": "script.declan_sexy_time_controller", "sensitive": False}}
+        ):
             reply, outcome, detail = server.run_sexy_time("start", ("http://ha", {}, self))
             self.assertEqual(outcome, "confirmed", detail)
-            self.assertEqual(script_calls[-1], {"operation": "start", "music_player": target})
+            self.assertEqual(script_calls[-1]["operation"], "start")
+            self.assertEqual(script_calls[-1]["music_player"], target)
             self.assertIn(("volume_set", {"entity_id": target, "volume_level": 0.2}), self.calls)
             self.assertEqual(self.calls[-1][1]["entity_id"], target)
             self.assertEqual(self.searches[-1]["q"], "sexy time music")

@@ -16,6 +16,7 @@ from declan_ingress.security import response_headers, secure_page
 import ha_inventory
 from pathlib import Path
 from threading import Lock, Thread
+from contextlib import contextmanager
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
@@ -45,6 +46,7 @@ import ai_context
 import ai_intent_gate
 import guarded_fallback
 import ha_dispatcher
+import routine_registry
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 
@@ -56,6 +58,47 @@ SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
 routine_last_attempts = {}
+ACTIVE_ROUTINES = {}
+ACTIVE_ROUTINES_LOCK = Lock()
+
+@contextmanager
+def track_routine(name, script):
+    with ACTIVE_ROUTINES_LOCK:
+        ACTIVE_ROUTINES[name] = script
+    try:
+        yield
+    finally:
+        with ACTIVE_ROUTINES_LOCK:
+            ACTIVE_ROUTINES.pop(name, None)
+
+def stop_pending_routines():
+    connection = ha_device_connection()
+    if connection is None:
+        return "Home Assistant is not connected.", "not_configured", None
+    with ACTIVE_ROUTINES_LOCK:
+        active = dict(ACTIVE_ROUTINES)
+    if not active:
+        return "No mapped routine is currently awaiting completion.", "confirmed", None
+    url, headers, opener = connection
+    stopped, unknown = [], []
+    for name, script in active.items():
+        request = Request(f"{url}/api/services/script/turn_off", headers=headers,
+                          data=json.dumps({"entity_id": script}).encode(), method="POST")
+        try:
+            with opener.open(request, timeout=4) as response:
+                response.read(4096)
+            stopped.append(name)
+        except HTTPError as error:
+            error.close()
+            unknown.append(name)
+        except (OSError, ValueError):
+            unknown.append(name)
+    message = ("Cancellation requested for: " + ", ".join(stopped) + ". " if stopped else "")
+    if unknown:
+        message += "Could not confirm cancellation request for: " + ", ".join(unknown) + "."
+    message += " Already completed actions were not rolled back."
+    return message, "unverified" if unknown or stopped else "confirmed", None
+
 IDLE_SECONDS = 300
 ASSIST_PORT = 52737
 RELEASE_VERSION = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
@@ -69,8 +112,6 @@ SEXY_TIME_COMMANDS = {
        for phrase in (f"end {name}", f"stop {name}")},
 }
 SEXY_TIME_LOCK = Lock()
-SEXY_TIME_SCRIPT = "script.declan_sexy_time_controller"
-DINNER_SCRIPT = "script.declan_dinner_is_served_2"
 DINNER_PHRASES = {
     "dinner is served", "it's dinner time", "time for dinner", "it's time for dinner",
     "announce dinner", "start dinner time", "dinner time",
@@ -213,13 +254,25 @@ def parse_movie_request(phrase):
 
 def select_routine(phrase, origin):
     phrase = phrase.removeprefix("run ").removeprefix("the ")
+    try:
+        mapped_phrase = routine_registry.match(phrase)
+    except (OSError, ValueError, sqlite3.Error):
+        mapped_phrase = None
+    if mapped_phrase:
+        key = mapped_phrase[0]
+        if key in {"morning", "night"}:
+            return key, {}
+        if key in {"movie", "movie_bedroom"}:
+            return "movie", {"movie_action": "start", "movie_room": "bedroom" if key == "movie_bedroom" else "lounge", "requested_app": None}
+        return "custom:" + key, mapped_phrase[2] if len(mapped_phrase) > 2 else {}
     if phrase in GOOD_MORNING_PHRASES:
         return "morning", {}
     if phrase in GOOD_NIGHT_PHRASES:
         return "night", {}
     movie = parse_movie_request(phrase)
     if not movie:
-        return None
+        custom = routine_registry.match(phrase)
+        return ("custom:" + custom[0], custom[2] if len(custom) > 2 else {}) if custom else None
     direction, room, app = movie
     if room in (None, "here"):
         area = None
@@ -248,8 +301,10 @@ def select_routine_turn(phrase, origin):
     return (routine, None) if routine else None
 
 
-def execute_routine(selection, action_results):
+def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
+    if period.startswith("custom:"):
+        return run_custom_routine(period[7:], action_results, approved=approved, parameters=options)
     if options is None:
         return "Which room do you mean for Movie Time?", "unresolved", None
     options = options.copy()
@@ -257,7 +312,59 @@ def execute_routine(selection, action_results):
     app = MOVIE_APPS.get(requested_app)
     if requested_app and (not app or options.get("movie_action") != "start"):
         return "Please name a supported app with an explicit start Movie Time command.", "unresolved", None
-    return run_routine(period, movie_app=app, action_results=action_results, **options)
+    return run_routine(period, movie_app=app, action_results=action_results, approved=approved, **options)
+
+
+def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
+    """Run an explicitly mapped HA script; never infer sensitive approval."""
+    try:
+        item = routine_registry.load().get(name)
+    except (ValueError, OSError, sqlite3.Error):
+        return "Routine configuration is unavailable.", "unverified", None
+    if not item:
+        return "That routine is not configured.", "not_configured", None
+    if item["sensitive"] and not approved:
+        return "This routine requires explicit confirmation before execution.", "unresolved", None
+    connection = ha_device_connection()
+    if connection is None:
+        return "Home Assistant is not connected.", "not_configured", None
+    url, headers, opener = connection
+    if parameters and "room" in parameters:
+        areas = read_ha_areas(connection)
+        if parameters["room"] not in areas:
+            return "I could not match that room to a Home Assistant area.", "unresolved", None
+    script = item["script"]
+    # No script guessing or fallback: only a script selected in Settings may execute.
+    request_id = "declan-" + secrets.token_hex(16)
+    payload = {**item["fields"], **(parameters or {}), "request_id": request_id, "routine_id": script}
+    request = Request(f"{url}/api/services/script/{script.split('.', 1)[1]}?return_response",
+                      data=json.dumps(payload).encode(), headers=headers, method="POST")
+    with track_routine(name, script):
+        try:
+            with opener.open(request, timeout=55) as response:
+                result = json.loads(response.read(65536))
+        except HTTPError as error:
+            code = error.code
+            error.close()
+            return f"Home Assistant rejected {name} (HTTP {code}).", "failed", None
+        except (OSError, ValueError):
+            return f"I couldn't verify {name}. Check its Home Assistant trace.", "unverified", None
+        value = result.get("service_response") if isinstance(result, dict) else None
+        if isinstance(value, dict) and set(value) == {script}:
+            value = value[script]
+        if not isinstance(value, dict) or value.get("request_id") != request_id or value.get("routine_id") != script:
+            return f"{name} was requested, but completion was not verified.", "unverified", None
+        status = value.get("outcome")
+        if status not in {"started", "success", "partial", "failed", "cancelled"}:
+            return f"{name} returned no verified completion outcome.", "unverified", None
+        if action_results is not None:
+            action_results.extend(routine_action_results(value.get("steps")))
+        steps = routine_action_results(value.get("steps"))
+        required = [step for step in steps if step.get("required", True)]
+        if status == "success" and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(step["status"] not in {"confirmed", "already_set"} for step in required)):
+            return f"{name} was started, but required steps were not verified.", "unverified", None
+        outcome = {"started": "started", "success": "reported_success", "partial": "partial", "failed": "failed", "cancelled": "cancelled"}[status]
+        return f"{name} {status}.", outcome, None
 
 
 def chained_outcome(routine, lighting):
@@ -418,7 +525,7 @@ def verify_legacy_lounge_start(connection, script):
 
 
 @diagnostics.timed("ha_routine")
-def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None):
+def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None, approved=False):
     """Call the configured Home Assistant routine once and read its result."""
     salutation = "Movie Time." if movie_action else f"Good {period}."
     lock = ROUTINE_LOCKS["movie_bedroom" if movie_action and movie_room == "bedroom" else period]
@@ -428,15 +535,17 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
     url, headers, opener = connection
     movie_prefix = "DECLAN_BEDROOM_MOVIE" if movie_room == "bedroom" else "DECLAN_MOVIE"
     setting = f"{movie_prefix}_SCRIPT" if movie_action else f"DECLAN_GOOD_{period.upper()}_SCRIPT"
-    default_script = {"morning": GOOD_MORNING_SCRIPT, "night": GOOD_NIGHT_SCRIPT}.get(period, "")
-    script = configuration.get(setting, default_script).strip()
-    remote = configuration.get(f"{movie_prefix}_REMOTE", "").strip() if movie_app else ""
-    if movie_action and (not script or (movie_app and not remote)):
-        script, remote, error = discover_movie_entities(
-            connection, movie_room, script=script, remote=remote, needs_remote=bool(movie_app),
-        )
-        if error:
-            return f"{salutation} {error}", "not_configured", None
+    routine_key = ("movie_bedroom" if movie_room == "bedroom" else "movie") if movie_action else period
+    try:
+        mapped = routine_registry.load().get(routine_key)
+    except (OSError, ValueError, sqlite3.Error):
+        return f"{salutation} Routine configuration is unavailable.", "not_configured", None
+    if not mapped:
+        return f"{salutation} Map a Home Assistant script for {routine_key} in Declan Settings.", "not_configured", None
+    if mapped["sensitive"] and not approved:
+        return f"{salutation} This routine needs explicit confirmation.", "unresolved", None
+    script = mapped["script"]
+    remote = mapped.get("remote", "").strip() if movie_app else ""
     if movie_app and not re.fullmatch(r"remote\.[a-z0-9_]+", remote):
         return f"I don't have a compatible app remote configured for the {movie_room}.", "not_configured", None
     if not re.fullmatch(r"script\.[a-z0-9_]+", script):
@@ -451,7 +560,7 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
         routine_last_attempts[attempt_key] = monotonic()
         service = script.split(".", 1)[1]
         request_id = "declan-" + secrets.token_hex(16)
-        parameters = {"request_id": request_id, "routine_id": script}
+        parameters = {**mapped["fields"], "request_id": request_id, "routine_id": script}
         if movie_action:
             parameters["requested_action"] = movie_action
         request = Request(
@@ -461,8 +570,9 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
             method="POST",
         )
         try:
-            with opener.open(request, timeout={"morning": 8, "night": 20, "movie": 55}[period]) as response:
-                payload = json.loads(response.read(65536))
+            with track_routine(routine_key, script):
+                with opener.open(request, timeout={"morning": 8, "night": 20, "movie": 55}[period]) as response:
+                    payload = json.loads(response.read(65536))
         except HTTPError as error:
             code = error.code
             error.close()
@@ -477,84 +587,18 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
         if movie_action or (isinstance(result, dict) and "schema_version" in result):
             reply, outcome, detail = format_routine_result(result, request_id, script, period, movie_action, action_results)
             if movie_app:
-                legacy_result = result is None or (isinstance(result, dict)
-                    and result.get("schema_version") in (None, 1)
-                    and result.get("request_id") in (None, "", request_id)
-                    and result.get("routine_id") in (None, "", script)
-                    and result.get("outcome") in (None, "success")
-                    and result.get("status") in (None, "success")
-                    and (not result.get("request_id") or not result.get("routine_id")))
-                legacy_start = legacy_result and movie_room == "lounge" and movie_action == "start"
-                if outcome == "reported_success" or legacy_start:
+                if outcome == "reported_success":
                     sleep(7)
-                readiness_error = verify_legacy_lounge_start(connection, script) if legacy_start else None
-                legacy_ready = legacy_start and readiness_error is None
-                if outcome == "reported_success" or legacy_ready:
-                    if legacy_ready:
-                        detail = "Home Assistant shows Movie Time has finished and the lounge projector socket is on."
-                        reply = add_sass("Starting Movie Time.", "movie_start", read_guest_mode())
-                        outcome = "partial"
                     status, note = launch_movie_app(connection, remote, movie_app)
                 else:
-                    status, note = "skipped", readiness_error or detail or "Movie Time wasn't confirmed."
-                    if readiness_error:
-                        reply, detail = f"{salutation} {readiness_error}", readiness_error
+                    status, note = "skipped", detail or "Movie Time was not verified."
                 if action_results is not None:
                     action_results.append({
                         "target": movie_app[0], "action": "open_app", "status": status, "entity_id": remote,
                         "detail": f"{note} Remote: {remote}. Command: app:{movie_app[1]}.",
                     })
             return reply, outcome, detail
-        status = result.get("status") if isinstance(result, dict) else None
-        steps = result.get("steps") if isinstance(result, dict) else None
-        if action_results is not None:
-            action_results.extend(routine_action_results(steps))
-        guest_mode = result.get("guest_mode") if isinstance(result, dict) else None
-        if status == "success" and isinstance(result, dict) and "guest_mode" not in result:
-            guest_mode = read_guest_mode()
-        greeting = add_sass(salutation, f"good_{period}", guest_mode) if status == "success" else salutation
-        bedtime = result.get("bedtime") if isinstance(result, dict) else None
-        if period == "night" and guest_mode == "off" and isinstance(bedtime, dict):
-            battery = bedtime.get("battery_percent")
-            temperature = bedtime.get("indoor_temperature")
-            if type(battery) is int and 0 <= battery <= 50:
-                reminder = f"The Peugeot is at {battery}% and isn't plugged in."
-                if status == "success":
-                    reminder = add_sass(reminder, "bedtime_ev", guest_mode)
-                greeting += f" {reminder}"
-            if type(temperature) in (int, float) and -40 <= temperature <= 16:
-                greeting += f" It's {temperature:g} degrees indoors and the heating isn't running."
-        if period == "morning" and status == "unverified" and isinstance(steps, dict):
-            checks = {
-                "lounge_wall_lights": ("the lounge wall lights are on", "the lounge wall lights"),
-                "dining_lights": ("the dining lights are at ten percent", "the dining light level"),
-            }
-            confirmed = [phrases[0] for key, phrases in checks.items() if steps.get(key) == "confirmed"]
-            unverified = [phrases[1] for key, phrases in checks.items() if steps.get(key) != "confirmed"]
-            details = []
-            if confirmed:
-                details.append("Home Assistant shows " + ", and ".join(confirmed) + ".")
-            if unverified:
-                details.append("I couldn't confirm " + ", or ".join(unverified) + ".")
-            detail = " ".join(details)
-            return f"{greeting} {detail}".strip(), "unverified", detail
-        if period == "night" and status in (None, "unverified", "success"):
-            detail = result.get("routine_status") if isinstance(result, dict) else None
-            verified = status == "success"
-            fallback = ("Home Assistant reports the routine completed." if verified
-                        else "Home Assistant did not confirm the bedtime routine completed.")
-            detail = detail if isinstance(detail, str) and detail.strip() else fallback
-            return (greeting if verified else f"{greeting} {detail}"), (
-                "reported_success" if verified else "unverified"), detail
-        if status == "success":
-            return greeting, "reported_success", "Home Assistant reports the routine completed."
-        if status == "partial":
-            return f"{salutation} Part of the routine failed. Check its Home Assistant trace.", "partial", None
-        if status == "failed":
-            return f"{salutation} Home Assistant reported a failure in the routine.", "failed", None
-        if status == "busy":
-            return f"{salutation} Home Assistant reports the routine is already running.", "busy", None
-        return f"{salutation} Home Assistant answered, but I couldn't verify the device changes.", "unverified", None
+        return f"{salutation} Home Assistant did not return a correlated completion result.", "unverified", None
     finally:
         lock.release()
 
@@ -756,9 +800,18 @@ def ha_device_connection():
 
 
 @diagnostics.timed("bedroom_routine")
-def run_sexy_time(operation, connection):
+def run_sexy_time(operation, connection, *, approved=False):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured", None
+    try:
+        sexy_mapping = routine_registry.load().get("sexy_time")
+    except (OSError, ValueError, sqlite3.Error):
+        sexy_mapping = None
+    if not sexy_mapping:
+        return "Map the Sexy Time script in Declan Settings.", "not_configured", None
+    if sexy_mapping["sensitive"] and not approved:
+        return "Sexy Time requires explicit confirmation.", "unresolved", None
+    sexy_script = sexy_mapping["script"]
     if not SEXY_TIME_LOCK.acquire(blocking=False):
         return "I'm still handling the previous Sexy Time request.", "busy", None
     try:
@@ -770,9 +823,10 @@ def run_sexy_time(operation, connection):
         if not player:
             return "I couldn't identify one available bedroom satellite speaker. Check its Home Assistant device and area.", "unresolved", None
         url, headers, opener = connection
+        request_id = "declan-" + secrets.token_hex(16)
         request = Request(
-            f"{url}/api/services/script/{SEXY_TIME_SCRIPT.split('.', 1)[1]}?return_response", headers=headers,
-            data=json.dumps({"operation": operation, "music_player": player}).encode(), method="POST",
+            f"{url}/api/services/script/{sexy_script.split('.', 1)[1]}?return_response", headers=headers,
+            data=json.dumps({"operation": operation, "music_player": player, "request_id": request_id, "routine_id": sexy_script}).encode(), method="POST",
         )
         try:
             with opener.open(request, timeout=8) as response:
@@ -784,9 +838,10 @@ def run_sexy_time(operation, connection):
             return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified", None
 
         result = payload.get("service_response") if isinstance(payload, dict) else None
-        if isinstance(result, dict) and set(result) == {SEXY_TIME_SCRIPT}:
-            result = result[SEXY_TIME_SCRIPT]
-        if not isinstance(result, dict) or result.get("operation") != operation:
+        if isinstance(result, dict) and set(result) == {sexy_script}:
+            result = result[sexy_script]
+        if (not isinstance(result, dict) or result.get("operation") != operation
+                or result.get("request_id") != request_id or result.get("routine_id") != sexy_script):
             return "I couldn't verify the bedroom routine's result.", "unverified", None
 
         lighting_ok = result.get("lighting_ok") is True
@@ -821,15 +876,23 @@ def run_sexy_time(operation, connection):
 
 
 @diagnostics.timed("dinner_dispatch")
-def start_dinner(connection):
+def start_dinner(connection, *, approved=False):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
+    try:
+        dinner_mapping = routine_registry.load().get("dinner")
+    except (OSError, ValueError, sqlite3.Error):
+        dinner_mapping = None
+    if not dinner_mapping:
+        return "Map the Dinner script in Declan Settings.", "not_configured"
+    if dinner_mapping["sensitive"] and not approved:
+        return "Dinner routine requires explicit confirmation.", "unresolved"
     url, headers, opener = connection
     announcement = choose_line("dinner_announcement", read_guest_mode())
     request = Request(
         f"{url}/api/services/script/turn_on", headers=headers,
         data=json.dumps({
-            "entity_id": DINNER_SCRIPT, "variables": {"dinner_message": announcement},
+            "entity_id": dinner_mapping["script"], "variables": {"dinner_message": announcement},
         }).encode(), method="POST",
     )
     try:
@@ -1068,6 +1131,55 @@ def read_ha_areas(connection, origin=None):
     return {}
 
 
+
+def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
+    """Only switch entities explicitly marked as lights may receive light commands."""
+    if desired_state not in {"on", "off"}:
+        return None
+    eligible = []
+    for row in inventory:
+        entity = row.get("entity_id", "") if isinstance(row, dict) else ""
+        attributes = row.get("attributes", {}) if isinstance(row, dict) else {}
+        if not re.fullmatch(r"switch\.[a-z0-9_]+", entity) or not isinstance(attributes, dict):
+            continue
+        if attributes.get("declan_as_light") is not True:
+            continue
+        label = str(attributes.get("friendly_name") or entity.split(".", 1)[1].replace("_", " ")).casefold()
+        if name.casefold() in {label, entity.casefold(), entity.split(".", 1)[1].replace("_", " ")}:
+            eligible.append((entity, row.get("state"), label))
+    if not eligible:
+        return None
+    if len(eligible) != 1:
+        return "More than one marked light switch matches. Please use its exact entity ID.", "unresolved"
+    entity, previous, label = eligible[0]
+    if previous not in {"on", "off"}:
+        return f"{label} is unavailable in Home Assistant.", "unavailable"
+    if preview:
+        return f"Preview: I would turn {desired_state} {label}.", "preview"
+    if previous == desired_state:
+        return f"{label} is already {desired_state}.", "confirmed"
+    url, headers, opener = connection
+    request = Request(f"{url}/api/services/switch/turn_{desired_state}", headers=headers,
+                      data=json.dumps({"entity_id": entity}).encode(), method="POST")
+    try:
+        with opener.open(request, timeout=4) as response:
+            response.read(4096)
+        state_request = Request(f"{url}/api/states/{entity}", headers=headers)
+        with opener.open(state_request, timeout=4) as response:
+            observed = json.loads(response.read(8192))
+        verified = isinstance(observed, dict) and observed.get("state") == desired_state
+    except HTTPError as error:
+        error.close()
+        verified = False
+    except (OSError, ValueError):
+        verified = False
+    if action_results is not None:
+        action_results.append({"target": label, "entity_id": entity, "action": "turn_" + desired_state,
+                               "status": "confirmed" if verified else "unverified"})
+    return (f"{label} is {desired_state}." if verified else f"I couldn't verify {label} is {desired_state}.",
+            "confirmed" if verified else "unverified")
+
+
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
     """Resolve Home Assistant lights before dispatch and verify their reported states."""
@@ -1154,8 +1266,6 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
     def resolve(target, state, *, use_area=False):
         recovered = target.removeprefix(f"{state} ")
         matches = names.get(target) or names.get(recovered)
-        if not matches and recovered in {"office light", "office lights"} and "light.study_light" in lights:
-            matches = {"light.study_light"}
         if origin_device is not None:
             if recovered in {"lights", "all lights"} or recovered == name == "some lights":
                 room_targets.add(target)
@@ -1308,6 +1418,10 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
     skipped_details = "".join(f" {message}" for message, _ in skipped)
     if not selected:
+        if brightness is None and not require_all and len(resolved_targets) == 1:
+            switch_result = set_switch_as_light(name, desired_state, inventory, connection, preview=preview, action_results=action_results)
+            if switch_result is not None:
+                return switch_result
         return (skipped_details.strip(), skipped[0][1]) if skipped else (
             "Tell me which lights to switch.", "unresolved"
         )
@@ -1686,7 +1800,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         native_settings_auth = (
             self.path in {"/api/native/settings-status", "/api/native/settings-export",
-                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/intents"}
+                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/intents", "/api/native/routines"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1736,6 +1850,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"document": document})
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings document unavailable."})
+        elif self.path == "/api/native/routines":
+            try:
+                self.send_json(200, {"routines": routine_registry.load()})
+            except (ValueError, OSError, sqlite3.Error):
+                self.send_json(503, {"error": "Routine settings unavailable."})
         elif self.path == "/api/native/intents":
             try:
                 self.send_json(200, {"intents": history.learned_intents()})
@@ -1883,7 +2002,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -1936,7 +2055,7 @@ class Handler(BaseHTTPRequestHandler):
                 f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
             )
         ) and not (
-            self.path == "/api/native/intents"
+            self.path in {"/api/native/intents", "/api/native/routines"}
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -2041,6 +2160,17 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {'error': str(error)})
                 except (OSError, sqlite3.Error):
                     self.send_json(503, {'error': 'Settings could not be imported.'})
+                return
+            if self.path == "/api/native/routines":
+                try:
+                    if not isinstance(body, dict) or set(body) != {"routines"}:
+                        raise ValueError("Invalid routine request")
+                    routine_registry.save(body["routines"])
+                    self.send_json(200, {"saved": True})
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Routine settings unavailable."})
                 return
             if self.path == "/api/native/intents":
                 try:
@@ -2220,6 +2350,7 @@ class Handler(BaseHTTPRequestHandler):
                 effective_message = target
                 phrase = history.normalize_phrase(target)
         opener = build_opener(ProxyHandler({}), NoRedirect())
+        routine_approved = False
         if source == "assist":
             spoken = history.normalize_phrase(message)
             candidate = spoken if spoken in sensitive_confirmations.YES | sensitive_confirmations.NO else phrase
@@ -2241,6 +2372,7 @@ class Handler(BaseHTTPRequestHandler):
                                      "outcome": "confirmation_" + decision})
                 return
             if decision == "confirmed":
+                routine_approved = True
                 phrase = approved_phrase
                 effective_message = approved_phrase
         timer_result = timers.handle(
@@ -2252,18 +2384,20 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
+        elif phrase in {"stop routine", "cancel routine", "stop the routine", "cancel the routine"}:
+            routine_reply, outcome, routine_status = stop_pending_routines()
         elif phrase == "stop":
             routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
         elif phrase.replace("’", "'") in DINNER_PHRASES:
-            routine_reply, outcome = start_dinner(ha_device_connection())
+            routine_reply, outcome = start_dinner(ha_device_connection(), approved=routine_approved)
         elif phrase in SEXY_TIME_COMMANDS:
-            routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection())
+            routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection(), approved=routine_approved)
         elif phrase in GUEST_COMMANDS:
             routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
             lighting_context = ()
             routine, follow_on = routine_turn
-            routine_reply, outcome, routine_status = execute_routine(routine, action_results)
+            routine_reply, outcome, routine_status = (execute_routine(routine, action_results, approved=routine_approved) if routine_approved or routine[0].startswith("custom:") else execute_routine(routine, action_results))
             if follow_on:
                 light_steps = []
                 if follow_on.startswith("play "):

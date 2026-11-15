@@ -1,6 +1,7 @@
 """One-shot, origin-bound voice confirmation for sensitive household routines."""
 import os
 import re
+import sqlite3
 from threading import Lock
 from time import monotonic
 
@@ -26,15 +27,38 @@ def trusted_speaker(speaker):
             and type(confidence) in (int, float) and 0.85 <= confidence <= 1.0)
 
 
+def _mapped_sensitive(name):
+    try:
+        import routine_registry
+        return routine_registry.load().get(name, {}).get("sensitive") is True
+    except (ValueError, OSError, sqlite3.Error):
+        return True
+
+
 def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_phrases=None):
     if phrase in guest_commands and guest_commands[phrase] != "check":
         return "guest"
     if sexy_commands and phrase in sexy_commands:
-        return "sexy"
+        return "custom:sexy_time" if _mapped_sensitive("sexy_time") else "sexy"
     if dinner_phrases and phrase in dinner_phrases:
-        return "dinner"
+        return "custom:dinner" if _mapped_sensitive("dinner") else "dinner"
     if routine:
-        return routine[0][0]
+        group = routine[0][0]
+        if group.startswith("custom:"):
+            import routine_registry
+            try:
+                item = routine_registry.load().get(group[7:])
+            except (ValueError, OSError, sqlite3.Error):
+                return group
+            return group if item and item["sensitive"] else None
+        try:
+            import routine_registry
+            item = routine_registry.load().get(group)
+            if item and item["sensitive"]:
+                return "custom:" + group
+        except (ValueError, OSError, sqlite3.Error):
+            return "custom:" + group
+        return group
     if phrase.startswith(("good night", "goodnight", "time for bed", "shut the house down")):
         return "night"
     return None
@@ -62,9 +86,7 @@ class ConfirmationGate:
                 return "confirmed", existing["phrase"]
             if phrase in YES | NO:
                 return "allow", None
-            if not group or group not in groups():
-                return "allow", None
-            if trusted_speaker(speaker):
+            if not group or (not group.startswith("custom:") and group not in groups()):
                 return "allow", None
             if not session or not origin:
                 return "denied", None

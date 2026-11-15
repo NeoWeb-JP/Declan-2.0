@@ -22,8 +22,8 @@ class NativeImportContracts(unittest.TestCase):
 
     def test_admin_proxy_is_explicit_and_bounded(self):
         self.assertIn('not user.is_admin', VIEW)
-        self.assertIn('operation not in {"spotify", "import", "intents"}', VIEW)
-        self.assertIn('request.content_length <= (131072 if operation == "import" else 2048)', VIEW)
+        self.assertIn('operation not in {"spotify", "import", "intents", "routines"}', VIEW)
+        self.assertIn('request.content_length <= (131072 if operation == "import" else 32768 if operation == "routines" else 2048)', VIEW)
         self.assertIn('set(body) not in ({"document"}, {"document", "confirm", "expected"})', VIEW)
         self.assertIn('"/api/native/settings-import"', VIEW)
 
