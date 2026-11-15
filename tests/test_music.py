@@ -275,6 +275,7 @@ class MusicTests(unittest.TestCase):
         replacement = "media_player.everywhere_3"
         self.players[self.group]["state"] = "unavailable"
         self.players[replacement] = {"entity_id": replacement, "state": "idle",
+                                     "declan_music_assistant": True,
                                      "attributes": {"friendly_name": "Everywhere"}}
         self.assertEqual(self.play("play music everywhere")[1], "confirmed")
         self.assertEqual(self.calls[-1], ("transfer_queue", {
