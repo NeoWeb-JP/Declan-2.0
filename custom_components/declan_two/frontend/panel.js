@@ -427,7 +427,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         if (event.target.open) void this.loadPlaylists();
       });
       this.bindPanelEvent('.playlists-category', 'change', () => this.renderPlaylists());
-      this.bindPanelEvent('.playlists-refresh', 'click', () => this.loadPlaylists());
+      this.bindPanelEvent('.playlists-refresh', 'click', () => this.refreshPlaylists());
       this.bindPanelEvent('.playlists-add-form', 'submit', event => {
         event.preventDefault();
         void this.updatePlaylist('add', this.shadowRoot.querySelector('.playlists-new-uri').value);
@@ -919,6 +919,44 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Could not load VoicePipeline data. Check the backend connection and HA admin permissions.';
     } finally {
       this._voicesPending = false;
+    }
+  }
+
+  async refreshPlaylists() {
+    if (this._playlistsPending || !this._hass) return;
+    const category = this.shadowRoot.querySelector('.playlists-category').value;
+    if (!category) return;
+    const status = this.shadowRoot.querySelector('.playlists-status');
+    const button = this.shadowRoot.querySelector('.playlists-refresh');
+    this._playlistsPending = true;
+    button.disabled = true;
+    status.textContent = 'Searching Spotify for ' + category.replace(/_/g, ' ') + ' playlists…';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/music-playlists',
+                                                {category, operation: 'refresh'});
+      if (!response || !response.categories) throw new Error('Discovery did not start');
+      for (let attempt = 0; attempt < 30; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const current = await this._hass.callApi('GET', 'declan_two/music-playlists');
+        if (!current || !current.categories) throw new Error('Discovery status unavailable');
+        if (!current.refresh?.running) {
+          this._playlistCatalogue = current.categories;
+          this.renderPlaylists();
+          if (current.refresh?.error) {
+            status.textContent = 'Spotify search failed. Existing playlists were kept. ' + current.refresh.error;
+          } else {
+            const count = current.categories[category]?.playlists?.length || 0;
+            status.textContent = 'Spotify discovery finished: ' + count + ' of 25 playlists in ' + category.replace(/_/g, ' ') + '.';
+          }
+          return;
+        }
+      }
+      status.textContent = 'Spotify discovery is still running. Check again shortly.';
+    } catch (error) {
+      status.textContent = 'Could not refresh Spotify playlists. Check Spotify credentials and the Declan 2.0 connection.';
+    } finally {
+      button.disabled = false;
+      this._playlistsPending = false;
     }
   }
 
