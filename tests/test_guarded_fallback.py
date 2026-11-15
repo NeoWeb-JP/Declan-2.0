@@ -32,7 +32,8 @@ class GuardedFallbackTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "confirmed")
 
     def test_budget_denies_before_planner_or_dispatch(self):
-        self.run_pipeline(planner=lambda *_: (), dispatcher=lambda *_: ("confirmed", ""))
+        for _ in range(3):
+            self.run_pipeline(planner=lambda *_: (), dispatcher=lambda *_: ("confirmed", ""))
         calls = []
         with self.assertRaises(ValueError):
             self.run_pipeline(planner=lambda *_: calls.append("planned"), dispatcher=lambda *_: calls.append("sent"))
