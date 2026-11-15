@@ -21,6 +21,13 @@ class PreflightTests(unittest.TestCase):
             preflight(plan, row)
         self.assertEqual(preflight(plan, row, confirmed_sensitive=True), plan)
 
+    def test_garage_requires_sensitive_confirmation(self):
+        plan = validate_plan({"actions": [{"entity_id": "cover.garage", "service": "open_cover"}]}, {"cover.garage"})
+        row = [{"entity_id": "cover.garage", "state": "closed", "attributes": {"device_class": "garage"}}]
+        with self.assertRaises(ValueError):
+            preflight(plan, row)
+        self.assertEqual(preflight(plan, row, confirmed_sensitive=True), plan)
+
     def test_toggle_denied(self):
         plan = validate_plan({"actions": [{"entity_id": "light.kitchen", "service": "toggle"}]}, {"light.kitchen"})
         with self.assertRaises(ValueError):
