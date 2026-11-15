@@ -40,6 +40,7 @@ import openai_planner
 import ai_settings
 import ai_credentials
 import ai_pricing
+import ai_budget
 import guarded_fallback
 import ha_dispatcher
 from intent_preprocessing import preprocess_speech
@@ -1775,7 +1776,11 @@ class Handler(BaseHTTPRequestHandler):
             self.spotify_settings()
         elif self.path == "/api/settings/ai":
             try:
-                self.send_json(200, {"settings": ai_settings.read(), "key_configured": ai_credentials.configured()})
+                with history.database() as db:
+                    usage_micro_usd = ai_budget.monthly_reserved(db)
+                self.send_json(200, {"settings": ai_settings.read(),
+                                     "key_configured": ai_credentials.configured(),
+                                     "month_usage_micro_usd": usage_micro_usd})
             except (OSError, sqlite3.Error, ValueError):
                 self.send_json(503, {"error": "AI settings unavailable."})
         elif self.path == "/api/settings/media-players":
