@@ -1,0 +1,39 @@
+announce:
+  name: Announce through Declan
+  description: >-
+    Speak an unsolicited message through Declan's voice manager.
+    Between 23:00 and 07:00 only safety-critical categories are permitted,
+    and the destination must be in Declan's approved overnight speakers.
+    Use this service instead of direct TTS in Declan-managed automations.
+  fields:
+    kind:
+      name: Announcement type
+      description: Overnight only security, smoke, carbon_monoxide and critical_safety are permitted.
+      required: true
+      example: security
+      selector:
+        select:
+          options:
+            - routine
+            - reminder
+            - ev_reminder
+            - security
+            - smoke
+            - carbon_monoxide
+            - critical_safety
+    message:
+      name: Message
+      description: The speech to play, maximum 1000 characters.
+      required: true
+      example: Smoke detected in the kitchen.
+      selector:
+        text:
+          multiline: true
+    entity_id:
+      name: Media player
+      description: Target speaker, approved in Declan integration options for overnight use.
+      required: true
+      example: media_player.kitchen_declan_voice_assistant
+      selector:
+        entity:
+          domain: media_player
