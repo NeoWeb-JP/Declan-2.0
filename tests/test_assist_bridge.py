@@ -130,6 +130,16 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             await announce(SimpleNamespace(data={"kind": "smoke", "message": "Smoke detected",
                                                  "entity_id": "media_player.kitchen"}))
             hass.services.async_call.assert_awaited_once()
+            hass.services.async_call.reset_mock()
+            await announce(SimpleNamespace(data={"kind": None, "message": "Unknown category",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_not_awaited()
+            await announce(SimpleNamespace(data={"kind": "security", "message": "x" * 1001,
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_not_awaited()
+            await announce(SimpleNamespace(data={"kind": "carbon_monoxide", "message": "CO alarm",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_awaited_once()
             self.assertEqual(
                 hass.services.async_call.call_args.args[:2], ("tts", "speak")
             )
