@@ -54,6 +54,6 @@ class MusicButtonTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_explicit_target_needs_registry_evidence_even_in_legacy_inventory(self):
-        self.assertEqual(self.play(f'play country music in the {self.kitchen} on spotify')[1], 'unresolved')
+        self.assertEqual(self.play(f'play country music in the {self.kitchen} on spotify')[1], 'unavailable')
         self.assertEqual(self.searches, [])
         self.assertEqual(self.calls, [])
