@@ -263,7 +263,7 @@ class APITests(TestCase):
                 guest.reset_mock()
                 result = self.ask(phrase + "?", path="/api/assist")
                 if operation != "check":
-                    self.assertEqual(result["outcome"], "confirmation_denied")
+                    self.assertEqual(result["outcome"], "confirmation_prompt")
                     guest.assert_not_called()
                     continue
                 self.assertEqual(result["reply"], "Guest reply.")
