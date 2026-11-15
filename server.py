@@ -571,28 +571,11 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
         if movie_action or (isinstance(result, dict) and "schema_version" in result):
             reply, outcome, detail = format_routine_result(result, request_id, script, period, movie_action, action_results)
             if movie_app:
-                legacy_result = result is None or (isinstance(result, dict)
-                    and result.get("schema_version") in (None, 1)
-                    and result.get("request_id") in (None, "", request_id)
-                    and result.get("routine_id") in (None, "", script)
-                    and result.get("outcome") in (None, "success")
-                    and result.get("status") in (None, "success")
-                    and (not result.get("request_id") or not result.get("routine_id")))
-                legacy_start = legacy_result and movie_room == "lounge" and movie_action == "start"
-                if outcome == "reported_success" or legacy_start:
+                if outcome == "reported_success":
                     sleep(7)
-                readiness_error = verify_legacy_lounge_start(connection, script) if legacy_start else None
-                legacy_ready = legacy_start and readiness_error is None
-                if outcome == "reported_success" or legacy_ready:
-                    if legacy_ready:
-                        detail = "Home Assistant shows Movie Time has finished and the lounge projector socket is on."
-                        reply = add_sass("Starting Movie Time.", "movie_start", read_guest_mode())
-                        outcome = "partial"
                     status, note = launch_movie_app(connection, remote, movie_app)
                 else:
-                    status, note = "skipped", readiness_error or detail or "Movie Time wasn't confirmed."
-                    if readiness_error:
-                        reply, detail = f"{salutation} {readiness_error}", readiness_error
+                    status, note = "skipped", detail or "Movie Time was not verified."
                 if action_results is not None:
                     action_results.append({
                         "target": movie_app[0], "action": "open_app", "status": status, "entity_id": remote,
