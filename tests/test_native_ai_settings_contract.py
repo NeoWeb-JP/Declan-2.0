@@ -8,6 +8,7 @@ BACKEND = (ROOT / "server.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/ai_settings_view.py").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
 JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
+HISTORY = (ROOT / "custom_components/declan_two/history_view.py").read_text()
 
 
 class NativeAISettingsContractTests(unittest.TestCase):
@@ -34,6 +35,12 @@ class NativeAISettingsContractTests(unittest.TestCase):
         self.assertIn("form.reset();", JS)
         self.assertNotIn("Bearer ", JS)
         self.assertIn("declan_two/ai-settings", JS)
+
+    def test_history_proposals_and_diagnostics_are_opt_in(self):
+        self.assertIn('showProposals = ai?.settings?.show_proposals === true', JS)
+        self.assertIn('if (showProposals && Array.isArray(turn.action_results)', JS)
+        self.assertIn('"action_results": [{', HISTORY)
+        self.assertIn('if settings["diagnostics"] else {}', BACKEND)
 
     def test_fallback_local_first_and_allowlist(self):
         self.assertIn("if routine_reply is None and light_result is None:", BACKEND)
