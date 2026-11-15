@@ -523,8 +523,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       const root = this.shadowRoot.querySelector('.routine-entries');
       root.replaceChildren();
       for (const [name, item] of Object.entries(result.routines || {})) this.addRoutineRow(name, item);
-      for (const name of ['morning', 'night', 'movie', 'movie_bedroom']) {
-        if (!Object.hasOwn(result.routines || {}, name)) this.addRoutineRow(name, {phrases: {morning:['good morning'], night:['good night'], movie:['movie time'], movie_bedroom:['movie time in the bedroom']}[name], fields: {}, sensitive: name === 'night'});
+      for (const name of ['morning', 'night', 'movie', 'movie_bedroom', 'sexy_time', 'dinner']) {
+        if (!Object.hasOwn(result.routines || {}, name)) this.addRoutineRow(name, {phrases: {morning:['good morning'], night:['good night'], movie:['movie time'], movie_bedroom:['movie time in the bedroom'], sexy_time:['sexy time'], dinner:['dinner time']}[name], fields: {}, sensitive: name === 'night'});
       }
       status.textContent = 'Routine mappings loaded.';
     } catch (error) {
