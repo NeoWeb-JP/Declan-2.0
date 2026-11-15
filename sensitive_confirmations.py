@@ -1,6 +1,7 @@
 """One-shot, origin-bound voice confirmation for sensitive household routines."""
 import os
 import re
+import sqlite3
 from threading import Lock
 from time import monotonic
 
@@ -44,7 +45,7 @@ def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_
             item = routine_registry.load().get(group)
             if item and item["sensitive"]:
                 return "custom:" + group
-        except (ValueError, OSError):
+        except (ValueError, OSError, sqlite3.Error):
             return "custom:" + group
         return group
     if phrase.startswith(("good night", "goodnight", "time for bed", "shut the house down")):
