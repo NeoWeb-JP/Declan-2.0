@@ -13,7 +13,7 @@ class PersonalityPolicyTests(unittest.TestCase):
 
     def test_guest_and_visitors_do_not_get_home_roasts(self):
         for options in ({"guest": True, "visitor_present": False},
-                        {"visitor_present": True}, {}):
+                        {"visitor_present": True}, {"visitor_present": None}):
             reply = p.decorate("Done.", **options)
             self.assertTrue(any(x in reply for x in p._GUEST))
 
