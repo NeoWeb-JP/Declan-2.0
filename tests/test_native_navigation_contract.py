@@ -30,8 +30,9 @@ class NativeNavigationTests(unittest.TestCase):
         self.assertIn("overflow-x:auto", JS)
         self.assertIn("this.shadowRoot.innerHTML", JS)
 
-    def test_unmigrated_features_remain_in_existing_app(self):
-        self.assertIn("existing Declan app", JS)
+    def test_native_management_replaces_old_app(self):
+        self.assertIn("async loadLearnedIntents()", JS)
+        self.assertIn("async previewSettingsImport()", JS)
         self.assertIn("async checkUpdates()", JS)
         self.assertIn("async installUpdate()", JS)
         self.assertIn("async loadUpdateStatus()", JS)
