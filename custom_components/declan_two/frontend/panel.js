@@ -43,6 +43,31 @@ class DeclanTwoNativePanel extends HTMLElement {
         .menu { display:none; }
         .panel[hidden] { display:none; }
         .panel h2 { margin:0 0 12px; font-size:1.1rem; }
+        /* Overview: voice-first primary workspace, compact secondary connection information. */
+        .overview-panel { display:grid; gap:16px; padding:0; border:0; background:transparent; }
+        .overview-panel .card { margin-top:0; }
+        .overview-chat { padding:24px; border-color:#386b83; background:linear-gradient(160deg,#102a3a,#0b1a25 70%); }
+        .overview-chat-intro { display:flex; align-items:center; gap:14px; margin-bottom:22px; }
+        .overview-chat-intro h2 { margin:0 0 5px; font-size:1.45rem; }
+        .overview-chat-intro p { margin:0; }
+        .overview-chat-icon { display:grid; place-items:center; width:50px; height:50px; flex:0 0 50px; border-radius:50%; border:1px solid #4c94b2; background:radial-gradient(circle,#235a75,#0d2636); font-weight:700; font-size:1.3rem; }
+        .overview-chat .chat-form label { margin:0 0 8px; color:#c4e5f4; font-weight:600; }
+        .overview-chat .chat-controls { margin:0 0 16px; }
+        .overview-chat .chat-controls input { min-height:52px; }
+        .overview-chat .chat-send { padding-inline:22px; border-color:#65c6e8; background:#19536b; color:#eaffff; font-weight:700; }
+        .overview-voice-controls { display:flex; flex-wrap:wrap; gap:10px; }
+        .overview-voice-controls button { min-height:48px; }
+        .overview-voice-controls .mic-start { background:#194d62; border-color:#58a9c7; font-weight:650; }
+        .overview-voice-controls button:disabled { opacity:.5; cursor:not-allowed; }
+        .overview-chat .mic-status { font-size:.85rem; margin:12px 0 0; }
+        .overview-chat .chat-replies:not(:empty) { border-top:1px solid #28495b; margin-top:18px; padding-top:8px; }
+        .overview-connection { padding:18px 22px; background:#0b1a25; }
+        .overview-connection-heading { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+        .overview-connection-heading h2 { margin:0; font-size:1rem; }
+        .overview-connection-indicator { width:9px; height:9px; border-radius:50%; background:#6b9aaf; }
+        .overview-connection .state { font-size:.95rem; }
+        .overview-connection .detail { margin:6px 0 0; font-size:.85rem; }
+        @media(max-width:520px) { .overview-chat { padding:18px; } .overview-chat-intro { gap:10px; } .overview-chat-intro h2 { font-size:1.25rem; } .overview-chat .chat-controls { flex-wrap:wrap; } .overview-chat .chat-controls input { flex:1 1 100%; } .overview-chat .chat-send { width:100%; } .overview-voice-controls button { flex:1 1 100%; } .overview-connection { padding:16px 18px; } }
         .turn { padding:14px 0; border-top:1px solid #1d3d51; overflow-wrap:anywhere; }
         .turn p { margin:6px 0; white-space:pre-wrap; }
         .turn .reply { color:#a1ccdf; }
@@ -149,19 +174,23 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>
           <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
         </nav>
-        <section class="card panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
-          <h2>Declan connection</h2>
-          <div class="state" role="status" aria-live="polite">Waiting for Home Assistant…</div>
-          <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
-          <h2 class="overview-chat-heading">Chat &amp; Voice</h2>
-          <form class="chat-form" aria-label="Chat with Declan">
-            <label for="native-chat-input">Message</label>
-            <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="Ask Declan anything" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
-          </form>
-          <div class="history-actions"><button class="mic-start" type="button">Record microphone</button><button class="mic-stop" type="button" disabled>Stop and transcribe</button></div>
-          <p class="mic-status muted" role="status" aria-live="polite">Record up to 20 seconds. Audio is sent to Home Assistant for transcription.</p>
-          <p class="chat-status muted" role="status" aria-live="polite"></p>
-          <div class="chat-replies" aria-label="Current chat"></div>
+        <section class="panel overview-panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+          <div class="overview-chat card">
+            <div class="overview-chat-intro"><span class="overview-chat-icon" aria-hidden="true">D</span><div><h2 class="overview-chat-heading">Talk to Declan</h2><p class="muted">Ask a question, give a command or start speaking.</p></div></div>
+            <form class="chat-form" aria-label="Chat with Declan">
+              <label for="native-chat-input">Your message</label>
+              <div class="chat-controls"><input id="native-chat-input" maxlength="1000" required placeholder="What can I help with?" autocomplete="off"><button class="chat-send" type="submit">Send</button></div>
+            </form>
+            <div class="overview-voice-controls"><button class="mic-start" type="button">🎙 Speak to Declan</button><button class="mic-stop" type="button" disabled>Stop and transcribe</button></div>
+            <p class="mic-status muted" role="status" aria-live="polite">Voice messages can be up to 20 seconds.</p>
+            <p class="chat-status muted" role="status" aria-live="polite"></p>
+            <div class="chat-replies" aria-label="Current chat"></div>
+          </div>
+          <div class="overview-connection card">
+            <div class="overview-connection-heading"><h2>Connection status</h2><span class="overview-connection-indicator" aria-hidden="true"></span></div>
+            <div class="state" role="status" aria-live="polite">Waiting for Home Assistant…</div>
+            <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
+          </div>
         </section>
         <section class="card panel" id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations" hidden>
           <h2>Chat History &amp; Voice Recognition</h2>
