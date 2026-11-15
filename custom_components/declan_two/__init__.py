@@ -73,6 +73,10 @@ async def async_setup_entry(hass, entry):
     async def announce(call):
         kind = call.data.get("kind", "routine")
         message = call.data.get("message", "")
+        # Only known safety categories can trigger overnight speech. Treat
+        # unexpected values as noncritical rather than trusting free text.
+        if not isinstance(kind, str):
+            kind = "routine"
         clock = datetime.now().astimezone().time()
         overnight = clock >= time(23) or clock < time(7)
         allowed = {"security", "smoke", "carbon_monoxide", "critical_safety"}
@@ -99,7 +103,8 @@ async def async_setup_entry(hass, entry):
         ):
             _LOGGER.warning("Declan announcement destination is not approved: %s", destination)
             return
-        if not isinstance(message, str) or not message.strip():
+        if not isinstance(message, str) or not message.strip() or len(message) > 1000:
+            _LOGGER.warning("Declan announcement message is empty or too long")
             return
         if not isinstance(provider, str) or not provider.startswith("tts."):
             _LOGGER.warning("Declan announcements require the Declan voice manager to be enabled")
