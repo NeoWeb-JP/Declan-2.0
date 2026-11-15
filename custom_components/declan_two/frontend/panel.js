@@ -1,4 +1,4 @@
-/* Native Home Assistant panel; recovered from PR #83 without duplicated class definitions. */
+/* Native Home Assistant panel shell. No direct backend calls or embedded secrets. */
 class DeclanTwoNativePanel extends HTMLElement {
   constructor() {
     super();
@@ -128,16 +128,8 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load activity.</p>
           <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
-          <details class="timeline-management"><summary>Speaker profiles and older conversation history</summary><div class="timeline-management-body">
-          <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
-          <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
-          <h3>Learned routines and commands</h3>
-          <p class="muted">Edit or forget the phrases Declan has learned. Saving never runs the command.</p>
-          <button class="intents-refresh" type="button">Refresh learned commands</button>
-          <p class="intents-status muted" role="status" aria-live="polite"></p>
-          <div class="intents-list"></div>
-          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Edit learned commands above.</p><div class="history-list" aria-label="Recent conversations"></div>
-          </div></details>
+          <p class="muted">Unconfirmed recordings remain expanded. Open reviewed entries to see details.</p>
+
         </section>
         <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
           <h2>Approved media players</h2>
@@ -148,6 +140,16 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
           <h2>Settings</h2>
+          <details class="timeline-management"><summary>Voice recognition and learned commands</summary><div class="timeline-management-body">
+          <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
+          <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
+          <h3>Learned routines and commands</h3>
+          <p class="muted">Edit or forget the phrases Declan has learned. Saving never runs the command.</p>
+          <button class="intents-refresh" type="button">Refresh learned commands</button>
+          <p class="intents-status muted" role="status" aria-live="polite"></p>
+          <div class="intents-list"></div>
+          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Edit learned commands above.</p><div class="history-list" aria-label="Recent conversations"></div>
+          </div></details>
           <p class="muted">Spotify credentials remain saved until you explicitly replace both values. Other settings never change them.</p>
           <p class="spotify-status muted" role="status" aria-live="polite">Open Settings to check Spotify configuration.</p>
           <button class="settings-refresh" type="button">Refresh settings status</button>
@@ -289,9 +291,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       panel.hidden = panel.id !== 'panel-' + name;
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
-    if (name === 'conversations' && !this._intentsLoaded) void this.loadLearnedIntents();
+    if (name === 'settings' && !this._intentsLoaded) void this.loadLearnedIntents();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
-    if (name === 'settings') void this.loadSettingsStatus();
+    if (name === 'settings') { void this.loadSettingsStatus(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.loadUpdateStatus();
     else this.stopUpdatePolling();
 
@@ -998,7 +1000,8 @@ class DeclanTwoNativePanel extends HTMLElement {
         if (item.id) recordings.set(item.id, {kind:'pending', item});
       }
       for (const item of reviewedRows) {
-        if (item.id) recordings.set(item.id, {kind:'reviewed', item});
+        // A stale reviewed-history row must never hide a currently pending recording.
+        if (item.id && !recordings.has(item.id)) recordings.set(item.id, {kind:'reviewed', item});
       }
       const recordingRows = [...recordings.values()].sort((a, b) => {
         const aTime = Date.parse(a.item.recorded_at || '');
@@ -1017,10 +1020,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       this._timelineLoaded = true;
       this.renderTimeline();
       const missing = [pending, reviewed, conversations].filter(result => result.status !== 'fulfilled').length;
-      status.textContent = this._timelineRows.length + ' activity entries' +
+      status.textContent = pendingRows.length + ' unconfirmed recordings · ' + this._timelineRows.length + ' activity entries' +
         (missing ? ' · ' + missing + ' source(s) unavailable. Some entries may be missing.' : ' · Voice recordings and chat history shown separately until a verified link is available.');
     } catch (error) {
-      status.textContent = 'Could not load the timeline. Check the Declan connection and HA permissions.';
+      status.textContent = 'Could not load the timeline. Check the VoicePipeline connection, Declan backend and HA permissions.';
     } finally {
       this._timelinePending = false;
     }
@@ -1033,6 +1036,17 @@ class DeclanTwoNativePanel extends HTMLElement {
     const rows = (this._timelineRows || []).filter(row =>
       filter === 'all' || (filter === 'pending' && row.kind === 'pending') ||
       (filter === 'reviewed' && row.kind === 'reviewed'));
+    const groups = new Map();
+    for (const label of ['Unconfirmed', 'Confirmed', 'Rejected', 'Conversation history']) {
+      const section = document.createElement('details');
+      section.className = 'timeline-group';
+      section.open = label === 'Unconfirmed';
+      const summary = document.createElement('summary');
+      summary.textContent = label;
+      section.append(summary);
+      list.append(section);
+      groups.set(label, section);
+    }
     for (const row of rows) {
       const {item,kind} = row;
       const card = document.createElement('article');
@@ -1067,6 +1081,17 @@ class DeclanTwoNativePanel extends HTMLElement {
         label.className = 'muted';
         label.textContent = 'Conversation · Speaker not linked';
         controls.append(label);
+        if (item.teachable && Number.isSafeInteger(item.id) && item.id > 0) {
+          const teach = document.createElement('button');
+          teach.type = 'button';
+          teach.textContent = 'Teach Declan';
+          teach.addEventListener('click', async () => {
+            const target = window.prompt('What should Declan have understood?', item.message || '');
+            if (!target || !target.trim() || target.length > 120) return;
+            await this.changeLearnedIntent({turn_id:item.id, target:target.trim()});
+          });
+          controls.append(teach);
+        }
         if (item.reply) {
           const reply = document.createElement('p');
           reply.className = 'reply';
@@ -1204,7 +1229,21 @@ class DeclanTwoNativePanel extends HTMLElement {
         card.append(controls, details);
       }
       if (kind === 'conversation') card.append(controls);
-      list.append(card);
+      const group = kind === 'conversation' ? 'Conversation history' : kind === 'pending' ? 'Unconfirmed' :
+        /dismiss|reject|discard/.test(String(item.status || '').toLowerCase()) ? 'Rejected' : 'Confirmed';
+      if (kind !== 'pending') {
+        const collapsed = document.createElement('details');
+        collapsed.className = 'timeline-entry';
+        const summary = document.createElement('summary');
+        const speakerName = item.current_assigned_to || item.matched_speaker || 'Unknown';
+        summary.textContent = (kind === 'conversation' ? 'Conversation' : group) + ' · ' +
+          (item.transcript || item.message || '(No transcript)') +
+          (group === 'Confirmed' ? ' · ' + speakerName : '');
+        collapsed.append(summary, card);
+        groups.get(group).append(collapsed);
+      } else {
+        groups.get(group).append(card);
+      }
     }
     if (!rows.length) {
       const empty = document.createElement('p');
