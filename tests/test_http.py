@@ -200,7 +200,7 @@ class APITests(TestCase):
         }], None)), patch.object(server.music, "control", return_value=("", "confirmed")), patch.object(
             server.music, "request"
         ), patch.object(server.routine_registry, "load", return_value={
-            "sexy_time": {"script": "script.declan_sexy_time_controller", "sensitive": False}
+            "sexy_time": {"script": "script.declan_sexy_time_controller", "sensitive": False, "phrases": ["sexy time"], "fields": {}}
         }):
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
                 def correlated(request, timeout):
@@ -251,7 +251,7 @@ class APITests(TestCase):
         opener.open.return_value = io.BytesIO(b"[]")
         connection = ("http://ha.invalid", {}, opener)
         with patch.object(server, "ha_device_connection", return_value=connection), patch.object(
-            server.routine_registry, "load", return_value={"dinner": {"script": "script.declan_dinner_is_served_2", "sensitive": False}}
+            server.routine_registry, "load", return_value={"dinner": {"script": "script.declan_dinner_is_served_2", "sensitive": False, "phrases": ["dinner time"], "fields": {}}}
         ):
             for phrase in {*server.DINNER_PHRASES, "it’s dinner time"}:
                 opener.open.reset_mock()
