@@ -120,6 +120,7 @@ DINNER_PHRASES = {
 }
 GUEST_MODE_ENTITY = "input_boolean.guest_mode"
 GUEST_REGISTER_ENTITY = "input_text.guests_in_charge"
+VISITORS_PRESENT_ENTITY = "input_boolean.visitors_present"
 GUEST_COMMANDS = {
     "who is in charge": "check",
     "who is looking after the house": "check",
@@ -197,6 +198,29 @@ def read_guest_mode():
         opener = build_opener(ProxyHandler({}), NoRedirect())
         with opener.open(request, timeout=1) as response:
             return json.loads(response.read(4096)).get("state")
+    except HTTPError as error:
+        error.close()
+    except (OSError, ValueError, AttributeError):
+        pass
+    return None
+
+
+def read_visitors_present():
+    """Visitor presence is independent of guest authority.
+
+    Missing or unavailable state is unknown and therefore privacy-safe.
+    """
+    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
+    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
+    try:
+        parsed = urlsplit(url)
+        if not token or parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return None
+        request = Request(f"{url}/api/states/{VISITORS_PRESENT_ENTITY}",
+                          headers={"Authorization": f"Bearer {token}"})
+        with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=1) as response:
+            state = json.loads(response.read(4096)).get("state")
+            return {"on": True, "off": False}.get(state)
     except HTTPError as error:
         error.close()
     except (OSError, ValueError, AttributeError):
@@ -2556,7 +2580,7 @@ class Handler(BaseHTTPRequestHandler):
                 reply["reply"] = personality_policy.decorate(
                     reply["reply"], outcome=outcome,
                     guest=read_guest_mode() != "off",
-                    visitor_present=None,
+                    visitor_present=read_visitors_present(),
                 )
             if outcome:
                 reply["outcome"] = outcome
