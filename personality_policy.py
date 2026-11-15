@@ -79,6 +79,10 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
     # This is deliberately an allowlist, not a denylist of known failures.
     if safety or outcome != "confirmed" or already_decorated:
         return reply
+    # Replies can arrive pre-decorated from a handler. Do not append a second
+    # roast, including when the handler used a different personality category.
+    if any(line in reply for line in (*_SAVAGE, *_GUEST)):
+        return reply
     if guest or visitor_present is not False:
         lines = _GUEST
         key = ("guest", category)
