@@ -2603,7 +2603,7 @@ def main():
         worker.start()
         next_prune = monotonic()
         next_music_check = monotonic() + 5
-        next_discovery_check = monotonic() + 10
+        next_discovery_check = datetime.now().timestamp() + 10
         discovery_running = False
 
         def refresh_discovery():
@@ -2636,8 +2636,8 @@ def main():
                         music.skip_blocked_tracks(ha_device_connection(), read_music_inventory)
                     except Exception:
                         logging.exception("Blocked music could not be checked.")
-                if monotonic() >= next_discovery_check:
-                    next_discovery_check = monotonic() + 3600
+                if datetime.now().timestamp() >= next_discovery_check:
+                    next_discovery_check = datetime.now().timestamp() + 3600
                     if not discovery_running:
                         try:
                             catalogue = spotify_playlists.catalogue_path()
