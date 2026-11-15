@@ -1,6 +1,7 @@
 """Expose the standalone Declan service as a separate Assist agent."""
 
 import logging
+import re
 from datetime import datetime, time
 
 import aiohttp
@@ -102,7 +103,7 @@ async def async_setup_entry(hass, entry):
             provider = registry.async_get_entity_id(
                 "tts", "declan_two", f"{entry.entry_id}_voice_manager"
             ) or ""
-        if not isinstance(destination, str) or not destination.startswith("media_player.") or (
+        if not isinstance(destination, str) or not re.fullmatch(r"media_player\.[a-z0-9_]+", destination) or (
             overnight and destination not in approved
         ):
             _LOGGER.warning("Declan announcement destination is not approved: %s", destination)
