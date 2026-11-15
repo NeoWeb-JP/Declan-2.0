@@ -52,6 +52,7 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
                 "entity_id": row["entity_id"],
                 "state": str(row.get("state", ""))[:80],
                 "name": str(attrs.get("friendly_name", ""))[:120],
+                "area": str(row.get("declan_area") or "")[:120],
                 "brightness": attrs.get("brightness") if type(attrs.get("brightness")) is int else None,
                 "position": attrs.get("current_position") if type(attrs.get("current_position")) is int else None,
             })
