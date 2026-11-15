@@ -16,6 +16,18 @@ class CustomRoutineTests(unittest.TestCase):
         self.mapping["tea"]["sensitive"] = True
         self.assertEqual(server.run_custom_routine("tea")[1], "unresolved")
 
+    def test_sensitive_gate_requires_confirmation_not_voice_id(self):
+        import sensitive_confirmations
+        self.mapping["tea"]["sensitive"] = True
+        group = sensitive_confirmations.sensitive_group("make tea", (("custom:tea", {}), None), {}, {})
+        self.assertEqual(group, "custom:tea")
+        gate = sensitive_confirmations.ConfirmationGate()
+        with patch.object(sensitive_confirmations, "trusted_speaker", return_value=True):
+            decision, _ = gate.evaluate(session="test", origin="satellite", phrase="make tea", group=group, speaker={"name": "Jaco", "confidence": 1.0})
+        self.assertEqual(decision, "prompt")
+        decision, phrase = gate.evaluate(session="test", origin="satellite", phrase="yes", group=None, speaker=None)
+        self.assertEqual((decision, phrase), ("confirmed", "make tea"))
+
     def test_missing_mapping_never_dispatches(self):
         self.assertEqual(server.run_custom_routine("unknown")[1], "not_configured")
 
