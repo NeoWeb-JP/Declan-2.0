@@ -9,7 +9,7 @@ MAX_PAGES = 100
 MAX_PAGE_BYTES = 1024 * 1024
 DEVICE_DOMAINS = ('binary_sensor', 'climate', 'cover', 'fan', 'light', 'media_player',
                   'switch', 'script', 'remote', 'input_boolean')
-DEVICE_FIELDS = ('friendly_name', 'current_position', 'brightness', 'supported_color_modes', 'entity_id')
+DEVICE_FIELDS = ('friendly_name', 'current_position', 'brightness', 'supported_color_modes', 'entity_id', 'device_class', 'supported_features')
 MUSIC_FIELDS = ('friendly_name', 'media_title', 'media_artist', 'media_content_id', 'group_members')
 
 
