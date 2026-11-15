@@ -9,7 +9,7 @@ import history
 
 SCRIPT = re.compile(r"script\.[a-z0-9_]+\Z")
 NAME = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
-PHRASE = re.compile(r"[a-z0-9][a-z0-9 '\-{}]{0,119}\Z")
+PHRASE = re.compile(r"[a-z0-9{][a-z0-9 '\-{}]{0,119}\Z")
 FIELD = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 RESERVED = {"morning", "night", "movie", "movie_bedroom"}
 MAX_ROUTINES = 40
