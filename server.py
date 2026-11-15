@@ -522,15 +522,15 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
     url, headers, opener = connection
     movie_prefix = "DECLAN_BEDROOM_MOVIE" if movie_room == "bedroom" else "DECLAN_MOVIE"
     setting = f"{movie_prefix}_SCRIPT" if movie_action else f"DECLAN_GOOD_{period.upper()}_SCRIPT"
-    default_script = {"morning": GOOD_MORNING_SCRIPT, "night": GOOD_NIGHT_SCRIPT}.get(period, "")
-    script = configuration.get(setting, default_script).strip()
+    routine_key = ("movie_bedroom" if movie_room == "bedroom" else "movie") if movie_action else period
+    try:
+        mapped = routine_registry.load().get(routine_key)
+    except (OSError, ValueError, sqlite3.Error):
+        return f"{salutation} Routine configuration is unavailable.", "not_configured", None
+    if not mapped:
+        return f"{salutation} Map a Home Assistant script for {routine_key} in Declan Settings.", "not_configured", None
+    script = mapped["script"]
     remote = configuration.get(f"{movie_prefix}_REMOTE", "").strip() if movie_app else ""
-    if movie_action and (not script or (movie_app and not remote)):
-        script, remote, error = discover_movie_entities(
-            connection, movie_room, script=script, remote=remote, needs_remote=bool(movie_app),
-        )
-        if error:
-            return f"{salutation} {error}", "not_configured", None
     if movie_app and not re.fullmatch(r"remote\.[a-z0-9_]+", remote):
         return f"I don't have a compatible app remote configured for the {movie_room}.", "not_configured", None
     if not re.fullmatch(r"script\.[a-z0-9_]+", script):
@@ -545,7 +545,7 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
         routine_last_attempts[attempt_key] = monotonic()
         service = script.split(".", 1)[1]
         request_id = "declan-" + secrets.token_hex(16)
-        parameters = {"request_id": request_id, "routine_id": script}
+        parameters = {**mapped["fields"], "request_id": request_id, "routine_id": script}
         if movie_action:
             parameters["requested_action"] = movie_action
         request = Request(
