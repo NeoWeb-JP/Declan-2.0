@@ -29,30 +29,26 @@ class DeclanTwoNativePanel extends HTMLElement {
         .update-controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:14px 0; }
         .updates-select { min-width:0; max-width:100%; padding:10px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
         @media(max-width:520px) {
-          header .refresh { flex:1 1 100%; }
           .update-controls > button, .update-controls > select { flex:1 1 100%; width:100%; }
-          /* Compact identity and status; navigation wraps instead of horizontal scrolling. */
-        header { display:flex; flex-wrap:nowrap; gap:12px; align-items:center; padding:8px 0 16px; }
-        .brand { min-width:0; flex:1 1 auto; }
-        .declan-mark { flex:0 0 44px; width:44px; height:44px; color:#a9eaff; box-shadow:0 0 24px #369dcc44; }
-        .declan-mark svg { display:block; }
-        .connection-action { display:flex; align-items:center; justify-content:center; gap:8px; flex:0 0 auto; padding:9px 12px; border-radius:999px; font-size:.82rem; }
-        .connection-dot { width:9px; height:9px; border-radius:50%; background:#a9b8c3; flex:0 0 9px; }
+        }
+        /* Compact mobile-first navigation. Keep styles outside the update-controls media query. */
+        header { display:flex; align-items:center; flex-wrap:nowrap; gap:9px; padding:5px 0 7px; border-bottom:0; }
+        header .menu { display:grid; place-items:center; flex:0 0 34px; width:34px; height:34px; padding:0; font-size:17px; border-radius:9px; }
+        .brand { display:flex; align-items:center; gap:8px; flex:1 1 auto; min-width:0; }
+        .brand h1 { font:700 17px ui-monospace,monospace; letter-spacing:.055em; white-space:nowrap; }
+        .brand h1 small { font-size:.68em; letter-spacing:0; }
+        .declan-mark { display:grid; place-items:center; flex:0 0 28px; width:28px; height:28px; box-shadow:none; }
+        .declan-mark svg { display:block; width:20px; height:20px; }
+        header .connection-action { display:flex; flex:0 0 32px; align-items:center; justify-content:center; width:32px; height:32px; min-width:32px; padding:0; border:0; border-radius:50%; background:transparent; box-shadow:none; }
+        .connection-dot { display:block; flex:0 0 9px; width:9px; height:9px; border-radius:50%; background:#a9b8c3; }
         .connection-action[data-status="connected"] .connection-dot { background:#58d4a2; box-shadow:0 0 7px #58d4a277; }
         .connection-action[data-status="error"] .connection-dot { background:#f0a078; }
-        .tabs { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; overflow:visible; padding:14px 0 6px; }
-        .tabs button { white-space:normal; min-width:0; min-height:46px; padding:10px 8px; line-height:1.25; font-size:.9rem; text-align:center; }
-        @media(max-width:700px) { .tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .tabs button:first-child { grid-column:1 / -1; } }
-        @media(max-width:520px) { header .refresh { flex:0 0 auto; width:auto; } .connection-action-label { display:none; } .connection-action { width:40px; height:40px; padding:0; } .brand h1 { font-size:clamp(17px,5vw,23px); } .tabs { gap:7px; } .tabs button { font-size:.85rem; } }
-        /* Single-row header and compact page selector; no horizontal or multi-row tabs. */
-        .page-navigation { display:flex; align-items:center; gap:12px; padding:10px 0 4px; }
-        .page-navigation label { font-size:.85rem; font-weight:600; color:#a1ccdf; }
-        .page-select { flex:1; min-width:0; min-height:42px; padding:8px 36px 8px 12px; border:1px solid #315568; border-radius:10px; background:#102635; color:#e7f7ff; font:inherit; font-size:.94rem; }
+        .connection-action-label { display:none; }
+        .page-navigation { display:flex; align-items:center; gap:7px; padding:0 0 7px; }
+        .page-navigation label { font-size:12px; font-weight:600; color:#a1ccdf; }
+        .page-select { flex:1; min-width:0; min-height:34px; height:34px; padding:4px 26px 4px 9px; border:1px solid #315568; border-radius:8px; background:#102635; color:#e7f7ff; font:inherit; font-size:13px; }
         .page-select:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
-        @media(max-width:520px) { .page-navigation { padding:8px 0 2px; } .page-select { min-height:40px; } }
-        .card { padding:16px; }
-          .tabs { scroll-padding-inline:12px; }
-        }
+        @media(max-width:380px) { .brand h1 { font-size:15px; } .brand { gap:5px; } }
         .tabs button[aria-selected="true"] { background:#184860; border-color:#76dbff; }
         .card { margin-top:14px; padding:22px; border:1px solid #1d3d51;
           background:#0b1a25; border-radius:14px; }
