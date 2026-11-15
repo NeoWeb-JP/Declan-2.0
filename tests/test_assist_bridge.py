@@ -152,6 +152,25 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                 hass.services.async_call.call_args.args[2]["entity_id"],
                 "tts.declan_2_0_voice_manager"
             )
+        # The same service accepts ordinary announcements during the day,
+        # but cannot fall back to raw TTS if Declan's voice entity is absent.
+        with patch.dict(announce.__globals__, {"datetime": Mock(), "time": __import__("datetime").time}) as globals_:
+            globals_["datetime"].now.return_value.astimezone.return_value.time.return_value = __import__("datetime").time(12, 0)
+            hass.services.async_call.reset_mock()
+            await announce(SimpleNamespace(data={"kind": "reminder", "message": "Lunch",
+                                                 "entity_id": "media_player.other"}))
+            hass.services.async_call.assert_awaited_once()
+            hass.services.async_call.reset_mock()
+            with patch.object(
+                announce.__globals__["entity_registry"], "async_get",
+                return_value=SimpleNamespace(async_get_entity_id=Mock(return_value=None)),
+            ) if "entity_registry" in announce.__globals__ else patch(
+                "homeassistant.helpers.entity_registry.async_get",
+                return_value=SimpleNamespace(async_get_entity_id=Mock(return_value=None)),
+            ):
+                await announce(SimpleNamespace(data={"kind": "reminder", "message": "Lunch",
+                                                     "entity_id": "media_player.other"}))
+            hass.services.async_call.assert_not_awaited()
         name, handler = hass.bus.async_listen.call_args.args
         self.assertEqual(name, "declan_two_assist_reply")
         await handler(SimpleNamespace(data={"message": ""}))
