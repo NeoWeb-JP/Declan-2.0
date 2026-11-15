@@ -218,7 +218,7 @@ def read_visitors_present():
                 or parsed.username or parsed.password or parsed.query or parsed.fragment):
             return None
         visitor_entity = configuration.get("DECLAN_VISITORS_ENTITY", VISITORS_PRESENT_ENTITY)
-        if not re.fullmatch(r"input_boolean\\.[a-z0-9_]+", visitor_entity):
+        if not re.fullmatch(r"input_boolean\.[a-z0-9_]+", visitor_entity):
             return None
         request = Request(f"{url}/api/states/{visitor_entity}",
                           headers={"Authorization": f"Bearer {token}"})
