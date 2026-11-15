@@ -14,7 +14,11 @@ def configured():
 
 
 def get_key():
+    if PATH.is_symlink():
+        raise ValueError("Unsafe OpenAI credential path")
     if PATH.is_file():
+        if os.name != "nt" and PATH.stat().st_mode & 0o077:
+            raise ValueError("OpenAI credential file permissions are unsafe")
         value = PATH.read_text(encoding="utf-8").strip()
     else:
         value = os.environ.get("OPENAI_API_KEY", "").strip()
