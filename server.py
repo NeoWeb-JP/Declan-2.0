@@ -543,7 +543,7 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
     if mapped["sensitive"] and not approved:
         return f"{salutation} This routine needs explicit confirmation.", "unresolved", None
     script = mapped["script"]
-    remote = configuration.get(f"{movie_prefix}_REMOTE", "").strip() if movie_app else ""
+    remote = mapped.get("remote", "").strip() if movie_app else ""
     if movie_app and not re.fullmatch(r"remote\.[a-z0-9_]+", remote):
         return f"I don't have a compatible app remote configured for the {movie_room}.", "not_configured", None
     if not re.fullmatch(r"script\.[a-z0-9_]+", script):
