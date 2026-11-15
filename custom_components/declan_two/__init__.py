@@ -87,11 +87,13 @@ async def async_setup_entry(hass, entry):
         # Route announcements through Declan's own speech entity so quiet-hour
         # PCM attenuation applies without altering the Music Assistant volume.
         # Never bypass that policy by calling the raw upstream TTS provider.
-        provider = (
-            f"tts.declan_2_0_voice_manager"
-            if entry.options.get("tts_enabled", False)
-            else ""
-        )
+        provider = ""
+        if entry.options.get("tts_enabled", False):
+            from homeassistant.helpers import entity_registry
+            registry = entity_registry.async_get(hass)
+            provider = registry.async_get_entity_id(
+                "tts", "declan_two", f"{entry.entry_id}_voice_manager"
+            ) or ""
         if not isinstance(destination, str) or not destination.startswith("media_player.") or (
             overnight and destination not in approved
         ):
