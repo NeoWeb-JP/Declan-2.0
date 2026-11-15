@@ -5,7 +5,15 @@ from datetime import datetime
 from io import BytesIO
 from array import array
 
-from custom_components.declan_two.quiet_speech import attenuate_wav, quiet_hours
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+
+# Load the pure audio policy without importing the Home Assistant integration.
+path = Path(__file__).resolve().parents[1] / "custom_components" / "declan_two" / "quiet_speech.py"
+spec = spec_from_file_location("declan_quiet_speech", path)
+module = module_from_spec(spec)
+spec.loader.exec_module(module)
+attenuate_wav, quiet_hours = module.attenuate_wav, module.quiet_hours
 
 
 def wav(values):
