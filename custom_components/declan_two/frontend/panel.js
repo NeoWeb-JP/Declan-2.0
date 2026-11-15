@@ -972,7 +972,8 @@ class DeclanTwoNativePanel extends HTMLElement {
         if (item.id) recordings.set(item.id, {kind:'pending', item});
       }
       for (const item of reviewedRows) {
-        if (item.id) recordings.set(item.id, {kind:'reviewed', item});
+        // A stale reviewed-history row must never hide a currently pending recording.
+        if (item.id && !recordings.has(item.id)) recordings.set(item.id, {kind:'reviewed', item});
       }
       const recordingRows = [...recordings.values()].sort((a, b) => {
         const aTime = Date.parse(a.item.recorded_at || '');
@@ -991,10 +992,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       this._timelineLoaded = true;
       this.renderTimeline();
       const missing = [pending, reviewed, conversations].filter(result => result.status !== 'fulfilled').length;
-      status.textContent = this._timelineRows.length + ' activity entries' +
+      status.textContent = pendingRows.length + ' unconfirmed recordings · ' + this._timelineRows.length + ' activity entries' +
         (missing ? ' · ' + missing + ' source(s) unavailable. Some entries may be missing.' : ' · Voice recordings and chat history shown separately until a verified link is available.');
     } catch (error) {
-      status.textContent = 'Could not load the timeline. Check the Declan connection and HA permissions.';
+      status.textContent = 'Could not load the timeline. Check the VoicePipeline connection, Declan backend and HA permissions.';
     } finally {
       this._timelinePending = false;
     }
