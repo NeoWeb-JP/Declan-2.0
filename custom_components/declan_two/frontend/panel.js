@@ -387,9 +387,19 @@ class DeclanTwoNativePanel extends HTMLElement {
       const data = await this._hass.callApi('POST', 'declan_two/updates', {
         operation: 'check', include_prereleases: this.shadowRoot.querySelector('.update-prereleases').checked
       });
-      select.replaceChildren(new Option('Select a release', ''));
-      for (const version of data.versions || []) select.add(new Option(version, version));
-      status.textContent = data.versions?.length ? 'Choose a release to install.' : 'No eligible releases found.';
+      const versions = Array.isArray(data.versions) ? data.versions.filter(version => typeof version === 'string' && version.trim()) : [];
+      select.replaceChildren();
+      for (const version of versions) select.add(new Option(version, version));
+      if (versions.length) {
+        // The updater returns releases newest first; select the first eligible release.
+        select.selectedIndex = 0;
+        this.shadowRoot.querySelector('.updates-install').disabled = false;
+        status.textContent = 'Latest eligible release ' + select.value + ' selected. Ready to install.';
+      } else {
+        select.add(new Option('No eligible releases', ''));
+        this.shadowRoot.querySelector('.updates-install').disabled = true;
+        status.textContent = 'No eligible releases found.';
+      }
       this.shadowRoot.querySelector('.update-version').textContent = 'Backend version: ' + (data.current || 'unknown');
     } catch (error) {
       select.replaceChildren(new Option('Check failed', ''));
