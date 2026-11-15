@@ -1581,7 +1581,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         native_settings_auth = (
             self.path in {"/api/native/settings-status", "/api/native/settings-export",
-                          "/api/native/settings-recovery", "/api/native/diagnostics"}
+                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/intents"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1632,6 +1632,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"document": document})
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings document unavailable."})
+        elif self.path == "/api/native/intents":
+            try:
+                self.send_json(200, {"intents": history.learned_intents()})
+            except (OSError, sqlite3.Error):
+                self.send_json(503, {"error": "Learned intentions unavailable."})
         elif self.path == "/api/native/diagnostics":
             try:
                 self.send_json(200, {"traces": diagnostics.recent()})
@@ -1766,7 +1771,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -1806,6 +1811,13 @@ class Handler(BaseHTTPRequestHandler):
             )
         ) and not (
             self.path == "/api/native/settings-import"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
+            self.path == "/api/native/intents"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -1893,6 +1905,27 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {'error': str(error)})
                 except (OSError, sqlite3.Error):
                     self.send_json(503, {'error': 'Settings could not be imported.'})
+                return
+            if self.path == "/api/native/intents":
+                try:
+                    if not isinstance(body, dict):
+                        raise ValueError("Invalid intention change.")
+                    if set(body) == {"phrase", "target", "previous"}:
+                        history.edit_intent(body["phrase"], body["target"], body["previous"])
+                    elif set(body) == {"forget", "previous"}:
+                        phrase = body["forget"]
+                        if not isinstance(phrase, str) or not isinstance(body["previous"], str) or history.learned_intent(phrase) != body["previous"]:
+                            raise ValueError("Intention changed. Refresh before forgetting.")
+                        history.forget_intent(phrase)
+                    elif set(body) == {"turn_id", "target"} and type(body["turn_id"]) is int:
+                        history.teach_intent(body["turn_id"], body["target"], UNMATCHED_REPLY)
+                    else:
+                        raise ValueError("Invalid intention change.")
+                    self.send_json(200, {"saved": True})
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Intention change unavailable."})
                 return
             if self.path == "/api/history/intents":
                 try:
