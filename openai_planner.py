@@ -10,13 +10,14 @@ from urllib.request import Request, build_opener, ProxyHandler
 from urllib.error import HTTPError, URLError
 
 from action_plan import validate_plan
+from ai_pricing import RATES
 
 MODEL_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$")
 MAX_CONTEXT = 100
 MAX_OUTPUT_TOKENS = 600
 
 
-def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_key=None, usage_sink=None, inventory=None):
+def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_key=None, usage_sink=None, inventory=None, max_cost_micro_usd=None):
     """Return validated candidates only; never dispatch services.
 
     Fail closed on missing configuration, bad network responses or malformed
@@ -94,6 +95,14 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
         headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
         method="POST",
     )
+    if max_cost_micro_usd is not None:
+        if type(max_cost_micro_usd) is not int or max_cost_micro_usd <= 0 or model not in RATES:
+            raise ValueError("Invalid request cost ceiling")
+        input_rate, output_rate = RATES[model]
+        worst = ((len(request.data) * input_rate
+                  + MAX_OUTPUT_TOKENS * output_rate + 999999) // 1000000)
+        if worst > max_cost_micro_usd:
+            raise ValueError("AI request context exceeds spending ceiling")
     opener = opener or build_opener(ProxyHandler({}))
     try:
         with opener.open(request, timeout=12) as response:
