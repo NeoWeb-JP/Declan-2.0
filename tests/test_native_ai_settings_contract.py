@@ -40,6 +40,8 @@ class NativeAISettingsContractTests(unittest.TestCase):
         self.assertIn('ai_exposed_entities', BACKEND)
         self.assertIn('authenticated_ha', BACKEND)
         self.assertIn('ai_pricing.charge(settings["model"]', BACKEND)
+        self.assertNotIn("DECLAN_OPENAI_FALLBACK_ENABLED", BACKEND)
+        self.assertIn('if not settings["enabled"]:', BACKEND)
 
 
 if __name__ == "__main__":
