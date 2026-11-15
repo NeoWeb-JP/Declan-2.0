@@ -667,84 +667,8 @@ class DeclanTwoNativePanel extends HTMLElement {
         empty.textContent = 'No enrolled speakers found.';
         list.append(empty);
       }
-      const pending = document.createElement('h3');
-      pending.textContent = 'Pending recordings (' + data.interactions.length + ')';
-      list.append(pending);
-      for (const interaction of data.interactions) {
-        const card = document.createElement('article');
-        card.className = 'turn';
-        const transcript = document.createElement('p');
-        transcript.textContent = interaction.transcript || '(No transcript)';
-        const detail = document.createElement('p');
-        detail.className = 'muted';
-        detail.textContent = 'Suggested: ' + (interaction.matched_speaker || 'Unknown') + ' · Match: ' +
-          (Number.isFinite(interaction.match_confidence) ? (interaction.match_confidence * 100).toFixed(1) + '%' : 'Unknown');
-        const actions = document.createElement('div');
-        actions.className = 'history-actions';
-        if (interaction.id) {
-          const select = document.createElement('select');
-          select.setAttribute('aria-label', 'Choose correct speaker');
-          const placeholder = document.createElement('option');
-          placeholder.value = '';
-          placeholder.textContent = 'Choose a speaker…';
-          select.append(placeholder);
-          for (const profile of data.profiles) {
-            if (!profile.name) continue;
-            const option = document.createElement('option');
-            option.value = profile.name;
-            option.textContent = profile.name;
-            select.append(option);
-          }
-          const suggested = typeof interaction.matched_speaker === 'string'
-            ? interaction.matched_speaker.trim() : '';
-          const known = suggested && !['unknown', 'unidentified', 'none'].includes(suggested.toLowerCase());
-          if (known && [...select.options].some(option => option.value === suggested)) select.value = suggested;
-          const confirm = document.createElement('button');
-          confirm.type = 'button';
-          confirm.textContent = 'Confirm speaker';
-          confirm.disabled = !select.value;
-          select.addEventListener('change', () => { confirm.disabled = !select.value; });
-          confirm.addEventListener('click', () => {
-            if (!select.value) return;
-            const action = known && select.value === suggested ? 'confirm' : 'assign';
-            void this.resolveVoice(interaction.id, action, select.value);
-          });
-          actions.append(select, confirm);
-          const enrol = document.createElement('button');
-          enrol.type = 'button';
-          enrol.textContent = 'Enrol new speaker';
-          enrol.addEventListener('click', () => {
-            const name = window.prompt('Name for the new speaker:');
-            if (name === null) return;
-            const trimmed = name.trim();
-            if (!/^[\p{L}][\p{L}\p{N}_ '\u2019-]{0,39}$/u.test(trimmed)) {
-              this.shadowRoot.querySelector('.voices-status').textContent = 'Enter a valid speaker name of 1–40 characters.';
-              return;
-            }
-            if (data.profiles.some(profile => profile.name.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
-              this.shadowRoot.querySelector('.voices-status').textContent = 'Speaker already enrolled. Select their existing profile.';
-              return;
-            }
-            void this.resolveVoice(interaction.id, 'enrol', trimmed);
-          });
-          actions.append(enrol);
-          const play = document.createElement('button');
-          play.type = 'button';
-          play.textContent = 'Play recording';
-          play.addEventListener('click', () => void this.playVoice(interaction.id, play));
-          actions.append(play);
-          const dismiss = document.createElement('button');
-          dismiss.type = 'button';
-          dismiss.textContent = 'Reject recording';
-          dismiss.addEventListener('click', () => this.resolveVoice(interaction.id, 'dismiss', null));
-          actions.append(dismiss);
-        }
-        card.append(transcript, detail, actions);
-        list.append(card);
-      }
       this._voicesLoaded = true;
-      if (!this._voiceHistoryLoaded) { this._voiceHistoryLoaded = true; void this.loadVoiceHistory(); }
-      status.textContent = 'VoicePipeline matches loaded. Confirm, reassign or reject pending recordings.';
+      status.textContent = 'Speaker profiles loaded. Review recordings in History & Voice Recognition.';
     } catch {
       status.textContent = 'Could not load VoicePipeline data. Check the backend connection and HA admin permissions.';
     } finally {

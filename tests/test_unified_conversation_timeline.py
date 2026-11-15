@@ -17,6 +17,14 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn('class="timeline-list"', JS)
         self.assertIn('class="timeline-filter"', JS)
 
+    def test_pending_recordings_only_render_in_history(self):
+        profiles_view = JS.split("  async loadVoices() {", 1)[1].split("  async loadPlayers() {", 1)[0]
+        self.assertNotIn("Pending recordings (", profiles_view)
+        self.assertNotIn("Confirm speaker", profiles_view)
+        self.assertIn("Speaker profiles loaded. Review recordings in History & Voice Recognition.", profiles_view)
+        self.assertIn("recordings.set(item.id, {kind:'pending', item})", JS)
+        self.assertIn("section.open = label === 'Unconfirmed'", JS)
+
     def test_review_in_row(self):
         for snippet in ("async loadTimeline()", "renderTimeline()", "this.resolveVoice(item.id",
                         "this.correctVoiceHistory(item, select.value)", "this.playVoice(item.id, play,",

@@ -23,7 +23,8 @@ class NativeVoicePlaybackContract(unittest.TestCase):
         self.assertIn('set(body) != {"operation", "interaction_id"}', SERVER)
 
     def test_native_panel_handles_unknown_and_audio(self):
-        self.assertIn("['unknown', 'unidentified', 'none']", PANEL)
+        self.assertIn("item.matched_speaker", PANEL)
+        self.assertIn("if (!select.value) return;", PANEL)
         self.assertIn("operation: 'audio'", PANEL)
         self.assertIn("URL.revokeObjectURL(url)", PANEL)
         self.assertIn("feedback = error?.message", PANEL)
