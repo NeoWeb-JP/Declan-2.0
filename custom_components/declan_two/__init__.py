@@ -92,9 +92,11 @@ async def async_setup_entry(hass, entry):
             from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
             try:
                 clock = datetime.now(ZoneInfo(zone_name)).time()
-            except (ZoneInfoNotFoundError, ValueError):
-                _LOGGER.warning("Invalid Home Assistant timezone; using local time")
-                clock = datetime.now().astimezone().time()
+            except (ZoneInfoNotFoundError, ValueError, TypeError):
+                # An invalid configured timezone makes overnight classification
+                # unreliable. Fail closed rather than using the host's clock.
+                _LOGGER.warning("Invalid Home Assistant timezone; suppressing announcement")
+                return
         else:
             clock = datetime.now().astimezone().time()
         overnight = clock >= time(23) or clock < time(7)
