@@ -78,7 +78,7 @@ class APITests(TestCase):
                 with error:
                     return error.code, error.read()
 
-        self.assertIn(b"./logo.png", request("/")[1])
+        self.assertEqual(request("/")[0], 404)
         self.assertEqual(request("/api/chat", body={"message": "hello"}, site="cross-site")[0], 403)
         self.assertEqual(request("/api/assist", body={"message": "hello"}, site="same-origin")[0], 404)
         self.assertEqual(self.request("/api/chat", body={"message": "hello"}, headers={
@@ -145,7 +145,7 @@ class APITests(TestCase):
         ):
             status, data = self.request("/api/ha-status")
         self.assertEqual((status, json.loads(data)), (200, {"status": "disconnected", "release_version": "v1.2.3"}))
-        self.assertIn(b'id="api-status"', self.request("/")[1])
+        self.assertEqual(self.request("/")[0], 404)
         self.assertTrue(self.request("/logo.png")[1].startswith(b"\x89PNG"))
         self.assertEqual(json.loads(self.request("/health")[1]), {"status": "ok"})
         self.assertEqual(self.request("/unknown")[0], 404)
@@ -387,7 +387,7 @@ class StartupTests(TestCase):
         ring = self.enterContext(patch.object(server.timers, "ring_due", side_effect=OSError()))
         prune = self.enterContext(patch.object(server.history, "prune", side_effect=OSError()))
         browser = self.enterContext(patch.object(server.webbrowser, "open"))
-        self.enterContext(patch("sys.argv", ["server.py", "--open"]))
+        self.enterContext(patch("sys.argv", ["server.py"]))
         stdout = self.enterContext(patch("sys.stdout", new_callable=io.StringIO))
         with self.assertLogs(level="ERROR") as logs:
             server.main()
