@@ -68,7 +68,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                 errors["primary_tts"] = "invalid_tts_provider"
             destinations = user_input.get("overnight_announcement_outputs", "").strip()
             if destinations and any(
-                not re.fullmatch(r"media_player\\.[a-z0-9_]+", item.strip())
+                not re.fullmatch(r"media_player\.[a-z0-9_]+", item.strip())
                 for item in destinations.split(",")
             ):
                 errors["overnight_announcement_outputs"] = "invalid_media_player"
