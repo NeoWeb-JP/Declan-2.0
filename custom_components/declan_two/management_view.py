@@ -8,6 +8,7 @@ GET_PATHS = {
     "export": "/api/native/settings-export",
     "recovery": "/api/native/settings-recovery",
     "diagnostics": "/api/native/diagnostics",
+    "intents": "/api/native/intents",
 }
 
 class DeclanManagementView(HomeAssistantView):
@@ -23,7 +24,7 @@ class DeclanManagementView(HomeAssistantView):
         if len(entries) != 1:
             return web.json_response({"status": "not_configured"}, status=503)
         entry = entries[0]
-        path = ("/api/native/settings-import" if operation == "import" else "/api/native/spotify-credentials") if body is not None else GET_PATHS[operation]
+        path = ({"import": "/api/native/settings-import", "intents": "/api/native/intents", "spotify": "/api/native/spotify-credentials"}[operation] if body is not None else GET_PATHS[operation])
         try:
             session = async_get_clientsession(request.app["hass"])
             kwargs = dict(headers={"Authorization": f"Bearer {entry.data['token']}"},
@@ -36,7 +37,30 @@ class DeclanManagementView(HomeAssistantView):
                 payload = await response.json(content_type="application/json")
                 if not isinstance(payload, dict):
                     raise ValueError("Invalid response")
-                if operation == "import":
+                if operation == "intents":
+                    if body is not None:
+                        return web.json_response({"saved": payload.get("saved") is True},
+                                                 headers={"Cache-Control": "no-store"})
+                    intents = payload.get("intents")
+                    if not isinstance(intents, dict) or len(intents) > 500:
+                        raise ValueError("Invalid intentions")
+                    safe = {}
+                    for phrase, target in intents.items():
+                        if not isinstance(phrase, str) or not isinstance(target, str) or len(phrase) > 120 or len(target) > 120:
+                            raise ValueError("Invalid intention")
+                        safe[phrase] = target
+                    return web.json_response({"intents": safe}, headers={"Cache-Control": "no-store"})
+                if operation == "intents":
+            if not isinstance(body, dict) or set(body) not in (
+                {"phrase", "target", "previous"}, {"forget", "previous"}, {"turn_id", "target"}
+            ):
+                return web.json_response({"status": "invalid_request"}, status=400)
+            if any(not isinstance(v, str) or not 0 < len(v) <= 120 for k, v in body.items() if k != "turn_id"):
+                return web.json_response({"status": "invalid_request"}, status=400)
+            if "turn_id" in body and (type(body["turn_id"]) is not int or not 0 < body["turn_id"] < 2**63):
+                return web.json_response({"status": "invalid_request"}, status=400)
+            return await self._relay(request, "intents", body)
+        if operation == "import":
                     if body.get("confirm") is True:
                         return web.json_response({"saved": payload.get("saved") is True},
                                                  headers={"Cache-Control": "no-store"})
@@ -71,7 +95,7 @@ class DeclanManagementView(HomeAssistantView):
 
     async def post(self, request):
         operation = request.match_info.get("operation")
-        if operation not in {"spotify", "import"}:
+        if operation not in {"spotify", "import", "intents"}:
             return web.json_response({"status": "invalid_operation"}, status=404)
         if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= (131072 if operation == "import" else 2048):
             return web.json_response({"status": "invalid_request"}, status=400)
