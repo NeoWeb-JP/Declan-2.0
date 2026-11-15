@@ -125,6 +125,9 @@ class DeclanTwoNativePanel extends HTMLElement {
         .history-actions { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
         .timeline-filter,.timeline-speaker { min-width:0; max-width:100%; padding:9px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
         /* History: distinct section cards, readable collapsed rows, touch-friendly controls. */
+        .timeline-subsection { margin:10px 0; padding:10px 12px; border:1px solid #315568; border-radius:10px; }
+        .timeline-subsection > summary { cursor:pointer; font-weight:600; color:#c6eaf5; }
+        .timeline-subsection > p { overflow-wrap:anywhere; }
         .timeline-list { display:grid; gap:12px; min-width:0; }
         .timeline-group { min-width:0; overflow:hidden; border:1px solid #315568; border-radius:14px; background:#0e2230; }
         .timeline-group[open] { border-color:#47758b; background:#0b1d29; }
@@ -217,15 +220,9 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-conversations" role="region" aria-label="Declan page" hidden>
           <h2>Chat History &amp; Voice Recognition</h2>
-          <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
-          <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load activity.</p>
-          <div class="timeline-list" aria-label="Voice and conversation timeline"></div>
-          <details class="timeline-training"><summary>Saved phrase corrections</summary>                <div class="settings-subsection"><h3>Phrase training</h3><p class="muted">Edit or forget existing phrase corrections. Every conversation entry below can be trained.</p>
-                  <p class="intents-status muted" role="status" aria-live="polite"></p><div class="intents-list"></div>
-                </div>
-</details>
-          <p class="muted">Unconfirmed recordings remain expanded. Open reviewed entries to see details.</p>
-
+          <div class="history-actions"><button class="timeline-refresh" type="button">Refresh recordings</button></div>
+          <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load the last seven days of recordings.</p>
+          <div class="timeline-list" aria-label="Voice recording review"></div>
         </section>
         <section class="card panel" id="panel-players" role="region" aria-label="Declan page" hidden>
           <h2>Approved media players</h2>
@@ -311,7 +308,6 @@ class DeclanTwoNativePanel extends HTMLElement {
         void this.sendChat();
       });
       this.bindPanelEvent('.timeline-refresh', 'click', () => this.loadTimeline());
-      this.bindPanelEvent('.timeline-filter', 'change', () => this.renderTimeline());
       this.bindPanelEvent('.voices-refresh', 'click', () => this.loadVoices());
 
       this.bindPanelEvent('.players-refresh', 'click', () => this.loadPlayers());
@@ -393,7 +389,6 @@ class DeclanTwoNativePanel extends HTMLElement {
       panel.hidden = panel.id !== 'panel-' + name;
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
-    if (name === 'conversations' && !this._intentsLoaded) void this.loadLearnedIntents();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'settings') { void this.loadSettingsStatus(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.loadUpdateStatus();
@@ -1014,52 +1009,34 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (!this._hass || this._timelinePending) return;
     this._timelinePending = true;
     const status = this.shadowRoot.querySelector('.timeline-status');
-    status.textContent = 'Loading conversations and recordings…';
+    status.textContent = 'Loading recordings from the last 7 days…';
     try {
-      const [pending, reviewed, conversations] = await Promise.allSettled([
+      const [pending, reviewed] = await Promise.allSettled([
         this._hass.callApi('GET', 'declan_two/voice-review'),
-        this._hass.callApi('GET', 'declan_two/voice-review?history=1'),
-        this._hass.callApi('GET', 'declan_two/history')
+        this._hass.callApi('GET', 'declan_two/voice-review?history=1')
       ]);
-      if (pending.status !== 'fulfilled' && reviewed.status !== 'fulfilled' && conversations.status !== 'fulfilled') {
-        throw new Error('No activity source available');
-      }
+      if (pending.status !== 'fulfilled' && reviewed.status !== 'fulfilled') throw new Error('Voice review unavailable');
       this._voiceProfiles = pending.status === 'fulfilled' && Array.isArray(pending.value.profiles) ? pending.value.profiles : [];
       const pendingRows = pending.status === 'fulfilled' && Array.isArray(pending.value.interactions) ? pending.value.interactions : [];
       const reviewedRows = reviewed.status === 'fulfilled' && Array.isArray(reviewed.value.interactions) ? reviewed.value.interactions : [];
-      const conversationRows = conversations.status === 'fulfilled' && Array.isArray(conversations.value.turns) ? conversations.value.turns : [];
-      // These sources have no verified shared interaction ID. Never join by transcript or timestamp.
-      // Pending and reviewed endpoints can briefly overlap while a review is being saved.
-      // Prefer the reviewed state for the same recording ID, and retain its timeline position.
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const recent = item => {
+        const recorded = Date.parse(item.recorded_at || '');
+        return Number.isFinite(recorded) && recorded >= cutoff && recorded <= Date.now();
+      };
+      // Recording IDs are authoritative. Never merge recordings and conversation turns by text or time.
+      // A current pending state takes precedence over a stale reviewed-history copy.
       const recordings = new Map();
-      for (const item of pendingRows) {
-        if (item.id) recordings.set(item.id, {kind:'pending', item});
-      }
-      for (const item of reviewedRows) {
-        // A stale reviewed-history row must never hide a currently pending recording.
-        if (item.id && !recordings.has(item.id)) recordings.set(item.id, {kind:'reviewed', item});
-      }
-      const recordingRows = [...recordings.values()].sort((a, b) => {
-        const aTime = Date.parse(a.item.recorded_at || '');
-        const bTime = Date.parse(b.item.recorded_at || '');
-        if (Number.isFinite(aTime) && Number.isFinite(bTime)) return bTime - aTime;
-        if (Number.isFinite(aTime)) return -1;
-        if (Number.isFinite(bTime)) return 1;
-        return 0;
-      });
-      // Conversation history lacks a verified timestamp/shared ID: display separately
-      // rather than inventing a chronological position or matching by transcript.
-      this._timelineRows = [
-        ...recordingRows,
-        ...conversationRows.map(item => ({kind:'conversation', item}))
-      ];
+      for (const item of pendingRows) if (item.id && recent(item)) recordings.set(String(item.id), {kind:'pending', item});
+      for (const item of reviewedRows) if (item.id && recent(item) && !recordings.has(String(item.id))) recordings.set(String(item.id), {kind:'reviewed', item});
+      this._timelineRows = [...recordings.values()].sort((a,b) => Date.parse(b.item.recorded_at) - Date.parse(a.item.recorded_at));
       this._timelineLoaded = true;
       this.renderTimeline();
-      const missing = [pending, reviewed, conversations].filter(result => result.status !== 'fulfilled').length;
-      status.textContent = pendingRows.length + ' unconfirmed recordings · ' + this._timelineRows.length + ' activity entries' +
-        (missing ? ' · ' + missing + ' source(s) unavailable. Some entries may be missing.' : ' · Voice recordings and chat history shown separately until a verified link is available.');
+      const missing = [pending, reviewed].filter(result => result.status !== 'fulfilled').length;
+      status.textContent = this._timelineRows.length + ' recordings from the last 7 days' +
+        (missing ? ' · ' + missing + ' source(s) unavailable; some recordings may be missing.' : '');
     } catch (error) {
-      status.textContent = 'Could not load the timeline. Check the VoicePipeline connection, Declan backend and HA permissions.';
+      status.textContent = 'Could not load recordings. Check the VoicePipeline connection and HA permissions.';
     } finally {
       this._timelinePending = false;
     }
@@ -1067,228 +1044,184 @@ class DeclanTwoNativePanel extends HTMLElement {
 
   renderTimeline() {
     const list = this.shadowRoot.querySelector('.timeline-list');
-    const filter = this.shadowRoot.querySelector('.timeline-filter').value;
     list.replaceChildren();
-    const rows = (this._timelineRows || []).filter(row =>
-      filter === 'all' || (filter === 'pending' && row.kind === 'pending') ||
-      (filter === 'reviewed' && row.kind === 'reviewed'));
+    const rows = this._timelineRows || [];
     const groups = new Map();
-    for (const label of ['Unconfirmed', 'Confirmed', 'Rejected', 'Conversation history']) {
-      const section = document.createElement('details');
-      section.className = 'timeline-group';
-      section.open = label === 'Unconfirmed';
+    const groupFor = row => row.kind === 'pending' ? 'Unconfirmed' :
+      /dismiss|reject|discard/.test(String(row.item.status || '').toLowerCase()) ? 'Rejected' : 'Confirmed';
+    const sectionFor = (title, open = false) => {
+      const details = document.createElement('details');
+      details.className = 'timeline-group';
+      details.open = open;
       const summary = document.createElement('summary');
-      summary.textContent = label;
+      summary.textContent = title;
       const count = document.createElement('span');
       count.className = 'timeline-count';
-      count.textContent = String(rows.filter(row => row.kind === (label === 'Conversation history' ? 'conversation' : label === 'Unconfirmed' ? 'pending' : 'reviewed') && (label === 'Confirmed' ? !/dismiss|reject|discard/.test(String(row.item.status || '').toLowerCase()) : label === 'Rejected' ? /dismiss|reject|discard/.test(String(row.item.status || '').toLowerCase()) : true)).length);
+      count.textContent = String(rows.filter(row => groupFor(row) === title).length);
       summary.append(count);
-      section.append(summary);
-      list.append(section);
-      groups.set(label, section);
-    }
-    for (const row of rows) {
-      const {item,kind} = row;
+      details.append(summary);
+      list.append(details);
+      groups.set(title, details);
+    };
+    sectionFor('Unconfirmed', true);
+    sectionFor('Confirmed');
+    sectionFor('Rejected');
+    const subsection = (parent, title, open = false) => {
+      const details = document.createElement('details');
+      details.className = 'timeline-subsection';
+      details.open = open;
+      const summary = document.createElement('summary');
+      summary.textContent = title;
+      details.append(summary);
+      parent.append(details);
+      return details;
+    };
+    for (const {item,kind} of rows) {
+      const group = groupFor({item,kind});
+      const pending = kind === 'pending';
+      const rejected = group === 'Rejected';
+      const speaker = item.current_assigned_to || (pending ? '' : item.matched_speaker) || '';
+      const entry = document.createElement('details');
+      entry.className = 'timeline-entry';
+      entry.open = pending;
+      const summary = document.createElement('summary');
+      summary.textContent = (item.transcript || '(No transcript)') + ' · ' +
+        (pending ? 'Needs review' : rejected ? 'Rejected' : speaker || 'Confirmed');
+      entry.append(summary);
       const card = document.createElement('article');
-      card.className = 'timeline-row';
-      if (kind !== 'conversation') {
-        const rawStatus = String(item.status || '').toLowerCase();
-        const rejected = kind === 'reviewed' && /dismiss|reject|discard/.test(rawStatus);
-        const reviewState = kind === 'pending' ? 'pending' : rejected ? 'rejected' : 'confirmed';
-        card.classList.add('timeline-row--' + reviewState);
-        const heading = document.createElement('div');
-        heading.className = 'timeline-heading';
-        const state = document.createElement('span');
-        state.className = 'timeline-status-label timeline-status-label--' + reviewState;
-        state.textContent = reviewState === 'pending' ? 'Needs review' : reviewState === 'rejected' ? 'Rejected' : 'Confirmed';
-        heading.append(state);
-        if (item.recorded_at) {
-          const time = document.createElement('span');
-          time.className = 'muted';
-          const parsed = Date.parse(item.recorded_at);
-          time.textContent = Number.isFinite(parsed) ? new Date(parsed).toLocaleString() : item.recorded_at;
-          heading.append(time);
-        }
-        card.append(heading);
-      }
-      const transcript = document.createElement('p');
-      transcript.textContent = item.transcript || item.message || '(No transcript)';
-      card.append(transcript);
+      card.className = 'timeline-row timeline-row--' + (pending ? 'pending' : rejected ? 'rejected' : 'confirmed');
+      const heading = document.createElement('div');
+      heading.className = 'timeline-heading';
+      const state = document.createElement('span');
+      state.className = 'timeline-status-label timeline-status-label--' + (pending ? 'pending' : rejected ? 'rejected' : 'confirmed');
+      state.textContent = pending ? 'Needs review' : rejected ? 'Rejected' : 'Confirmed';
+      heading.append(state);
+      const recorded = document.createElement('span');
+      recorded.className = 'muted';
+      recorded.textContent = new Date(item.recorded_at).toLocaleString();
+      heading.append(recorded);
+      card.append(heading);
+      const voice = subsection(card, 'Voice matching', pending);
       const controls = document.createElement('div');
       controls.className = 'timeline-controls';
-      if (kind === 'conversation') {
-        const label = document.createElement('span');
-        label.className = 'muted';
-        label.textContent = 'Conversation · Speaker not linked';
-        controls.append(label);
-        if (Number.isSafeInteger(item.id) && item.id > 0) {
-          const teach = document.createElement('button');
-          teach.type = 'button';
-          teach.textContent = 'Teach Declan';
-          teach.addEventListener('click', async () => {
-            const target = window.prompt('What should Declan have understood?', item.message || '');
-            if (!target || !target.trim() || target.length > 120) return;
-            await this.changeLearnedIntent({turn_id:item.id, target:target.trim()});
-          });
-          controls.append(teach);
-        }
-        if (item.reply) {
-          const reply = document.createElement('p');
-          reply.className = 'reply';
-          reply.textContent = 'Declan: ' + item.reply;
-          card.append(reply);
-        }
-      } else {
-        const speaker = item.current_assigned_to || item.matched_speaker || '';
-        const select = document.createElement('select');
-        select.className = 'timeline-speaker';
-        select.setAttribute('aria-label', 'Speaker for recording');
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Unknown speaker';
-        select.append(placeholder);
-        for (const profile of this._voiceProfiles) {
-          if (!profile.name) continue;
-          const option = document.createElement('option');
-          option.value = profile.name;
-          option.textContent = profile.name;
-          select.append(option);
-        }
-        if ([...select.options].some(option => option.value === speaker)) select.value = speaker;
-        controls.append(select);
-        const confidence = document.createElement('span');
-        confidence.className = 'muted';
-        confidence.textContent = Number.isFinite(item.match_confidence)
-          ? (item.match_confidence * 100).toFixed(1) + '% match' : 'Match unavailable';
-        controls.append(confidence);
-        if (kind === 'pending' && item.id) {
-          const enrol = document.createElement('button');
-          enrol.type = 'button';
-          enrol.textContent = 'Enrol speaker';
-          enrol.addEventListener('click', async () => {
-            const name = window.prompt('Name for the new speaker:');
-            if (name === null) return;
-            const trimmed = name.trim();
-            if (!/^[\p{L}][\p{L}\p{N}_ '\u2019-]{0,39}$/u.test(trimmed)) {
-              this.shadowRoot.querySelector('.timeline-status').textContent = 'Enter a valid speaker name (1–40 characters).';
-              return;
-            }
-            if (this._voiceProfiles.some(profile => profile.name?.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
-              this.shadowRoot.querySelector('.timeline-status').textContent = 'Speaker already enrolled. Select the existing speaker.';
-              return;
-            }
-            await this.resolveVoice(item.id, 'enrol', trimmed);
-            await this.loadTimeline();
-          });
-          // Enrollment is less frequent, so keep it in the details dropdown.
-          const enrolDetails = document.createElement('details');
-          const enrolSummary = document.createElement('summary');
-          enrolSummary.textContent = 'New speaker';
-          enrolDetails.append(enrolSummary, enrol);
-          controls.append(enrolDetails);
-        }
-        const reviewed = kind === 'reviewed';
-        const originalSpeaker = item.current_assigned_to || (kind === 'reviewed' ? '' : item.matched_speaker) || '';
-        // A reviewed (including dismissed) recording is read-only until explicitly unlocked.
-        select.disabled = reviewed;
-        const save = document.createElement('button');
-        save.type = 'button';
-        save.textContent = reviewed ? 'Change speaker' : 'Confirm';
-        let editing = false;
-        const syncSave = () => {
-          save.disabled = reviewed
-            ? (editing && (!select.value || select.value === originalSpeaker))
-            : !select.value;
-          save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';
-        };
-        syncSave();
-        select.addEventListener('change', syncSave);
-        save.addEventListener('click', async () => {
-          if (reviewed && !editing) {
-            editing = true;
-            select.disabled = false;
-            syncSave();
-            select.focus();
-            return;
-          }
-          if (!select.value) return;
-          save.disabled = true;
-          if (kind === 'pending') {
-            const suggested = item.matched_speaker || '';
-            await this.resolveVoice(item.id, select.value === suggested ? 'confirm' : 'assign', select.value);
-          } else {
-            await this.correctVoiceHistory(item, select.value);
-          }
+      const select = document.createElement('select');
+      select.className = 'timeline-speaker';
+      select.setAttribute('aria-label', 'Speaker for recording');
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Choose speaker';
+      select.append(placeholder);
+      for (const profile of this._voiceProfiles) {
+        if (!profile.name) continue;
+        const option = document.createElement('option');
+        option.value = profile.name;
+        option.textContent = profile.name;
+        select.append(option);
+      }
+      const suggested = item.matched_speaker || '';
+      const selected = item.current_assigned_to || suggested;
+      if ([...select.options].some(option => option.value === selected)) select.value = selected;
+      controls.append(select);
+      const confidence = document.createElement('span');
+      confidence.className = 'muted';
+      confidence.textContent = Number.isFinite(item.match_confidence) ? (item.match_confidence * 100).toFixed(1) + '% match' : 'Match unavailable';
+      controls.append(confidence);
+      const reviewed = kind === 'reviewed';
+      const originalSpeaker = item.current_assigned_to || (reviewed ? '' : suggested) || '';
+      select.disabled = reviewed;
+      const save = document.createElement('button');
+      save.type = 'button';
+      let editing = false;
+      const syncSave = () => {
+        save.disabled = reviewed ? (editing && (!select.value || select.value === originalSpeaker)) : !select.value;
+        save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';
+      };
+      syncSave();
+      select.addEventListener('change', syncSave);
+      save.addEventListener('click', async () => {
+        if (reviewed && !editing) { editing = true; select.disabled = false; syncSave(); select.focus(); return; }
+        if (!select.value) return;
+        save.disabled = true;
+        if (pending) await this.resolveVoice(item.id, select.value === suggested ? 'confirm' : 'assign', select.value);
+        else await this.correctVoiceHistory(item, select.value);
+        await this.loadTimeline();
+      });
+      controls.append(save);
+      if (reviewed) {
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.textContent = 'Cancel';
+        cancel.hidden = true;
+        save.addEventListener('click', () => { cancel.hidden = !editing; });
+        cancel.addEventListener('click', () => { editing = false; select.value = originalSpeaker; select.disabled = true; cancel.hidden = true; syncSave(); });
+        controls.append(cancel);
+      }
+      if (item.id) {
+        const play = document.createElement('button');
+        play.type = 'button';
+        play.textContent = 'Play';
+        play.setAttribute('aria-label', 'Play voice recording');
+        play.addEventListener('click', () => void this.playVoice(item.id, play, this.shadowRoot.querySelector('.timeline-status')));
+        controls.append(play);
+      }
+      if (pending && item.id) {
+        const reject = document.createElement('button');
+        reject.type = 'button';
+        reject.textContent = 'Reject recording';
+        reject.addEventListener('click', async () => {
+          if (!window.confirm('Reject this recording as bad audio or a false trigger?')) return;
+          await this.resolveVoice(item.id, 'dismiss', null);
           await this.loadTimeline();
         });
-        if (reviewed) {
-          const cancel = document.createElement('button');
-          cancel.type = 'button';
-          cancel.textContent = 'Cancel';
-          cancel.hidden = true;
-          save.addEventListener('click', () => { cancel.hidden = !editing; });
-          cancel.addEventListener('click', () => {
-            editing = false;
-            select.value = [...select.options].some(option => option.value === originalSpeaker) ? originalSpeaker : '';
-            select.disabled = true;
-            cancel.hidden = true;
-            syncSave();
-          });
-          controls.append(cancel);
-        }
-        controls.append(save);
-        if (item.id) {
-          const play = document.createElement('button');
-          play.type = 'button';
-          play.textContent = 'Play';
-          play.setAttribute('aria-label', 'Play voice recording');
-          play.addEventListener('click', () => void this.playVoice(item.id, play, this.shadowRoot.querySelector('.timeline-status')));
-          controls.append(play);
-        }
-        const details = document.createElement('details');
-        const summary = document.createElement('summary');
-        summary.textContent = 'More details';
-        details.append(summary);
-        const info = document.createElement('p');
-        info.textContent = 'Status: ' + (item.status || kind) +
-          ' · Recorded: ' + (item.recorded_at || 'Unknown') +
-          ' · Suggested speaker: ' + (item.matched_speaker || 'Unknown');
-        details.append(info);
-        if (item.id) {
-          if (kind === 'pending') {
-            const reject = document.createElement('button');
-            reject.type = 'button';
-            reject.textContent = 'Reject recording';
-            reject.addEventListener('click', async () => {
-              await this.resolveVoice(item.id, 'dismiss', null);
-              await this.loadTimeline();
-            });
-            details.append(reject);
+        controls.append(reject);
+        const enrolDetails = subsection(voice, 'Enrol new speaker');
+        const enrol = document.createElement('button');
+        enrol.type = 'button';
+        enrol.textContent = 'Enrol speaker';
+        enrol.addEventListener('click', async () => {
+          const name = window.prompt('Name for the new speaker:');
+          if (name === null) return;
+          const trimmed = name.trim();
+          if (!/^[\\p{L}][\\p{L}\\p{N}_ '\\u2019-]{0,39}$/u.test(trimmed)) {
+            this.shadowRoot.querySelector('.timeline-status').textContent = 'Enter a valid speaker name (1–40 characters).';
+            return;
           }
-        }
-        card.append(controls, details);
+          if (this._voiceProfiles.some(profile => profile.name?.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
+            this.shadowRoot.querySelector('.timeline-status').textContent = 'Speaker already enrolled. Select the existing speaker.';
+            return;
+          }
+          await this.resolveVoice(item.id, 'enrol', trimmed);
+          await this.loadTimeline();
+        });
+        enrolDetails.append(enrol);
       }
-      if (kind === 'conversation') card.append(controls);
-      const group = kind === 'conversation' ? 'Conversation history' : kind === 'pending' ? 'Unconfirmed' :
-        /dismiss|reject|discard/.test(String(item.status || '').toLowerCase()) ? 'Rejected' : 'Confirmed';
-      if (kind !== 'pending') {
-        const collapsed = document.createElement('details');
-        collapsed.className = 'timeline-entry';
-        const summary = document.createElement('summary');
-        const speakerName = item.current_assigned_to || item.matched_speaker || 'Unknown';
-        summary.textContent = (kind === 'conversation' ? 'Conversation' : group) + ' · ' +
-          (item.transcript || item.message || '(No transcript)') +
-          (group === 'Confirmed' ? ' · ' + speakerName : '');
-        collapsed.append(summary, card);
-        groups.get(group).append(collapsed);
-      } else {
-        groups.get(group).append(card);
-      }
+      voice.append(controls);
+      const training = subsection(card, 'Teach Declan');
+      const trainStatus = document.createElement('p');
+      trainStatus.className = 'muted';
+      trainStatus.textContent = 'Training unavailable for this recording until the recording-to-turn link is implemented (issue #97).';
+      const train = document.createElement('button');
+      train.type = 'button';
+      train.textContent = 'Save training';
+      train.disabled = true;
+      training.append(trainStatus, train);
+      const response = subsection(card, "Declan's response");
+      const reply = document.createElement('p');
+      reply.textContent = item.reply || 'Not available';
+      response.append(reply);
+      const diagnostics = subsection(card, 'Diagnostics');
+      const diagnosticText = document.createElement('p');
+      diagnosticText.textContent = 'Recording ID: ' + item.id + ' · Recorded: ' + item.recorded_at +
+        ' · Review status: ' + (item.status || kind) + ' · Suggested speaker: ' + (suggested || 'Unknown') +
+        ' · Match confidence: ' + confidence.textContent;
+      diagnostics.append(diagnosticText);
+      entry.append(card);
+      groups.get(group).append(entry);
     }
     if (!rows.length) {
       const empty = document.createElement('p');
       empty.className = 'muted';
-      empty.textContent = 'No entries for this filter.';
+      empty.textContent = 'No recordings from the last 7 days.';
       list.append(empty);
     }
   }
