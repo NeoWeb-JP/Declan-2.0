@@ -36,6 +36,7 @@ import approved_media_players
 import timers
 import updates
 import web_stt
+from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 
 
@@ -2094,8 +2095,13 @@ class Handler(BaseHTTPRequestHandler):
         lighting_context = None
         status_target = None
         information_context = None
-        phrase = history.normalize_phrase(message)
-        effective_message = message
+        # Resolve explicit spoken self-corrections before any routine, lighting,
+        # media or learned-intent side effect. Do not split ambiguous conjunctions.
+        try:
+            effective_message = preprocess_speech(message).commands[0]
+        except ValueError:
+            effective_message = message
+        phrase = history.normalize_phrase(effective_message)
         if source in {"assist", "browser_voice"} and len(phrase) <= 120:
             try:
                 target = history.learned_intent(phrase)
