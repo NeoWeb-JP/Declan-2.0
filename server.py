@@ -1879,7 +1879,8 @@ class Handler(BaseHTTPRequestHandler):
                     inventory, inventory_error = read_ha_inventory(connection)
                     if not inventory_error:
                         available = {item.get("entity_id") for item in inventory if isinstance(item, dict)}
-                        routine_registry.bootstrap(available)
+                        if any(isinstance(entity, str) and entity.startswith("script.") for entity in available):
+                            routine_registry.bootstrap(available)
                 self.send_json(200, {"routines": routine_registry.load()})
             except (ValueError, OSError, sqlite3.Error):
                 self.send_json(503, {"error": "Routine settings unavailable."})
