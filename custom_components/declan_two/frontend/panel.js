@@ -397,7 +397,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             </details>
             <details class="settings-section">
               <summary><span class="settings-section-icon" aria-hidden="true">⚙</span><span class="settings-section-title">Diagnostics<small>Connection and troubleshooting information</small></span></summary>
-              <div class="settings-section-content"><button class="settings-diagnostics" type="button">Load recent diagnostics</button><p class="settings-diagnostics-status muted" role="status" aria-live="polite"></p><pre class="settings-diagnostics-output mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
+              <div class="settings-section-content"><button class="settings-diagnostics" type="button">Load recent diagnostics</button><button class="settings-diagnostics-copy" type="button">Copy diagnostics</button><p class="settings-diagnostics-status muted" role="status" aria-live="polite"></p><pre class="settings-diagnostics-output mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
             </details>
           </div>
         </section>
@@ -436,6 +436,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-export', 'click', () => this.downloadSettings('export'));
       this.bindPanelEvent('.settings-recovery', 'click', () => this.downloadSettings('recovery'));
       this.bindPanelEvent('.settings-diagnostics', 'click', () => this.loadDiagnostics());
+      this.bindPanelEvent('.settings-diagnostics-copy', 'click', () => this.copyDiagnostics());
       this.bindPanelEvent('.declan-logs-refresh', 'click', () => this.loadDeclanLogs());
       this.bindPanelEvent('.declan-log-level', 'change', () => this.renderDeclanLogs());
       this.bindPanelEvent('.declan-logs-copy', 'click', () => this.copyDeclanLogs());
@@ -1308,6 +1309,29 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Declan logs copied.';
     } catch {
       status.textContent = 'Copy unavailable. Select the log text to copy it.';
+    }
+  }
+
+  async copyDiagnostics() {
+    const output = this.shadowRoot.querySelector('.settings-diagnostics-output');
+    const status = this.shadowRoot.querySelector('.settings-diagnostics-status');
+    const value = output.textContent.trim();
+    if (!value) {
+      status.textContent = 'Load recent diagnostics before copying.';
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(value);
+      status.textContent = 'Diagnostics copied to clipboard.';
+    } catch {
+      // Clipboard access may be unavailable in the iOS Home Assistant webview.
+      // Select the existing output so the user can use the native Copy menu.
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(output);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      status.textContent = 'Diagnostics selected. Use Copy from the selection menu.';
     }
   }
 
