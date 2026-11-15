@@ -1744,7 +1744,9 @@ class Handler(BaseHTTPRequestHandler):
         candidates = {row["entity_id"]: row for row in inventory
                       if row.get("declan_music_assistant") is True
                       and row["entity_id"].startswith("media_player.")}
-        rooms = sorted({music.room_key(name) for name in areas} | {"everywhere"})
+        room_labels = {music.room_key(name): name for name in areas}
+        room_labels["everywhere"] = "Everywhere"
+        rooms = sorted(room_labels)
         if body is not None:
             selected = body.get("rooms") if isinstance(body, dict) else None
             if not isinstance(selected, dict) or any(
@@ -1767,6 +1769,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {
             "configured": configured is not None,
             "rooms": rooms,
+            "room_labels": room_labels,
             "selected": configured or {},
             "players": [
                 {"entity_id": entity,
