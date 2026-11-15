@@ -1015,7 +1015,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       details.dataset.playlistCategory = category;
       details.open = previouslyOpen.has(category);
       const summary = document.createElement('summary');
-      const label = category.replace(/_/g, ' ').replace(/\\b\\w/g, letter => letter.toUpperCase());
+      const label = category.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
       summary.textContent = label + ' (' + playlists.length + '/25)';
       details.append(summary);
       const refresh = document.createElement('button');
