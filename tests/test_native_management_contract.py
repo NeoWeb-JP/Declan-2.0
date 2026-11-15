@@ -39,7 +39,7 @@ class NativeManagementContracts(unittest.TestCase):
         self.assertIn('id="panel-overview"', PANEL)
         self.assertIn('class="overview-chat-heading"', PANEL)
         self.assertIn('id="panel-conversations"', PANEL)
-        self.assertIn('value="conversations"', PANEL)
+        self.assertIn('data-page="conversations"', PANEL)
         self.assertIn("if (name === 'conversations' && !this._timelineLoaded)", PANEL)
         self.assertLess(PANEL.index('class="chat-form"'), PANEL.index('id="panel-conversations"'))
         self.assertGreater(PANEL.index('class="timeline-list"'), PANEL.index('id="panel-conversations"'))
