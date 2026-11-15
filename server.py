@@ -37,6 +37,7 @@ import timers
 import updates
 import web_stt
 import openai_planner
+import ai_settings
 import guarded_fallback
 import ha_dispatcher
 from intent_preprocessing import preprocess_speech
@@ -1440,6 +1441,9 @@ def guarded_openai_fallback(message, *, source):
     """Opt-in fallback after local handlers. Sensitive targets excluded."""
     if os.environ.get("DECLAN_OPENAI_FALLBACK_ENABLED") != "1":
         return None
+    settings = ai_settings.read()
+    if not settings["enabled"]:
+        return None
     connection = ha_device_connection()
     if connection is None:
         return "Home Assistant is unavailable.", "unavailable", []
@@ -1447,14 +1451,14 @@ def guarded_openai_fallback(message, *, source):
     if error or inventory is None:
         return "I couldn't verify Home Assistant devices.", "unavailable", []
     safe = [row for row in inventory if row["entity_id"].split(".", 1)[0]
-            in {"light", "switch", "fan", "cover"}]
+            in settings["allowed_domains"]]
     # Refuse partial exposure rather than silently omit targets or permit
     # the model to infer targets from an incomplete inventory.
     if len(safe) > openai_planner.MAX_CONTEXT:
         return "Too many Home Assistant entities for the configured AI context.", "unresolved", []
     try:
-        limit = int(os.environ.get("DECLAN_OPENAI_MONTHLY_LIMIT_MICRO_USD", "0"))
-        ceiling = int(os.environ.get("DECLAN_OPENAI_REQUEST_CEILING_MICRO_USD", "0"))
+        limit = ai_settings._money(settings["monthly_budget_usd"], allow_zero=True)
+        ceiling = ai_settings._money(settings["request_ceiling_usd"], allow_zero=False)
         with history.database() as db:
             result = guarded_fallback.run_guarded_fallback(
                 message, safe,
