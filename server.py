@@ -122,7 +122,7 @@ def home_assistant_status():
             spoken = history.normalize_phrase(message)
             candidate = spoken if spoken in sensitive_confirmations.YES | sensitive_confirmations.NO else phrase
             routine_candidate = select_routine_turn(candidate, origin_device or satellite)
-            group = sensitive_confirmations.sensitive_group(candidate, routine_candidate, GUEST_COMMANDS)
+            group = sensitive_confirmations.sensitive_group(candidate, routine_candidate, GUEST_COMMANDS, SEXY_TIME_COMMANDS, DINNER_PHRASES)
             if not session_id:
                 session_id = secrets.token_urlsafe(24)
             decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate(
