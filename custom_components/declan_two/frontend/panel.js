@@ -522,6 +522,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       const root = this.shadowRoot.querySelector('.routine-entries');
       root.replaceChildren();
       for (const [name, item] of Object.entries(result.routines || {})) this.addRoutineRow(name, item);
+      for (const name of ['morning', 'night', 'movie', 'movie_bedroom']) {
+        if (!Object.hasOwn(result.routines || {}, name)) this.addRoutineRow(name, {phrases: [], fields: {}, sensitive: name === 'night'});
+      }
       status.textContent = 'Routine mappings loaded.';
     } catch (error) {
       status.textContent = 'Could not load routine mappings.';
@@ -536,6 +539,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         const field = key => row.querySelector('[data-field="' + key + '"]');
         const name = field('name').value.trim();
         if (!name || Object.hasOwn(routines, name)) throw new Error('Routine names must be unique.');
+        if (!field('script').value.trim() && ['morning', 'night', 'movie', 'movie_bedroom'].includes(name)) continue;
         routines[name] = {
           script: field('script').value.trim(),
           phrases: field('phrases').value.split('\n').map(x => x.trim().toLowerCase()).filter(Boolean),
