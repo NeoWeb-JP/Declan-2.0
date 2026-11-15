@@ -38,6 +38,15 @@ class PersonalityPolicyTests(unittest.TestCase):
         self.assertFalse(p.overnight_announcement_allowed("ev_reminder", now=at))
         self.assertTrue(p.overnight_announcement_allowed("smoke", now=at))
 
+    def test_overnight_announcement_categories(self):
+        at = datetime(2026, 11, 15, 23, 15)
+        for kind in ("security", "smoke", "carbon_monoxide", "critical_safety"):
+            self.assertTrue(p.overnight_announcement_allowed(kind, now=at))
+        for kind in ("dinner", "ev_reminder", "music", "routine"):
+            self.assertFalse(p.overnight_announcement_allowed(kind, now=at))
+        self.assertTrue(p.overnight_announcement_allowed(
+            "dinner", now=datetime(2026, 11, 15, 12)))
+
     def test_edd_speech_only(self):
         self.assertEqual(p.tts_spelling("Edd and Edward"), "Ed and Edward")
 
