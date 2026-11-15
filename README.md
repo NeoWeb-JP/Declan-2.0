@@ -114,3 +114,11 @@ The supported management interface is the **native Declan Home Assistant panel**
 **Do not retire the Declan backend.** Keep its Assist, health, music, update, history, and settings APIs, stored credentials, Spotify configuration, speaker profiles, and backups intact. The native Home Assistant integration and its frontend assets must remain available. This change does not migrate or delete existing user data.
 
 Before merging this retirement PR, verify the deployed native panel remains usable on iPhone and desktop and that music, voice, settings, and updates work. To roll back, restore the prior backend release; do not remove the HA integration or its data.
+
+## Native AI Intelligence settings
+
+Open **Declan > Settings > AI Intelligence** as a Home Assistant administrator. Configure the OpenAI API key, select a priced model, monthly and per-request limits, permitted device categories, then enable the fallback. The key is saved privately on the Declan backend and never returned to the browser. Disabling AI does not disable local Home Assistant commands.
+
+Declan first tries its local intent and routine handlers. Only unmatched commands use the OpenAI Responses API. The Home Assistant integration supplies the current Assist entity-exposure list for each request. Unexposed devices, unavailable states, unknown model prices, ambiguous plans and missing API usage fail closed. AI-generated device actions are revalidated and state-verified; sensitive garage/gate covers and script routines are not executed by this generic fallback. Configured Good Morning/Night/Movie Time routines remain on the existing local, confirmation-aware routine path.
+
+Usage shown in Settings is the monthly accounted charge plus any conservative outstanding reservations. A network failure can retain a full request reservation until the next monthly period, preventing accidental budget overspend. Pricing is maintained in `ai_pricing.py`; add and verify a model's standard API rates before making it selectable.
