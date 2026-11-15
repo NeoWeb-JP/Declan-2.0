@@ -44,6 +44,16 @@ class SpotifyPlaylists(unittest.TestCase):
         self.assertEqual(rock["playlists"], [self.a])
         self.assertEqual(rock["excluded"], [self.b])
 
+    def test_category_playback_uses_curated_playlist_without_search(self):
+        import music
+        from pathlib import Path
+        playlists.manage({"category": "country", "playlist": self.a, "operation": "add"})
+        with patch.object(music, "PREFERENCES", Path(self.temp.name) / "preferences.sqlite3"), \
+             patch.object(music, "spotify_search", side_effect=AssertionError("must use catalogue")):
+            selected = music.search_media(None, None, "country music", "", "spotify")
+        self.assertEqual(selected[0], "https://open.spotify.com/playlist/" + "A" * 22)
+        self.assertEqual(selected[1], "playlist")
+
     def test_invalid_links_and_categories_rejected(self):
         for body in (
             {"category": "country", "playlist": "https://evil.test/playlist/" + "A" * 22, "operation": "add"},
