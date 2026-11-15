@@ -2577,23 +2577,25 @@ class Handler(BaseHTTPRequestHandler):
                 phrase_suggestion = failed_phrase["text"]
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
                              scope=scope, guest_mode=response_guest_mode)
-            # Apply a central policy to successful replies that have not already
-            # received a command-specific personality line. Preserve the exact
-            # result text on failures and ambiguous or safety-sensitive actions.
+            # Decorate successful normal replies exactly once. Keep errors,
+            # ambiguous requests, safety notices and routine diagnostics clear.
             existing_lines = any(
                 line in reply["reply"]
                 for variants in __import__("personality").LINES.values()
                 for group in variants for line in group
             )
-            # Decorate only verified successful music acknowledgements.
-            # An unknown visitor sensor must never expose household banter.
-            if (routine_reply is not None and outcome == "confirmed" and not existing_lines
-                    and (music.parse(phrase) or music.parse_control(phrase))):
+            if (outcome == "confirmed" and not existing_lines
+                    and routine_reply is not None
+                    and not re.match(r"^(?:preview|dry[ -]run)\\b", phrase)
+                    and not any(word in phrase.casefold() for word in
+                                ("smoke", "fire alarm", "carbon monoxide", "security alert",
+                                 "emergency", "intruder", "panic alarm"))):
                 reply["reply"] = personality_policy.decorate(
                     reply["reply"], outcome=outcome,
                     guest=guest_mode != "off",
                     visitor_present=visitor_present,
-                    category="music",
+                    category="music" if music.parse(phrase) or music.parse_control(phrase)
+                    else "general",
                 )
             if outcome:
                 reply["outcome"] = outcome
