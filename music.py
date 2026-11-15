@@ -369,6 +369,13 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
             )
             if not active:
                 return "There's no active Music Assistant playback to stop.", "confirmed"
+            # Stop the Everywhere group once, not again through its members.
+            group_entity = destinations.get("everywhere")
+            if group_entity in active:
+                members = (players[group_entity].get("attributes") or {}).get("group_members") or []
+                for member in members:
+                    if member != group_entity:
+                        active.pop(member, None)
             failed = []
             for entity in active:
                 try:
