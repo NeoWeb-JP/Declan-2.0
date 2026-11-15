@@ -1,4 +1,5 @@
 import tempfile
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -17,7 +18,8 @@ class CredentialsTests(unittest.TestCase):
                 key = "sk-" + "a" * 30
                 ai_credentials.replace_key(key)
                 self.assertEqual(ai_credentials.get_key(), key)
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                if os.name != "nt":
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
 
 if __name__ == "__main__":
