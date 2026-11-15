@@ -79,7 +79,18 @@ async def async_setup_entry(hass, entry):
         # unexpected values as noncritical rather than trusting free text.
         if not isinstance(kind, str):
             kind = "routine"
-        clock = datetime.now().astimezone().time()
+        # Use Home Assistant's configured household timezone rather than the
+        # host/container timezone (often UTC, which differs during BST).
+        zone_name = getattr(getattr(hass, "config", None), "time_zone", None)
+        if isinstance(zone_name, str) and zone_name:
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+            try:
+                clock = datetime.now(ZoneInfo(zone_name)).time()
+            except (ZoneInfoNotFoundError, ValueError):
+                _LOGGER.warning("Invalid Home Assistant timezone; using local time")
+                clock = datetime.now().astimezone().time()
+        else:
+            clock = datetime.now().astimezone().time()
         overnight = clock >= time(23) or clock < time(7)
         allowed = {"security", "smoke", "carbon_monoxide", "critical_safety"}
         if overnight and kind not in allowed:
