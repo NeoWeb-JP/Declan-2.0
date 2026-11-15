@@ -13,12 +13,16 @@ _RECENT = {}
 _SAVAGE = (
     "Another heroic achievement in avoiding the light switch.",
     "There you go, you absolute muppet.",
+    "Bloody hell, another task you could have done yourself.",
+    "Done, you lazy bastard. I should start charging by the sigh.",
+    "You really are a magnificent pain in the arse, my bru.",
     "I did the difficult bit. You contributed a sentence. Well done.",
     "Your dedication to doing the bare minimum is genuinely impressive.",
     "Sorted, my bru. Try not to strain yourself celebrating.",
     "I'd applaud your initiative, but we're setting the bar dangerously low.",
     "There. Even you couldn't cock that one up.",
     "Done. A stunning victory for delegation and laziness.",
+    "Christ, you make a simple request sound like a national emergency.",
     "Honestly, the furniture shows more initiative than you.",
     "Consider it handled. You're welcome, you cheeky sod.",
 )
