@@ -36,8 +36,12 @@ def normalize(raw):
         favourites = [x for x in unique(item.get("favourites") or []) if x not in excluded][:CAPACITY]
         discovered = [x for x in unique(item.get("discovered") or []) if x not in excluded and x not in favourites]
         discovered = discovered[:CAPACITY - len(favourites)]
+        titles = item.get("titles") if isinstance(item.get("titles"), dict) else {}
+        titles = {uri: name[:160] for uri, name in titles.items()
+                  if isinstance(uri, str) and isinstance(name, str) and uri in favourites + discovered + excluded}
         result[category] = {"favourites": favourites, "excluded": excluded,
-                            "discovered": discovered, "playlists": favourites + discovered}
+                            "discovered": discovered, "playlists": favourites + discovered,
+                            "titles": titles}
     return result
 
 
@@ -87,13 +91,15 @@ def listing():
         return {"categories": load(), "max_playlists": CAPACITY, "refresh": dict(_REFRESH)}
 
 
-def refresh(discovered):
+def refresh(discovered, titles=None):
     """Merge Spotify search results without losing manual pins or exclusions."""
     with LOCK:
         data = load()
         for category in CATEGORIES:
             if category in discovered:
                 data[category]["discovered"] = unique(discovered[category])
+                if titles and category in titles:
+                    data[category]["titles"].update(titles[category])
         data = normalize(data)
         save(data)
         return data
@@ -118,17 +124,22 @@ def discover(opener, category=None):
     import music
     targets = (category,) if category else CATEGORIES
     results = {}
+    titles = {}
     for name in targets:
         found = []
+        names = {}
         for term in QUERIES[name]:
-            for link, kind, _title in music.spotify_search(opener, term, "", ("playlist",)):
+            for link, kind, title in music.spotify_search(opener, term, "", ("playlist",)):
                 selected = canonical(link)
                 if kind == "playlist" and selected and selected not in found:
                     found.append(selected)
+                    if isinstance(title, str):
+                        names[selected] = title
         # A legitimate empty search should not wipe a previously curated list.
         if found:
             results[name] = found
-    return refresh(results)
+            titles[name] = names
+    return refresh(results, titles)
 
 
 def start_refresh(category, opener_factory):
