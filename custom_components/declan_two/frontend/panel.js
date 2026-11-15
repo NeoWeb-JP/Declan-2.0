@@ -1378,6 +1378,11 @@ class DeclanTwoNativePanel extends HTMLElement {
       const path = 'declan_two/history' + (before ? '?before=' + encodeURIComponent(before) : '');
       const result = await this._hass.callApi('GET', path);
       if (!result || !Array.isArray(result.turns)) throw new Error('Invalid history response');
+      let showProposals = false;
+      try {
+        const ai = await this._hass.callApi('GET', 'declan_two/ai-settings');
+        showProposals = ai?.settings?.show_proposals === true;
+      } catch { /* Keep history available when AI settings are offline. */ }
       if (!before) list.replaceChildren();
       for (const turn of result.turns) {
         const article = document.createElement('article');
@@ -1388,6 +1393,18 @@ class DeclanTwoNativePanel extends HTMLElement {
         reply.className = 'reply';
         reply.textContent = turn.reply || '';
         article.append(message, reply);
+        if (showProposals && Array.isArray(turn.action_results) && turn.action_results.length) {
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = 'AI action proposals and verified outcomes';
+          details.append(summary);
+          for (const step of turn.action_results) {
+            const line = document.createElement('p');
+            line.textContent = [step.entity_id, step.action, step.status].filter(Boolean).join(' · ');
+            details.append(line);
+          }
+          article.append(details);
+        }
         if (turn.teachable && Number.isSafeInteger(turn.id) && turn.id > 0) {
           const teach = document.createElement('button');
           teach.type = 'button';
