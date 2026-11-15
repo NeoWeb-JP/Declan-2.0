@@ -32,6 +32,15 @@ class RegistryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             routine_registry.validate(value)
 
+    def test_parameterised_phrase_and_action_allowlist(self):
+        value = self.sample()
+        value["movie"]["phrases"] = ["start {room} cinema with {mode}", "{action} cinema"]
+        routine_registry.validate(value)
+        with patch.object(routine_registry, "load", return_value=value):
+            self.assertEqual(routine_registry.match("start kitchen cinema with dark")[2], {"room": "kitchen", "mode": "dark"})
+            self.assertIsNone(routine_registry.match("delete cinema"))
+            self.assertEqual(routine_registry.match("end cinema")[2]["action"], "end")
+
     def test_persistence(self):
         with tempfile.TemporaryDirectory() as temp:
             path = str(Path(temp) / "test.db")
