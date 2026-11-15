@@ -35,7 +35,7 @@ class VoiceReviewContractTests(unittest.TestCase):
 
     def test_ui_displays_plain_text_and_review_actions(self):
         self.assertIn("this._hass.callApi('GET', 'declan_two/voice-review')", JS)
-        self.assertIn("transcript.textContent = item.transcript || item.message", JS)
+        self.assertIn("summary.textContent = (item.transcript || '(No transcript)')", JS)
         self.assertIn('name.textContent = profile.name', JS)
         self.assertNotIn('transcript.innerHTML', JS)
         self.assertIn("this._hass.callApi('POST', 'declan_two/voice-review'", JS)
