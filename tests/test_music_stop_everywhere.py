@@ -35,6 +35,31 @@ class StopEverywhereTests(unittest.TestCase):
         self.assertEqual(outcome, "confirmed", reply)
         self.assertEqual(set(calls), {"media_player.kitchen_ma", "media_player.bedroom_ma"})
 
+    def test_everywhere_group_members_are_not_stopped_twice(self):
+        group = "media_player.everywhere_ma"
+        kitchen = "media_player.kitchen_ma"
+        bedroom = "media_player.bedroom_ma"
+        destinations = {"everywhere": group, "kitchen": kitchen, "bedroom": bedroom}
+        players = {
+            group: {"state": "playing", "attributes": {"group_members": [kitchen, bedroom]}},
+            kitchen: {"state": "playing", "attributes": {}},
+            bedroom: {"state": "playing", "attributes": {}},
+        }
+        calls = []
+
+        def stop(connection, path, data, **kwargs):
+            calls.append(data["entity_id"])
+            players[data["entity_id"]]["state"] = "idle"
+
+        with patch.object(music, "music_players", return_value=(destinations, players)), \
+             patch.object(music, "request", side_effect=stop), \
+             patch.object(music, "wait_for", side_effect=lambda conn, entity, predicate, **kw: predicate(players[entity])):
+            reply, outcome = music.control(
+                ("media_stop", None), ("http://ha", {}, None), lambda conn: ([], None)
+            )
+        self.assertEqual(outcome, "confirmed", reply)
+        self.assertEqual(calls, [group])
+
     def test_explicit_room_stop_does_not_become_household_wide(self):
         destinations = {"kitchen": "media_player.kitchen_ma", "everywhere": "media_player.everywhere_ma"}
         players = {
