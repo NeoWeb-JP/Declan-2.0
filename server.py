@@ -51,6 +51,7 @@ import ha_dispatcher
 import routine_registry
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
+import personality_policy
 
 
 SESSIONS = OrderedDict()
@@ -120,6 +121,7 @@ DINNER_PHRASES = {
 }
 GUEST_MODE_ENTITY = "input_boolean.guest_mode"
 GUEST_REGISTER_ENTITY = "input_text.guests_in_charge"
+VISITORS_PRESENT_ENTITY = "input_boolean.visitors_present"  # fallback when no explicit mapping exists
 GUEST_COMMANDS = {
     "who is in charge": "check",
     "who is looking after the house": "check",
@@ -197,6 +199,33 @@ def read_guest_mode():
         opener = build_opener(ProxyHandler({}), NoRedirect())
         with opener.open(request, timeout=1) as response:
             return json.loads(response.read(4096)).get("state")
+    except HTTPError as error:
+        error.close()
+    except (OSError, ValueError, AttributeError):
+        pass
+    return None
+
+
+def read_visitors_present():
+    """Visitor presence is independent of guest authority.
+
+    Missing or unavailable state is unknown and therefore privacy-safe.
+    """
+    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
+    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
+    try:
+        parsed = urlsplit(url)
+        if (not token or parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username or parsed.password or parsed.query or parsed.fragment):
+            return None
+        visitor_entity = configuration.get("DECLAN_VISITORS_ENTITY", VISITORS_PRESENT_ENTITY)
+        if not re.fullmatch(r"input_boolean\.[a-z0-9_]+", visitor_entity):
+            return None
+        request = Request(f"{url}/api/states/{visitor_entity}",
+                          headers={"Authorization": f"Bearer {token}"})
+        with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=1) as response:
+            state = json.loads(response.read(4096)).get("state")
+            return {"on": True, "off": False}.get(state)
     except HTTPError as error:
         error.close()
     except (OSError, ValueError, AttributeError):
@@ -879,6 +908,10 @@ def run_sexy_time(operation, connection, *, approved=False):
 
 @diagnostics.timed("dinner_dispatch")
 def start_dinner(connection, *, approved=False):
+    # Dinner is a non-safety announcement. Never dispatch it during
+    # overnight quiet hours, even when explicitly requested.
+    if not personality_policy.overnight_announcement_allowed("dinner"):
+        return "Dinner announcements are muted between 23:00 and 07:00.", "skipped"
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
     try:
@@ -2543,11 +2576,15 @@ class Handler(BaseHTTPRequestHandler):
                 routine_reply, outcome, fallback_steps = fallback
                 action_results.extend(fallback_steps)
         chat_kind = effective_message.casefold().strip(" .?!")
-        guest_mode = None
-        if routine_reply is None and (chat_kind in CHAT_COMMANDS or NAME_PATTERN.fullmatch(chat_kind)):
-            guest_mode = read_guest_mode()
-            if CHAT_COMMANDS.get(chat_kind) == "time":
-                information_context = ("time", None, None)
+        guest_mode = read_guest_mode()
+        visitor_present = read_visitors_present()
+        # Presence affects the persona, never Guest Mode authority.
+        # Guest authority and visitor presence are independent: an explicit
+        # Guest Mode must remain polite even if the visitor sensor is off.
+        # Unknown visitor state also fails closed for privacy.
+        response_guest_mode = personality_policy.response_guest_mode(guest_mode, visitor_present)
+        if routine_reply is None and CHAT_COMMANDS.get(chat_kind) == "time":
+            information_context = ("time", None, None)
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             failed_phrase = previous.get("failed_light_phrase") if previous else None
@@ -2560,7 +2597,38 @@ class Handler(BaseHTTPRequestHandler):
                     and failed_phrase["text"].casefold() != message.casefold()):
                 phrase_suggestion = failed_phrase["text"]
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
-                             scope=scope, guest_mode=guest_mode)
+                             scope=scope, guest_mode=response_guest_mode)
+            # Decorate successful normal replies exactly once. Keep errors,
+            # ambiguous requests, safety notices and routine diagnostics clear.
+            existing_lines = (
+                any(
+                    line in reply["reply"]
+                    for variants in __import__("personality").LINES.values()
+                    for group in variants for line in group
+                )
+                or any(line in reply["reply"] for line in (
+                    *personality_policy._SAVAGE, *personality_policy._GUEST
+                ))
+            )
+            if (outcome == "confirmed" and not existing_lines
+                    and routine_reply is not None
+                    and (light_result is not None
+                         or music.parse(phrase) or music.parse_control(phrase)
+                         or (action_results and all(
+                             step.get("status") in {"confirmed", "already_set", "completed"}
+                             for step in action_results
+                         )))
+                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
+                    and not any(word in phrase.casefold() for word in
+                                ("smoke", "fire alarm", "carbon monoxide", "security alert",
+                                 "emergency", "intruder", "panic alarm"))):
+                reply["reply"] = personality_policy.decorate(
+                    reply["reply"], outcome=outcome,
+                    guest=guest_mode != "off",
+                    visitor_present=visitor_present,
+                    category="music" if music.parse(phrase) or music.parse_control(phrase)
+                    else "general",
+                )
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:

@@ -17,6 +17,8 @@ import server
 from declan_ingress import proxy
 from personality import LINES
 
+READ_VISITORS_PRESENT = server.read_visitors_present
+
 
 class APITests(TestCase):
     def setUp(self):
@@ -25,6 +27,7 @@ class APITests(TestCase):
         self.enterContext(patch.object(server.music, "SPOTIFY_SETTINGS", directory / "spotify-settings.json"))
         self.enterContext(patch.object(server, "SESSIONS", server.OrderedDict()))
         self.enterContext(patch.object(server, "read_guest_mode", return_value="off"))
+        self.enterContext(patch.object(server, "read_visitors_present", return_value=False))
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": "test", "DECLAN_ALLOW_UNCONFIGURED_MA": "1"}))
         http = self.enterContext(server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler))
         worker = Thread(target=http.serve_forever, daemon=True)
@@ -49,6 +52,29 @@ class APITests(TestCase):
                                                "Authorization": "Bearer test"})
         self.assertEqual(status, 200, result)
         return json.loads(result)
+
+    def test_visitor_presence_is_independent_and_validated(self):
+        with patch.dict(server.os.environ, {"DECLAN_HA_URL": "http://ha.local",
+                                            "DECLAN_HA_TOKEN": "secret"}), patch.object(
+            server.configuration, "get", return_value="input_boolean.visitors_present"
+        ), patch.object(server, "build_opener") as factory:
+            response = Mock()
+            response.read.return_value = b'{"state":"on"}'
+            factory.return_value.open.return_value.__enter__.return_value = response
+            self.assertIs(READ_VISITORS_PRESENT(), True)
+            request = factory.return_value.open.call_args.args[0]
+            self.assertEqual(request.full_url,
+                             "http://ha.local/api/states/input_boolean.visitors_present")
+            factory.return_value.open.return_value.__enter__.return_value.read.return_value = b'{"state":"off"}'
+            self.assertIs(READ_VISITORS_PRESENT(), False)
+            factory.return_value.open.return_value.__enter__.return_value.read.return_value = b'{"state":"unavailable"}'
+            self.assertIsNone(READ_VISITORS_PRESENT())
+        with patch.dict(server.os.environ, {"DECLAN_HA_URL": "http://ha.local",
+                                            "DECLAN_HA_TOKEN": "secret"}), patch.object(
+            server.configuration, "get", return_value="input_boolean.visitors_present/evil"
+        ), patch.object(server, "build_opener") as factory:
+            self.assertIsNone(READ_VISITORS_PRESENT())
+            factory.assert_not_called()
 
     def test_home_assistant_ingress_enforces_both_boundaries(self):
         token = "x" * 64

@@ -17,7 +17,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
 
         module_names = (
             "aiohttp", "voluptuous", "homeassistant", "homeassistant.helpers",
-            "homeassistant.helpers.aiohttp_client", "homeassistant.components",
+            "homeassistant.helpers.aiohttp_client", "homeassistant.helpers.entity_registry", "homeassistant.components",
             "homeassistant.components.tts", "homeassistant.components.http", "homeassistant.exceptions", "homeassistant.helpers.storage",
             "wyoming", "wyoming.client", "wyoming.asr", "wyoming.audio", "wyoming.error",
         )
@@ -64,6 +64,12 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.response.status = 200
         self.response.json = AsyncMock(return_value={"reply": "Morning", "session_id": "new"})
         modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = Mock(return_value=self.session)
+        modules["homeassistant.helpers.entity_registry"].async_get = Mock(
+            return_value=SimpleNamespace(async_get_entity_id=Mock(
+                return_value="tts.declan_2_0_voice_manager"
+            ))
+        )
+        modules["homeassistant.helpers"].entity_registry = modules["homeassistant.helpers.entity_registry"]
         self.enterContext(patch.dict("sys.modules", modules))
         self.component = import_module("custom_components.declan_two")
         self.conversation = import_module("custom_components.declan_two.conversation")
@@ -104,8 +110,90 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
     async def test_event_logging_and_unload(self):
         hass = SimpleNamespace(config_entries=SimpleNamespace(async_forward_entry_setups=AsyncMock(),
                                                               async_unload_platforms=AsyncMock(return_value=True)),
-                               bus=SimpleNamespace(async_listen=Mock()))
+                               bus=SimpleNamespace(async_listen=Mock()),
+                               services=SimpleNamespace(async_register=Mock(), async_remove=Mock(),
+                                                        async_call=AsyncMock()))
+        self.entry.options = {"tts_enabled": True, "primary_tts": "tts.example",
+                              "overnight_announcement_outputs": "media_player.kitchen"}
         self.assertTrue(await self.component.async_setup_entry(hass, self.entry))
+        domain, service, announce = hass.services.async_register.call_args.args
+        # The production callback must have its own clock imports. A mocked
+        # clock in this test must not conceal missing runtime imports.
+        from datetime import datetime as real_datetime, time as real_time
+        self.assertIs(announce.__globals__["datetime"], real_datetime)
+        self.assertIs(announce.__globals__["time"], real_time)
+        self.assertEqual((domain, service), ("declan_two", "announce"))
+        with patch.dict(announce.__globals__, {"datetime": Mock(), "time": __import__("datetime").time}) as globals_:
+            clock = globals_["datetime"]
+            clock.now.return_value.astimezone.return_value.time.return_value = __import__("datetime").time(23, 30)
+            await announce(SimpleNamespace(data={"kind": "ev_reminder", "message": "Charge",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_not_awaited()
+            await announce(SimpleNamespace(data={"kind": "smoke", "message": "Smoke detected",
+                                                 "entity_id": "media_player.other"}))
+            hass.services.async_call.assert_not_awaited()
+            await announce(SimpleNamespace(data={"kind": "smoke", "message": "Smoke detected",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_awaited_once()
+            hass.services.async_call.reset_mock()
+            await announce(SimpleNamespace(data={"kind": None, "message": "Unknown category",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_not_awaited()
+            await announce(SimpleNamespace(data={"kind": "security", "message": "x" * 1001,
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_not_awaited()
+            await announce(SimpleNamespace(data={"kind": "carbon_monoxide", "message": "CO alarm",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_awaited_once()
+            self.assertEqual(
+                hass.services.async_call.call_args.args[:2], ("tts", "speak")
+            )
+            self.assertEqual(
+                hass.services.async_call.call_args.args[2]["entity_id"],
+                "tts.declan_2_0_voice_manager"
+            )
+        # The same service accepts ordinary announcements during the day,
+        # but cannot fall back to raw TTS if Declan's voice entity is absent.
+        with patch.dict(announce.__globals__, {"datetime": Mock(), "time": __import__("datetime").time}) as globals_:
+            globals_["datetime"].now.return_value.astimezone.return_value.time.return_value = __import__("datetime").time(12, 0)
+            hass.services.async_call.reset_mock()
+            await announce(SimpleNamespace(data={"kind": "reminder", "message": "Lunch",
+                                                 "entity_id": "media_player.other"}))
+            hass.services.async_call.assert_awaited_once()
+            hass.services.async_call.reset_mock()
+            with patch.object(
+                announce.__globals__["entity_registry"], "async_get",
+                return_value=SimpleNamespace(async_get_entity_id=Mock(return_value=None)),
+            ) if "entity_registry" in announce.__globals__ else patch(
+                "homeassistant.helpers.entity_registry.async_get",
+                return_value=SimpleNamespace(async_get_entity_id=Mock(return_value=None)),
+            ):
+                await announce(SimpleNamespace(data={"kind": "reminder", "message": "Lunch",
+                                                     "entity_id": "media_player.other"}))
+            hass.services.async_call.assert_not_awaited()
+        # The preceding daytime override has ended. Explicitly pin the
+        # overnight clock for all suppression assertions below.
+        with patch.dict(announce.__globals__, {"datetime": Mock(), "time": __import__("datetime").time}) as globals_:
+            globals_["datetime"].now.return_value.astimezone.return_value.time.return_value = __import__("datetime").time(23, 30)
+            for category in ("unknown", "ev_reminder", "music", "routine", "", None):
+                hass.services.async_call.reset_mock()
+                await announce(SimpleNamespace(data={"kind": category, "message": "Reminder",
+                                                     "entity_id": "media_player.kitchen"}))
+                hass.services.async_call.assert_not_awaited()
+            for invalid_destination in (
+                "media_player.", "media_player.kitchen,media_player.other",
+                "media_player.Kitchen", "media_player.kitchen extra",
+            ):
+                hass.services.async_call.reset_mock()
+                await announce(SimpleNamespace(data={"kind": "security", "message": "Alert",
+                                                     "entity_id": invalid_destination}))
+                hass.services.async_call.assert_not_awaited()
+            self.entry.options["overnight_announcement_outputs"] = None
+            hass.services.async_call.reset_mock()
+            await announce(SimpleNamespace(data={"kind": "security", "message": "Alert",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_not_awaited()
+            self.entry.options["overnight_announcement_outputs"] = "media_player.kitchen"
         name, handler = hass.bus.async_listen.call_args.args
         self.assertEqual(name, "declan_two_assist_reply")
         await handler(SimpleNamespace(data={"message": ""}))

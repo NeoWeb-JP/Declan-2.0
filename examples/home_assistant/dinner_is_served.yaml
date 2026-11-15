@@ -1,0 +1,53 @@
+# Apply this in Home Assistant: Settings > Automations & scenes > Scripts.
+# The backend still calls this script with variables.dinner_message.
+# Declan's announce service blocks noncritical speech between 23:00 and 07:00.
+alias: Declan - Dinner Is Served
+description: >-
+  Speak Declan's selected dinner line through the guarded announcement service,
+  then set dinner lighting and play the romantic dinner playlist.
+icon: mdi:silverware-fork-knife
+mode: restart
+fields:
+  dinner_message:
+    name: Dinner announcement
+    description: The line selected by Declan.
+    selector:
+      text: {}
+sequence:
+  - alias: Announce dinner through Declan quiet-hours gate
+    action: declan_two.announce
+    data:
+      kind: dinner
+      entity_id: media_player.kitchen_declan_voice_assistant
+      message: "{{ dinner_message | default('Dinner is served.', true) }}"
+  - alias: Turn on dinner lights
+    action: switch.turn_on
+    target:
+      entity_id:
+        - switch.giraffedy
+        - switch.tv_lights
+    data: {}
+  - alias: Set dining room to 30 percent
+    action: light.turn_on
+    target:
+      entity_id: light.dining_room
+    data:
+      brightness_pct: 30
+      transition: 3
+  - alias: Turn off kitchen spotlights
+    action: light.turn_off
+    target:
+      entity_id: light.kitchen_kitchen_switch_light_1
+    data:
+      transition: 3
+  - action: media_player.volume_set
+    metadata: {}
+    target:
+      device_id: aa5d468545495a72c2e6098a3d092fca
+    data:
+      volume_level: 0.19
+  - alias: Ask Declan to pick romantic dinner music
+    action: conversation.process
+    data:
+      agent_id: conversation.declan_2_0
+      text: Play romantic dinner music in the kitchen

@@ -14,6 +14,7 @@ from .voice_defaults import DEFAULT_PROVIDER
 from .voice_catalog_fallback import category_alternatives, load_catalogue
 from .voice_provider import generate_from_existing_tts
 from .voice_text import spoken_text
+from .quiet_speech import quiet_hours, attenuate_wav
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +43,28 @@ class DeclanVoiceManager(TextToSpeechEntity):
         from homeassistant.components.ffmpeg import get_ffmpeg_manager
 
         return await normalise_audio(extension, audio, get_ffmpeg_manager(self.hass).binary)
+
+    async def _night_speech(self, result):
+        # The HA timezone, not the container timezone, defines quiet hours.
+        from datetime import datetime
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        zone_name = getattr(getattr(self.hass, "config", None), "time_zone", None)
+        try:
+            now = datetime.now(ZoneInfo(zone_name)) if zone_name else datetime.now().astimezone()
+        except (ZoneInfoNotFoundError, ValueError, TypeError):
+            # If the household clock cannot be trusted, keep speech quiet
+            # rather than accidentally playing it at daytime amplitude.
+            _LOGGER.warning("Invalid Home Assistant timezone; attenuating speech")
+            now = datetime.now().astimezone().replace(hour=23, minute=0)
+        if not quiet_hours(now):
+            return result
+        from homeassistant.components.ffmpeg import get_ffmpeg_manager
+        from .phrase_library import normalise_audio
+
+        extension, audio = result
+        pcm = await normalise_audio(extension, audio, get_ffmpeg_manager(self.hass).binary)
+        return "wav", attenuate_wav(pcm, now=now)
 
     async def async_get_tts_audio(self, message, language, options):
         config = self._entry.options
@@ -73,26 +96,26 @@ class DeclanVoiceManager(TextToSpeechEntity):
         cache_enabled = config.get("cache_enabled", True)
         try:
             if not cache_enabled:
-                return await generate()
+                return await self._night_speech(await generate())
             if phrase_parts(message):
                 whole = await self._cache.find_cached_audio(text=message, **identity)
                 if whole:
-                    return whole
+                    return await self._night_speech(whole)
                 try:
                     extension, audio, _, _ = await self._phrases.compose(message, identity, generate)
-                    return extension, audio
+                    return await self._night_speech((extension, audio))
                 except (ValueError, OSError, TimeoutError):
                     _LOGGER.warning("Phrase assembly unavailable; using whole-sentence TTS")
             extension, audio, _ = await self._cache.get_or_generate_audio(
                 text=message, **identity, generate=generate,
             )
-            return extension, audio
+            return await self._night_speech((extension, audio))
         except (HomeAssistantError, ValueError, OSError, TimeoutError) as err:
             _LOGGER.warning("Declan 2.0 TTS provider failed: %s", type(err).__name__)
             if cache_enabled and config.get("category_fallback", True):
                 alternate = await self._cached_alternative(message, identity)
                 if alternate is not None:
-                    return alternate
+                    return await self._night_speech(alternate)
             raise HomeAssistantError("Declan 2.0 could not generate speech") from None
 
     async def _cached_alternative(self, message, identity):

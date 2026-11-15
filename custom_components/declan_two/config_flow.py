@@ -66,6 +66,12 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                 or provider.startswith(("tts.jarvis_voice_manager", "tts.declan_voice_manager", "tts.declan_2_0_voice_manager"))
             ):
                 errors["primary_tts"] = "invalid_tts_provider"
+            destinations = user_input.get("overnight_announcement_outputs", "").strip()
+            if destinations and any(
+                not re.fullmatch(r"media_player\.[a-z0-9_]+", item.strip())
+                for item in destinations.split(",")
+            ):
+                errors["overnight_announcement_outputs"] = "invalid_media_player"
             if enabled and not key:
                 errors["openai_stt_api_key"] = "openai_key_required"
             if not errors:
@@ -97,6 +103,8 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
             vol.Required("cache_enabled", default=values.get("cache_enabled", True)): bool,
             vol.Required("cache_revision", default=values.get("cache_revision", "v1")): vol.All(str, vol.Length(min=1)),
             vol.Required("category_fallback", default=values.get("category_fallback", True)): bool,
+            vol.Optional("overnight_announcement_outputs",
+                         default=values.get("overnight_announcement_outputs", "")): str,
             vol.Required("primary_daily_character_limit", default=values.get("primary_daily_character_limit", 0)):
                 vol.All(vol.Coerce(int), vol.Range(min=0, max=10_000_000)),
         }
