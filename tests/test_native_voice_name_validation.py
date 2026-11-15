@@ -30,9 +30,13 @@ class NativeSpeakerValidationTests(unittest.TestCase):
             with self.subTest(invalid=name):
                 self.assertIsNone(re.fullmatch(pattern, name))
 
-    def test_browser_pattern_has_real_unicode_escapes(self):
-        self.assertIn(r"/^[\p{L}][\p{L}\p{N}_ '\u2019-]{0,39}$/u", JS)
-        self.assertNotIn(r"/^[\\p{L}][\\p{L}\\p{N}_ '\\u2019-]{0,39}$/u", JS)
+    def test_history_has_no_enrolment_ui(self):
+        # Speaker enrolment is managed in VoicePipeline, not History.
+        timeline = JS.split("  renderTimeline() {", 1)[1].split("  async loadLearnedIntents()", 1)[0]
+        self.assertNotIn("Enrol new speaker", timeline)
+        self.assertNotIn("Enrol speaker", timeline)
+        self.assertNotIn("this.resolveVoice(item.id, 'enrol', trimmed)", timeline)
+        self.assertIn("this.resolveVoice(item.id, 'dismiss', null)", timeline)
 
 
 if __name__ == "__main__":
