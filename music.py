@@ -360,6 +360,29 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
         if error:
             return "I couldn't check the music players.", error
         destinations, players = music_players(inventory)
+        # Unqualified Stop is household-wide, regardless of the originating room.
+        # Only approved Music Assistant destinations may receive commands.
+        if action == "media_stop" and room is None:
+            active = dict.fromkeys(
+                entity for entity in destinations.values()
+                if entity and players.get(entity, {}).get("state") in ACTIVE
+            )
+            if not active:
+                return "There's no active Music Assistant playback to stop.", "confirmed"
+            failed = []
+            for entity in active:
+                try:
+                    request(connection, "/api/services/media_player/media_stop",
+                            {"entity_id": entity})
+                    if not wait_for(connection, entity,
+                                    lambda player: player.get("state") in STOPPED):
+                        failed.append(entity)
+                except (OSError, ValueError, HTTPError, TimeoutError):
+                    failed.append(entity)
+            if failed:
+                return (f"I couldn't verify playback stopped on {len(failed)} "
+                        "Music Assistant player(s).", "partial")
+            return "Stopped Music Assistant playback Everywhere.", "confirmed"
         group = destinations.get("everywhere")
         grouped = players.get(group, {})
         members = ((grouped.get("attributes") or {}).get("group_members") or []
