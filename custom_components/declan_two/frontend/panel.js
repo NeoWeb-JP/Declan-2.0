@@ -1201,9 +1201,29 @@ class DeclanTwoNativePanel extends HTMLElement {
             details.append(reject);
           }
         }
-        card.append(controls, details);
+        if (reviewed) {
+          const speakerLabel = document.createElement('span');
+          speakerLabel.className = 'muted';
+          speakerLabel.textContent = 'Speaker: ' + (speaker || 'Unknown');
+          const heading = card.querySelector('.timeline-heading');
+          if (heading) heading.append(speakerLabel);
+          const accordion = document.createElement('details');
+          accordion.className = 'timeline-review-details';
+          const accordionSummary = document.createElement('summary');
+          accordionSummary.textContent = 'Review details and actions';
+          accordion.append(accordionSummary, controls, details);
+          card.append(accordion);
+        } else {
+          card.append(controls, details);
+        }
       }
-      if (kind === 'conversation') card.append(controls);
+      if (kind === 'conversation') {
+        const accordion = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'Conversation details and learning';
+        accordion.append(summary, controls);
+        card.append(accordion);
+      }
       list.append(card);
     }
     if (!rows.length) {
