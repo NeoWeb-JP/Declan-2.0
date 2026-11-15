@@ -104,8 +104,25 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
     async def test_event_logging_and_unload(self):
         hass = SimpleNamespace(config_entries=SimpleNamespace(async_forward_entry_setups=AsyncMock(),
                                                               async_unload_platforms=AsyncMock(return_value=True)),
-                               bus=SimpleNamespace(async_listen=Mock()))
+                               bus=SimpleNamespace(async_listen=Mock()),
+                               services=SimpleNamespace(async_register=Mock(), async_remove=Mock(),
+                                                        async_call=AsyncMock()))
+        self.entry.options = {"primary_tts": "tts.example",
+                              "overnight_announcement_outputs": "media_player.kitchen"}
         self.assertTrue(await self.component.async_setup_entry(hass, self.entry))
+        domain, service, announce = hass.services.async_register.call_args.args
+        self.assertEqual((domain, service), ("declan_two", "announce"))
+        with patch.object(self.component, "datetime") as clock:
+            clock.now.return_value.astimezone.return_value.time.return_value = __import__("datetime").time(23, 30)
+            await announce(SimpleNamespace(data={"kind": "ev_reminder", "message": "Charge",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_not_awaited()
+            await announce(SimpleNamespace(data={"kind": "smoke", "message": "Smoke detected",
+                                                 "entity_id": "media_player.other"}))
+            hass.services.async_call.assert_not_awaited()
+            await announce(SimpleNamespace(data={"kind": "smoke", "message": "Smoke detected",
+                                                 "entity_id": "media_player.kitchen"}))
+            hass.services.async_call.assert_awaited_once()
         name, handler = hass.bus.async_listen.call_args.args
         self.assertEqual(name, "declan_two_assist_reply")
         await handler(SimpleNamespace(data={"message": ""}))
