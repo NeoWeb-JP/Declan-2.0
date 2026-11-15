@@ -238,7 +238,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             <div class="settings-section-content">
               <form class="ai-settings-form">
                 <label><input type="checkbox" name="enabled"> Enable OpenAI fallback</label>
-                <label>Model <input name="model" maxlength="80" required></label>
+                <label>Model <select name="model" required><option value="gpt-5-mini">GPT-5 mini</option><option value="gpt-6-luna">GPT-6 Luna</option></select></label>
                 <label>Monthly budget (USD) <input name="monthly_budget_usd" inputmode="decimal" required></label>
                 <label>Maximum per request (USD) <input name="request_ceiling_usd" inputmode="decimal" required></label>
                 <label>Maximum actions <input name="max_actions" type="number" min="1" max="8" required></label>
