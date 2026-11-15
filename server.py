@@ -27,6 +27,7 @@ from arbitration import CaptureArbiter
 import conditions
 import sensitive_confirmations
 import diagnostics
+import declan_logs
 import configuration
 import voice_profiles
 import voicepipeline
@@ -1822,7 +1823,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         native_settings_auth = (
             self.path in {"/api/native/settings-status", "/api/native/settings-export",
-                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/intents", "/api/native/routines"}
+                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/logs", "/api/native/intents", "/api/native/routines"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1889,6 +1890,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"intents": history.learned_intents()})
             except (OSError, sqlite3.Error):
                 self.send_json(503, {"error": "Learned intentions unavailable."})
+        elif self.path == "/api/native/logs":
+            self.send_json(200, {"entries": declan_logs.recent()})
         elif self.path == "/api/native/diagnostics":
             try:
                 self.send_json(200, {"traces": diagnostics.recent()})
@@ -2679,5 +2682,6 @@ def main():
 
 
 if __name__ == "__main__":
+    declan_logs.install()
     main()
 
