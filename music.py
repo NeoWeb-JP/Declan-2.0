@@ -60,8 +60,46 @@ def music_players(inventory, *, origin=None):
     if approved is not None:
         entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
         return approved, {entity: entities[entity] for entity in approved.values() if entity in entities}
-    # Only explicitly approved destinations may be used for playback.
-    # Discovery exposes candidates in Settings, never implicit permission.
+    entities = {row["entity_id"]: row for row in inventory
+                if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
+    registered = any("declan_music_assistant" in row for row in entities.values())
+    if registered:
+        # Fail closed: only registered Music Assistant players may be selected.
+        groups = [entity for entity, row in entities.items()
+                  if row.get("declan_music_assistant") is True
+                  and row.get("state") not in (None, "unknown", "unavailable")
+                  and (str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"
+                       or re.fullmatch(r"media_player\.everywhere(?:_[0-9]+)?", entity))]
+        destinations = {"everywhere": groups[0] if len(groups) == 1 else None}
+        rooms = {}
+        for entity, row in entities.items():
+            area = row.get("declan_area")
+            if row.get("declan_music_assistant") is True and isinstance(area, str) and area.strip():
+                rooms.setdefault(room_key(area), []).append(entity)
+        def devices(row):
+            linked = {row.get("declan_device")} - {None, ""}
+            sources = row.get("declan_source_entities")
+            if isinstance(sources, list):
+                linked.update(entities[source].get("declan_device") for source in sources
+                              if isinstance(source, str) and source in entities)
+            return linked - {None, ""}
+
+        # MA wrappers can have their own HA device. Follow their registered
+        # source entities back to the satellite's device, never its name.
+        origin_row = entities.get(origin) if isinstance(origin, str) else None
+        origin_devices = devices(origin_row) if origin_row else ({origin} if origin else set())
+        satellite_devices = {row.get("declan_device") for entity, row in entities.items()
+                             if entity.startswith("assist_satellite.")} - {None, ""}
+        for room, candidates in rooms.items():
+            available = [entity for entity in candidates if entities[entity].get("state") not in (None, "unknown", "unavailable")]
+            direct = [entity for entity in available if devices(entities[entity]) & origin_devices]
+            associated = [entity for entity in available if devices(entities[entity]) & satellite_devices]
+            preferred = direct or associated or available
+            destinations[room] = preferred[0] if len(preferred) == 1 else None
+        players = {entity: row for entity, row in entities.items()
+                   if row.get("declan_music_assistant") is True or entity == destinations["everywhere"]}
+        return destinations, players
+    # Never fall back to hardcoded household targets without MA registration.
     return {}, {}
 
 
