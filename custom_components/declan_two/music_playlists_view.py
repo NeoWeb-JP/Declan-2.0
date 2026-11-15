@@ -64,6 +64,12 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
                                 if isinstance(uri, str) and uri.startswith("spotify://playlist/") and len(uri) == 41]
                         for field in ("playlists", "favourites", "excluded", "discovered")
                     }
+                    titles = item.get("titles") if isinstance(item.get("titles"), dict) else {}
+                    categories[name]["titles"] = {
+                        uri: title[:160] for uri, title in titles.items()
+                        if isinstance(uri, str) and uri in categories[name]["playlists"]
+                        and isinstance(title, str)
+                    }
                 return web.json_response({"categories": categories, "max_playlists": 25, "refresh": payload.get("refresh") if isinstance(payload.get("refresh"), dict) else {}},
                                          headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
