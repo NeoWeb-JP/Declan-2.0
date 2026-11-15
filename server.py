@@ -112,8 +112,6 @@ SEXY_TIME_COMMANDS = {
        for phrase in (f"end {name}", f"stop {name}")},
 }
 SEXY_TIME_LOCK = Lock()
-SEXY_TIME_SCRIPT = "script.declan_sexy_time_controller"
-DINNER_SCRIPT = "script.declan_dinner_is_served_2"
 DINNER_PHRASES = {
     "dinner is served", "it's dinner time", "time for dinner", "it's time for dinner",
     "announce dinner", "start dinner time", "dinner time",
@@ -805,6 +803,13 @@ def ha_device_connection():
 def run_sexy_time(operation, connection):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured", None
+    try:
+        sexy_mapping = routine_registry.load().get("sexy_time")
+    except (OSError, ValueError, sqlite3.Error):
+        sexy_mapping = None
+    if not sexy_mapping:
+        return "Map the Sexy Time script in Declan Settings.", "not_configured", None
+    sexy_script = sexy_mapping["script"]
     if not SEXY_TIME_LOCK.acquire(blocking=False):
         return "I'm still handling the previous Sexy Time request.", "busy", None
     try:
@@ -817,7 +822,7 @@ def run_sexy_time(operation, connection):
             return "I couldn't identify one available bedroom satellite speaker. Check its Home Assistant device and area.", "unresolved", None
         url, headers, opener = connection
         request = Request(
-            f"{url}/api/services/script/{SEXY_TIME_SCRIPT.split('.', 1)[1]}?return_response", headers=headers,
+            f"{url}/api/services/script/{sexy_script.split('.', 1)[1]}?return_response", headers=headers,
             data=json.dumps({"operation": operation, "music_player": player}).encode(), method="POST",
         )
         try:
@@ -830,8 +835,8 @@ def run_sexy_time(operation, connection):
             return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified", None
 
         result = payload.get("service_response") if isinstance(payload, dict) else None
-        if isinstance(result, dict) and set(result) == {SEXY_TIME_SCRIPT}:
-            result = result[SEXY_TIME_SCRIPT]
+        if isinstance(result, dict) and set(result) == {sexy_script}:
+            result = result[sexy_script]
         if not isinstance(result, dict) or result.get("operation") != operation:
             return "I couldn't verify the bedroom routine's result.", "unverified", None
 
@@ -870,12 +875,18 @@ def run_sexy_time(operation, connection):
 def start_dinner(connection):
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
+    try:
+        dinner_mapping = routine_registry.load().get("dinner")
+    except (OSError, ValueError, sqlite3.Error):
+        dinner_mapping = None
+    if not dinner_mapping:
+        return "Map the Dinner script in Declan Settings.", "not_configured"
     url, headers, opener = connection
     announcement = choose_line("dinner_announcement", read_guest_mode())
     request = Request(
         f"{url}/api/services/script/turn_on", headers=headers,
         data=json.dumps({
-            "entity_id": DINNER_SCRIPT, "variables": {"dinner_message": announcement},
+            "entity_id": dinner_mapping["script"], "variables": {"dinner_message": announcement},
         }).encode(), method="POST",
     )
     try:
