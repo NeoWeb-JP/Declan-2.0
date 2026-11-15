@@ -5,6 +5,7 @@ import aiohttp
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from .ai_exposure import exposed_for_declan
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +44,8 @@ class DeclanChatView(HomeAssistantView):
             async with async_get_clientsession(hass).post(
                 entry.data["url"] + "/api/chat",
                 headers={"Authorization": f"Bearer {entry.data['token']}"},
-                json={"message": message.strip(), "session_id": session_id},
+                json={"message": message.strip(), "session_id": session_id,
+                      "ai_exposed_entities": exposed_for_declan(hass)},
                 timeout=aiohttp.ClientTimeout(total=45),
                 allow_redirects=False,
             ) as response:
