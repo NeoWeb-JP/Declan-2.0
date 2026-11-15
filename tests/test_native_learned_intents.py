@@ -28,8 +28,8 @@ class NativeIntentsTests(unittest.TestCase):
         history_panel = JS.split('id="panel-conversations"', 1)[1].split('id="panel-players"', 1)[0]
         self.assertNotIn('class="intents-list"', history_panel)
         self.assertNotIn('Saved phrase corrections', history_panel)
-        self.assertIn("train.disabled = true;", JS)
-        self.assertIn("issue #97", JS)
+        self.assertIn("train.disabled = !verified;", JS)
+        self.assertIn("this._recordingTurnLinks", JS)
         self.assertNotIn('Advanced editing remains in the existing Declan app.', JS)
 
 if __name__=="__main__": unittest.main()
