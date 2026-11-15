@@ -96,3 +96,32 @@ def refresh(discovered):
         data = normalize(data)
         save(data)
         return data
+
+QUERIES = {
+    "country": ("country music", "modern country"),
+    "braai": ("braai music", "south african braai"),
+    "romantic": ("romantic songs", "love songs"),
+    "sexy_time": ("romantic evening", "slow romantic"),
+    "rock": ("classic rock", "rock anthems"),
+    "afrikaans": ("afrikaans treffers", "afrikaans musiek"),
+    "80s": ("80s hits", "best of the 80s"),
+    "90s": ("90s hits", "best of the 90s"),
+    "work_focus": ("deep focus instrumental", "music for concentration"),
+    "adhd_focus": ("adhd focus music", "adhd concentration instrumental"),
+    "massage": ("relaxing massage music", "spa massage instrumental"),
+}
+
+
+def discover(opener):
+    """Search Spotify through Declan 2.0's existing credentials/token cache."""
+    import music
+    results = {}
+    for category, terms in QUERIES.items():
+        found = []
+        for term in terms:
+            for link, kind, _title in music.spotify_search(opener, term, "", ("playlist",)):
+                selected = canonical(link)
+                if kind == "playlist" and selected and selected not in found:
+                    found.append(selected)
+        results[category] = found
+    return refresh(results)
