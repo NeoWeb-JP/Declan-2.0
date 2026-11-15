@@ -137,10 +137,16 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="muted">Download non-secret settings or the previous import recovery snapshot. No Spotify secrets are included.</p>
           <div class="history-actions"><button class="settings-export" type="button">Export settings</button><button class="settings-recovery" type="button">Download recovery snapshot</button></div>
           <p class="settings-document-status muted" role="status" aria-live="polite"></p>
+          <h3>Import configuration</h3>
+          <p class="muted">Choose a Declan settings JSON export. Preview changes before applying. Spotify credentials are never imported.</p>
+          <input class="settings-import-file" type="file" accept=".json,application/json" aria-label="Choose Declan settings file">
+          <div class="history-actions"><button class="settings-import-preview" type="button">Preview import</button><button class="settings-import-apply" type="button" disabled>Apply reviewed import</button></div>
+          <p class="settings-import-status muted" role="status" aria-live="polite"></p>
+          <pre class="settings-import-summary mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
           <h3>Diagnostics</h3><button class="settings-diagnostics" type="button">Load recent diagnostics</button>
           <p class="settings-diagnostics-status muted" role="status" aria-live="polite"></p>
           <pre class="settings-diagnostics-output mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
-          <p class="muted">Import and restore actions remain in the existing Declan app until preview and confirmation safeguards are migrated.</p>
+          <p class="muted">A successful import saves a recovery snapshot of the previous settings. Download it above before making further changes.</p>
         </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Backend updates</h2>
@@ -160,6 +166,10 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelector('.mic-start').addEventListener('click', () => this.startMicrophone());
     this.shadowRoot.querySelector('.mic-stop').addEventListener('click', () => this.stopMicrophone());
     this.shadowRoot.querySelector('.settings-refresh').addEventListener('click', () => this.loadSettingsStatus());
+    this._settingsImportPreview = null;
+    this.shadowRoot.querySelector('.settings-import-file').addEventListener('change', () => this.resetSettingsImport());
+    this.shadowRoot.querySelector('.settings-import-preview').addEventListener('click', () => this.previewSettingsImport());
+    this.shadowRoot.querySelector('.settings-import-apply').addEventListener('click', () => this.applySettingsImport());
     this.shadowRoot.querySelector('.settings-export').addEventListener('click', () => this.downloadSettings('export'));
     this.shadowRoot.querySelector('.settings-recovery').addEventListener('click', () => this.downloadSettings('recovery'));
     this.shadowRoot.querySelector('.settings-diagnostics').addEventListener('click', () => this.loadDiagnostics());
@@ -687,6 +697,60 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Could not replace Spotify credentials. Check the values and backend connection.';
     } finally {
       button.disabled = false;
+    }
+  }
+
+  resetSettingsImport() {
+    this._settingsImportPreview = null;
+    this.shadowRoot.querySelector('.settings-import-apply').disabled = true;
+    this.shadowRoot.querySelector('.settings-import-summary').textContent = '';
+    this.shadowRoot.querySelector('.settings-import-status').textContent = '';
+  }
+
+  async previewSettingsImport() {
+    this.resetSettingsImport();
+    const input = this.shadowRoot.querySelector('.settings-import-file');
+    const status = this.shadowRoot.querySelector('.settings-import-status');
+    const file = input.files?.[0];
+    if (!file || file.size > 131072) {
+      status.textContent = 'Choose a Declan settings JSON file smaller than 128 KB.';
+      return;
+    }
+    try {
+      const documentData = JSON.parse(await file.text());
+      if (!documentData || typeof documentData !== 'object' || Array.isArray(documentData)) throw new Error('Invalid JSON');
+      const result = await this._hass.callApi('POST', 'declan_two/management/import', {document: documentData});
+      if (!result?.expected || !result.settings) throw new Error('Invalid preview');
+      this._settingsImportPreview = {document: documentData, expected: result.expected};
+      this.shadowRoot.querySelector('.settings-import-summary').textContent =
+        'Settings to import:\\n' + JSON.stringify(result.settings, null, 2) +
+        '\\nLearned intentions: ' + result.learning_count +
+        (result.replaces_learning ? ' (existing learning will be replaced)' : ' (existing learning retained)') +
+        '\\n' + (result.notice || '');
+      this.shadowRoot.querySelector('.settings-import-apply').disabled = false;
+      status.textContent = 'Preview ready. Review all changes before applying.';
+    } catch {
+      status.textContent = 'Import preview failed. Check the file format and backend connection.';
+    }
+  }
+
+  async applySettingsImport() {
+    const status = this.shadowRoot.querySelector('.settings-import-status');
+    const preview = this._settingsImportPreview;
+    if (!preview) return;
+    if (!window.confirm('Apply the reviewed settings import? This will replace the listed configuration values.')) return;
+    this.shadowRoot.querySelector('.settings-import-apply').disabled = true;
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/management/import',
+        {document: preview.document, expected: preview.expected, confirm: true});
+      if (result.saved !== true) throw new Error('Import not saved');
+      status.textContent = 'Configuration imported. Previous settings recovery snapshot is available above.';
+      this.shadowRoot.querySelector('.settings-import-file').value = '';
+      this.shadowRoot.querySelector('.settings-import-summary').textContent = '';
+    } catch {
+      status.textContent = 'Import not applied. If settings changed since preview, preview the file again.';
+    } finally {
+      this._settingsImportPreview = null;
     }
   }
 

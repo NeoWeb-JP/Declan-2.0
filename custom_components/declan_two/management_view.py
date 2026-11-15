@@ -23,7 +23,7 @@ class DeclanManagementView(HomeAssistantView):
         if len(entries) != 1:
             return web.json_response({"status": "not_configured"}, status=503)
         entry = entries[0]
-        path = "/api/native/spotify-credentials" if body is not None else GET_PATHS[operation]
+        path = ("/api/native/settings-import" if operation == "import" else "/api/native/spotify-credentials") if body is not None else GET_PATHS[operation]
         try:
             session = async_get_clientsession(request.app["hass"])
             kwargs = dict(headers={"Authorization": f"Bearer {entry.data['token']}"},
@@ -36,6 +36,18 @@ class DeclanManagementView(HomeAssistantView):
                 payload = await response.json(content_type="application/json")
                 if not isinstance(payload, dict):
                     raise ValueError("Invalid response")
+                if operation == "import":
+                    if body.get("confirm") is True:
+                        return web.json_response({"saved": payload.get("saved") is True},
+                                                 headers={"Cache-Control": "no-store"})
+                    if not isinstance(payload.get("expected"), str) or not isinstance(payload.get("settings"), dict):
+                        raise ValueError("Invalid preview")
+                    return web.json_response({
+                        "expected": payload["expected"], "settings": payload["settings"],
+                        "learning_count": payload.get("learning_count", 0),
+                        "replaces_learning": payload.get("replaces_learning", False),
+                        "notice": payload.get("notice", ""),
+                    }, headers={"Cache-Control": "no-store"})
                 if body is not None:
                     return web.json_response({"saved": payload.get("source") == "saved"},
                                              headers={"Cache-Control": "no-store"})
@@ -58,14 +70,24 @@ class DeclanManagementView(HomeAssistantView):
         return await self._relay(request, operation)
 
     async def post(self, request):
-        if request.match_info.get("operation") != "spotify":
+        operation = request.match_info.get("operation")
+        if operation not in {"spotify", "import"}:
             return web.json_response({"status": "invalid_operation"}, status=404)
-        if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= 2048:
+        if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= (131072 if operation == "import" else 2048):
             return web.json_response({"status": "invalid_request"}, status=400)
         try:
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"status": "invalid_json"}, status=400)
+        if operation == "import":
+            if not isinstance(body, dict) or set(body) not in ({"document"}, {"document", "confirm", "expected"}):
+                return web.json_response({"status": "invalid_request"}, status=400)
+            if not isinstance(body.get("document"), dict):
+                return web.json_response({"status": "invalid_document"}, status=400)
+            if "confirm" in body and (body["confirm"] is not True or
+                                      not isinstance(body.get("expected"), str) or len(body["expected"]) != 64):
+                return web.json_response({"status": "preview_required"}, status=400)
+            return await self._relay(request, "import", body)
         if not isinstance(body, dict) or set(body) != {"client_id", "client_secret", "confirm"} or body.get("confirm") is not True:
             return web.json_response({"status": "invalid_request"}, status=400)
         if not all(isinstance(body[key], str) and 0 < len(body[key]) <= 256 for key in ("client_id", "client_secret")):
