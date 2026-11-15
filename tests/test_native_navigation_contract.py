@@ -6,23 +6,23 @@ JS = (Path(__file__).resolve().parents[1] / "custom_components" / "declan_two" /
 
 
 class NativeNavigationTests(unittest.TestCase):
-    def test_page_selector_has_matching_panels(self):
-        self.assertIn('class="page-select"', JS)
+    def test_hidden_page_menu_has_matching_panels(self):
+        self.assertIn('class="page-navigation" aria-label="Declan pages" hidden', JS)
         for name in ("overview", "conversations", "players", "settings", "updates"):
             with self.subTest(page=name):
-                self.assertIn(f'value="{name}"', JS)
+                self.assertIn(f'data-page="{name}"', JS)
                 self.assertIn(f'id="panel-{name}"', JS)
-        self.assertIn("this.selectTab(this.shadowRoot.querySelector('.page-select').value)", JS)
+        self.assertIn("this.selectTab(button.dataset.page)", JS)
 
     def test_voice_review_is_in_conversation_timeline(self):
         self.assertIn('class="timeline-list"', JS)
-        self.assertIn('value="conversations"', JS)
+        self.assertIn('data-page="conversations"', JS)
         self.assertIn('class="overview-chat-heading"', JS)
         self.assertIn('class="voices-list"', JS)
         self.assertNotIn('id="tab-voices"', JS)
 
     def test_mobile_and_accessibility(self):
-        self.assertIn('aria-label="Choose Declan page"', JS)
+        self.assertIn('aria-label="Open Declan pages"', JS)
         self.assertIn("selectTab(name)", JS)
         self.assertIn("panel.hidden = panel.id !== 'panel-' + name", JS)
         self.assertIn("this.shadowRoot.innerHTML", JS)
