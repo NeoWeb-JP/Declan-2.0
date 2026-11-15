@@ -2561,7 +2561,10 @@ class Handler(BaseHTTPRequestHandler):
         guest_mode = read_guest_mode()
         visitor_present = read_visitors_present()
         # Presence affects the persona, never Guest Mode authority.
-        response_guest_mode = "on" if visitor_present is not False else guest_mode
+        # Guest authority and visitor presence are independent: an explicit
+        # Guest Mode must remain polite even if the visitor sensor is off.
+        # Unknown visitor state also fails closed for privacy.
+        response_guest_mode = "on" if guest_mode != "off" or visitor_present is not False else "off"
         if routine_reply is None and CHAT_COMMANDS.get(chat_kind) == "time":
             information_context = ("time", None, None)
         with SESSION_LOCK:
