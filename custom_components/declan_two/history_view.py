@@ -51,6 +51,12 @@ class DeclanHistoryView(HomeAssistantView):
                         "reply": str(item.get("reply") or "")[:4000],
                         "source": str(item.get("source") or "")[:50],
                         "teachable": item.get("teachable") is True,
+                        "action_results": [{
+                            "entity_id": str(step.get("entity_id") or "")[:120],
+                            "action": str(step.get("action") or "")[:80],
+                            "status": str(step.get("status") or "")[:60],
+                        } for step in (item.get("action_results") or [])[:8]
+                            if isinstance(step, dict)],
                     })
                 next_cursor = payload.get("next")
                 return web.json_response({
