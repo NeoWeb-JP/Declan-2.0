@@ -87,7 +87,7 @@ class LightingTests(TestCase):
         return steps
 
     def test_mixed_actions_and_unresolved_target(self):
-        steps = self.run_light("turn on the office light and unknown lamp and turn off the fairy lights", "partial")
+        steps = self.run_light("turn on the study light and unknown lamp and turn off the fairy lights", "partial")
         self.assertEqual({step["status"] for step in steps}, {"confirmed", "skipped"})
         self.assertEqual(self.ha.entities["light.study_light"]["state"], "on")
         self.assertEqual(self.ha.entities["light.fairy_lights"]["state"], "off")
