@@ -34,6 +34,10 @@ def preflight(plan, inventory, *, confirmed_sensitive=False):
         attributes = row.get("attributes")
         if not isinstance(attributes, dict):
             raise ValueError("Missing capability attributes")
+        if (action.entity_id.startswith("cover.")
+                and attributes.get("device_class") in {"garage", "gate"}
+                and not confirmed_sensitive):
+            raise ValueError("Garage and gate controls require explicit confirmation")
         if action.service == "toggle":
             raise ValueError("Toggle is not safe without an explicit target state")
         if action.service in {"media_play", "media_pause", "media_stop"}:
