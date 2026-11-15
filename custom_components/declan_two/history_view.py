@@ -56,6 +56,7 @@ class DeclanHistoryView(HomeAssistantView):
                             "action": str(step.get("action") or "")[:80],
                             "status": str(step.get("status") or "")[:60],
                             "detail": str(step.get("detail") or "")[:240],
+                            "ai_generated": step.get("ai_generated") is True,
                         } for step in (item.get("action_results") or [])[:8]
                             if isinstance(step, dict)],
                     })
