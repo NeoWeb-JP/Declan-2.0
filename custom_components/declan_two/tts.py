@@ -53,8 +53,10 @@ class DeclanVoiceManager(TextToSpeechEntity):
         try:
             now = datetime.now(ZoneInfo(zone_name)) if zone_name else datetime.now().astimezone()
         except (ZoneInfoNotFoundError, ValueError, TypeError):
-            _LOGGER.warning("Invalid Home Assistant timezone for quiet speech")
-            now = datetime.now().astimezone()
+            # If the household clock cannot be trusted, keep speech quiet
+            # rather than accidentally playing it at daytime amplitude.
+            _LOGGER.warning("Invalid Home Assistant timezone; attenuating speech")
+            now = datetime.now().astimezone().replace(hour=23, minute=0)
         if not quiet_hours(now):
             return result
         from homeassistant.components.ffmpeg import get_ffmpeg_manager
