@@ -1,5 +1,6 @@
 """Admin-only read-only conversation history proxy for the native HA panel."""
 import logging
+import re
 
 import aiohttp
 from aiohttp import web
@@ -22,6 +23,32 @@ class DeclanHistoryView(HomeAssistantView):
         entries = hass.config_entries.async_entries("declan_two")
         if len(entries) != 1:
             return web.json_response({"status": "not_configured"}, status=503)
+        recording_ids = request.query.get("recording_ids")
+        if recording_ids is not None:
+            identifiers = recording_ids.split(",")
+            if (not 1 <= len(identifiers) <= 100 or any(
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", value) for value in identifiers
+            )):
+                return web.json_response({"status": "invalid_recording_ids"}, status=400)
+            entry = entries[0]
+            try:
+                async with async_get_clientsession(hass).get(
+                    entry.data["url"] + "/api/history/recording-links?ids=" + recording_ids,
+                    headers={"Authorization": f"Bearer {entry.data['token']}"},
+                    timeout=aiohttp.ClientTimeout(total=8),
+                    allow_redirects=False,
+                ) as response:
+                    if response.status != 200:
+                        return web.json_response({"status": "backend_unavailable"}, status=502)
+                    payload = await response.json(content_type="application/json")
+                    links = payload.get("links") if isinstance(payload, dict) else None
+                    if not isinstance(links, dict):
+                        raise ValueError("Invalid recording links")
+                    verified = {key: value for key, value in links.items()
+                                if key in identifiers and type(value) is int and value > 0}
+                    return web.json_response({"links": verified}, headers={"Cache-Control": "no-store"})
+            except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
+                return web.json_response({"status": "backend_unavailable"}, status=502)
         before = request.query.get("before")
         if before is not None and (not before.isascii() or not before.isdecimal()
                                    or not 0 < int(before) < 2**63):
