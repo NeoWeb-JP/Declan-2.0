@@ -171,25 +171,29 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                 await announce(SimpleNamespace(data={"kind": "reminder", "message": "Lunch",
                                                      "entity_id": "media_player.other"}))
             hass.services.async_call.assert_not_awaited()
-        for category in ("unknown", "ev_reminder", "music", "routine", "", None):
-            hass.services.async_call.reset_mock()
-            await announce(SimpleNamespace(data={"kind": category, "message": "Reminder",
-                                                 "entity_id": "media_player.kitchen"}))
-            hass.services.async_call.assert_not_awaited()
-        for invalid_destination in (
-            "media_player.", "media_player.kitchen,media_player.other",
-            "media_player.Kitchen", "media_player.kitchen extra",
-        ):
+        # The preceding daytime override has ended. Explicitly pin the
+        # overnight clock for all suppression assertions below.
+        with patch.dict(announce.__globals__, {"datetime": Mock(), "time": __import__("datetime").time}) as globals_:
+            globals_["datetime"].now.return_value.astimezone.return_value.time.return_value = __import__("datetime").time(23, 30)
+            for category in ("unknown", "ev_reminder", "music", "routine", "", None):
+                hass.services.async_call.reset_mock()
+                await announce(SimpleNamespace(data={"kind": category, "message": "Reminder",
+                                                     "entity_id": "media_player.kitchen"}))
+                hass.services.async_call.assert_not_awaited()
+            for invalid_destination in (
+                "media_player.", "media_player.kitchen,media_player.other",
+                "media_player.Kitchen", "media_player.kitchen extra",
+            ):
+                hass.services.async_call.reset_mock()
+                await announce(SimpleNamespace(data={"kind": "security", "message": "Alert",
+                                                     "entity_id": invalid_destination}))
+                hass.services.async_call.assert_not_awaited()
+            self.entry.options["overnight_announcement_outputs"] = None
             hass.services.async_call.reset_mock()
             await announce(SimpleNamespace(data={"kind": "security", "message": "Alert",
-                                                 "entity_id": invalid_destination}))
+                                                 "entity_id": "media_player.kitchen"}))
             hass.services.async_call.assert_not_awaited()
-        self.entry.options["overnight_announcement_outputs"] = None
-        hass.services.async_call.reset_mock()
-        await announce(SimpleNamespace(data={"kind": "security", "message": "Alert",
-                                             "entity_id": "media_player.kitchen"}))
-        hass.services.async_call.assert_not_awaited()
-        self.entry.options["overnight_announcement_outputs"] = "media_player.kitchen"
+            self.entry.options["overnight_announcement_outputs"] = "media_player.kitchen"
         name, handler = hass.bus.async_listen.call_args.args
         self.assertEqual(name, "declan_two_assist_reply")
         await handler(SimpleNamespace(data={"message": ""}))
