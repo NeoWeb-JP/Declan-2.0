@@ -18,6 +18,13 @@ class PersonalityPolicyTests(unittest.TestCase):
         guest = p.decorate("All done.", guest=True)
         self.assertEqual(p.decorate(guest, visitor_present=False), guest)
 
+    def test_guest_mode_authority_and_visitor_presence_are_independent(self):
+        self.assertEqual(p.response_guest_mode("on", False), "on")
+        self.assertEqual(p.response_guest_mode("on", None), "on")
+        self.assertEqual(p.response_guest_mode("off", True), "on")
+        self.assertEqual(p.response_guest_mode("off", None), "on")
+        self.assertEqual(p.response_guest_mode("off", False), "off")
+
     def test_guest_and_visitors_do_not_get_home_roasts(self):
         for options in ({"guest": True, "visitor_present": False},
                         {"visitor_present": True}, {"visitor_present": None}):
