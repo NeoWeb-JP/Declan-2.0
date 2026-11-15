@@ -66,9 +66,10 @@ def music_players(inventory, *, origin=None):
     if registered:
         # Fail closed: only registered Music Assistant players may be selected.
         groups = [entity for entity, row in entities.items()
-                  if row.get("declan_music_assistant") is True
-                  and row.get("state") not in (None, "unknown", "unavailable")
-                  and str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"]
+                  if row.get("state") not in (None, "unknown", "unavailable")
+                  and (str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"
+                       or (row.get("declan_music_assistant") is True
+                           and re.fullmatch(r"media_player\\.everywhere(?:_[0-9]+)?", entity)))]
         destinations = {"everywhere": groups[0] if len(groups) == 1 else None}
         rooms = {}
         for entity, row in entities.items():
@@ -98,7 +99,8 @@ def music_players(inventory, *, origin=None):
         players = {entity: row for entity, row in entities.items()
                    if row.get("declan_music_assistant") is True or entity == destinations["everywhere"]}
         return destinations, players
-    # Never fall back to hardcoded household targets without MA registration.\n    return {}, {}
+    # Never fall back to hardcoded household targets without MA registration.
+    return {}, {}
 
 
 @contextmanager
