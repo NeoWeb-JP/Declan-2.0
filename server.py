@@ -220,7 +220,8 @@ def select_routine(phrase, origin):
         return "night", {}
     movie = parse_movie_request(phrase)
     if not movie:
-        return None
+        custom = routine_registry.match(phrase)
+        return ("custom:" + custom[0], {}) if custom else None
     direction, room, app = movie
     if room in (None, "here"):
         area = None
@@ -251,6 +252,8 @@ def select_routine_turn(phrase, origin):
 
 def execute_routine(selection, action_results):
     period, options = selection
+    if period.startswith("custom:"):
+        return run_custom_routine(period[7:], action_results)
     if options is None:
         return "Which room do you mean for Movie Time?", "unresolved", None
     options = options.copy()
@@ -259,6 +262,49 @@ def execute_routine(selection, action_results):
     if requested_app and (not app or options.get("movie_action") != "start"):
         return "Please name a supported app with an explicit start Movie Time command.", "unresolved", None
     return run_routine(period, movie_app=app, action_results=action_results, **options)
+
+
+def run_custom_routine(name, action_results=None):
+    """Run an explicitly mapped HA script; never infer sensitive approval."""
+    try:
+        item = routine_registry.load().get(name)
+    except (ValueError, OSError, sqlite3.Error):
+        return "Routine configuration is unavailable.", "unverified", None
+    if not item:
+        return "That routine is not configured.", "not_configured", None
+    if item["sensitive"]:
+        return "This routine requires owner confirmation in Home Assistant.", "unresolved", None
+    connection = ha_device_connection()
+    if connection is None:
+        return "Home Assistant is not connected.", "not_configured", None
+    url, headers, opener = connection
+    script = item["script"]
+    # No script guessing or fallback: only a script selected in Settings may execute.
+    request_id = "declan-" + secrets.token_hex(16)
+    payload = {**item["fields"], "request_id": request_id, "routine_id": script}
+    request = Request(f"{url}/api/services/script/{script.split('.', 1)[1]}?return_response",
+                      data=json.dumps(payload).encode(), headers=headers, method="POST")
+    try:
+        with opener.open(request, timeout=55) as response:
+            result = json.loads(response.read(65536))
+    except HTTPError as error:
+        code = error.code
+        error.close()
+        return f"Home Assistant rejected {name} (HTTP {code}).", "failed", None
+    except (OSError, ValueError):
+        return f"I couldn't verify {name}. Check its Home Assistant trace.", "unverified", None
+    value = result.get("service_response") if isinstance(result, dict) else None
+    if isinstance(value, dict) and set(value) == {script}:
+        value = value[script]
+    if not isinstance(value, dict) or value.get("request_id") != request_id or value.get("routine_id") != script:
+        return f"{name} was requested, but completion was not verified.", "unverified", None
+    status = value.get("outcome")
+    if status not in {"success", "partial", "failed", "cancelled"}:
+        return f"{name} returned no verified completion outcome.", "unverified", None
+    if action_results is not None:
+        action_results.extend(routine_action_results(value.get("steps")))
+    outcome = {"success": "reported_success", "partial": "partial", "failed": "failed", "cancelled": "cancelled"}[status]
+    return f"{name} {status}.", outcome, None
 
 
 def chained_outcome(routine, lighting):
