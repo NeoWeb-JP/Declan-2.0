@@ -15,8 +15,12 @@ import server
 
 class MusicTests(unittest.TestCase):
     def setUp(self):
-        self.players = {entity: {"entity_id": entity, "state": "idle", "attributes": {}}
-                        for entity in music.PLAYERS.values()}
+        self.players = {entity: {"entity_id": entity, "state": "idle",
+                                 "attributes": {"friendly_name": "Everywhere"} if room == "everywhere" else {},
+                                 "declan_music_assistant": True,
+                                 "declan_area": {"bedroom": "Master Bedroom",
+                                                 "kitchen": "Kitchen"}.get(room)}
+                        for room, entity in music.PLAYERS.items()}
         self.bedroom, self.kitchen, self.group = (music.PLAYERS[room] for room in ("bedroom", "kitchen", "everywhere"))
         self.track = {"media_content_id": "spotify--account://track/0JkIre0YxNmKGMU5V7ZiDx",
                       "media_title": "Coward of the County", "media_artist": "Kenny Rogers"}
