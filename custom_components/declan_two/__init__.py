@@ -84,9 +84,12 @@ async def async_setup_entry(hass, entry):
         if overnight and kind not in allowed:
             _LOGGER.info("Suppressed noncritical overnight announcement: %s", kind)
             return
+        configured_outputs = entry.options.get("overnight_announcement_outputs", "")
+        if not isinstance(configured_outputs, str):
+            _LOGGER.warning("Declan overnight speaker configuration is invalid")
+            return
         approved = {
-            name.strip() for name in entry.options.get(
-                "overnight_announcement_outputs", "").split(",") if name.strip()
+            name.strip() for name in configured_outputs.split(",") if name.strip()
         }
         destination = call.data.get("entity_id", "")
         # Route announcements through Declan's own speech entity so quiet-hour
