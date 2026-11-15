@@ -45,6 +45,7 @@ import ai_context
 import ai_intent_gate
 import guarded_fallback
 import ha_dispatcher
+import routine_registry
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 
@@ -1686,7 +1687,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         native_settings_auth = (
             self.path in {"/api/native/settings-status", "/api/native/settings-export",
-                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/intents"}
+                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/intents", "/api/native/routines"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1736,6 +1737,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"document": document})
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings document unavailable."})
+        elif self.path == "/api/native/routines":
+            try:
+                self.send_json(200, {"routines": routine_registry.load()})
+            except (ValueError, OSError, sqlite3.Error):
+                self.send_json(503, {"error": "Routine settings unavailable."})
         elif self.path == "/api/native/intents":
             try:
                 self.send_json(200, {"intents": history.learned_intents()})
@@ -1883,7 +1889,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -1936,7 +1942,7 @@ class Handler(BaseHTTPRequestHandler):
                 f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
             )
         ) and not (
-            self.path == "/api/native/intents"
+            self.path in {"/api/native/intents", "/api/native/routines"}
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -2041,6 +2047,17 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {'error': str(error)})
                 except (OSError, sqlite3.Error):
                     self.send_json(503, {'error': 'Settings could not be imported.'})
+                return
+            if self.path == "/api/native/routines":
+                try:
+                    if not isinstance(body, dict) or set(body) != {"routines"}:
+                        raise ValueError("Invalid routine request")
+                    routine_registry.save(body["routines"])
+                    self.send_json(200, {"saved": True})
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Routine settings unavailable."})
                 return
             if self.path == "/api/native/intents":
                 try:
