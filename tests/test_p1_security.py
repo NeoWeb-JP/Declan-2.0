@@ -102,22 +102,24 @@ class HTTPPolicyTests(TestCase):
         self.assertIn("media-src 'self' blob:", csp)
         return nonces[0]
 
-    def test_direct_and_ingress_pages_use_fresh_matching_nonces(self):
-        first = self.check_page(self.request(), ingress=False, scripts=1)
-        second = self.check_page(self.request(), ingress=False, scripts=1)
-        self.assertNotEqual(first, second)
-        self.check_page(self.request(extra={'X-Declan-Ingress-Token': 'i' * 64}), ingress=True, scripts=1)
-        # The proxy adds a second script and must nonce both after insertion.
-        self.enterContext(patch.object(proxy, 'SUPERVISOR_ADDRESS', '127.0.0.1'))
-        gateway = self.start(proxy.ThreadingHTTPServer(('127.0.0.1', 0), proxy.ProxyHandler))
-        gateway.target = urlsplit('http://127.0.0.1:' + str(self.http.server_port))
-        gateway.ingress_token = 'i' * 64
-        gateway.panel_token = 'panel-secret'
-        self.check_page(self.request(http=gateway), ingress=True, scripts=2)
-        status, headers, _ = self.request('/missing', http=gateway)
+    def test_retired_dashboard_is_unavailable_but_security_headers_remain(self):
+        status, headers, data = self.request()
         self.assertEqual(status, 404)
-        self.assertIn("script-src 'none'", headers['Content-Security-Policy'])
-        self.assertEqual(headers['X-Frame-Options'], 'SAMEORIGIN')
+        self.assertIn(b"native Declan Home Assistant panel", data)
+        self.assertIn("script-src 'none'", headers["Content-Security-Policy"])
+        self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
+        self.enterContext(patch.object(proxy, "SUPERVISOR_ADDRESS", "127.0.0.1"))
+        gateway = self.start(proxy.ThreadingHTTPServer(("127.0.0.1", 0), proxy.ProxyHandler))
+        gateway.target = urlsplit("http://127.0.0.1:" + str(self.http.server_port))
+        gateway.ingress_token = "i" * 64
+        gateway.panel_token = "panel-secret"
+        status, headers, _ = self.request("/", http=gateway)
+        self.assertEqual(status, 404)
+        self.assertIn("script-src 'none'", headers["Content-Security-Policy"])
+        status, headers, _ = self.request("/missing", http=gateway)
+        self.assertEqual(status, 404)
+        self.assertIn("script-src 'none'", headers["Content-Security-Policy"])
+        self.assertEqual(headers["X-Frame-Options"], "SAMEORIGIN")
 
     def test_auth_failures_share_endpoint_budget_and_ignore_forwarded_peer(self):
         for path in ('/api/assist', '/api/assist/history'):
