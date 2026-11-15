@@ -75,7 +75,9 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
     """
     if not isinstance(reply, str) or not reply.strip():
         return reply
-    if safety or outcome in _SAFE_OUTCOMES or already_decorated:
+    # Unknown and future outcomes must never be treated as verified success.
+    # This is deliberately an allowlist, not a denylist of known failures.
+    if safety or outcome != "confirmed" or already_decorated:
         return reply
     if guest or visitor_present is not False:
         lines = _GUEST
