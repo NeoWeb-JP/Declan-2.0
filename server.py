@@ -939,6 +939,35 @@ def read_music_inventory(connection):
     return ha_inventory.read(connection, music=True)
 
 
+def stop_everywhere_output(connection):
+    """Stop all active approved Music Assistant destinations, including Everywhere."""
+    if connection is None:
+        return "", "not_configured", "Home Assistant is not configured."
+    inventory, error = read_music_inventory(connection)
+    if error:
+        return "", error, "Could not discover the approved music players."
+    destinations, players = music.music_players(inventory)
+    targets = sorted({entity for entity in destinations.values()
+                      if entity and players.get(entity, {}).get("state") in music.ACTIVE})
+    if not targets:
+        return "", "confirmed", "No approved music players are currently playing."
+    failed = []
+    for entity in targets:
+        try:
+            music.request(connection, "/api/services/media_player/media_stop", {"entity_id": entity}, timeout=2)
+            if not music.wait_for(connection, entity, lambda row: row.get("state") in music.STOPPED):
+                failed.append(entity)
+        except HTTPError as exc:
+            exc.close()
+            failed.append(entity)
+        except (OSError, ValueError):
+            failed.append(entity)
+    if failed:
+        return "", "partial" if len(failed) < len(targets) else "unverified", (
+            "Could not verify Stop for: " + ", ".join(failed))
+    return "", "confirmed", "Stopped playback on all active approved music players."
+
+
 def stop_origin_output(connection, satellite, device):
     if connection is None or not (satellite or device):
         return "", "unresolved", "Stop needs an identifiable Assist satellite or device."
@@ -2091,7 +2120,7 @@ class Handler(BaseHTTPRequestHandler):
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
         elif phrase == "stop":
-            routine_reply, outcome, routine_status = stop_origin_output(ha_device_connection(), satellite, origin_device)
+            routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
         elif phrase.replace("’", "'") in DINNER_PHRASES:
             routine_reply, outcome = start_dinner(ha_device_connection())
         elif phrase in SEXY_TIME_COMMANDS:
