@@ -13,18 +13,18 @@ def test_playlist_view_is_registered_and_admin_only():
     assert "DeclanMusicPlaylistsView()" in INIT
     assert 'requires_auth = True' in VIEW
     assert 'not self.authorised(request)' in VIEW
-    assert '"jarvis_local.spotify_categories"' in VIEW
+    assert '"/api/settings/music-playlists"' in VIEW
     assert 'hass.services.async_call(' in VIEW
-    assert '"declan_local", "manage_music_playlist"' in VIEW
+    assert 'entry.data["url"] + "/api/settings/music-playlists"' in VIEW
     assert '"Cache-Control": "no-store"' in VIEW
 
 
 def test_playlist_operations_and_validation():
     assert 'set(body) != {"category", "playlist", "operation"}' in VIEW
     assert '("add", "remove", "delete")' in VIEW
-    assert '"add": "favourite"' in VIEW
-    assert '"delete": "exclude"' in VIEW
-    assert "canonical_playlist" in VIEW
+    assert '"add", "remove", "delete"' in VIEW
+    assert 'body["operation"]' in VIEW
+    assert "CATEGORIES" in VIEW
     assert "max_playlists" in VIEW
 
 
