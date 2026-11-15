@@ -482,6 +482,19 @@ class DeclanTwoNativePanel extends HTMLElement {
       const input = key === 'phrases' || key === 'fields' ? document.createElement('textarea') : document.createElement('input');
       input.dataset.field = key;
       input.value = value;
+      if (key === 'script') {
+        const datalist = document.createElement('datalist');
+        datalist.id = 'routine-scripts-' + Math.random().toString(36).slice(2);
+        const scripts = Object.values(this._hass?.states || {}).filter(entity => entity.entity_id?.startsWith('script.'));
+        for (const entity of scripts) {
+          const option = document.createElement('option');
+          option.value = entity.entity_id;
+          option.label = entity.attributes?.friendly_name || entity.entity_id;
+          datalist.append(option);
+        }
+        input.setAttribute('list', datalist.id);
+        wrapper.append(datalist);
+      }
       input.style.cssText = 'width:100%;background:#091923;color:#e7f7ff;border:1px solid #315568;border-radius:8px;padding:9px';
       wrapper.append(input);
       row.append(wrapper);
