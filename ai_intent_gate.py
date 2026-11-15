@@ -14,4 +14,9 @@ ACTION = re.compile(
 
 
 def is_action_request(utterance):
-    return isinstance(utterance, str) and bool(ACTION.search(utterance))
+    if not isinstance(utterance, str):
+        return False
+    if ACTION.search(utterance):
+        return True
+    return bool(re.search(r"\\bmake\\b", utterance, re.I) and
+                re.search(r"\\b(?:light|lights|fan|blinds|curtains|room|lounge|kitchen|bedroom|brighter|darker)\\b", utterance, re.I))
