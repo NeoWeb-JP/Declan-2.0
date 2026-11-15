@@ -17,6 +17,18 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn('class="timeline-list"', JS)
         self.assertIn('class="timeline-filter"', JS)
 
+    def test_single_history_workspace_without_duplicate_settings_lists(self):
+        settings = JS.split('id="panel-settings"', 1)[1].split('id="panel-updates"', 1)[0]
+        history = JS.split('id="panel-conversations"', 1)[1].split('id="panel-players"', 1)[0]
+        self.assertNotIn('Reviewed recordings</h3>', settings)
+        self.assertNotIn('Refresh reviewed recordings', settings)
+        self.assertNotIn('Refresh learned commands', settings)
+        self.assertNotIn('Conversation archive</h3>', settings)
+        self.assertIn('Phrase training</h3>', history)
+        self.assertIn('class="timeline-list"', history)
+        self.assertIn('class="page-navigation" aria-label="Declan pages" hidden', JS)
+        self.assertIn('class="page-menu-toggle"', JS)
+
     def test_review_in_row(self):
         for snippet in ("async loadTimeline()", "renderTimeline()", "this.resolveVoice(item.id",
                         "this.correctVoiceHistory(item, select.value)", "this.playVoice(item.id, play,",
