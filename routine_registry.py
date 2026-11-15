@@ -47,7 +47,7 @@ def validate(mapping):
                 raise ValueError("Invalid script field")
             if isinstance(value, float) and (value != value or abs(value) > 1e9):
                 raise ValueError("Invalid numeric field")
-        if "remote" in item and (not isinstance(item["remote"], str) or (item["remote"] and not re.fullmatch(r"remote\\.[a-z0-9_]+", item["remote"]))):
+        if "remote" in item and (not isinstance(item["remote"], str) or (item["remote"] and not re.fullmatch(r"remote\.[a-z0-9_]+", item["remote"]))):
             raise ValueError("Invalid remote entity")
         clean[name] = {"script": script, "phrases": phrases, "fields": fields, "sensitive": item["sensitive"]}
         if "remote" in item:
