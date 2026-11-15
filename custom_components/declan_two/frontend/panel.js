@@ -97,6 +97,25 @@ class DeclanTwoNativePanel extends HTMLElement {
         .timeline-group .timeline-controls { gap:10px; }
         .timeline-group .timeline-controls button { min-height:42px; }
         @media(max-width:520px) { .timeline-group > summary { padding:14px; } .timeline-group > .timeline-row, .timeline-group > .timeline-entry { margin:8px; } .timeline-entry > summary { padding:12px; font-size:.94rem; } .timeline-entry > .timeline-row { padding:12px; } }
+        .settings-sections { display:grid; gap:14px; margin-top:20px; }
+        .settings-section { min-width:0; border:1px solid #315568; border-radius:14px; background:#0e2230; overflow:hidden; }
+        .settings-section[open] { border-color:#47758b; }
+        .settings-section > summary { display:flex; align-items:center; gap:14px; list-style:none; cursor:pointer; padding:18px; min-height:72px; }
+        .settings-section > summary::-webkit-details-marker { display:none; }
+        .settings-section > summary::after { content:''; flex:0 0 9px; width:9px; height:9px; border-right:2px solid #9dc9db; border-bottom:2px solid #9dc9db; transform:rotate(-45deg); margin-left:auto; }
+        .settings-section[open] > summary::after { transform:rotate(45deg); }
+        .settings-section > summary:focus-visible { outline:2px solid #76dbff; outline-offset:-3px; }
+        .settings-section-icon { display:grid; place-items:center; flex:0 0 40px; height:40px; border-radius:10px; background:#16394b; color:#9ddcf3; font-size:1.25rem; }
+        .settings-section-title { display:grid; gap:4px; min-width:0; font-weight:700; font-size:1rem; color:#e7f7ff; }
+        .settings-section-title small { color:#a1ccdf; font-size:.8rem; font-weight:400; line-height:1.35; }
+        .settings-section-content { padding:18px; border-top:1px solid #28495b; display:grid; gap:16px; min-width:0; }
+        .settings-section-content > p, .settings-subsection > p { margin:0; }
+        .settings-section-content > button, .settings-subsection > button { justify-self:start; }
+        .settings-subsection { display:grid; gap:12px; min-width:0; }
+        .settings-subsection + .settings-subsection { padding-top:20px; border-top:1px solid #28495b; }
+        .settings-subsection h3 { margin:0; font-size:1rem; }
+        .settings-section pre, .settings-section input { max-width:100%; }
+        @media(max-width:520px) { .settings-section > summary { padding:14px; gap:10px; } .settings-section-content { padding:14px; } .settings-section-icon { flex-basis:34px; height:34px; } }
         .timeline-row { border-top:1px solid #1d3d51; padding:14px 0; overflow-wrap:anywhere; }
         .timeline-row p { margin:6px 0; white-space:pre-wrap; }
         .timeline-row--pending { border-left:3px solid #e6b85c; padding-left:12px; }
@@ -161,41 +180,51 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
           <h2>Settings</h2>
-          <details class="timeline-management"><summary>Voice recognition and learned commands</summary><div class="timeline-management-body">
-          <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
-          <button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div>
-          <h3>Learned routines and commands</h3>
-          <p class="muted">Edit or forget the phrases Declan has learned. Saving never runs the command.</p>
-          <button class="intents-refresh" type="button">Refresh learned commands</button>
-          <p class="intents-status muted" role="status" aria-live="polite"></p>
-          <div class="intents-list"></div>
-          <div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this tab to load recent conversations. Edit learned commands above.</p><div class="history-list" aria-label="Recent conversations"></div>
-          </div></details>
-          <p class="muted">Spotify credentials remain saved until you explicitly replace both values. Other settings never change them.</p>
-          <p class="spotify-status muted" role="status" aria-live="polite">Open Settings to check Spotify configuration.</p>
-          <button class="settings-refresh" type="button">Refresh settings status</button>
-          <details class="settings-spotify"><summary>Replace Spotify API credentials</summary>
-            <form class="spotify-form" autocomplete="off">
-              <label>Client ID <input class="spotify-client-id" type="text" maxlength="256" required autocomplete="off"></label>
-              <label>New client secret <input class="spotify-client-secret" type="password" maxlength="256" required autocomplete="new-password"></label>
-              <button type="submit">Replace credentials</button>
-            </form>
-            <p class="spotify-save-status muted" role="status" aria-live="polite"></p>
-          </details>
-          <h3>Configuration backup and recovery</h3>
-          <p class="muted">Download non-secret settings or the previous import recovery snapshot. No Spotify secrets are included.</p>
-          <div class="history-actions"><button class="settings-export" type="button">Export settings</button><button class="settings-recovery" type="button">Download recovery snapshot</button></div>
-          <p class="settings-document-status muted" role="status" aria-live="polite"></p>
-          <h3>Import configuration</h3>
-          <p class="muted">Choose a Declan settings JSON export. Preview changes before applying. Spotify credentials are never imported.</p>
-          <input class="settings-import-file" type="file" accept=".json,application/json" aria-label="Choose Declan settings file">
-          <div class="history-actions"><button class="settings-import-preview" type="button">Preview import</button><button class="settings-import-apply" type="button" disabled>Apply reviewed import</button></div>
-          <p class="settings-import-status muted" role="status" aria-live="polite"></p>
-          <pre class="settings-import-summary mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
-          <h3>Diagnostics</h3><button class="settings-diagnostics" type="button">Load recent diagnostics</button>
-          <p class="settings-diagnostics-status muted" role="status" aria-live="polite"></p>
-          <pre class="settings-diagnostics-output mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
-          <p class="muted">A successful import saves a recovery snapshot of the previous settings. Download it above before making further changes.</p>
+          <div class="settings-sections">
+            <details class="settings-section settings-section--voice">
+              <summary><span class="settings-section-icon" aria-hidden="true">◉</span><span class="settings-section-title">Voice &amp; learning<small>Profiles, reviewed recordings and learned commands</small></span></summary>
+              <div class="settings-section-content">
+                <div class="settings-subsection"><h3>Voice profiles</h3><p class="muted">Manage speakers and review their recognition records.</p>
+                  <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
+                </div>
+                <div class="settings-subsection"><h3>Reviewed recordings</h3><button class="voices-history-refresh" type="button">Refresh reviewed recordings</button><p class="voices-history-status muted" role="status" aria-live="polite"></p><div class="voices-history-list" aria-label="Reviewed voice recordings"></div></div>
+                <div class="settings-subsection"><h3>Learned commands</h3><p class="muted">Edit or forget phrases Declan has learned. Saving does not run the command.</p>
+                  <button class="intents-refresh" type="button">Refresh learned commands</button><p class="intents-status muted" role="status" aria-live="polite"></p><div class="intents-list"></div>
+                </div>
+                <div class="settings-subsection"><h3>Conversation archive</h3><div class="history-actions"><button class="history-refresh" type="button">Refresh history</button><button class="history-more" type="button" hidden>Load older</button></div><p class="history-status muted" role="status" aria-live="polite">Open this section to load recent conversations.</p><div class="history-list" aria-label="Recent conversations"></div></div>
+              </div>
+            </details>
+            <details class="settings-section" open>
+              <summary><span class="settings-section-icon" aria-hidden="true">♫</span><span class="settings-section-title">Spotify integration<small>Connection status and API credentials</small></span></summary>
+              <div class="settings-section-content">
+                <p class="muted">Credentials remain saved unless you explicitly replace both values.</p>
+                <p class="spotify-status muted" role="status" aria-live="polite">Open Settings to check Spotify configuration.</p>
+                <button class="settings-refresh" type="button">Refresh settings status</button>
+                <details class="settings-spotify"><summary>Replace Spotify API credentials</summary>
+                  <form class="spotify-form" autocomplete="off"><label>Client ID <input class="spotify-client-id" type="text" maxlength="256" required autocomplete="off"></label><label>New client secret <input class="spotify-client-secret" type="password" maxlength="256" required autocomplete="new-password"></label><button type="submit">Replace credentials</button></form>
+                  <p class="spotify-save-status muted" role="status" aria-live="polite"></p>
+                </details>
+              </div>
+            </details>
+            <details class="settings-section">
+              <summary><span class="settings-section-icon" aria-hidden="true">⇩</span><span class="settings-section-title">Backup &amp; recovery<small>Export, restore and preview configuration</small></span></summary>
+              <div class="settings-section-content">
+                <div class="settings-subsection"><h3>Configuration backup</h3><p class="muted">Download non-secret settings or the previous import recovery snapshot. Spotify secrets are excluded.</p>
+                  <div class="history-actions"><button class="settings-export" type="button">Export settings</button><button class="settings-recovery" type="button">Download recovery snapshot</button></div><p class="settings-document-status muted" role="status" aria-live="polite"></p>
+                </div>
+                <div class="settings-subsection"><h3>Import configuration</h3><p class="muted">Choose a Declan settings JSON export and preview changes before applying. Spotify credentials are never imported.</p>
+                  <input class="settings-import-file" type="file" accept=".json,application/json" aria-label="Choose Declan settings file">
+                  <div class="history-actions"><button class="settings-import-preview" type="button">Preview import</button><button class="settings-import-apply" type="button" disabled>Apply reviewed import</button></div>
+                  <p class="settings-import-status muted" role="status" aria-live="polite"></p><pre class="settings-import-summary mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+                  <p class="muted">A successful import saves a recovery snapshot of the previous settings.</p>
+                </div>
+              </div>
+            </details>
+            <details class="settings-section">
+              <summary><span class="settings-section-icon" aria-hidden="true">⚙</span><span class="settings-section-title">Diagnostics<small>Connection and troubleshooting information</small></span></summary>
+              <div class="settings-section-content"><button class="settings-diagnostics" type="button">Load recent diagnostics</button><p class="settings-diagnostics-status muted" role="status" aria-live="polite"></p><pre class="settings-diagnostics-output mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
+            </details>
+          </div>
         </section>
         <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
           <h2>Backend updates</h2>
