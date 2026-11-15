@@ -11,7 +11,7 @@ _HANDLER = None
 _SENSITIVE = re.compile(
     r"(?i)(bearer\s+)[a-z0-9._~+/-]+|"
     r"((?:client_secret|api_key|access_token|refresh_token|password|authorization)"
-    r"\s*[:=]\s*['\"]?)[^\s,'\"}]+"
+    r"\s*[:=]\s*['\"]?(?:Bearer\s+)?)[^\s,'\"}]+"
 )
 _NAMES = {"spotify_playlists", "music", "server", "declan_logs"}
 

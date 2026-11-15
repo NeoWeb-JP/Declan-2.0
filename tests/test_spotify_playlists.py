@@ -44,6 +44,19 @@ class SpotifyPlaylists(unittest.TestCase):
         self.assertEqual(rock["playlists"], [self.a])
         self.assertEqual(rock["excluded"], [self.b])
 
+    def test_refreshing_another_genre_keeps_previous_genre(self):
+        playlists.refresh({"country": [self.a]}, {"country": {self.a: "Country A"}})
+        playlists.refresh({"rock": [self.b]}, {"rock": {self.b: "Rock B"}})
+        saved = playlists.listing()["categories"]
+        self.assertEqual(saved["country"]["playlists"], [self.a])
+        self.assertEqual(saved["country"]["titles"][self.a], "Country A")
+        self.assertEqual(saved["rock"]["playlists"], [self.b])
+        self.assertEqual(saved["rock"]["titles"][self.b], "Rock B")
+        playlists.refresh({"country": [self.b]})
+        saved = playlists.listing()["categories"]
+        self.assertEqual(saved["rock"]["playlists"], [self.b])
+        self.assertEqual(saved["country"]["playlists"], [self.b])
+
     def test_category_playback_uses_curated_playlist_without_search(self):
         import music
         from pathlib import Path
