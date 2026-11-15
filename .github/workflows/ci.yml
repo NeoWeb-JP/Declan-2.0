@@ -45,5 +45,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - name: Check native Home Assistant panel JavaScript syntax
+        run: node --check custom_components/declan_two/frontend/panel.js
       - run: npm ci
       - run: npm test
