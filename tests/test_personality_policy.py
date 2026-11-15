@@ -23,6 +23,11 @@ class PersonalityPolicyTests(unittest.TestCase):
                                         visitor_present=False), "Could not connect.")
         self.assertEqual(p.decorate("Smoke detected.", safety=True,
                                     visitor_present=False), "Smoke detected.")
+        for outcome in (None, "", "pending", "timeout", "partially_completed", "future_error"):
+            self.assertEqual(p.decorate("Uncertain outcome.", outcome=outcome,
+                                        visitor_present=False), "Uncertain outcome.")
+        self.assertNotEqual(p.decorate("Completed.", outcome="confirmed",
+                                       visitor_present=False), "Completed.")
 
     def test_night_boundaries_and_volume(self):
         def at(hour, minute=0):
