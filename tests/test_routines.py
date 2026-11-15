@@ -170,11 +170,8 @@ class RoutineTests(TestCase):
         self.opener.open.side_effect = TimeoutError()
         self.assertEqual(server.run_routine("morning")[1], "unverified")
 
-    def test_legacy_result_stays_readable_during_cutover(self):
-        self.respond(lambda _: {"status": "unverified", "steps": {
-            "lounge_wall_lights": "confirmed", "dining_lights": "unverified",
-        }})
-        reply, outcome, detail = server.run_routine("morning")
+    def test_uncorrelated_legacy_result_cannot_claim_success(self):
+        self.respond(lambda _: {"status": "success", "steps": {"lights": "confirmed"}})
+        reply, outcome, _ = server.run_routine("morning")
         self.assertEqual(outcome, "unverified")
-        self.assertIn("lounge wall lights are on", reply)
-        self.assertIn("dining light level", detail)
+        self.assertIn("did not return a correlated completion result", reply)
