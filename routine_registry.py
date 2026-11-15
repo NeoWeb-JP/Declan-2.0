@@ -9,7 +9,7 @@ import history
 
 SCRIPT = re.compile(r"script\.[a-z0-9_]+\Z")
 NAME = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
-PHRASE = re.compile(r"[a-z0-9][a-z0-9 '\-]{0,119}\Z")
+PHRASE = re.compile(r"[a-z0-9][a-z0-9 '\-{}]{0,119}\Z")
 FIELD = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 RESERVED = {"morning", "night", "movie", "movie_bedroom"}
 MAX_ROUTINES = 40
@@ -36,6 +36,11 @@ def validate(mapping):
         for phrase in phrases:
             if not isinstance(phrase, str) or not PHRASE.fullmatch(phrase) or phrase != phrase.strip() or phrase in all_phrases:
                 raise ValueError("Duplicate or invalid routine phrase")
+            placeholders = re.findall(r"\{([^{}]+)\}", phrase)
+            if len(placeholders) != len(set(placeholders)) or any(x not in {"room", "action", "mode"} for x in placeholders):
+                raise ValueError("Unsupported routine phrase placeholder")
+            if re.search(r"[{}]", re.sub(r"\{(?:room|action|mode)\}", "", phrase)):
+                raise ValueError("Invalid routine phrase placeholder")
             all_phrases.add(phrase)
         for key, value in fields.items():
             if not isinstance(key, str) or not FIELD.fullmatch(key) or not isinstance(value, (str, int, float, bool)) or len(str(value)) > 120:
@@ -60,6 +65,19 @@ def save(mapping):
 
 def match(phrase):
     for name, item in load().items():
-        if phrase in item["phrases"]:
-            return name, item
+        for template in item["phrases"]:
+            if template == phrase:
+                return name, item, {}
+            if "{" not in template:
+                continue
+            pattern = re.escape(template)
+            for field in ("room", "action", "mode"):
+                pattern = pattern.replace(r"\{" + field + r"\}", f"(?P<{field}>[a-z][a-z0-9 ]{{0,39}})")
+            found = re.fullmatch(pattern, phrase)
+            if not found:
+                continue
+            params = found.groupdict()
+            if params.get("action") not in (None, "start", "end", "toggle", "on", "off"):
+                continue
+            return name, item, params
     return None
