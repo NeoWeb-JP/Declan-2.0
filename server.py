@@ -1989,6 +1989,18 @@ class Handler(BaseHTTPRequestHandler):
                 200, json.dumps({"turns": list(reversed(turns))}, ensure_ascii=False).encode("utf-8"),
                 "application/json", "declan-conversation-history.json",
             )
+        elif self.path.startswith("/api/history/recording-links?"):
+            try:
+                params = parse_qs(urlsplit(self.path).query)
+                if set(params) != {"ids"} or len(params["ids"]) != 1:
+                    raise ValueError("Missing recording identifiers.")
+                identifiers = params["ids"][0].split(",")
+                links = history.verified_recording_turns(identifiers)
+                self.send_json(200, {"links": links})
+            except ValueError:
+                self.send_json(400, {"error": "Invalid recording identifiers."})
+            except (OSError, sqlite3.Error):
+                self.send_json(503, {"error": "Recording links unavailable."})
         elif self.path == "/api/history" or self.path.startswith("/api/history?"):
             try:
                 params = parse_qs(urlsplit(self.path).query)
