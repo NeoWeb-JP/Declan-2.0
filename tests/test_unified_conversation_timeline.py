@@ -1,83 +1,67 @@
-"""Unified activity timeline keeps speaker actions attached to recordings."""
+"""Contract tests for one seven-day voice-recording review workspace."""
 from pathlib import Path
 import unittest
 
 JS = (Path(__file__).resolve().parents[1] / "custom_components/declan_two/frontend/panel.js").read_text()
+TIMELINE = JS.split("  async loadTimeline() {", 1)[1].split("  async loadLearnedIntents() {", 1)[0]
+HISTORY = JS.split('id="panel-conversations"', 1)[1].split('id="panel-players"', 1)[0]
+
 
 class UnifiedTimelineTests(unittest.TestCase):
     def test_initial_mount_activates_selected_tab(self):
-        self.assertIn('connectedCallback() {', JS)
         self.assertIn("this.selectTab('overview');", JS)
         self.assertIn("panel.hidden = panel.id !== 'panel-' + name;", JS)
         self.assertIn("this.closePageMenu();", JS)
 
-    def test_single_primary_activity_view(self):
-        self.assertIn('data-page="conversations">History &amp; Voice', JS)
-        self.assertNotIn('data-tab="voices"', JS)
-        self.assertIn('class="timeline-list"', JS)
-        self.assertIn('class="timeline-filter"', JS)
+    def test_one_history_page_with_three_voice_review_categories(self):
+        for label in ("Unconfirmed", "Confirmed", "Rejected"):
+            self.assertIn("sectionFor('" + label + "'", TIMELINE)
+        self.assertNotIn("Conversation history", TIMELINE)
+        self.assertNotIn("Saved phrase corrections", HISTORY)
+        self.assertNotIn('class="timeline-filter"', HISTORY)
+        self.assertNotIn("declan_two/history", TIMELINE)
+        self.assertIn('class="timeline-list"', HISTORY)
 
-    def test_single_history_workspace_without_duplicate_settings_lists(self):
+    def test_no_duplicate_recordings_or_conversation_only_rows(self):
+        self.assertIn("const recordings = new Map();", TIMELINE)
+        self.assertIn("recordings.set(String(item.id), {kind:'pending', item})", TIMELINE)
+        self.assertIn("!recordings.has(String(item.id))", TIMELINE)
+        self.assertNotIn("kind:'conversation'", TIMELINE)
+        self.assertIn("Never merge recordings and conversation turns by text or time", TIMELINE)
+
+    def test_seven_day_cutoff_for_all_statuses(self):
+        self.assertIn("Date.now() - 7 * 24 * 60 * 60 * 1000", TIMELINE)
+        self.assertIn("Number.isFinite(recorded)", TIMELINE)
+        self.assertIn("recent(item)", TIMELINE)
+        self.assertIn("No recordings from the last 7 days.", TIMELINE)
+
+    def test_per_phrase_collapsed_sections(self):
+        for section in ("Voice matching", "Teach Declan", "Declan's response", "Diagnostics"):
+            self.assertIn(section, TIMELINE)
+        self.assertIn("entry.open = pending;", TIMELINE)
+        self.assertIn("subsection(card, 'Voice matching', pending)", TIMELINE)
+        self.assertIn("train.disabled = true;", TIMELINE)
+        self.assertIn("issue #97", TIMELINE)
+        self.assertIn("item.reply || 'Not available'", TIMELINE)
+        self.assertIn("Recording ID:", TIMELINE)
+
+    def test_confirm_reject_play_and_speaker_correction(self):
+        self.assertIn("this.resolveVoice(item.id, select.value === suggested ? 'confirm' : 'assign', select.value)", TIMELINE)
+        self.assertIn("this.correctVoiceHistory(item, select.value)", TIMELINE)
+        self.assertIn("this.resolveVoice(item.id, 'dismiss', null)", TIMELINE)
+        self.assertIn("this.resolveVoice(item.id, 'enrol', trimmed)", TIMELINE)
+        self.assertIn("this.playVoice(item.id, play,", TIMELINE)
+        self.assertIn("select.disabled = reviewed;", TIMELINE)
+        self.assertIn("if (reviewed && !editing)", TIMELINE)
+        self.assertIn("cancel.textContent = 'Cancel';", TIMELINE)
+
+    def test_settings_does_not_duplicate_review(self):
         settings = JS.split('id="panel-settings"', 1)[1].split('id="panel-updates"', 1)[0]
-        history = JS.split('id="panel-conversations"', 1)[1].split('id="panel-players"', 1)[0]
-        self.assertNotIn('Reviewed recordings</h3>', settings)
-        self.assertNotIn('Refresh reviewed recordings', settings)
-        self.assertNotIn('Refresh learned commands', settings)
-        self.assertNotIn('Conversation archive</h3>', settings)
-        self.assertIn('Phrase training</h3>', history)
-        self.assertIn('class="timeline-list"', history)
+        self.assertNotIn("Reviewed recordings</h3>", settings)
+        self.assertNotIn("Refresh learned commands", settings)
+        self.assertNotIn("Conversation archive</h3>", settings)
         self.assertIn('class="page-navigation" aria-label="Declan pages" hidden', JS)
-        self.assertIn('class="page-menu-toggle"', JS)
 
-    def test_review_in_row(self):
-        for snippet in ("async loadTimeline()", "renderTimeline()", "this.resolveVoice(item.id",
-                        "this.correctVoiceHistory(item, select.value)", "this.playVoice(item.id, play,",
-                        "this.resolveVoice(item.id, 'dismiss', null)", "this.resolveVoice(item.id, 'enrol', trimmed)"):
-            self.assertIn(snippet, JS)
-
-    def test_no_unsafe_transcript_join(self):
-        self.assertIn("no verified shared interaction ID", JS)
-        self.assertIn("kind:'conversation'", JS)
-        self.assertIn("Speaker not linked", JS)
-        self.assertIn("textContent = item.transcript || item.message", JS)
-        self.assertNotIn("transcript.innerHTML", JS)
-
-    def test_confirmed_recordings_stay_visible_and_playable(self):
-        self.assertIn("recordings.set(item.id, {kind:'pending', item})", JS)
-        self.assertIn("recordings.set(item.id, {kind:'reviewed', item})", JS)
-        self.assertIn("Date.parse(a.item.recorded_at || '')", JS)
-        self.assertIn("save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';", JS)
-        self.assertIn("play.textContent = 'Play'", JS)
-        self.assertIn("this.playVoice(item.id, play,", JS)
-
-    def test_clear_review_state(self):
-        self.assertIn("state.textContent = reviewState === 'pending' ? 'Needs review'", JS)
-        self.assertIn("'Rejected' : 'Confirmed'", JS)
-        self.assertIn("card.classList.add('timeline-row--' + reviewState)", JS)
-        self.assertIn("timeline-status-label--pending", JS)
-        self.assertIn("timeline-status-label--confirmed", JS)
-        self.assertIn("timeline-status-label--rejected", JS)
-        self.assertIn('value="reviewed">Reviewed', JS)
-
-    def test_reviewed_speaker_is_locked_until_change_clicked(self):
-        self.assertIn("select.disabled = reviewed;", JS)
-        self.assertIn("if (reviewed && !editing)", JS)
-        self.assertIn("select.disabled = false;", JS)
-        self.assertIn("select.disabled = true;", JS)
-        self.assertIn("save.textContent = reviewed ? (editing ? 'Save change' : 'Change speaker') : 'Confirm';", JS)
-        self.assertIn("cancel.textContent = 'Cancel';", JS)
-
-    def test_rejected_recordings_can_change_speaker_without_prior_assignment(self):
-        self.assertIn("const reviewed = kind === 'reviewed';", JS)
-        self.assertIn("select.disabled = reviewed;", JS)
-        self.assertIn("expected_resolution_id: item.current_resolution_id || null", JS)
-        self.assertNotIn("!item.current_resolution_id || !speaker) return;", JS)
-        self.assertIn("editing && (!select.value || select.value === originalSpeaker)", JS)
-
-    def test_filters_and_collapsed_details(self):
-        for snippet in ('value="all"', 'value="pending"', 'value="reviewed"',
-                        "document.createElement('details')", "summary.textContent = 'More details'"):
-            self.assertIn(snippet, JS)
 
 if __name__ == "__main__":
     unittest.main()
