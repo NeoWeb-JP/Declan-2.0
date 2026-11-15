@@ -2584,17 +2584,14 @@ class Handler(BaseHTTPRequestHandler):
                 for variants in __import__("personality").LINES.values()
                 for group in variants for line in group
             )
-            # Decorate music acknowledgements only when a command actually
-            # succeeded. Existing category replies are already decorated.
-            # The guest authority flag and visitor presence are independent.
+            # Decorate only verified successful music acknowledgements.
+            # An unknown visitor sensor must never expose household banter.
             if (routine_reply is not None and outcome == "confirmed" and not existing_lines
                     and (music.parse(phrase) or music.parse_control(phrase))):
-                guest_state = read_guest_mode()
-                visitor_state = read_visitors_present()
                 reply["reply"] = personality_policy.decorate(
                     reply["reply"], outcome=outcome,
-                    guest=guest_state != "off",
-                    visitor_present=visitor_state,
+                    guest=guest_mode != "off",
+                    visitor_present=read_visitors_present(),
                     category="music",
                 )
             if outcome:
