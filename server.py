@@ -42,6 +42,7 @@ import ai_credentials
 import ai_pricing
 import ai_budget
 import ai_context
+import ai_intent_gate
 import guarded_fallback
 import ha_dispatcher
 from intent_preprocessing import preprocess_speech
@@ -1455,7 +1456,7 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
         settings = ai_settings.read()
     except (OSError, ValueError, sqlite3.Error):
         return "AI settings are unavailable; local commands still work.", "unresolved", []
-    if not settings["enabled"]:
+    if not settings["enabled"] or not ai_intent_gate.is_action_request(message):
         return None
     connection = ha_device_connection()
     if connection is None:
