@@ -8,7 +8,7 @@ import re
 ACTION = re.compile(
     r"\b(?:turn|turning|switch|switching|set|setting|dim|brighten|"
     r"open|opening|close|closing|start|stop|run|activate|deactivate|"
-    r"make|raise|lower|increase|decrease|adjust)\b",
+    r"raise|lower|increase|decrease|adjust|put|power)\b",
     re.IGNORECASE,
 )
 
@@ -18,5 +18,5 @@ def is_action_request(utterance):
         return False
     if ACTION.search(utterance):
         return True
-    return bool(re.search(r"\\bmake\\b", utterance, re.I) and
-                re.search(r"\\b(?:light|lights|fan|blinds|curtains|room|lounge|kitchen|bedroom|brighter|darker)\\b", utterance, re.I))
+    return bool(re.search(r"\bmake\b", utterance, re.I) and
+                re.search(r"\b(?:light|lights|fan|blinds|curtains|room|lounge|kitchen|bedroom|brighter|darker)\b", utterance, re.I))
