@@ -5,7 +5,7 @@ This release consolidates the Home Assistant native Declan panel and Assist inte
 ## Current functionality in the native panel
 
 - Overview: connection status, text chat, microphone transcription and current reply.
-- History & Voice Recognition: conversation timeline, reviewed/pending recordings, speaker assignment, audio playback and history.
+- History & Voice Recognition: conversation timeline, reviewed/pending recordings, speaker assignment, audio playback and history, plus learned-command editing, forgetting and teaching missed requests.
 - Media players: Home Assistant area-to-approved-player mappings.
 - Settings: Spotify credentials rotation, non-secret export, recovery download, validated JSON import with preview and explicit confirmation, diagnostics.
 - Updates: backend update/status controls and separate backend/integration version display.
@@ -24,7 +24,7 @@ Record the installed HA integration version and backend commit/release for each 
 - [ ] Check Spotify credential rotation in Settings **without changing current values for testing**; verify fields are not prefilled and that normal upgrades preserve existing credentials.
 - [ ] Export settings, preview the export, verify the exact proposed changes, import only a safe test configuration, and download the recovery snapshot.
 - [ ] Check backend release install/status, failed update and restart/reconnection on mobile; confirm no stale sidebar proxy errors.
-- [ ] Confirm learned-intention edit/forget capability remains accessible before retiring the legacy UI. **This is not yet available in the native panel and blocks full retirement.**
+- [ ] Confirm learned-intention edit, forget and teaching a missed command in the native panel. Confirm stale edit rejection and no command execution during save.
 - [ ] Verify sensitive routine confirmation, quiet hours, and existing Home Assistant scripts against the agreed NOW requirements (issues #12 and #31).
 - [ ] Take a backup of the Declan backend database, server configuration and HA integration configuration, then verify recovery steps.
 
