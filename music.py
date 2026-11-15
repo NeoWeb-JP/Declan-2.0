@@ -60,6 +60,9 @@ def music_players(inventory, *, origin=None):
     if approved is not None:
         entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
         return approved, {entity: entities[entity] for entity in approved.values() if entity in entities}
+    # Approval is explicit. A unique MA player in an area is a candidate for
+    # Settings, not permission to start playback without the saved mapping.
+    return {}, {}
     entities = {row["entity_id"]: row for row in inventory
                 if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
     registered = any("declan_music_assistant" in row for row in entities.values())
