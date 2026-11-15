@@ -907,6 +907,10 @@ def run_sexy_time(operation, connection, *, approved=False):
 
 @diagnostics.timed("dinner_dispatch")
 def start_dinner(connection, *, approved=False):
+    # Dinner is a non-safety announcement. Never dispatch it during
+    # overnight quiet hours, even when explicitly requested.
+    if not personality_policy.overnight_announcement_allowed("dinner"):
+        return "Dinner announcements are muted between 23:00 and 07:00.", "skipped"
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
     try:
