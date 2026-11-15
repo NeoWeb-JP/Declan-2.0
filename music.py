@@ -259,22 +259,43 @@ def spotify_search(opener, title, artist, types):
     market = os.environ.get("DECLAN_SPOTIFY_MARKET", "GB").strip().upper()
     if not re.fullmatch(r"[A-Z]{2}", market):
         raise ValueError("DECLAN_SPOTIFY_MARKET must be a two-letter country code")
-    params = urlencode({"q": query, "type": ",".join(types), "market": market, "limit": 25 if types == ("playlist",) else 5})
-    search_request = Request("https://api.spotify.com/v1/search?" + params,
-                             headers={"Authorization": f"Bearer {access_token}"})
-    try:
-        with opener.open(search_request, timeout=8) as response:
-            results = json.load(response)
-    except HTTPError as error:
-        if error.code == 401:
-            with SPOTIFY_TOKEN_LOCK:
-                if spotify_token is not None and spotify_token[1] == access_token:
-                    spotify_token = None
-        raise
-    return [(f"https://open.spotify.com/{kind}/{item['id']}", kind, item["name"])
-            for kind in types for item in (results.get(f"{kind}s", {}).get("items") or [])
-            if isinstance(item, dict) and isinstance(item.get("name"), str)
-            and re.fullmatch(r"[A-Za-z0-9]{22}", str(item.get("id", "")))]
+    # Spotify search accepts at most 10 results per request (2026 API).
+    # The 25-playlist category capacity is independent of this page size.
+    playlist_search = types == ("playlist",)
+    page_size = 10 if playlist_search else 5
+    collected = []
+    seen = set()
+    for offset in (range(0, 25, page_size) if playlist_search else (0,)):
+        limit = min(page_size, 25 - offset) if playlist_search else page_size
+        params = urlencode({"q": query, "type": ",".join(types), "market": market,
+                            "limit": limit, **({"offset": offset} if playlist_search else {})})
+        search_request = Request("https://api.spotify.com/v1/search?" + params,
+                                 headers={"Authorization": f"Bearer {access_token}"})
+        try:
+            with opener.open(search_request, timeout=8) as response:
+                results = json.load(response)
+        except HTTPError as error:
+            if error.code == 401:
+                with SPOTIFY_TOKEN_LOCK:
+                    if spotify_token is not None and spotify_token[1] == access_token:
+                        spotify_token = None
+            raise
+        for kind in types:
+            page = results.get(f"{kind}s", {})
+            items = page.get("items") or [] if isinstance(page, dict) else []
+            for item in items:
+                if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+                    continue
+                identifier = str(item.get("id", ""))
+                if not re.fullmatch(r"[A-Za-z0-9]{22}", identifier):
+                    continue
+                link = f"https://open.spotify.com/{kind}/{identifier}"
+                if link not in seen:
+                    seen.add(link)
+                    collected.append((link, kind, item["name"]))
+        if not playlist_search or not isinstance(page, dict) or len(items) < limit:
+            break
+    return collected
 
 
 def parse(phrase):
