@@ -11,6 +11,13 @@ class PersonalityPolicyTests(unittest.TestCase):
         self.assertEqual(len(set(replies)), 4)
         self.assertTrue(all(x.startswith("Kitchen lights are on.") for x in replies))
 
+    def test_decoration_is_idempotent_across_categories_and_modes(self):
+        home = p.decorate("Lights on.", visitor_present=False)
+        self.assertEqual(p.decorate(home, visitor_present=False, category="music"), home)
+        self.assertEqual(p.decorate(home, guest=True, visitor_present=True), home)
+        guest = p.decorate("All done.", guest=True)
+        self.assertEqual(p.decorate(guest, visitor_present=False), guest)
+
     def test_guest_and_visitors_do_not_get_home_roasts(self):
         for options in ({"guest": True, "visitor_present": False},
                         {"visitor_present": True}, {"visitor_present": None}):
