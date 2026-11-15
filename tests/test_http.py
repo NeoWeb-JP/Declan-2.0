@@ -260,7 +260,12 @@ class APITests(TestCase):
     def test_guest_commands_record_the_reply_returned_to_assist(self):
         with patch.object(server, "guest_assignment", return_value=("Guest reply.", "confirmed")) as guest:
             for phrase, operation in server.GUEST_COMMANDS.items():
+                guest.reset_mock()
                 result = self.ask(phrase + "?", path="/api/assist")
+                if operation != "check":
+                    self.assertEqual(result["outcome"], "confirmation_denied")
+                    guest.assert_not_called()
+                    continue
                 self.assertEqual(result["reply"], "Guest reply.")
                 self.assertEqual(guest.call_args.args[0], operation)
                 turn = server.history.recent(limit=1)[0]
