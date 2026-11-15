@@ -37,8 +37,6 @@ class MusicTests(unittest.TestCase):
             "DECLAN_SPOTIFY_PRESETS": "{}", "DECLAN_SPOTIFY_CLIENT_ID": "test-client",
             "DECLAN_SPOTIFY_CLIENT_SECRET": "test-secret",
         }))
-        self.enterContext(patch.object(music.approved_media_players, "load",
-                                       return_value={room: entity for room, entity in music.PLAYERS.items()}))
         self.enterContext(patch.object(music, "spotify_token", None))
         folder = self.enterContext(TemporaryDirectory())
         self.enterContext(patch.object(music, "SPOTIFY_SETTINGS", Path(folder) / "spotify-settings.json"))
