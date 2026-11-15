@@ -51,6 +51,29 @@ class APITests(TestCase):
         self.assertEqual(status, 200, result)
         return json.loads(result)
 
+    def test_visitor_presence_is_independent_and_validated(self):
+        with patch.dict(server.os.environ, {"DECLAN_HA_URL": "http://ha.local",
+                                            "DECLAN_HA_TOKEN": "secret"}), patch.object(
+            server.configuration, "get", return_value="input_boolean.visitors_present"
+        ), patch.object(server, "build_opener") as factory:
+            response = Mock()
+            response.read.return_value = b'{"state":"on"}'
+            factory.return_value.open.return_value.__enter__.return_value = response
+            self.assertIs(server.read_visitors_present(), True)
+            request = factory.return_value.open.call_args.args[0]
+            self.assertEqual(request.full_url,
+                             "http://ha.local/api/states/input_boolean.visitors_present")
+            response.read.return_value = b'{"state":"off"}'
+            self.assertIs(server.read_visitors_present(), False)
+            response.read.return_value = b'{"state":"unavailable"}'
+            self.assertIsNone(server.read_visitors_present())
+        with patch.dict(server.os.environ, {"DECLAN_HA_URL": "http://ha.local",
+                                            "DECLAN_HA_TOKEN": "secret"}), patch.object(
+            server.configuration, "get", return_value="input_boolean.visitors_present/evil"
+        ), patch.object(server, "build_opener") as factory:
+            self.assertIsNone(server.read_visitors_present())
+            factory.assert_not_called()
+
     def test_home_assistant_ingress_enforces_both_boundaries(self):
         token = "x" * 64
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_INGRESS_TOKEN": token}))
