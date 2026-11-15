@@ -165,6 +165,35 @@ class DeclanTwoNativePanel extends HTMLElement {
         .settings-subsection { display:grid; gap:12px; min-width:0; }
         .settings-subsection + .settings-subsection { padding-top:20px; border-top:1px solid #28495b; }
         .settings-subsection h3 { margin:0; font-size:1rem; }
+        /* Playlist curation follows the native Settings form layout, including iPhone. */
+        .settings-section--playlists .settings-section-content { gap:18px; }
+        .settings-section--playlists .playlists-help { line-height:1.5; font-size:.9rem; }
+        .settings-section--playlists .playlists-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:12px; margin:0; min-width:0; }
+        .settings-section--playlists .playlists-category-field,
+        .settings-section--playlists .playlists-add-form label { display:grid; gap:8px; min-width:0; color:#c7e6f3; font-weight:600; }
+        .settings-section--playlists select, .settings-section--playlists input {
+          display:block; width:100%; min-width:0; min-height:44px; padding:10px 12px;
+          border:1px solid #315568; border-radius:9px; background:#102635;
+          color:#e7f7ff; font:inherit; font-weight:400; }
+        .settings-section--playlists select:focus-visible, .settings-section--playlists input:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
+        .settings-section--playlists .playlists-refresh { min-height:44px; white-space:normal; }
+        .settings-section--playlists .playlists-status { margin:0; font-size:.9rem; line-height:1.4; }
+        .settings-section--playlists .playlists-list { display:grid; gap:10px; min-width:0; }
+        .settings-section--playlists .playlists-list > p { margin:0; }
+        .settings-section--playlists .playlists-list > h3 { margin:12px 0 0; font-size:1rem; }
+        .settings-section--playlists .playlists-list .player-row {
+          display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0;
+          border:1px solid #28495b; border-radius:10px; padding:12px; background:#102635; }
+        .settings-section--playlists .playlists-list .player-row > .mono { flex:1 1 100%; min-width:0; overflow-wrap:anywhere; font-size:.86rem; }
+        .settings-section--playlists .playlists-list .player-row button { min-height:40px; }
+        .settings-section--playlists .playlists-add-form { display:grid; gap:12px; min-width:0; margin:0; padding-top:16px; border-top:1px solid #28495b; }
+        .settings-section--playlists .playlists-add-form button { justify-self:start; min-height:44px; }
+        @media(max-width:520px) {
+          .settings-section--playlists .playlists-toolbar { grid-template-columns:minmax(0,1fr); }
+          .settings-section--playlists .playlists-refresh,
+          .settings-section--playlists .playlists-add-form button { width:100%; }
+          .settings-section--playlists .playlists-list .player-row button { flex:1 1 auto; }
+        }
         .settings-section pre, .settings-section input { max-width:100%; }
         @media(max-width:520px) { .settings-section > summary { padding:14px; gap:10px; } .settings-section-content { padding:14px; } .settings-section-icon { flex-basis:34px; height:34px; } }
         .timeline-row { border-top:1px solid #1d3d51; padding:14px 0; overflow-wrap:anywhere; }
@@ -316,7 +345,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             <details class="settings-section settings-section--playlists">
               <summary><span class="settings-section-icon" aria-hidden="true">♫</span><span class="settings-section-title">Spotify playlists<small>Browse and curate 25 playlists per category</small></span></summary>
               <div class="settings-section-content">
-                <p class="muted">Add pins to keep playlists through discovery refreshes. Remove takes a playlist out of the current category (discovery may add it again). Delete excludes it from future discovery in this category.</p>
+                <p class="muted playlists-help">Add pins to keep playlists through discovery refreshes. Remove takes a playlist out of the current category (discovery may add it again). Delete excludes it from future discovery in this category.</p>
                 <div class="history-actions">
                   <label>Category <select class="playlists-category" aria-label="Spotify playlist category"></select></label>
                   <button type="button" class="playlists-refresh">Refresh playlists</button>
@@ -914,7 +943,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (Object.hasOwn(data.categories, selected)) select.value = selected;
       this.renderPlaylists();
     } catch {
-      status.textContent = 'Could not load Spotify playlists. Ensure Declan Local is installed and its music service is available.';
+      status.textContent = 'Could not load Spotify playlists. Check the Declan 2.0 connection and try again.';
     } finally {
       this._playlistsPending = false;
     }
@@ -996,7 +1025,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.shadowRoot.querySelector('.playlists-new-uri').value = '';
       this.renderPlaylists();
     } catch {
-      status.textContent = 'Playlist change failed. Check the link, the 25-playlist limit and Declan Local service availability.';
+      status.textContent = 'Playlist change failed. Check the link, the 25-playlist limit and Declan 2.0 connection.';
     } finally {
       this._playlistsPending = false;
     }
