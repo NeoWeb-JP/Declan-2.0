@@ -823,9 +823,10 @@ def run_sexy_time(operation, connection, *, approved=False):
         if not player:
             return "I couldn't identify one available bedroom satellite speaker. Check its Home Assistant device and area.", "unresolved", None
         url, headers, opener = connection
+        request_id = "declan-" + secrets.token_hex(16)
         request = Request(
             f"{url}/api/services/script/{sexy_script.split('.', 1)[1]}?return_response", headers=headers,
-            data=json.dumps({"operation": operation, "music_player": player}).encode(), method="POST",
+            data=json.dumps({"operation": operation, "music_player": player, "request_id": request_id, "routine_id": sexy_script}).encode(), method="POST",
         )
         try:
             with opener.open(request, timeout=8) as response:
@@ -839,7 +840,8 @@ def run_sexy_time(operation, connection, *, approved=False):
         result = payload.get("service_response") if isinstance(payload, dict) else None
         if isinstance(result, dict) and set(result) == {sexy_script}:
             result = result[sexy_script]
-        if not isinstance(result, dict) or result.get("operation") != operation:
+        if (not isinstance(result, dict) or result.get("operation") != operation
+                or result.get("request_id") != request_id or result.get("routine_id") != sexy_script):
             return "I couldn't verify the bedroom routine's result.", "unverified", None
 
         lighting_ok = result.get("lighting_ok") is True
