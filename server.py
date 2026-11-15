@@ -266,7 +266,7 @@ def select_routine(phrase, origin):
             return key, {}
         if key in {"movie", "movie_bedroom"}:
             return "movie", {"movie_action": "start", "movie_room": "bedroom" if key == "movie_bedroom" else "lounge", "requested_app": None}
-        return "custom:" + key, mapped_phrase[2]
+        return "custom:" + key, mapped_phrase[2] if len(mapped_phrase) > 2 else {}
     if phrase in GOOD_MORNING_PHRASES:
         return "morning", {}
     if phrase in GOOD_NIGHT_PHRASES:
@@ -274,7 +274,7 @@ def select_routine(phrase, origin):
     movie = parse_movie_request(phrase)
     if not movie:
         custom = routine_registry.match(phrase)
-        return ("custom:" + custom[0], custom[2]) if custom else None
+        return ("custom:" + custom[0], custom[2] if len(custom) > 2 else {}) if custom else None
     direction, room, app = movie
     if room in (None, "here"):
         area = None
