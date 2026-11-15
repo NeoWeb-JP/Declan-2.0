@@ -5,6 +5,7 @@ dispatcher, and a persistent budget database. No live server route invokes this
 module until those dependencies and owner controls are connected.
 """
 from action_executor import execute_verified, summarise
+from action_plan import validate_plan
 from ai_budget import reserve, settle
 from ha_action_preflight import preflight
 
@@ -43,7 +44,14 @@ def run_guarded_fallback(
     if not plan:
         return {"reply": "I couldn't safely identify an action. Please be more specific.",
                 "outcome": "unresolved", "actions": ()}
-    checked = preflight(plan, inventory, confirmed_sensitive=sensitive_confirmed)
+    # Never trust a planner's claim that its candidates were validated.
+    try:
+        raw = {"actions": [{"entity_id": action.entity_id, "service": action.service,
+                            "depends_on": list(action.depends_on)} for action in plan]}
+    except (AttributeError, TypeError):
+        raise ValueError("Planner returned invalid candidates") from None
+    validated = validate_plan(raw, exposed)
+    checked = preflight(validated, inventory, confirmed_sensitive=sensitive_confirmed)
     # Cost settlement is deliberately after planning, before side effects.
     # A missing actual-charge callback retains the full reserved ceiling.
     if charge_micro_usd is not None:
