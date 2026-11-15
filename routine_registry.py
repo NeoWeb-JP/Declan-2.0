@@ -105,10 +105,13 @@ def bootstrap(available_entities):
         db.execute("CREATE TABLE IF NOT EXISTS routine_registry (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)")
         row = db.execute("SELECT payload FROM routine_registry WHERE id=1").fetchone()
         current = validate(json.loads(row[0])) if row else {}
-        if row:
+        db.execute("CREATE TABLE IF NOT EXISTS routine_migration (id INTEGER PRIMARY KEY CHECK(id=1))")
+        if db.execute("SELECT 1 FROM routine_migration WHERE id=1").fetchone():
             return current
-        imported = {}
+        imported = dict(current)
         for name, (setting, fallback, phrases) in LEGACY.items():
+            if name in imported:
+                continue
             configured = configuration.get(setting, "") if setting else ""
             script = configured or fallback
             if script not in available:
@@ -122,6 +125,7 @@ def bootstrap(available_entities):
             imported[name] = item
         if imported:
             imported = validate(imported)
-            db.execute("INSERT INTO routine_registry (id,payload) VALUES (1,?)",
+            db.execute("INSERT OR REPLACE INTO routine_registry (id,payload) VALUES (1,?)",
                        (json.dumps(imported, sort_keys=True),))
+        db.execute("INSERT INTO routine_migration (id) VALUES (1)")
         return imported
