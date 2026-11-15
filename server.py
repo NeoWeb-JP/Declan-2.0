@@ -346,6 +346,10 @@ def run_custom_routine(name, action_results=None):
             return f"{name} returned no verified completion outcome.", "unverified", None
         if action_results is not None:
             action_results.extend(routine_action_results(value.get("steps")))
+        steps = routine_action_results(value.get("steps"))
+        required = [step for step in steps if step.get("required", True)]
+        if status == "success" and (not required or any(step["status"] not in {"confirmed", "already_set"} for step in required)):
+            return f"{name} was started, but required steps were not verified.", "unverified", None
         outcome = {"success": "reported_success", "partial": "partial", "failed": "failed", "cancelled": "cancelled"}[status]
         return f"{name} {status}.", outcome, None
 
