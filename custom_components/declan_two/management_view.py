@@ -50,17 +50,7 @@ class DeclanManagementView(HomeAssistantView):
                             raise ValueError("Invalid intention")
                         safe[phrase] = target
                     return web.json_response({"intents": safe}, headers={"Cache-Control": "no-store"})
-                if operation == "intents":
-            if not isinstance(body, dict) or set(body) not in (
-                {"phrase", "target", "previous"}, {"forget", "previous"}, {"turn_id", "target"}
-            ):
-                return web.json_response({"status": "invalid_request"}, status=400)
-            if any(not isinstance(v, str) or not 0 < len(v) <= 120 for k, v in body.items() if k != "turn_id"):
-                return web.json_response({"status": "invalid_request"}, status=400)
-            if "turn_id" in body and (type(body["turn_id"]) is not int or not 0 < body["turn_id"] < 2**63):
-                return web.json_response({"status": "invalid_request"}, status=400)
-            return await self._relay(request, "intents", body)
-        if operation == "import":
+                if operation == "import":
                     if body.get("confirm") is True:
                         return web.json_response({"saved": payload.get("saved") is True},
                                                  headers={"Cache-Control": "no-store"})
