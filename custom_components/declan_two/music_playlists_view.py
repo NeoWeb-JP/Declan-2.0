@@ -36,13 +36,29 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
         saved = await Store(hass, 1, "jarvis_local.spotify_categories").async_load() or {}
         if not isinstance(saved, dict):
             saved = {}
+        if not saved:
+            # Declan Local can still be using the pre-Store catalogue until
+            # the first discovery refresh or manual edit.
+            import json
+            def read_legacy():
+                try:
+                    with open(hass.config.path("declan_music_playlists.json"), encoding="utf-8") as stream:
+                        return json.load(stream)
+                except (OSError, ValueError):
+                    return {}
+            saved = await hass.async_add_executor_job(read_legacy)
+            if not isinstance(saved, dict):
+                saved = {}
         categories = {}
         for category in CATEGORIES:
             item = saved.get(category, {})
             item = item if isinstance(item, dict) else {}
             categories[category] = {
                 key: list(dict.fromkeys(
-                    canonical for value in (item.get(key) or [])[:250]
+                    canonical for value in (
+                        (item.get("favourites", item.get("playlists", [])) if key == "favourites"
+                         else item.get(key, [])) or []
+                    )[:250]
                     if (canonical := canonical_playlist(value))
                 ))[:25 if key == "playlists" else 250]
                 for key in ("playlists", "favourites", "excluded", "discovered")
