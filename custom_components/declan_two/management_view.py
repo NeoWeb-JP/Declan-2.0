@@ -34,6 +34,14 @@ class DeclanManagementView(HomeAssistantView):
             async with (session.post(url, json=body, **kwargs) if body is not None
                         else session.get(url, **kwargs)) as response:
                 if response.status != 200:
+                    if operation == "routines" and response.status in (400, 503):
+                        try:
+                            detail = await response.json(content_type="application/json")
+                        except (ValueError, TypeError, aiohttp.ContentTypeError):
+                            detail = {}
+                        message = detail.get("error") if isinstance(detail, dict) else None
+                        if isinstance(message, str) and 0 < len(message) <= 160:
+                            return web.json_response({"error": message}, status=response.status)
                     return web.json_response({"status": "backend_unavailable"}, status=502)
                 payload = await response.json(content_type="application/json")
                 if not isinstance(payload, dict):

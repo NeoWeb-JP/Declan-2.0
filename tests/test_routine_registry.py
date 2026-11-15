@@ -41,6 +41,31 @@ class RegistryTests(unittest.TestCase):
             self.assertIsNone(routine_registry.match("delete cinema"))
             self.assertEqual(routine_registry.match("end cinema")[2]["action"], "end")
 
+    def test_bootstrap_imports_only_existing_scripts_and_does_not_overwrite(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = str(Path(temp) / "bootstrap.db")
+            from contextlib import contextmanager
+            @contextmanager
+            def db():
+                connection = sqlite3.connect(path)
+                try:
+                    yield connection
+                    connection.commit()
+                finally:
+                    connection.close()
+            with patch.object(routine_registry.history, "database", side_effect=db), patch(
+                "configuration.get", side_effect=lambda key, default="": {
+                    "DECLAN_MOVIE_SCRIPT": "script.movie_time",
+                    "DECLAN_GOOD_MORNING_SCRIPT": "script.old_morning"
+                }.get(key, default)
+            ):
+                first = routine_registry.bootstrap({"script.movie_time", "script.old_morning"})
+                self.assertEqual(first["movie"]["script"], "script.movie_time")
+                self.assertEqual(first["morning"]["script"], "script.old_morning")
+                self.assertNotIn("night", first)
+                self.assertEqual(routine_registry.bootstrap(set()), first)
+                self.assertEqual(routine_registry.load(), first)
+
     def test_persistence(self):
         with tempfile.TemporaryDirectory() as temp:
             path = str(Path(temp) / "test.db")

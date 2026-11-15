@@ -85,3 +85,47 @@ def match(phrase):
                 continue
             return name, item, params
     return None
+
+# One-time migration: only scripts actually present in Home Assistant are imported.
+# Existing native mappings always win; migration never overwrites user edits.
+LEGACY = {
+    "morning": ("DECLAN_GOOD_MORNING_SCRIPT", "script.declan_good_morning_shared_local_routine", ["good morning"]),
+    "night": ("DECLAN_GOOD_NIGHT_SCRIPT", "script.declan_good_night_shared_local_routine", ["good night"]),
+    "movie": ("DECLAN_MOVIE_SCRIPT", "", ["movie time"]),
+    "movie_bedroom": ("DECLAN_BEDROOM_MOVIE_SCRIPT", "", ["movie time in the bedroom"]),
+    "sexy_time": (None, "script.declan_sexy_time_controller", ["sexy time"]),
+    "dinner": (None, "script.declan_dinner_is_served_2", ["dinner time"]),
+}
+
+def bootstrap(available_entities):
+    """Import existing configured scripts, only when verified against live HA inventory."""
+    import configuration
+    available = set(available_entities)
+    with history.database() as db:
+        db.execute("CREATE TABLE IF NOT EXISTS routine_registry (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)")
+        row = db.execute("SELECT payload FROM routine_registry WHERE id=1").fetchone()
+        current = validate(json.loads(row[0])) if row else {}
+        db.execute("CREATE TABLE IF NOT EXISTS routine_migration (id INTEGER PRIMARY KEY CHECK(id=1))")
+        if db.execute("SELECT 1 FROM routine_migration WHERE id=1").fetchone():
+            return current
+        imported = dict(current)
+        for name, (setting, fallback, phrases) in LEGACY.items():
+            if name in imported:
+                continue
+            configured = configuration.get(setting, "") if setting else ""
+            script = configured or fallback
+            if script not in available:
+                continue
+            item = {"script": script, "phrases": phrases, "fields": {}, "sensitive": False}
+            if name == "movie" or name == "movie_bedroom":
+                remote_key = "DECLAN_BEDROOM_MOVIE_REMOTE" if name == "movie_bedroom" else "DECLAN_MOVIE_REMOTE"
+                remote = configuration.get(remote_key, "")
+                if remote in available:
+                    item["remote"] = remote
+            imported[name] = item
+        if imported:
+            imported = validate(imported)
+            db.execute("INSERT OR REPLACE INTO routine_registry (id,payload) VALUES (1,?)",
+                       (json.dumps(imported, sort_keys=True),))
+        db.execute("INSERT INTO routine_migration (id) VALUES (1)")
+        return imported
