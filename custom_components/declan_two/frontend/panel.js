@@ -1,4 +1,4 @@
-/* Native Home Assistant panel shell. No direct backend calls or embedded secrets. */
+/* Native Home Assistant panel; recovered from PR #83 without duplicated class definitions. */
 class DeclanTwoNativePanel extends HTMLElement {
   constructor() {
     super();
@@ -61,6 +61,15 @@ class DeclanTwoNativePanel extends HTMLElement {
         .spotify-save-status { margin:12px 0 0; overflow-wrap:anywhere; }
         @media(max-width:520px) { .settings-spotify { padding:12px; } .spotify-form button { width:100%; } }
         .chat-form label { display:block; margin-top:14px; }
+        .settings-spotify { margin-top:18px; padding:14px 16px; border:1px solid #1d3d51; border-radius:12px; background:#0e202d; }
+        .settings-spotify summary { cursor:pointer; font-weight:600; padding:4px 0; }
+        .spotify-form { display:grid; gap:16px; margin-top:18px; }
+        .spotify-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
+        .spotify-form input { display:block; width:100%; min-width:0; padding:12px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; font-weight:400; }
+        .spotify-form input:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
+        .spotify-form button { justify-self:start; }
+        .spotify-save-status { margin:12px 0 0; overflow-wrap:anywhere; }
+        @media(max-width:520px) { .settings-spotify { padding:12px; } .spotify-form button { width:100%; } }
         .chat-replies { margin-bottom:18px; }
         .player-row { display:grid; grid-template-columns:minmax(120px,1fr) minmax(160px,2fr); gap:12px; align-items:center; padding:12px 0; border-top:1px solid #1d3d51; }
         .player-row select { width:100%; min-width:0; padding:10px; border-radius:9px; border:1px solid #315568; background:#102635; color:#e7f7ff; font:inherit; }
@@ -179,59 +188,83 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button class="updates-refresh" type="button">Refresh installation status</button>
         </section>
       </div>`;
-    this.shadowRoot.querySelector('.refresh').addEventListener('click', () => this.refresh());
-    this.shadowRoot.querySelector('.mic-start').addEventListener('click', () => this.startMicrophone());
-    this.shadowRoot.querySelector('.mic-stop').addEventListener('click', () => this.stopMicrophone());
-    this.shadowRoot.querySelector('.settings-refresh').addEventListener('click', () => this.loadSettingsStatus());
-    this._settingsImportPreview = null;
-    this.shadowRoot.querySelector('.settings-import-file').addEventListener('change', () => this.resetSettingsImport());
-    this.shadowRoot.querySelector('.settings-import-preview').addEventListener('click', () => this.previewSettingsImport());
-    this.shadowRoot.querySelector('.settings-import-apply').addEventListener('click', () => this.applySettingsImport());
-    this.shadowRoot.querySelector('.settings-export').addEventListener('click', () => this.downloadSettings('export'));
-    this.shadowRoot.querySelector('.settings-recovery').addEventListener('click', () => this.downloadSettings('recovery'));
-    this.shadowRoot.querySelector('.settings-diagnostics').addEventListener('click', () => this.loadDiagnostics());
-    this.shadowRoot.querySelector('.spotify-form').addEventListener('submit', event => {
-      event.preventDefault(); void this.replaceSpotifyCredentials();
-    });
-    this.shadowRoot.querySelector('.chat-form').addEventListener('submit', event => {
-      event.preventDefault();
-      void this.sendChat();
-    });
-    this.shadowRoot.querySelector('.timeline-refresh').addEventListener('click', () => this.loadTimeline());
-    this.shadowRoot.querySelector('.timeline-filter').addEventListener('change', () => this.renderTimeline());
-    this.shadowRoot.querySelector('.voices-refresh').addEventListener('click', () => this.loadVoices());
-    this.shadowRoot.querySelector('.voices-history-refresh').addEventListener('click', () => this.loadVoiceHistory());
-    this.shadowRoot.querySelector('.players-refresh').addEventListener('click', () => this.loadPlayers());
-    this.shadowRoot.querySelector('.players-save').addEventListener('click', () => this.savePlayers());
-    this.shadowRoot.querySelector('.updates-check').addEventListener('click', () => this.checkUpdates());
-    this.shadowRoot.querySelector('.updates-install').addEventListener('click', () => this.installUpdate());
-    this.shadowRoot.querySelector('.updates-refresh').addEventListener('click', () => this.loadUpdateStatus());
-    this.shadowRoot.querySelector('.update-prereleases').addEventListener('change', () => {
-      this.shadowRoot.querySelector('.updates-select').replaceChildren(new Option('Check for releases first', ''));
-      this.shadowRoot.querySelector('.updates-install').disabled = true;
-    });
-    this.shadowRoot.querySelector('.updates-select').addEventListener('change', () => {
-      this.shadowRoot.querySelector('.updates-install').disabled = !this.shadowRoot.querySelector('.updates-select').value;
-    });
-    this.shadowRoot.querySelector('.intents-refresh').addEventListener('click', () => this.loadLearnedIntents());
-    this.shadowRoot.querySelector('.history-refresh').addEventListener('click', () => this.loadHistory());
-    this.shadowRoot.querySelector('.history-more').addEventListener('click', () => this.loadHistory(this._historyCursor));
-    this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
-      tab.addEventListener('click', () => this.selectTab(tab.dataset.tab));
-      tab.addEventListener('keydown', event => {
-        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-        event.preventDefault();
-        const tabs = [...this.shadowRoot.querySelectorAll('[data-tab]')];
-        const index = tabs.indexOf(tab);
-        const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
-          : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-        this.selectTab(tabs[next].dataset.tab);
-        tabs[next].focus();
+    try {
+      this.bindPanelEvent('.refresh', 'click', () => this.refresh());
+      this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
+      this.bindPanelEvent('.mic-stop', 'click', () => this.stopMicrophone());
+      this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
+      this._settingsImportPreview = null;
+      this.bindPanelEvent('.settings-import-file', 'change', () => this.resetSettingsImport());
+      this.bindPanelEvent('.settings-import-preview', 'click', () => this.previewSettingsImport());
+      this.bindPanelEvent('.settings-import-apply', 'click', () => this.applySettingsImport());
+      this.bindPanelEvent('.settings-export', 'click', () => this.downloadSettings('export'));
+      this.bindPanelEvent('.settings-recovery', 'click', () => this.downloadSettings('recovery'));
+      this.bindPanelEvent('.settings-diagnostics', 'click', () => this.loadDiagnostics());
+      this.bindPanelEvent('.spotify-form', 'submit', event => {
+        event.preventDefault(); void this.replaceSpotifyCredentials();
       });
-    });
-    this.shadowRoot.querySelector('.menu').addEventListener('click', () => {
-      this.dispatchEvent(new Event('hass-toggle-menu', {bubbles:true, composed:true}));
-    });
+      this.bindPanelEvent('.chat-form', 'submit', event => {
+        event.preventDefault();
+        void this.sendChat();
+      });
+      this.bindPanelEvent('.timeline-refresh', 'click', () => this.loadTimeline());
+      this.bindPanelEvent('.timeline-filter', 'change', () => this.renderTimeline());
+      this.bindPanelEvent('.voices-refresh', 'click', () => this.loadVoices());
+      this.bindPanelEvent('.voices-history-refresh', 'click', () => this.loadVoiceHistory());
+      this.bindPanelEvent('.players-refresh', 'click', () => this.loadPlayers());
+      this.bindPanelEvent('.players-save', 'click', () => this.savePlayers());
+      this.bindPanelEvent('.updates-check', 'click', () => this.checkUpdates());
+      this.bindPanelEvent('.updates-install', 'click', () => this.installUpdate());
+      this.bindPanelEvent('.updates-refresh', 'click', () => this.loadUpdateStatus());
+      this.bindPanelEvent('.update-prereleases', 'change', () => {
+        this.shadowRoot.querySelector('.updates-select').replaceChildren(new Option('Check for releases first', ''));
+        this.shadowRoot.querySelector('.updates-install').disabled = true;
+      });
+      this.bindPanelEvent('.updates-select', 'change', () => {
+        this.shadowRoot.querySelector('.updates-install').disabled = !this.shadowRoot.querySelector('.updates-select').value;
+      });
+      this.bindPanelEvent('.intents-refresh', 'click', () => this.loadLearnedIntents());
+      this.bindPanelEvent('.history-refresh', 'click', () => this.loadHistory());
+      this.bindPanelEvent('.history-more', 'click', () => this.loadHistory(this._historyCursor));
+      this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
+        tab.addEventListener('click', () => this.selectTab(tab.dataset.tab));
+        tab.addEventListener('keydown', event => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          const tabs = [...this.shadowRoot.querySelectorAll('[data-tab]')];
+          const index = tabs.indexOf(tab);
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+            : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+          this.selectTab(tabs[next].dataset.tab);
+          tabs[next].focus();
+        });
+      });
+      this.bindPanelEvent('.menu', 'click', () => {
+        this.dispatchEvent(new Event('hass-toggle-menu', {bubbles:true, composed:true}));
+      });
+    } catch (error) {
+      this.showStartupError(error);
+    }
+  }
+
+
+  bindPanelEvent(selector, eventName, handler) {
+    const element = this.shadowRoot.querySelector(selector);
+    if (!element) {
+      console.error('[Declan] Missing panel control:', selector);
+      return;
+    }
+    element.addEventListener(eventName, handler);
+  }
+
+  showStartupError(error) {
+    console.error('[Declan] Panel startup failed:', error);
+    const host = this.shadowRoot;
+    const message = document.createElement('div');
+    message.setAttribute('role', 'alert');
+    message.style.cssText = 'margin:16px;padding:16px;border:2px solid #e6b85c;border-radius:12px;background:#302517;color:#fff;white-space:pre-wrap';
+    message.textContent = 'Declan panel could not start. Check the browser console for details. ' + String(error?.message || error);
+    host.prepend(message);
   }
 
 
@@ -239,7 +272,11 @@ class DeclanTwoNativePanel extends HTMLElement {
     // Apply the same tab visibility state on initial mount as on user navigation.
     // HA may attach the panel before the hass setter supplies backend state.
     const selected = this.shadowRoot.querySelector('[data-tab][aria-selected="true"]');
-    this.selectTab(selected?.dataset.tab || 'overview');
+    try {
+      this.selectTab(selected?.dataset.tab || 'overview');
+    } catch (error) {
+      this.showStartupError(error);
+    }
   }
 
   selectTab(name) {
