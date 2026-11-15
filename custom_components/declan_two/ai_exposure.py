@@ -15,7 +15,7 @@ def exposed_for_declan(hass):
                 continue
             if async_get_should_expose(hass, "conversation", entity_id):
                 result.append(entity_id)
-        return sorted(set(result))
+        return sorted(set(result)) if len(result) <= 1000 else []
     except (KeyError, AttributeError, RuntimeError, ImportError):
         # Never send an unrestricted inventory when HA exposure is unavailable.
         return []
