@@ -1650,7 +1650,7 @@ class Handler(BaseHTTPRequestHandler):
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
         players_auth = (
-            self.path == "/api/settings/media-players"
+            self.path in {"/api/settings/media-players", "/api/settings/ai"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1754,6 +1754,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(503, {"error": "Diagnostics are unavailable."})
         elif self.path == "/api/settings/spotify":
             self.spotify_settings()
+        elif self.path == "/api/settings/ai":
+            try:
+                self.send_json(200, {"settings": ai_settings.read()})
+            except (OSError, sqlite3.Error, ValueError):
+                self.send_json(503, {"error": "AI settings unavailable."})
         elif self.path == "/api/settings/media-players":
             self.approved_player_settings()
         elif self.path == "/api/history/export":
@@ -1849,11 +1854,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
             self.path == "/api/voicepipeline"
+            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
+            and secrets.compare_digest(
+                self.headers.get("Authorization", "").encode(),
+                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
+            )
+        ) and not (
+            self.path == "/api/settings/ai"
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -1946,6 +1958,16 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {"error": "Explicit confirmation and both credentials required."})
                     return
                 self.spotify_settings(body)
+                return
+            if self.path == "/api/settings/ai":
+                try:
+                    if not isinstance(body, dict) or set(body) != {"settings"}:
+                        raise ValueError("Invalid AI settings payload")
+                    self.send_json(200, {"settings": ai_settings.save(body["settings"])})
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Could not save AI settings."})
                 return
             if self.path == "/api/settings/media-players":
                 self.approved_player_settings(body)
