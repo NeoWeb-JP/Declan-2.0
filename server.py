@@ -1466,7 +1466,7 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
         return "AI device permissions are unavailable.", "unresolved", []
     permitted = set(exposed_entities)
     if not permitted or len(permitted) != len(exposed_entities) or any(
-            not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\\.[a-z0-9_]+", item)
+            not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", item)
             for item in exposed_entities):
         return "AI device permissions are unavailable.", "unresolved", []
     safe = [row for row in inventory if row["entity_id"] in permitted
