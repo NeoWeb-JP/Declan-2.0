@@ -42,6 +42,7 @@ from personality import add_sass, choose_line
 
 SESSIONS = OrderedDict()
 SESSION_LOCK = Lock()
+SPEAKER_CONTEXTS = {}
 CAPTURE_ARBITER = CaptureArbiter()
 SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
@@ -2063,11 +2064,14 @@ class Handler(BaseHTTPRequestHandler):
                            for value in (device_id, user_id))
             origin_device = origin[0]
             scope = (source, *origin, satellite) if any(origin) or satellite else None
+        speaker_scope = None
         if source == "assist":
             speaker = body.get("speaker")
             speaker_name = (speaker.get("name") if isinstance(speaker, dict)
                             and type(speaker.get("confidence")) in (int, float)
                             and speaker["confidence"] >= 0.75 and isinstance(speaker.get("name"), str) else None)
+            if speaker_name and speaker_name.strip():
+                speaker_scope = ("assist", "speaker", speaker_name.strip().casefold())
             if not CAPTURE_ARBITER.claim(history.normalize_phrase(message), satellite or origin_device,
                                          body.get("capture"), speaker_name):
                 self.send_json(200, {"reply": "", "session_id": session_id or secrets.token_urlsafe(24),
@@ -2087,6 +2091,16 @@ class Handler(BaseHTTPRequestHandler):
             if (scope is not None and previous and previous.get("information_scope") == scope
                     and monotonic() - previous["at"] < IDLE_SECONDS):
                 last_information = previous.get("information_context")
+        if speaker_scope is not None:
+            with SESSION_LOCK:
+                shared = SPEAKER_CONTEXTS.get(speaker_scope)
+                if shared and monotonic() - shared["at"] < IDLE_SECONDS:
+                    if not last_device:
+                        last_device = shared.get("device_status_target")
+                    if not last_lights:
+                        last_lights = shared.get("lighting_context", ())
+                    if not last_information:
+                        last_information = shared.get("information_context")
         lighting_context = None
         status_target = None
         information_context = None
@@ -2233,6 +2247,15 @@ class Handler(BaseHTTPRequestHandler):
             session["device_status_scope"] = scope
             session["information_context"] = information_context
             session["information_scope"] = scope
+            if speaker_scope is not None:
+                SPEAKER_CONTEXTS[speaker_scope] = {
+                    "at": monotonic(), "device_status_target": status_target or last_device,
+                    "lighting_context": lighting_context if lighting_context is not None else last_lights,
+                    "information_context": information_context or last_information,
+                }
+                if len(SPEAKER_CONTEXTS) > 100:
+                    oldest = min(SPEAKER_CONTEXTS, key=lambda key: SPEAKER_CONTEXTS[key]["at"])
+                    SPEAKER_CONTEXTS.pop(oldest, None)
             session.pop("failed_light_phrase", None)
             if (light_result and outcome == "unresolved" and scope is not None
                     and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
