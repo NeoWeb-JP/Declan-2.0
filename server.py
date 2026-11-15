@@ -2110,6 +2110,29 @@ class Handler(BaseHTTPRequestHandler):
                 effective_message = target
                 phrase = history.normalize_phrase(target)
         opener = build_opener(ProxyHandler({}), NoRedirect())
+        if source == "assist":
+            spoken = history.normalize_phrase(message)
+            candidate = spoken if spoken in sensitive_confirmations.YES | sensitive_confirmations.NO else phrase
+            routine_candidate = select_routine_turn(candidate, origin_device or satellite)
+            group = sensitive_confirmations.sensitive_group(
+                candidate, routine_candidate, GUEST_COMMANDS, SEXY_TIME_COMMANDS, DINNER_PHRASES)
+            if not session_id:
+                session_id = secrets.token_urlsafe(24)
+            decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate(
+                session=session_id, origin=satellite or origin_device,
+                phrase=candidate, group=group, speaker=body.get("speaker"))
+            if decision in {"prompt", "cancelled", "denied"}:
+                response = {
+                    "prompt": "Please confirm or cancel this routine within 30 seconds.",
+                    "cancelled": "Cancelled. I haven't run that routine.",
+                    "denied": "I can't identify the originating satellite for that sensitive routine.",
+                }[decision]
+                self.send_json(200, {"reply": response, "session_id": session_id,
+                                     "outcome": "confirmation_" + decision})
+                return
+            if decision == "confirmed":
+                phrase = approved_phrase
+                effective_message = approved_phrase
         timer_result = timers.handle(
             phrase, opener,
             satellite=satellite if isinstance(satellite, str) and len(satellite) <= 128 else None,
