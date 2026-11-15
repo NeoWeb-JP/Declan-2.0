@@ -1,8 +1,27 @@
 import unittest
+import sqlite3
+from contextlib import contextmanager
+from unittest.mock import patch
+import ai_settings
 from ai_settings import DEFAULTS, validate
 
 
 class AISettingsTests(unittest.TestCase):
+    def test_persist_and_reload(self):
+        connection = sqlite3.connect(":memory:")
+        @contextmanager
+        def database():
+            with connection:
+                yield connection
+        try:
+            with patch.object(ai_settings, "database", database):
+                self.assertFalse(ai_settings.read()["enabled"])
+                settings = dict(DEFAULTS, enabled=True)
+                ai_settings.save(settings)
+                self.assertTrue(ai_settings.read()["enabled"])
+        finally:
+            connection.close()
+
     def test_safe_defaults(self):
         self.assertFalse(validate(dict(DEFAULTS))["enabled"])
 
