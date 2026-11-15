@@ -17,7 +17,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
 
         module_names = (
             "aiohttp", "voluptuous", "homeassistant", "homeassistant.helpers",
-            "homeassistant.helpers.aiohttp_client", "homeassistant.components",
+            "homeassistant.helpers.aiohttp_client", "homeassistant.helpers.entity_registry", "homeassistant.components",
             "homeassistant.components.tts", "homeassistant.components.http", "homeassistant.exceptions", "homeassistant.helpers.storage",
             "wyoming", "wyoming.client", "wyoming.asr", "wyoming.audio", "wyoming.error",
         )
@@ -64,6 +64,12 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.response.status = 200
         self.response.json = AsyncMock(return_value={"reply": "Morning", "session_id": "new"})
         modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = Mock(return_value=self.session)
+        modules["homeassistant.helpers.entity_registry"].async_get = Mock(
+            return_value=SimpleNamespace(async_get_entity_id=Mock(
+                return_value="tts.declan_2_0_voice_manager"
+            ))
+        )
+        modules["homeassistant.helpers"].entity_registry = modules["homeassistant.helpers.entity_registry"]
         self.enterContext(patch.dict("sys.modules", modules))
         self.component = import_module("custom_components.declan_two")
         self.conversation = import_module("custom_components.declan_two.conversation")
