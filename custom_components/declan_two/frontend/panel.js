@@ -1183,26 +1183,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           await this.loadTimeline();
         });
         controls.append(reject);
-        const enrolDetails = subsection(voice, 'Enrol new speaker');
-        const enrol = document.createElement('button');
-        enrol.type = 'button';
-        enrol.textContent = 'Enrol speaker';
-        enrol.addEventListener('click', async () => {
-          const name = window.prompt('Name for the new speaker:');
-          if (name === null) return;
-          const trimmed = name.trim();
-          if (!/^[\p{L}][\p{L}\p{N}_ '\u2019-]{0,39}$/u.test(trimmed)) {
-            this.shadowRoot.querySelector('.timeline-status').textContent = 'Enter a valid speaker name (1–40 characters).';
-            return;
-          }
-          if (this._voiceProfiles.some(profile => profile.name?.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
-            this.shadowRoot.querySelector('.timeline-status').textContent = 'Speaker already enrolled. Select the existing speaker.';
-            return;
-          }
-          await this.resolveVoice(item.id, 'enrol', trimmed);
-          await this.loadTimeline();
-        });
-        enrolDetails.append(enrol);
+
       }
       voice.append(controls);
       const training = subsection(card, 'Teach Declan');
