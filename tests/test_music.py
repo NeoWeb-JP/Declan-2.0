@@ -358,12 +358,13 @@ class MusicTests(unittest.TestCase):
                 self.assertEqual(outcome, "confirmed", reply)
                 self.assertEqual(self.calls[-1], (action, {"entity_id": self.bedroom}))
 
-    def test_unqualified_assist_stop_only_controls_the_originating_room(self):
+    def test_unqualified_assist_stop_controls_all_active_approved_rooms(self):
         areas = lambda connection, origin: {"master bedroom": set(), "bedroom": set()}
         self.players[self.kitchen].update(state="playing", attributes=self.track)
         self.assertEqual(self.control("stop", origin="satellite", read_areas=areas, assist=True)[1], "confirmed")
-        self.assertEqual(self.calls, [("media_stop", {"entity_id": self.bedroom})])
-        self.assertEqual(self.players[self.kitchen]["state"], "playing")
+        self.assertEqual(self.calls, [("media_stop", {"entity_id": self.bedroom}),
+                                      ("media_stop", {"entity_id": self.kitchen})])
+        self.assertEqual(self.players[self.kitchen]["state"], "idle")
 
     def test_assist_pause_confirms_a_late_state_update_without_resending(self):
         original_open = self.open
@@ -420,7 +421,11 @@ class MusicTests(unittest.TestCase):
 
     def test_ambiguous_or_grouped_room_commands_do_not_stop_other_outputs(self):
         self.players[self.kitchen].update(state="playing", attributes=self.track)
-        self.assertEqual(self.control("stop")[1], "unresolved")
+        self.assertEqual(self.control("stop")[1], "confirmed")
+        self.assertEqual(self.players[self.bedroom]["state"], "idle")
+        self.assertEqual(self.players[self.kitchen]["state"], "idle")
+        self.calls.clear()
+        self.players[self.bedroom]["state"] = "playing"
         self.players[self.group].update(state="playing", attributes={"group_members": [self.bedroom, self.kitchen]})
         self.assertEqual(self.control("stop music in the bedroom")[1], "unresolved")
         self.assertEqual(self.calls, [])
