@@ -315,7 +315,7 @@ def execute_routine(selection, action_results, *, approved=False):
     return run_routine(period, movie_app=app, action_results=action_results, approved=approved, **options)
 
 
-def run_custom_routine(name, action_results=None):
+def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
     """Run an explicitly mapped HA script; never infer sensitive approval."""
     try:
         item = routine_registry.load().get(name)
@@ -323,8 +323,8 @@ def run_custom_routine(name, action_results=None):
         return "Routine configuration is unavailable.", "unverified", None
     if not item:
         return "That routine is not configured.", "not_configured", None
-    if item["sensitive"]:
-        return "This routine requires owner confirmation in Home Assistant.", "unresolved", None
+    if item["sensitive"] and not approved:
+        return "This routine requires explicit confirmation before execution.", "unresolved", None
     connection = ha_device_connection()
     if connection is None:
         return "Home Assistant is not connected.", "not_configured", None
