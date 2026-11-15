@@ -1442,7 +1442,8 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
 
 def _bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None):
-    plan = openai_planner.request_plan(message, exposed, model=settings["model"], api_key=ai_credentials.get_key(), usage_sink=usage_sink, inventory=inventory)
+    plan = openai_planner.request_plan(message, exposed, model=settings["model"], api_key=ai_credentials.get_key(), usage_sink=usage_sink, inventory=inventory,
+        max_cost_micro_usd=ai_settings._money(settings["request_ceiling_usd"], allow_zero=False))
     if len(plan) > settings["max_actions"]:
         raise ValueError("Too many proposed actions")
     return plan
