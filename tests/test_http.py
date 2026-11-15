@@ -63,9 +63,9 @@ class APITests(TestCase):
             request = factory.return_value.open.call_args.args[0]
             self.assertEqual(request.full_url,
                              "http://ha.local/api/states/input_boolean.visitors_present")
-            response.read.return_value = b'{"state":"off"}'
+            factory.return_value.open.return_value.__enter__.return_value.read.return_value = b'{"state":"off"}'
             self.assertIs(server.read_visitors_present(), False)
-            response.read.return_value = b'{"state":"unavailable"}'
+            factory.return_value.open.return_value.__enter__.return_value.read.return_value = b'{"state":"unavailable"}'
             self.assertIsNone(server.read_visitors_present())
         with patch.dict(server.os.environ, {"DECLAN_HA_URL": "http://ha.local",
                                             "DECLAN_HA_TOKEN": "secret"}), patch.object(
