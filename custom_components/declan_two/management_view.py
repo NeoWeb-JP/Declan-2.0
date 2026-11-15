@@ -93,6 +93,16 @@ class DeclanManagementView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"status": "invalid_json"}, status=400)
+        if operation == "intents":
+            if not isinstance(body, dict) or set(body) not in (
+                {"phrase", "target", "previous"}, {"forget", "previous"}, {"turn_id", "target"}
+            ):
+                return web.json_response({"status": "invalid_request"}, status=400)
+            if any(not isinstance(v, str) or not 0 < len(v) <= 120 for k, v in body.items() if k != "turn_id"):
+                return web.json_response({"status": "invalid_request"}, status=400)
+            if "turn_id" in body and (type(body["turn_id"]) is not int or not 0 < body["turn_id"] < 2**63):
+                return web.json_response({"status": "invalid_request"}, status=400)
+            return await self._relay(request, "intents", body)
         if operation == "import":
             if not isinstance(body, dict) or set(body) not in ({"document"}, {"document", "confirm", "expected"}):
                 return web.json_response({"status": "invalid_request"}, status=400)
