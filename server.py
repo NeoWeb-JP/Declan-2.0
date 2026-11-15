@@ -1498,7 +1498,7 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
             )
         return result["reply"], result["outcome"], [
             {"entity_id": action.entity_id, "action": action.service,
-             "status": action.status,
+             "ai_generated": True, "status": action.status,
              **({"detail": action.detail} if settings["diagnostics"] else {})}
             for action in result["actions"]
         ]
