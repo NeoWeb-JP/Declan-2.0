@@ -54,6 +54,21 @@ class SpotifyPlaylists(unittest.TestCase):
         self.assertEqual(selected[0], "https://open.spotify.com/playlist/" + "A" * 22)
         self.assertEqual(selected[1], "playlist")
 
+    def test_weekly_discovery_uses_declan_spotify_search_and_preserves_pins(self):
+        import music
+        playlists.manage({"category": "braai", "playlist": self.a, "operation": "add"})
+        playlists.manage({"category": "braai", "playlist": self.b, "operation": "delete"})
+        results = [
+            ("https://open.spotify.com/playlist/" + "B" * 22, "playlist", "Blocked"),
+            ("https://open.spotify.com/playlist/" + "C" * 22, "playlist", "Found"),
+        ]
+        with patch.object(music, "spotify_search", return_value=results) as search:
+            data = playlists.discover(object())
+        self.assertEqual(len(search.call_args_list), 22)
+        self.assertEqual(data["braai"]["playlists"],
+                         [self.a, "spotify://playlist/" + "C" * 22])
+        self.assertEqual(data["braai"]["excluded"], [self.b])
+
     def test_invalid_links_and_categories_rejected(self):
         for body in (
             {"category": "country", "playlist": "https://evil.test/playlist/" + "A" * 22, "operation": "add"},
