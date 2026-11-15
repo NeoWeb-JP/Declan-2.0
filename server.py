@@ -1725,8 +1725,7 @@ class Handler(BaseHTTPRequestHandler):
                 turns = history.recent(before, limit=51)
                 aliases = history.learned_intents() if before is None else None
                 for turn in turns:
-                    turn["teachable"] = (turn["source"] in {"assist", "browser_voice"} and not turn["outcome"]
-                                         and turn["reply"] == UNMATCHED_REPLY
+                    turn["teachable"] = (turn["source"] in {"assist", "browser_voice"}
                                          and 0 < len(history.normalize_phrase(turn["message"])) <= 120)
             except ValueError:
                 self.send_json(400, {"error": "Invalid history cursor."})

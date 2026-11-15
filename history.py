@@ -115,8 +115,8 @@ def learned_intent(phrase):
 def teach_intent(turn_id, target, unmatched_reply):
     with database() as connection:
         turn = connection.execute(
-            "SELECT message FROM turns WHERE id = ? AND source IN ('assist', 'browser_voice') "
-            "AND outcome IS NULL AND reply = ?", (turn_id, unmatched_reply),
+            "SELECT message FROM turns WHERE id = ? AND source IN ('assist', 'browser_voice')",
+            (turn_id,),
         ).fetchone()
         phrase = normalize_phrase(turn[0]) if turn else ""
         if not 0 < len(phrase) <= 120:
