@@ -18,6 +18,8 @@ class RoutineTests(TestCase):
             "DECLAN_MOVIE_SCRIPT": "script.movie", "DECLAN_MOVIE_REMOTE": "remote.projector",
         }))
         self.enterContext(patch.object(server, "routine_last_attempts", {}))
+        self.mappings = {key: {"script": script, "phrases": [key], "fields": {}, "sensitive": False} for key, script in {"morning": server.GOOD_MORNING_SCRIPT, "night": server.GOOD_NIGHT_SCRIPT, "movie": "script.movie", "movie_bedroom": "script.movie_bedroom"}.items()}
+        self.enterContext(patch.object(server.routine_registry, "load", side_effect=lambda: self.mappings))
         self.delay = self.enterContext(patch.object(server, "sleep"))
         self.opener = self.enterContext(patch.object(server, "build_opener")).return_value
         self.calls = []
