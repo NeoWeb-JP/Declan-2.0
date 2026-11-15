@@ -254,7 +254,7 @@ def spotify_search(opener, title, artist, types):
     market = os.environ.get("DECLAN_SPOTIFY_MARKET", "GB").strip().upper()
     if not re.fullmatch(r"[A-Z]{2}", market):
         raise ValueError("DECLAN_SPOTIFY_MARKET must be a two-letter country code")
-    params = urlencode({"q": query, "type": ",".join(types), "market": market, "limit": 5})
+    params = urlencode({"q": query, "type": ",".join(types), "market": market, "limit": 25 if types == ("playlist",) else 5})
     search_request = Request("https://api.spotify.com/v1/search?" + params,
                              headers={"Authorization": f"Bearer {access_token}"})
     try:
@@ -510,6 +510,21 @@ def search_media(connection, destination, title, artist, provider):
                 return None
             uri, kind, name = choices(options, weights=[weights[item[0]] for item in options])[0]
             return uri.replace("spotify://", "https://open.spotify.com/", 1), kind, name
+        # Curated category playlists take precedence over generic Spotify search.
+        # The catalogue is owned by Declan 2.0, not the retired HA integration.
+        import spotify_playlists
+        category = "_".join(title.casefold().replace("-", " ").split())
+        if category.endswith("_music"):
+            category = category[:-6]
+        if not artist and category in spotify_playlists.CATEGORIES:
+            curated = spotify_playlists.listing()["categories"][category]["playlists"]
+            available = [uri for uri in curated if weights.get(media_key(uri), 1) > 0]
+            if available:
+                for count in range(len(recent), -1, -1):
+                    pool = [uri for uri in available if media_key(uri) not in recent[:count]]
+                    if pool:
+                        selected = choices(pool, weights=[weights.get(media_key(uri), 1) for uri in pool])[0]
+                        return selected.replace("spotify://", "https://open.spotify.com/", 1), "playlist", title
         types = (("track",) if artist else ("playlist",) if title.endswith(" music")
                  else ("track", "album", "artist", "playlist"))
         options = spotify_search(connection[2], title, artist, types)
