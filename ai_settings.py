@@ -4,6 +4,7 @@ import re
 import sqlite3
 
 from history import database
+from ai_pricing import RATES
 
 DEFAULTS = {
     "enabled": False,
@@ -49,6 +50,8 @@ def validate(payload):
         raise ValueError("Unsupported safety policy")
     monthly = _money(payload["monthly_budget_usd"], allow_zero=True)
     ceiling = _money(payload["request_ceiling_usd"], allow_zero=False)
+    if payload["enabled"] and payload["model"] not in RATES:
+        raise ValueError("Model pricing is not configured")
     if payload["enabled"] and (monthly < ceiling or not domains):
         raise ValueError("Budget or permitted devices not configured")
     return dict(payload)
