@@ -37,7 +37,8 @@ class NativeAISettingsContractTests(unittest.TestCase):
 
     def test_fallback_local_first_and_allowlist(self):
         self.assertIn("if routine_reply is None and light_result is None:", BACKEND)
-        self.assertIn('DECLAN_OPENAI_ALLOWED_ENTITIES', BACKEND)
+        self.assertIn('ai_exposed_entities', BACKEND)
+        self.assertIn('authenticated_ha', BACKEND)
         self.assertIn('ai_pricing.charge(settings["model"]', BACKEND)
 
 
