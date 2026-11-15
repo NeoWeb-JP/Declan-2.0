@@ -303,10 +303,10 @@ def select_routine_turn(phrase, origin):
     return (routine, None) if routine else None
 
 
-def execute_routine(selection, action_results):
+def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
     if period.startswith("custom:"):
-        return run_custom_routine(period[7:], action_results)
+        return run_custom_routine(period[7:], action_results, approved=approved)
     if options is None:
         return "Which room do you mean for Movie Time?", "unresolved", None
     options = options.copy()
