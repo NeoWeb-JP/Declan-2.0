@@ -34,6 +34,7 @@ import device_status
 import history
 import music
 import approved_media_players
+import spotify_playlists
 import timers
 import updates
 import web_stt
@@ -1810,7 +1811,7 @@ class Handler(BaseHTTPRequestHandler):
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
         players_auth = (
-            self.path in {"/api/settings/media-players", "/api/settings/ai"}
+            self.path in {"/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1930,6 +1931,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(503, {"error": "AI settings unavailable."})
         elif self.path == "/api/settings/media-players":
             self.approved_player_settings()
+        elif self.path == "/api/settings/music-playlists":
+            try:
+                self.send_json(200, spotify_playlists.listing())
+            except (OSError, ValueError):
+                self.send_json(503, {"error": "Spotify playlists unavailable."})
         elif self.path == "/api/history/export":
             try:
                 turns = history.recent(limit=None)
@@ -2023,7 +2029,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -2041,7 +2047,7 @@ class Handler(BaseHTTPRequestHandler):
                 f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
             )
         ) and not (
-            self.path == "/api/settings/media-players"
+            self.path in {"/api/settings/media-players", "/api/settings/music-playlists"}
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -2147,6 +2153,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/api/settings/media-players":
                 self.approved_player_settings(body)
+                return
+            if self.path == "/api/settings/music-playlists":
+                try:
+                    self.send_json(200, spotify_playlists.manage(body))
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except OSError:
+                    self.send_json(503, {"error": "Spotify playlist storage unavailable."})
                 return
             if self.path == "/api/voicepipeline":
                 try:
