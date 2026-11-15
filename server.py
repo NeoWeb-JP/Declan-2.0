@@ -1196,8 +1196,6 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
     def resolve(target, state, *, use_area=False):
         recovered = target.removeprefix(f"{state} ")
         matches = names.get(target) or names.get(recovered)
-        if not matches and recovered in {"office light", "office lights"} and "light.study_light" in lights:
-            matches = {"light.study_light"}
         if origin_device is not None:
             if recovered in {"lights", "all lights"} or recovered == name == "some lights":
                 room_targets.add(target)
