@@ -1448,6 +1448,10 @@ def guarded_openai_fallback(message, *, source):
         return "I couldn't verify Home Assistant devices.", "unavailable", []
     safe = [row for row in inventory if row["entity_id"].split(".", 1)[0]
             in {"light", "switch", "fan", "cover"}]
+    # Refuse partial exposure rather than silently omit targets or permit
+    # the model to infer targets from an incomplete inventory.
+    if len(safe) > openai_planner.MAX_CONTEXT:
+        return "Too many Home Assistant entities for the configured AI context.", "unresolved", []
     try:
         limit = int(os.environ.get("DECLAN_OPENAI_MONTHLY_LIMIT_MICRO_USD", "0"))
         ceiling = int(os.environ.get("DECLAN_OPENAI_REQUEST_CEILING_MICRO_USD", "0"))
