@@ -39,6 +39,7 @@ class NativeAISettingsContractTests(unittest.TestCase):
     def test_history_proposals_and_diagnostics_are_opt_in(self):
         self.assertIn('showProposals = ai?.settings?.show_proposals === true', JS)
         self.assertIn('if (showProposals && Array.isArray(turn.action_results)', JS)
+        self.assertIn('step.ai_generated === true', JS)
         self.assertIn('"action_results": [{', HISTORY)
         self.assertIn('if settings["diagnostics"] else {}', BACKEND)
 
