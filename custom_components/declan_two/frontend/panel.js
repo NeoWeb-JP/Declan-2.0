@@ -185,7 +185,26 @@ class DeclanTwoNativePanel extends HTMLElement {
         .timeline-management-body { padding:12px 0; }
         @media(max-width:520px) { .timeline-controls button { padding:8px 10px; } }
         @media(max-width:800px) { .menu {display:inline-flex;} .wrap {padding:12px 12px 40px;} }
-      </style>
+      
+        /* AI Settings use the same cards, spacing and form controls as other native Settings. */
+        .ai-settings-form { display:grid; gap:16px; min-width:0; }
+        .ai-settings-form .ai-field { display:grid; gap:7px; min-width:0; color:#c7e6f3; font-weight:600; }
+        .ai-settings-form .ai-field input, .ai-settings-form .ai-field select,
+        .ai-key-form input { display:block; width:100%; min-width:0; min-height:44px; padding:10px 12px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; font-weight:400; }
+        .ai-settings-form input:focus-visible, .ai-settings-form select:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
+        .ai-settings-form input[type=checkbox] { width:18px; height:18px; flex:0 0 18px; margin:0; accent-color:#64c8e9; }
+        .ai-settings-form .ai-toggle, .ai-options label, .ai-domain-grid label { display:flex; align-items:center; gap:10px; min-width:0; line-height:1.45; color:#c7e6f3; }
+        .ai-settings-form .ai-toggle { font-weight:650; }
+        .ai-domains { min-width:0; margin:0; padding:14px; border:1px solid #315568; border-radius:10px; }
+        .ai-domains legend { padding:0 7px; font-weight:650; color:#c7e6f3; }
+        .ai-domain-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+        .ai-options { display:grid; gap:14px; }
+        .ai-settings-form > .muted { margin:0; line-height:1.55; font-size:.9rem; }
+        .ai-settings-form .ai-save { justify-self:start; min-height:44px; }
+        .ai-key-section { margin:0; }
+        .ai-key-form { min-width:0; }
+        @media(max-width:520px) { .ai-domain-grid { grid-template-columns:1fr; } .ai-settings-form .ai-save { width:100%; } }
+</style>
       <div class="wrap">
         <header>
           <button class="menu" type="button" aria-label="Open Home Assistant sidebar">☰</button>
@@ -233,29 +252,30 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-settings" role="region" aria-label="Declan page" hidden>
           <h2>Settings</h2>
-          <details class="settings-section" open>
-            <summary>AI Intelligence <small>OpenAI fallback, permissions and spending</small></summary>
+          <div class="settings-sections">
+          <details class="settings-section settings-section--ai">
+            <summary><span class="settings-section-icon" aria-hidden="true">✦</span><span class="settings-section-title">AI Intelligence<small>OpenAI fallback, permissions and spending</small></span></summary>
             <div class="settings-section-content">
               <form class="ai-settings-form">
-                <label><input type="checkbox" name="enabled"> Enable OpenAI fallback</label>
-                <label>Model <select name="model" required><option value="gpt-5-mini">GPT-5 mini</option><option value="gpt-6-luna">GPT-6 Luna</option></select></label>
-                <label>Monthly budget (USD) <input name="monthly_budget_usd" inputmode="decimal" required></label>
-                <label>Maximum per request (USD) <input name="request_ceiling_usd" inputmode="decimal" required></label>
-                <label>Maximum actions <input name="max_actions" type="number" min="1" max="8" required></label>
-                <fieldset><legend>AI permitted device categories</legend>
+                <label class="ai-toggle"><input type="checkbox" name="enabled"><span>Enable OpenAI fallback</span></label>
+                <label class="ai-field"><span>Model</span> <select name="model" required><option value="gpt-5-mini">GPT-5 mini</option><option value="gpt-6-luna">GPT-6 Luna</option></select></label>
+                <label class="ai-field"><span>Monthly budget (USD)</span> <input name="monthly_budget_usd" inputmode="decimal" required></label>
+                <label class="ai-field"><span>Maximum per request (USD)</span> <input name="request_ceiling_usd" inputmode="decimal" required></label>
+                <label class="ai-field"><span>Maximum actions</span> <input name="max_actions" type="number" min="1" max="8" required></label>
+                <fieldset class="ai-domains"><legend>AI permitted device categories</legend><div class="ai-domain-grid">
                   <label><input type="checkbox" name="domain_light"> Lights</label>
                   <label><input type="checkbox" name="domain_switch"> Switches</label>
                   <label><input type="checkbox" name="domain_fan"> Fans</label>
                   <label><input type="checkbox" name="domain_cover"> Covers</label>
-                </fieldset>
+                </div></fieldset>
                 <p class="muted">Sensitive mapped routines use Declan’s existing confirmation flow. AI cannot directly run scripts or garage/gate controls. Ambiguous requests trigger clarification.</p>
-                <label><input type="checkbox" name="diagnostics"> Record diagnostics</label>
-                <label><input type="checkbox" name="show_proposals"> Show AI proposals in History</label>
-                <button type="submit">Save AI settings</button>
+                <div class="ai-options"><label><input type="checkbox" name="diagnostics"> Record diagnostics</label>
+                <label><input type="checkbox" name="show_proposals"> Show AI proposals in History</label></div>
+                <button class="ai-save" type="submit">Save AI settings</button>
               </form>
               <p class="ai-settings-status muted" role="status" aria-live="polite">Open Settings to load AI configuration.</p><p class="ai-usage muted">Monthly usage unavailable.</p>
-              <details><summary>Replace OpenAI API key</summary>
-                <form class="ai-key-form" autocomplete="off">
+              <details class="settings-spotify ai-key-section"><summary>Replace OpenAI API key</summary>
+                <form class="ai-key-form spotify-form" autocomplete="off">
                   <label>New OpenAI API key <input type="password" name="api_key" autocomplete="new-password" minlength="19" maxlength="260" required></label>
                   <button type="submit">Replace API key</button>
                 </form>
@@ -263,7 +283,7 @@ class DeclanTwoNativePanel extends HTMLElement {
               </details>
             </div>
           </details>
-          <div class="settings-sections">
+
             <details class="settings-section settings-section--voice">
               <summary><span class="settings-section-icon" aria-hidden="true">◉</span><span class="settings-section-title">Voice &amp; learning<small>Profiles, reviewed recordings and learned commands</small></span></summary>
               <div class="settings-section-content">
@@ -272,7 +292,7 @@ class DeclanTwoNativePanel extends HTMLElement {
                 </div>
               </div>
             </details>
-            <details class="settings-section" open>
+            <details class="settings-section">
               <summary><span class="settings-section-icon" aria-hidden="true">♫</span><span class="settings-section-title">Spotify integration<small>Connection status and API credentials</small></span></summary>
               <div class="settings-section-content">
                 <p class="muted">Credentials remain saved unless you explicitly replace both values.</p>

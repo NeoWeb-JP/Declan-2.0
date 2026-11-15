@@ -36,6 +36,16 @@ class NativeAISettingsContractTests(unittest.TestCase):
         self.assertNotIn("Bearer ", JS)
         self.assertIn("declan_two/ai-settings", JS)
 
+    def test_ai_settings_match_native_cards_and_mobile_controls(self):
+        self.assertIn('settings-section settings-section--ai', JS)
+        self.assertIn('settings-section-icon', JS)
+        self.assertIn('class="ai-field"', JS)
+        self.assertIn('.ai-settings-form .ai-field input', JS)
+        self.assertIn('.ai-domain-grid', JS)
+        self.assertIn('grid-template-columns:1fr', JS)
+        self.assertNotIn('<details class="settings-section" open>', JS)
+        self.assertNotIn('<details class="settings-section settings-section--ai" open>', JS)
+
     def test_history_proposals_and_diagnostics_are_opt_in(self):
         self.assertIn('showProposals = ai?.settings?.show_proposals === true', JS)
         self.assertIn('if (showProposals && Array.isArray(turn.action_results)', JS)
