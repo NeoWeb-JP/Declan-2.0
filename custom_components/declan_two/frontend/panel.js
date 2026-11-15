@@ -391,9 +391,18 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'settings') { void this.loadSettingsStatus(); if (!this._voicesLoaded) void this.loadVoices(); }
-    if (name === 'updates') void this.loadUpdateStatus();
+    if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
+  }
+
+  async openUpdatesPage() {
+    // Read installation state first; do not check releases during an installation.
+    await this.loadUpdateStatus();
+    if (!this.isConnected || !this.shadowRoot.querySelector('#panel-updates') ||
+        this.shadowRoot.querySelector('#panel-updates').hidden) return;
+    if (this.shadowRoot.querySelector('.updates-check').disabled) return;
+    await this.checkUpdates();
   }
 
   stopUpdatePolling() {
