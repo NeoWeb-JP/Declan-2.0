@@ -20,7 +20,7 @@ class DeclanAISettingsView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
-        if not isinstance(body, dict) or set(body) != {"settings"}:
+        if not isinstance(body, dict) or set(body) not in ({"settings"}, {"api_key"}):
             return web.json_response({"error": "Invalid settings"}, status=400)
         return await self._relay(request, body)
 
@@ -43,8 +43,8 @@ class DeclanAISettingsView(HomeAssistantView):
                     return web.json_response({"error": "Invalid settings" if response.status == 400 else "Backend unavailable"},
                                              status=400 if response.status == 400 else 502)
                 data = await response.json(content_type="application/json")
-                if not isinstance(data, dict) or not isinstance(data.get("settings"), dict):
+                if not isinstance(data, dict) or not (isinstance(data.get("settings"), dict) or data.get("key_configured") is True):
                     raise ValueError("Invalid response")
-                return web.json_response({"settings": data["settings"]}, headers={"Cache-Control": "no-store"})
+                return web.json_response({key: data[key] for key in ("settings", "key_configured") if key in data}, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError):
             return web.json_response({"error": "Backend unavailable"}, status=502)
