@@ -27,7 +27,7 @@ def trusted_speaker(speaker):
 
 
 def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_phrases=None):
-    if phrase in guest_commands:
+    if phrase in guest_commands and guest_commands[phrase] != "check":
         return "guest"
     if sexy_commands and phrase in sexy_commands:
         return "sexy"
