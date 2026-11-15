@@ -12,6 +12,7 @@ FIELDS = {
     'DECLAN_MOVIE_REMOTE': 'remote', 'DECLAN_BEDROOM_MOVIE_REMOTE': 'remote',
     'DECLAN_WEB_TTS_ENTITY': 'tts', 'DECLAN_MEDIA_SEARCH_AGENT': 'conversation',
     'DECLAN_WEB_ASSIST_PIPELINE': 'pipeline',
+    'DECLAN_VISITORS_ENTITY': 'input_boolean',
 }
 
 
