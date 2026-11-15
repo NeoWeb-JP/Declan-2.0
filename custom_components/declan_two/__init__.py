@@ -84,16 +84,20 @@ async def async_setup_entry(hass, entry):
                 "overnight_announcement_outputs", "").split(",") if name.strip()
         }
         destination = call.data.get("entity_id", "")
-        if not destination.startswith("media_player.") or (
+        provider = entry.options.get("primary_tts", "")
+        if not isinstance(destination, str) or not destination.startswith("media_player.") or (
             overnight and destination not in approved
         ):
             _LOGGER.warning("Declan announcement destination is not approved: %s", destination)
             return
         if not isinstance(message, str) or not message.strip():
             return
+        if not isinstance(provider, str) or not provider.startswith("tts."):
+            _LOGGER.warning("Declan announcement has no configured TTS provider")
+            return
         await hass.services.async_call(
             "tts", "speak",
-            {"entity_id": entry.options.get("primary_tts", ""),
+            {"entity_id": provider,
              "media_player_entity_id": destination,
              "message": message},
             blocking=True,
