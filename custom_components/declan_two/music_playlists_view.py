@@ -1,20 +1,11 @@
-"""Admin-only Spotify playlist curation via Home Assistant's Declan Local service."""
-import re
-
+"""Admin-only native Declan 2.0 Spotify playlist settings proxy."""
+import aiohttp
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
-from homeassistant.helpers.storage import Store
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 CATEGORIES = ("country", "braai", "romantic", "sexy_time", "rock", "afrikaans",
               "80s", "90s", "work_focus", "adhd_focus", "massage")
-URI = re.compile(r"(?:spotify(?::|://)playlist[:/]|https://open\\.spotify\\.com/playlist/)([A-Za-z0-9]{22})(?:\\?[^#]*)?\\Z")
-
-
-def canonical_playlist(value):
-    if not isinstance(value, str):
-        return None
-    match = URI.fullmatch(value.strip())
-    return "spotify://playlist/" + match.group(1) if match else None
 
 
 class DeclanMusicPlaylistsView(HomeAssistantView):
@@ -22,53 +13,10 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
     name = "api:declan_two:music-playlists"
     requires_auth = True
 
-    @staticmethod
-    def authorised(request):
-        user = request.get("hass_user")
-        return user is not None and user.is_admin
-
     async def get(self, request):
-        if not self.authorised(request):
-            return web.json_response({"status": "forbidden"}, status=403)
-        hass = request.app["hass"]
-        if not hass.services.has_service("declan_local", "manage_music_playlist"):
-            return web.json_response({"status": "declan_local_unavailable"}, status=503)
-        saved = await Store(hass, 1, "jarvis_local.spotify_categories").async_load() or {}
-        if not isinstance(saved, dict):
-            saved = {}
-        if not saved:
-            # Declan Local can still be using the pre-Store catalogue until
-            # the first discovery refresh or manual edit.
-            import json
-            def read_legacy():
-                try:
-                    with open(hass.config.path("declan_music_playlists.json"), encoding="utf-8") as stream:
-                        return json.load(stream)
-                except (OSError, ValueError):
-                    return {}
-            saved = await hass.async_add_executor_job(read_legacy)
-            if not isinstance(saved, dict):
-                saved = {}
-        categories = {}
-        for category in CATEGORIES:
-            item = saved.get(category, {})
-            item = item if isinstance(item, dict) else {}
-            categories[category] = {
-                key: list(dict.fromkeys(
-                    canonical for value in (
-                        (item.get("favourites", item.get("playlists", [])) if key == "favourites"
-                         else item.get(key, [])) or []
-                    )[:250]
-                    if (canonical := canonical_playlist(value))
-                ))[:25 if key == "playlists" else 250]
-                for key in ("playlists", "favourites", "excluded", "discovered")
-            }
-        return web.json_response({"categories": categories, "max_playlists": 25},
-                                 headers={"Cache-Control": "no-store"})
+        return await self._relay(request)
 
     async def post(self, request):
-        if not self.authorised(request):
-            return web.json_response({"status": "forbidden"}, status=403)
         if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= 2048:
             return web.json_response({"status": "invalid_request"}, status=400)
         try:
@@ -77,21 +25,46 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
             return web.json_response({"status": "invalid_json"}, status=400)
         if not isinstance(body, dict) or set(body) != {"category", "playlist", "operation"}:
             return web.json_response({"status": "invalid_request"}, status=400)
-        category = body["category"]
-        playlist = canonical_playlist(body["playlist"])
-        operation = body["operation"]
-        if category not in CATEGORIES or playlist is None or operation not in ("add", "remove", "delete"):
+        if body["category"] not in CATEGORIES or body["operation"] not in ("add", "remove", "delete") or not isinstance(body["playlist"], str) or len(body["playlist"]) > 256:
             return web.json_response({"status": "invalid_request"}, status=400)
+        return await self._relay(request, body)
+
+    async def _relay(self, request, body=None):
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            return web.json_response({"status": "forbidden"}, status=403)
         hass = request.app["hass"]
-        if not hass.services.has_service("declan_local", "manage_music_playlist"):
-            return web.json_response({"status": "declan_local_unavailable"}, status=503)
-        action = {"add": "favourite", "remove": "remove", "delete": "exclude"}[operation]
+        entries = hass.config_entries.async_entries("declan_two")
+        if len(entries) != 1:
+            return web.json_response({"status": "not_configured"}, status=503)
+        entry = entries[0]
+        url = entry.data["url"] + "/api/settings/music-playlists"
+        kwargs = {
+            "headers": {"Authorization": f"Bearer {entry.data['token']}"},
+            "timeout": aiohttp.ClientTimeout(total=15),
+            "allow_redirects": False,
+        }
         try:
-            await hass.services.async_call(
-                "declan_local", "manage_music_playlist",
-                {"category": category, "playlist": playlist, "operation": action},
-                blocking=True, context=None,
-            )
-        except Exception:
-            return web.json_response({"status": "playlist_update_failed"}, status=409)
-        return await self.get(request)
+            session = async_get_clientsession(hass)
+            async with (session.post(url, json=body, **kwargs) if body is not None
+                        else session.get(url, **kwargs)) as response:
+                if response.status != 200:
+                    return web.json_response({"status": "invalid_request" if response.status == 400 else "backend_unavailable"},
+                                             status=400 if response.status == 400 else 502)
+                payload = await response.json(content_type="application/json")
+                if not isinstance(payload, dict) or not isinstance(payload.get("categories"), dict):
+                    raise ValueError("Invalid Spotify playlist catalogue")
+                categories = {}
+                for name in CATEGORIES:
+                    item = payload["categories"].get(name, {})
+                    if not isinstance(item, dict):
+                        item = {}
+                    categories[name] = {
+                        field: [uri for uri in (item.get(field) or [])[:250]
+                                if isinstance(uri, str) and uri.startswith("spotify://playlist/") and len(uri) == 41]
+                        for field in ("playlists", "favourites", "excluded", "discovered")
+                    }
+                return web.json_response({"categories": categories, "max_playlists": 25},
+                                         headers={"Cache-Control": "no-store"})
+        except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
+            return web.json_response({"status": "backend_unavailable"}, status=502)
