@@ -112,7 +112,8 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertTrue(await self.component.async_setup_entry(hass, self.entry))
         domain, service, announce = hass.services.async_register.call_args.args
         self.assertEqual((domain, service), ("declan_two", "announce"))
-        with patch.object(self.component, "datetime", create=True) as clock:
+        with patch.dict(announce.__globals__, {"datetime": Mock()}) as globals_:
+            clock = globals_["datetime"]
             clock.now.return_value.astimezone.return_value.time.return_value = __import__("datetime").time(23, 30)
             await announce(SimpleNamespace(data={"kind": "ev_reminder", "message": "Charge",
                                                  "entity_id": "media_player.kitchen"}))
