@@ -95,7 +95,7 @@ class DeclanManagementView(HomeAssistantView):
         operation = request.match_info.get("operation")
         if operation not in {"spotify", "import", "intents", "routines"}:
             return web.json_response({"status": "invalid_operation"}, status=404)
-        if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= (131072 if operation == "import" else 2048):
+        if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= (131072 if operation == "import" else 32768 if operation == "routines" else 2048):
             return web.json_response({"status": "invalid_request"}, status=400)
         try:
             body = await request.json()
