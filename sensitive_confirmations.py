@@ -39,6 +39,13 @@ def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_
             import routine_registry
             item = routine_registry.load().get(group[7:])
             return group if item and item["sensitive"] else None
+        try:
+            import routine_registry
+            item = routine_registry.load().get(group)
+            if item and item["sensitive"]:
+                return "custom:" + group
+        except (ValueError, OSError):
+            return "custom:" + group
         return group
     if phrase.startswith(("good night", "goodnight", "time for bed", "shut the house down")):
         return "night"
