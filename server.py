@@ -1437,6 +1437,13 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
 
 
+def _bounded_ai_plan(message, exposed, settings):
+    plan = openai_planner.request_plan(message, exposed, model=settings["model"])
+    if len(plan) > settings["max_actions"]:
+        raise ValueError("Too many proposed actions")
+    return plan
+
+
 def guarded_openai_fallback(message, *, source):
     """Opt-in fallback after local handlers. Sensitive targets excluded."""
     if os.environ.get("DECLAN_OPENAI_FALLBACK_ENABLED") != "1":
@@ -1450,8 +1457,15 @@ def guarded_openai_fallback(message, *, source):
     inventory, error = read_ha_inventory(connection)
     if error or inventory is None:
         return "I couldn't verify Home Assistant devices.", "unavailable", []
-    safe = [row for row in inventory if row["entity_id"].split(".", 1)[0]
-            in settings["allowed_domains"]]
+    # Until HA's Assist exposure policy is available to the backend, require
+    # an explicit server-side allowlist. Never treat inventory as authorisation.
+    permitted = {item.strip() for item in
+                 os.environ.get("DECLAN_OPENAI_ALLOWED_ENTITIES", "").split(",")
+                 if item.strip()}
+    if not permitted:
+        return "AI device permissions are not configured.", "unresolved", []
+    safe = [row for row in inventory if row["entity_id"] in permitted
+            and row["entity_id"].split(".", 1)[0] in settings["allowed_domains"]]
     # Refuse partial exposure rather than silently omit targets or permit
     # the model to infer targets from an incomplete inventory.
     if len(safe) > openai_planner.MAX_CONTEXT:
@@ -1462,7 +1476,7 @@ def guarded_openai_fallback(message, *, source):
         with history.database() as db:
             result = guarded_fallback.run_guarded_fallback(
                 message, safe,
-                planner=lambda text, exposed: openai_planner.request_plan(text, exposed),
+                planner=lambda text, exposed: _bounded_ai_plan(text, exposed, settings),
                 dispatcher=lambda action: ha_dispatcher.dispatch_verified(
                     action, connection,
                     authorised=lambda candidate: candidate.entity_id in {
