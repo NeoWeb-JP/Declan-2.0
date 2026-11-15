@@ -28,6 +28,20 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn('"Cache-Control": "no-store"', VIEW)
         self.assertIn('DeclanMediaPlayersView()', INIT)
 
+    def test_area_labels_prefer_master_bedroom_over_alias(self):
+        import server
+        labels = server.approved_area_labels({
+            "master bedroom": {"light.bedroom"},
+            "bedroom": {"light.bedroom"},
+            "living room": {"light.lounge"},
+            "lounge": {"light.lounge"},
+            "kitchen": {"light.kitchen"},
+        })
+        self.assertEqual(labels["bedroom"], "Master Bedroom")
+        self.assertEqual(labels["living room"], "Living Room")
+        self.assertEqual(labels["everywhere"], "Everywhere")
+        self.assertEqual(labels["kitchen"], "Kitchen")
+
     def test_ui_has_save_refresh_and_safe_options(self):
         self.assertIn("this._hass.callApi('GET', 'declan_two/media-players')", JS)
         self.assertIn("this._hass.callApi('POST', 'declan_two/media-players', {rooms})", JS)
