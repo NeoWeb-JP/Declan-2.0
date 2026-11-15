@@ -22,7 +22,7 @@ def validate(mapping):
     for name, item in mapping.items():
         if not isinstance(name, str) or not NAME.fullmatch(name) or not isinstance(item, dict):
             raise ValueError("Invalid routine name")
-        if set(item) != {"script", "phrases", "fields", "sensitive"}:
+        if set(item) not in ({"script", "phrases", "fields", "sensitive"}, {"script", "phrases", "fields", "sensitive", "remote"}):
             raise ValueError("Invalid routine definition")
         script, phrases, fields = item["script"], item["phrases"], item["fields"]
         if not isinstance(script, str) or not SCRIPT.fullmatch(script):
@@ -47,7 +47,11 @@ def validate(mapping):
                 raise ValueError("Invalid script field")
             if isinstance(value, float) and (value != value or abs(value) > 1e9):
                 raise ValueError("Invalid numeric field")
+        if "remote" in item and (not isinstance(item["remote"], str) or (item["remote"] and not re.fullmatch(r"remote\\.[a-z0-9_]+", item["remote"]))):
+            raise ValueError("Invalid remote entity")
         clean[name] = {"script": script, "phrases": phrases, "fields": fields, "sensitive": item["sensitive"]}
+        if "remote" in item:
+            clean[name]["remote"] = item["remote"]
     return clean
 
 def load():
