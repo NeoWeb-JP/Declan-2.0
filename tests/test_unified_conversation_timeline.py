@@ -7,15 +7,27 @@ JS = (Path(__file__).resolve().parents[1] / "custom_components/declan_two/fronte
 class UnifiedTimelineTests(unittest.TestCase):
     def test_initial_mount_activates_selected_tab(self):
         self.assertIn('connectedCallback() {', JS)
-        self.assertIn("this.selectTab(selected?.value || 'overview');", JS)
+        self.assertIn("this.selectTab('overview');", JS)
         self.assertIn("panel.hidden = panel.id !== 'panel-' + name;", JS)
-        self.assertIn("if (selector && selector.value !== name) selector.value = name;", JS)
+        self.assertIn("this.closePageMenu();", JS)
 
     def test_single_primary_activity_view(self):
-        self.assertIn('<option value="conversations">History &amp; Voice', JS)
+        self.assertIn('data-page="conversations">History &amp; Voice', JS)
         self.assertNotIn('data-tab="voices"', JS)
         self.assertIn('class="timeline-list"', JS)
         self.assertIn('class="timeline-filter"', JS)
+
+    def test_single_history_workspace_without_duplicate_settings_lists(self):
+        settings = JS.split('id="panel-settings"', 1)[1].split('id="panel-updates"', 1)[0]
+        history = JS.split('id="panel-conversations"', 1)[1].split('id="panel-players"', 1)[0]
+        self.assertNotIn('Reviewed recordings</h3>', settings)
+        self.assertNotIn('Refresh reviewed recordings', settings)
+        self.assertNotIn('Refresh learned commands', settings)
+        self.assertNotIn('Conversation archive</h3>', settings)
+        self.assertIn('Phrase training</h3>', history)
+        self.assertIn('class="timeline-list"', history)
+        self.assertIn('class="page-navigation" aria-label="Declan pages" hidden', JS)
+        self.assertIn('class="page-menu-toggle"', JS)
 
     def test_review_in_row(self):
         for snippet in ("async loadTimeline()", "renderTimeline()", "this.resolveVoice(item.id",
