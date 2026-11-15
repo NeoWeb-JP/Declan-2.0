@@ -1,7 +1,8 @@
 """Quiet speech tests: never alter source media-player volume."""
 import unittest
 import wave
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from io import BytesIO
 from array import array
 
@@ -38,6 +39,14 @@ class QuietSpeechTests(unittest.TestCase):
         self.assertTrue(quiet_hours(datetime(2026, 11, 15, 23)))
         self.assertTrue(quiet_hours(datetime(2026, 11, 15, 6, 59)))
         self.assertFalse(quiet_hours(datetime(2026, 11, 15, 7)))
+
+    def test_uk_timezone_handles_bst_and_gmt(self):
+        london = ZoneInfo("Europe/London")
+        summer = datetime(2026, 7, 15, 22, 30, tzinfo=timezone.utc)
+        winter = datetime(2026, 12, 15, 22, 30, tzinfo=timezone.utc)
+        self.assertTrue(quiet_hours(summer.astimezone(london)))
+        self.assertFalse(quiet_hours(winter.astimezone(london)))
+        self.assertTrue(quiet_hours(datetime(2026, 12, 15, 23, tzinfo=london)))
 
     def test_night_reduces_pcm_to_twenty_percent(self):
         original = wav([10000, -10000, 2000])
