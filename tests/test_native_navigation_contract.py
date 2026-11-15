@@ -6,29 +6,27 @@ JS = (Path(__file__).resolve().parents[1] / "custom_components" / "declan_two" /
 
 
 class NativeNavigationTests(unittest.TestCase):
-    def test_each_tab_has_matching_panel(self):
+    def test_page_selector_has_matching_panels(self):
+        self.assertIn('class="page-select"', JS)
         for name in ("overview", "conversations", "players", "settings", "updates"):
-            with self.subTest(tab=name):
-                self.assertIn(f'id="tab-{name}"', JS)
+            with self.subTest(page=name):
+                self.assertIn(f'value="{name}"', JS)
                 self.assertIn(f'id="panel-{name}"', JS)
-                self.assertIn(f'aria-controls="panel-{name}"', JS)
-                self.assertIn(f'aria-labelledby="tab-{name}"', JS)
+        self.assertIn("this.selectTab(this.shadowRoot.querySelector('.page-select').value)", JS)
 
     def test_voice_review_is_in_conversation_timeline(self):
         self.assertIn('class="timeline-list"', JS)
-        self.assertIn('id="tab-conversations"', JS)
+        self.assertIn('value="conversations"', JS)
         self.assertIn('class="overview-chat-heading"', JS)
         self.assertIn('class="voices-list"', JS)
         self.assertNotIn('id="tab-voices"', JS)
 
     def test_mobile_and_accessibility(self):
-        self.assertIn('role="tablist"', JS)
+        self.assertIn('aria-label="Choose Declan page"', JS)
         self.assertIn("selectTab(name)", JS)
         self.assertIn("panel.hidden = panel.id !== 'panel-' + name", JS)
-        self.assertIn("event.key === 'ArrowRight'", JS)
-        self.assertIn("event.key === 'Home'", JS)
-        self.assertIn("overflow-x:auto", JS)
         self.assertIn("this.shadowRoot.innerHTML", JS)
+        self.assertIn(".page-navigation", JS)
 
     def test_native_management_replaces_old_app(self):
         self.assertIn("async loadLearnedIntents()", JS)
