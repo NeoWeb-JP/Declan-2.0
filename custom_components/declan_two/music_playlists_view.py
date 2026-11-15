@@ -23,9 +23,9 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"status": "invalid_json"}, status=400)
-        if not isinstance(body, dict) or set(body) != {"category", "playlist", "operation"}:
+        if not isinstance(body, dict) or (set(body) != {"category", "playlist", "operation"} and not (set(body) == {"category", "operation"} and body.get("operation") == "refresh")):
             return web.json_response({"status": "invalid_request"}, status=400)
-        if body["category"] not in CATEGORIES or body["operation"] not in ("add", "remove", "delete") or not isinstance(body["playlist"], str) or len(body["playlist"]) > 256:
+        if body["category"] not in CATEGORIES or body["operation"] not in ("add", "remove", "delete", "refresh") or (body["operation"] != "refresh" and (not isinstance(body["playlist"], str) or len(body["playlist"]) > 256)):
             return web.json_response({"status": "invalid_request"}, status=400)
         return await self._relay(request, body)
 
@@ -64,7 +64,13 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
                                 if isinstance(uri, str) and uri.startswith("spotify://playlist/") and len(uri) == 41]
                         for field in ("playlists", "favourites", "excluded", "discovered")
                     }
-                return web.json_response({"categories": categories, "max_playlists": 25},
+                    titles = item.get("titles") if isinstance(item.get("titles"), dict) else {}
+                    categories[name]["titles"] = {
+                        uri: title[:160] for uri, title in titles.items()
+                        if isinstance(uri, str) and uri in categories[name]["playlists"]
+                        and isinstance(title, str)
+                    }
+                return web.json_response({"categories": categories, "max_playlists": 25, "refresh": payload.get("refresh") if isinstance(payload.get("refresh"), dict) else {}},
                                          headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
             return web.json_response({"status": "backend_unavailable"}, status=502)

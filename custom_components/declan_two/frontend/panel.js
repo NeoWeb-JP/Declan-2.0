@@ -185,6 +185,8 @@ class DeclanTwoNativePanel extends HTMLElement {
           display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0;
           border:1px solid #28495b; border-radius:10px; padding:12px; background:#102635; }
         .settings-section--playlists .playlists-list .player-row > .mono { flex:1 1 100%; min-width:0; overflow-wrap:anywhere; font-size:.86rem; }
+        .settings-section--playlists .playlist-entry-title { flex:1 1 100%; min-width:0; font-weight:650; }
+        .settings-section--playlists .playlist-entry-link { flex:1 1 100%; color:#9ddcf3; font-size:.85rem; }
         .settings-section--playlists .playlists-list .player-row button { min-height:40px; }
         .settings-section--playlists .playlists-add-form { display:grid; gap:12px; min-width:0; margin:0; padding-top:16px; border-top:1px solid #28495b; }
         .settings-section--playlists .playlists-add-form button { justify-self:start; min-height:44px; }
@@ -427,7 +429,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         if (event.target.open) void this.loadPlaylists();
       });
       this.bindPanelEvent('.playlists-category', 'change', () => this.renderPlaylists());
-      this.bindPanelEvent('.playlists-refresh', 'click', () => this.loadPlaylists());
+      this.bindPanelEvent('.playlists-refresh', 'click', () => this.refreshPlaylists());
       this.bindPanelEvent('.playlists-add-form', 'submit', event => {
         event.preventDefault();
         void this.updatePlaylist('add', this.shadowRoot.querySelector('.playlists-new-uri').value);
@@ -922,6 +924,44 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
+  async refreshPlaylists() {
+    if (this._playlistsPending || !this._hass) return;
+    const category = this.shadowRoot.querySelector('.playlists-category').value;
+    if (!category) return;
+    const status = this.shadowRoot.querySelector('.playlists-status');
+    const button = this.shadowRoot.querySelector('.playlists-refresh');
+    this._playlistsPending = true;
+    button.disabled = true;
+    status.textContent = 'Searching Spotify for ' + category.replace(/_/g, ' ') + ' playlists…';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/music-playlists',
+                                                {category, operation: 'refresh'});
+      if (!response || !response.categories) throw new Error('Discovery did not start');
+      for (let attempt = 0; attempt < 30; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const current = await this._hass.callApi('GET', 'declan_two/music-playlists');
+        if (!current || !current.categories) throw new Error('Discovery status unavailable');
+        if (!current.refresh?.running) {
+          this._playlistCatalogue = current.categories;
+          this.renderPlaylists();
+          if (current.refresh?.error) {
+            status.textContent = 'Spotify search failed. Existing playlists were kept. ' + current.refresh.error;
+          } else {
+            const count = current.categories[category]?.playlists?.length || 0;
+            status.textContent = 'Spotify discovery finished: ' + count + ' of 25 playlists in ' + category.replace(/_/g, ' ') + '.';
+          }
+          return;
+        }
+      }
+      status.textContent = 'Spotify discovery is still running. Check again shortly.';
+    } catch (error) {
+      status.textContent = 'Could not refresh Spotify playlists. Check Spotify credentials and the Declan 2.0 connection.';
+    } finally {
+      button.disabled = false;
+      this._playlistsPending = false;
+    }
+  }
+
   async loadPlaylists() {
     if (this._playlistsPending || !this._hass || typeof this._hass.callApi !== 'function') return;
     this._playlistsPending = true;
@@ -968,10 +1008,20 @@ class DeclanTwoNativePanel extends HTMLElement {
       const row = document.createElement('div');
       row.className = 'player-row';
       const title = document.createElement('span');
-      title.className = 'mono';
+      title.className = 'playlist-entry-title';
       title.style.overflowWrap = 'anywhere';
-      title.textContent = uri;
+      const name = data.titles?.[uri];
+      title.textContent = name || uri;
       row.append(title);
+      if (name) {
+        const link = document.createElement('a');
+        link.href = uri.replace('spotify://playlist/', 'https://open.spotify.com/playlist/');
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'playlist-entry-link';
+        link.textContent = 'Open in Spotify';
+        row.append(link);
+      }
       if ((data.favourites || []).includes(uri)) {
         const pinned = document.createElement('span');
         pinned.textContent = 'Pinned';

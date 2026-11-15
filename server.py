@@ -2156,7 +2156,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/api/settings/music-playlists":
                 try:
-                    self.send_json(200, spotify_playlists.manage(body))
+                    if isinstance(body, dict) and set(body) == {"category", "operation"} and body.get("operation") == "refresh":
+                        credentials, _ = music.spotify_credentials()
+                        if not all(credentials):
+                            self.send_json(409, {"error": "Configure Spotify credentials before refreshing playlists."})
+                            return
+                        self.send_json(200, spotify_playlists.start_refresh(
+                            body["category"], lambda: build_opener(ProxyHandler({}))))
+                    else:
+                        self.send_json(200, spotify_playlists.manage(body))
                 except ValueError as error:
                     self.send_json(400, {"error": str(error)})
                 except OSError:
