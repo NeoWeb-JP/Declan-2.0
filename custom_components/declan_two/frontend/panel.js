@@ -744,7 +744,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         select.id = id;
         select.dataset.room = room;
         label.htmlFor = id;
-        label.textContent = room === 'everywhere' ? 'Everywhere' : room;
+        label.textContent = room.replace(/\b[a-z]/g, character => character.toUpperCase());
         const empty = document.createElement('option');
         empty.value = '';
         empty.textContent = 'No approved player';
