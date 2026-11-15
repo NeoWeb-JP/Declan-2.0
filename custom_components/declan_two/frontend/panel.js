@@ -31,7 +31,26 @@ class DeclanTwoNativePanel extends HTMLElement {
         @media(max-width:520px) {
           header .refresh { flex:1 1 100%; }
           .update-controls > button, .update-controls > select { flex:1 1 100%; width:100%; }
-          .card { padding:16px; }
+          /* Compact identity and status; navigation wraps instead of horizontal scrolling. */
+        header { display:flex; flex-wrap:nowrap; gap:12px; align-items:center; padding:8px 0 16px; }
+        .brand { min-width:0; flex:1 1 auto; }
+        .declan-mark { flex:0 0 44px; width:44px; height:44px; color:#a9eaff; box-shadow:0 0 24px #369dcc44; }
+        .declan-mark svg { display:block; }
+        .connection-action { display:flex; align-items:center; justify-content:center; gap:8px; flex:0 0 auto; padding:9px 12px; border-radius:999px; font-size:.82rem; }
+        .connection-dot { width:9px; height:9px; border-radius:50%; background:#a9b8c3; flex:0 0 9px; }
+        .connection-action[data-status="connected"] .connection-dot { background:#58d4a2; box-shadow:0 0 7px #58d4a277; }
+        .connection-action[data-status="error"] .connection-dot { background:#f0a078; }
+        .tabs { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; overflow:visible; padding:14px 0 6px; }
+        .tabs button { white-space:normal; min-width:0; min-height:46px; padding:10px 8px; line-height:1.25; font-size:.9rem; text-align:center; }
+        @media(max-width:700px) { .tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .tabs button:first-child { grid-column:1 / -1; } }
+        @media(max-width:520px) { header .refresh { flex:0 0 auto; width:auto; } .connection-action-label { display:none; } .connection-action { width:40px; height:40px; padding:0; } .brand h1 { font-size:clamp(17px,5vw,23px); } .tabs { gap:7px; } .tabs button { font-size:.85rem; } }
+        /* Single-row header and compact page selector; no horizontal or multi-row tabs. */
+        .page-navigation { display:flex; align-items:center; gap:12px; padding:10px 0 4px; }
+        .page-navigation label { font-size:.85rem; font-weight:600; color:#a1ccdf; }
+        .page-select { flex:1; min-width:0; min-height:42px; padding:8px 36px 8px 12px; border:1px solid #315568; border-radius:10px; background:#102635; color:#e7f7ff; font:inherit; font-size:.94rem; }
+        .page-select:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
+        @media(max-width:520px) { .page-navigation { padding:8px 0 2px; } .page-select { min-height:40px; } }
+        .card { padding:16px; }
           .tabs { scroll-padding-inline:12px; }
         }
         .tabs button[aria-selected="true"] { background:#184860; border-color:#76dbff; }
@@ -163,18 +182,20 @@ class DeclanTwoNativePanel extends HTMLElement {
       <div class="wrap">
         <header>
           <button class="menu" type="button" aria-label="Open Home Assistant sidebar">☰</button>
-          <div class="brand"><span class="orb" aria-hidden="true">D</span><h1>DECLAN <small>2.0</small></h1></div>
-          <button class="refresh" type="button">Check connection</button>
+          <div class="brand"><span class="orb declan-mark" aria-hidden="true"><svg viewBox="0 0 48 48" width="32" height="32" fill="none"><path d="M14 8h11c10 0 17 7 17 16s-7 16-17 16H14V8Z" stroke="currentColor" stroke-width="4"/><path d="M21 16h4c5 0 8 3 8 8s-3 8-8 8h-4V16Z" fill="currentColor"/></svg></span><h1>DECLAN <small>2.0</small></h1></div>
+          <button class="refresh connection-action" type="button" aria-label="Check Declan connection" title="Check Declan connection"><span class="connection-dot" aria-hidden="true"></span><span class="connection-action-label">Check status</span></button>
         </header>
-        <nav class="tabs" aria-label="Declan management" role="tablist">
-          <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
-
-          <button role="tab" id="tab-conversations" aria-controls="panel-conversations" aria-selected="false" data-tab="conversations">History &amp; Voice Recognition</button>
-          <button role="tab" id="tab-players" aria-controls="panel-players" aria-selected="false" data-tab="players">Media players</button>
-          <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>
-          <button role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false" data-tab="updates">Updates</button>
+        <nav class="page-navigation" aria-label="Declan pages">
+          <label for="declan-page">Page</label>
+          <select id="declan-page" class="page-select" aria-label="Choose Declan page">
+            <option value="overview">Overview</option>
+            <option value="conversations">History &amp; Voice</option>
+            <option value="players">Media players</option>
+            <option value="settings">Settings</option>
+            <option value="updates">Updates</option>
+          </select>
         </nav>
-        <section class="panel overview-panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+        <section class="panel overview-panel" id="panel-overview" role="region" aria-label="Declan page">
           <div class="overview-chat card">
             <div class="overview-chat-intro"><span class="overview-chat-icon" aria-hidden="true">D</span><div><h2 class="overview-chat-heading">Talk to Declan</h2><p class="muted">Ask a question, give a command or start speaking.</p></div></div>
             <form class="chat-form" aria-label="Chat with Declan">
@@ -192,7 +213,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
           </div>
         </section>
-        <section class="card panel" id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations" hidden>
+        <section class="card panel" id="panel-conversations" role="region" aria-label="Declan page" hidden>
           <h2>Chat History &amp; Voice Recognition</h2>
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh timeline</button><select class="timeline-filter" aria-label="Filter conversations"><option value="all">All</option><option value="pending">Needs review</option><option value="reviewed">Reviewed</option></select></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load activity.</p>
@@ -200,14 +221,14 @@ class DeclanTwoNativePanel extends HTMLElement {
           <p class="muted">Unconfirmed recordings remain expanded. Open reviewed entries to see details.</p>
 
         </section>
-        <section class="card panel" id="panel-players" role="tabpanel" aria-labelledby="tab-players" hidden>
+        <section class="card panel" id="panel-players" role="region" aria-label="Declan page" hidden>
           <h2>Approved media players</h2>
           <p class="muted">Choose which Music Assistant player Declan may use for each Home Assistant area. Save to apply changes.</p>
           <div class="history-actions"><button type="button" class="players-refresh">Refresh players</button><button type="button" class="players-save" disabled>Save mappings</button></div>
           <p class="players-status muted" role="status" aria-live="polite">Open this tab to load areas and players.</p>
           <div class="players-list"></div>
         </section>
-        <section class="card panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <section class="card panel" id="panel-settings" role="region" aria-label="Declan page" hidden>
           <h2>Settings</h2>
           <div class="settings-sections">
             <details class="settings-section settings-section--voice">
@@ -255,7 +276,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             </details>
           </div>
         </section>
-        <section class="card panel" id="panel-updates" role="tabpanel" aria-labelledby="tab-updates" hidden>
+        <section class="card panel" id="panel-updates" role="region" aria-label="Declan page" hidden>
           <h2>Backend updates</h2>
           <p class="muted">The Declan backend runs on Proxmox. HACS updates this Home Assistant integration separately.</p>
           <p class="update-version muted">Backend version: checking…</p>
@@ -307,19 +328,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.intents-refresh', 'click', () => this.loadLearnedIntents());
       this.bindPanelEvent('.history-refresh', 'click', () => this.loadHistory());
       this.bindPanelEvent('.history-more', 'click', () => this.loadHistory(this._historyCursor));
-      this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
-        tab.addEventListener('click', () => this.selectTab(tab.dataset.tab));
-        tab.addEventListener('keydown', event => {
-          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-          event.preventDefault();
-          const tabs = [...this.shadowRoot.querySelectorAll('[data-tab]')];
-          const index = tabs.indexOf(tab);
-          const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
-            : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-          this.selectTab(tabs[next].dataset.tab);
-          tabs[next].focus();
-        });
-      });
+      this.bindPanelEvent('.page-select', 'change', () => this.selectTab(this.shadowRoot.querySelector('.page-select').value));
       this.bindPanelEvent('.menu', 'click', () => {
         this.dispatchEvent(new Event('hass-toggle-menu', {bubbles:true, composed:true}));
       });
@@ -352,20 +361,17 @@ class DeclanTwoNativePanel extends HTMLElement {
   connectedCallback() {
     // Apply the same tab visibility state on initial mount as on user navigation.
     // HA may attach the panel before the hass setter supplies backend state.
-    const selected = this.shadowRoot.querySelector('[data-tab][aria-selected="true"]');
+    const selected = this.shadowRoot.querySelector('.page-select');
     try {
-      this.selectTab(selected?.dataset.tab || 'overview');
+      this.selectTab(selected?.value || 'overview');
     } catch (error) {
       this.showStartupError(error);
     }
   }
 
   selectTab(name) {
-    this.shadowRoot.querySelectorAll('[data-tab]').forEach(tab => {
-      const active = tab.dataset.tab === name;
-      tab.setAttribute('aria-selected', String(active));
-      tab.tabIndex = active ? 0 : -1;
-    });
+    const selector = this.shadowRoot.querySelector('.page-select');
+    if (selector && selector.value !== name) selector.value = name;
     this.shadowRoot.querySelectorAll('.panel').forEach(panel => {
       panel.hidden = panel.id !== 'panel-' + name;
     });
@@ -1375,23 +1381,28 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (this._pending) return;
     const state = this.shadowRoot.querySelector('.state');
     const detail = this.shadowRoot.querySelector('.detail');
+    const connectionAction = this.shadowRoot.querySelector('.connection-action');
     if (!this._hass || typeof this._hass.callApi !== 'function') {
       state.textContent = 'Waiting for Home Assistant…';
       return;
     }
     this._pending = true;
+    connectionAction.dataset.status = 'checking';
     state.textContent = 'Checking Declan API…';
     detail.textContent = 'Connecting through Home Assistant.';
     try {
       const result = await this._hass.callApi('GET', 'declan_two/capabilities');
       if (result && result.compatible === true && result.status === 'connected') {
+        connectionAction.dataset.status = 'connected';
         state.textContent = 'Declan API connected';
         detail.textContent = result.server_version ? 'Backend version: ' + result.server_version : 'Backend connected';
       } else {
+        connectionAction.dataset.status = 'error';
         state.textContent = 'Declan API incompatible';
         detail.textContent = 'The backend API version is not supported by this integration.';
       }
     } catch (error) {
+      connectionAction.dataset.status = 'error';
       state.textContent = 'Declan API unavailable';
       detail.textContent = 'Check the Declan integration and backend connection.';
     } finally {
