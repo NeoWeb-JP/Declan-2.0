@@ -25,6 +25,7 @@ class APITests(TestCase):
         self.enterContext(patch.object(server.music, "SPOTIFY_SETTINGS", directory / "spotify-settings.json"))
         self.enterContext(patch.object(server, "SESSIONS", server.OrderedDict()))
         self.enterContext(patch.object(server, "read_guest_mode", return_value="off"))
+        self.enterContext(patch.object(server, "read_visitors_present", return_value=False))
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": "test", "DECLAN_ALLOW_UNCONFIGURED_MA": "1"}))
         http = self.enterContext(server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler))
         worker = Thread(target=http.serve_forever, daemon=True)
