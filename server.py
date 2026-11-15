@@ -41,6 +41,7 @@ import ai_settings
 import ai_credentials
 import ai_pricing
 import ai_budget
+import ai_context
 import guarded_fallback
 import ha_dispatcher
 from intent_preprocessing import preprocess_speech
@@ -1471,11 +1472,8 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
         return "AI device permissions are unavailable.", "unresolved", []
     safe = [row for row in inventory if row["entity_id"] in permitted
             and row["entity_id"].split(".", 1)[0] in settings["allowed_domains"]]
-    # Refuse partial exposure rather than silently omit targets or permit
-    # the model to infer targets from an incomplete inventory.
-    if len(safe) > openai_planner.MAX_CONTEXT:
-        return "Too many Home Assistant entities for the configured AI context.", "unresolved", []
     try:
+        safe = ai_context.select(safe, message, limit=openai_planner.MAX_CONTEXT)
         limit = ai_settings._money(settings["monthly_budget_usd"], allow_zero=True)
         ceiling = ai_settings._money(settings["request_ceiling_usd"], allow_zero=False)
         usage = {}
