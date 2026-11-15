@@ -33,6 +33,7 @@ class PlaylistRefreshTests(unittest.TestCase):
         self.assertEqual(len(search.call_args_list), 2)
         self.assertEqual(sp.listing()["categories"]["country"]["playlists"], ["spotify://playlist/" + "A"*22])
         self.assertEqual(sp.listing()["categories"]["rock"]["playlists"], [])
+        self.assertEqual(sp.listing()["categories"]["country"]["titles"]["spotify://playlist/" + "A"*22], "Country mix")
         self.assertIsNone(sp.listing()["refresh"]["error"])
 
     def test_failure_retains_existing_playlists(self):
