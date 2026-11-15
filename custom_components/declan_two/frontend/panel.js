@@ -254,6 +254,13 @@ class DeclanTwoNativePanel extends HTMLElement {
                 <button type="submit">Save AI settings</button>
               </form>
               <p class="ai-settings-status muted" role="status" aria-live="polite">Open Settings to load AI configuration.</p>
+              <details><summary>Replace OpenAI API key</summary>
+                <form class="ai-key-form" autocomplete="off">
+                  <label>New OpenAI API key <input type="password" name="api_key" autocomplete="new-password" minlength="19" maxlength="260" required></label>
+                  <button type="submit">Replace API key</button>
+                </form>
+                <p class="ai-key-status muted" role="status" aria-live="polite"></p>
+              </details>
             </div>
           </details>
           <div class="settings-sections">
@@ -318,6 +325,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
       this.bindPanelEvent('.ai-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveAISettings();
+      });
+      this.bindPanelEvent('.ai-key-form', 'submit', event => {
+        event.preventDefault(); void this.saveAIKey();
       });
       this._settingsImportPreview = null;
       this.bindPanelEvent('.settings-import-file', 'change', () => this.resetSettingsImport());
@@ -910,6 +920,21 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
+  async saveAIKey() {
+    const form = this.shadowRoot.querySelector('.ai-key-form');
+    const status = this.shadowRoot.querySelector('.ai-key-status');
+    const key = form.elements.namedItem('api_key').value;
+    status.textContent = 'Saving API key…';
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/ai-settings', {api_key: key});
+      if (result.key_configured !== true) throw new Error('Key not saved');
+      form.reset();
+      status.textContent = 'OpenAI API key saved. The key will not be displayed again.';
+    } catch {
+      status.textContent = 'Could not save the OpenAI API key.';
+    }
+  }
+
   async loadAISettings() {
     if (!this._hass) return;
     const form = this.shadowRoot.querySelector('.ai-settings-form');
@@ -928,7 +953,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       for (const domain of ['light', 'switch', 'fan', 'cover']) {
         form.elements.namedItem('domain_' + domain).checked = data.allowed_domains.includes(domain);
       }
-      status.textContent = 'AI settings loaded. OpenAI API credentials must be configured on the backend.';
+      status.textContent = data.key_configured ? 'AI settings loaded. OpenAI API key configured.' : 'AI settings loaded. Configure an OpenAI API key before enabling fallback.';
     } catch {
       status.textContent = 'Could not load AI settings. Changes are not saved.';
     }
