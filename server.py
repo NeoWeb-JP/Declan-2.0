@@ -303,7 +303,7 @@ def execute_routine(selection, action_results):
     app = MOVIE_APPS.get(requested_app)
     if requested_app and (not app or options.get("movie_action") != "start"):
         return "Please name a supported app with an explicit start Movie Time command.", "unresolved", None
-    return run_routine(period, movie_app=app, action_results=action_results, **options)
+    return run_routine(period, movie_app=app, action_results=action_results, approved=approved, **options)
 
 
 def run_custom_routine(name, action_results=None):
@@ -512,7 +512,7 @@ def verify_legacy_lounge_start(connection, script):
 
 
 @diagnostics.timed("ha_routine")
-def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None):
+def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None, approved=False):
     """Call the configured Home Assistant routine once and read its result."""
     salutation = "Movie Time." if movie_action else f"Good {period}."
     lock = ROUTINE_LOCKS["movie_bedroom" if movie_action and movie_room == "bedroom" else period]
@@ -529,6 +529,8 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
         return f"{salutation} Routine configuration is unavailable.", "not_configured", None
     if not mapped:
         return f"{salutation} Map a Home Assistant script for {routine_key} in Declan Settings.", "not_configured", None
+    if mapped["sensitive"] and not approved:
+        return f"{salutation} This routine needs explicit confirmation.", "unresolved", None
     script = mapped["script"]
     remote = configuration.get(f"{movie_prefix}_REMOTE", "").strip() if movie_app else ""
     if movie_app and not re.fullmatch(r"remote\.[a-z0-9_]+", remote):
