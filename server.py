@@ -2386,6 +2386,10 @@ class Handler(BaseHTTPRequestHandler):
         last_lights = ()
         last_device = None
         last_information = None
+        if "response_guest_mode" not in locals():
+            guest_mode = read_guest_mode()
+            visitor_present = read_visitors_present()
+            response_guest_mode = "on" if visitor_present is not False else guest_mode
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             if (scope is not None and previous and previous.get("device_status_scope") == scope
