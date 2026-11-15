@@ -214,7 +214,8 @@ def read_visitors_present():
     token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
     try:
         parsed = urlsplit(url)
-        if not token or parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        if (not token or parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username or parsed.password or parsed.query or parsed.fragment):
             return None
         request = Request(f"{url}/api/states/{VISITORS_PRESENT_ENTITY}",
                           headers={"Authorization": f"Bearer {token}"})
