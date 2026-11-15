@@ -1400,7 +1400,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           details.append(summary);
           for (const step of turn.action_results) {
             const line = document.createElement('p');
-            line.textContent = [step.entity_id, step.action, step.status].filter(Boolean).join(' · ');
+            line.textContent = [step.entity_id, step.action, step.status, step.detail].filter(Boolean).join(' · ');
             details.append(line);
           }
           article.append(details);
