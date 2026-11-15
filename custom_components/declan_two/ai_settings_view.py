@@ -45,6 +45,6 @@ class DeclanAISettingsView(HomeAssistantView):
                 data = await response.json(content_type="application/json")
                 if not isinstance(data, dict) or not (isinstance(data.get("settings"), dict) or data.get("key_configured") is True):
                     raise ValueError("Invalid response")
-                return web.json_response({key: data[key] for key in ("settings", "key_configured") if key in data}, headers={"Cache-Control": "no-store"})
+                return web.json_response({key: data[key] for key in ("settings", "key_configured", "month_usage_micro_usd") if key in data}, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError):
             return web.json_response({"error": "Backend unavailable"}, status=502)
