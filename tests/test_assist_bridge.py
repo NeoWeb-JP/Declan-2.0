@@ -107,7 +107,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                                bus=SimpleNamespace(async_listen=Mock()),
                                services=SimpleNamespace(async_register=Mock(), async_remove=Mock(),
                                                         async_call=AsyncMock()))
-        self.entry.options = {"primary_tts": "tts.example",
+        self.entry.options = {"tts_enabled": True, "primary_tts": "tts.example",
                               "overnight_announcement_outputs": "media_player.kitchen"}
         self.assertTrue(await self.component.async_setup_entry(hass, self.entry))
         domain, service, announce = hass.services.async_register.call_args.args
@@ -124,6 +124,13 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             await announce(SimpleNamespace(data={"kind": "smoke", "message": "Smoke detected",
                                                  "entity_id": "media_player.kitchen"}))
             hass.services.async_call.assert_awaited_once()
+            self.assertEqual(
+                hass.services.async_call.call_args.args[:2], ("tts", "speak")
+            )
+            self.assertEqual(
+                hass.services.async_call.call_args.args[2]["entity_id"],
+                "tts.declan_2_0_voice_manager"
+            )
         name, handler = hass.bus.async_listen.call_args.args
         self.assertEqual(name, "declan_two_assist_reply")
         await handler(SimpleNamespace(data={"message": ""}))
