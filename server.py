@@ -2587,7 +2587,11 @@ class Handler(BaseHTTPRequestHandler):
             if (outcome == "confirmed" and not existing_lines
                     and routine_reply is not None
                     and (light_result is not None
-                         or music.parse(phrase) or music.parse_control(phrase))
+                         or music.parse(phrase) or music.parse_control(phrase)
+                         or (action_results and all(
+                             step.get("status") in {"confirmed", "already_set", "completed"}
+                             for step in action_results
+                         )))
                     and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
                     and not any(word in phrase.casefold() for word in
                                 ("smoke", "fire alarm", "carbon monoxide", "security alert",
