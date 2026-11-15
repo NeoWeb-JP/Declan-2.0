@@ -1440,8 +1440,8 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
 
 
-def _bounded_ai_plan(message, exposed, settings, usage_sink=None):
-    plan = openai_planner.request_plan(message, exposed, model=settings["model"], api_key=ai_credentials.get_key(), usage_sink=usage_sink)
+def _bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None):
+    plan = openai_planner.request_plan(message, exposed, model=settings["model"], api_key=ai_credentials.get_key(), usage_sink=usage_sink, inventory=inventory)
     if len(plan) > settings["max_actions"]:
         raise ValueError("Too many proposed actions")
     return plan
@@ -1483,7 +1483,8 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
             result = guarded_fallback.run_guarded_fallback(
                 message, safe,
                 planner=lambda text, exposed: _bounded_ai_plan(
-                    text, exposed, settings, usage_sink=lambda value: usage.update({"value": value})),
+                    text, exposed, settings, usage_sink=lambda value: usage.update({"value": value}),
+                    inventory=safe),
                 dispatcher=lambda action: ha_dispatcher.dispatch_verified(
                     action, connection,
                     authorised=lambda candidate: candidate.entity_id in {
