@@ -38,6 +38,11 @@ _SAFE_OUTCOMES = frozenset({
 })
 
 
+def response_guest_mode(guest_mode, visitor_present):
+    """Keep Guest Mode authority independent of the privacy-preserving persona."""
+    return "on" if guest_mode != "off" or visitor_present is not False else "off"
+
+
 def quiet_hours(now=None):
     """23:00 inclusive through 07:00 exclusive, in local house time."""
     clock = (now or datetime.now().astimezone()).time()
