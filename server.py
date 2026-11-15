@@ -2561,6 +2561,10 @@ class Handler(BaseHTTPRequestHandler):
         guest_mode = None
         if routine_reply is None and (chat_kind in CHAT_COMMANDS or NAME_PATTERN.fullmatch(chat_kind)):
             guest_mode = read_guest_mode()
+            # Visitor presence changes the response persona, not Guest Mode
+            # authority or any handover state.
+            visitor_present = read_visitors_present()
+            response_guest_mode = "on" if visitor_present is not False else guest_mode
             if CHAT_COMMANDS.get(chat_kind) == "time":
                 information_context = ("time", None, None)
         with SESSION_LOCK:
@@ -2575,7 +2579,7 @@ class Handler(BaseHTTPRequestHandler):
                     and failed_phrase["text"].casefold() != message.casefold()):
                 phrase_suggestion = failed_phrase["text"]
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
-                             scope=scope, guest_mode=guest_mode)
+                             scope=scope, guest_mode=response_guest_mode)
             # Apply a central policy to successful replies that have not already
             # received a command-specific personality line. Preserve the exact
             # result text on failures and ambiguous or safety-sensitive actions.
@@ -2591,7 +2595,7 @@ class Handler(BaseHTTPRequestHandler):
                 reply["reply"] = personality_policy.decorate(
                     reply["reply"], outcome=outcome,
                     guest=guest_mode != "off",
-                    visitor_present=read_visitors_present(),
+                    visitor_present=visitor_present,
                     category="music",
                 )
             if outcome:
