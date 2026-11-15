@@ -955,7 +955,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         form.elements.namedItem('domain_' + domain).checked = data.allowed_domains.includes(domain);
       }
       status.textContent = response.key_configured ? 'AI settings loaded. OpenAI API key configured.' : 'AI settings loaded. Configure an OpenAI API key before enabling fallback.';
-      this.shadowRoot.querySelector('.ai-usage').textContent = 'Monthly recorded usage and reserved allowance: 
+      this.shadowRoot.querySelector('.ai-usage').textContent = 'Monthly usage information is available in the AI settings response.';
     } catch {
       status.textContent = 'Could not load AI settings. Changes are not saved.';
     }
