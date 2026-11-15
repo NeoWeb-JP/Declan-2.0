@@ -1253,6 +1253,17 @@ class DeclanTwoNativePanel extends HTMLElement {
         reply.className = 'reply';
         reply.textContent = turn.reply || '';
         article.append(message, reply);
+        if (turn.teachable && Number.isSafeInteger(turn.id) && turn.id > 0) {
+          const teach = document.createElement('button');
+          teach.type = 'button';
+          teach.textContent = 'Teach Declan';
+          teach.addEventListener('click', async () => {
+            const target = window.prompt('What command should Declan use for this phrase?');
+            if (!target || !target.trim() || target.length > 120) return;
+            await this.changeLearnedIntent({turn_id:turn.id, target:target.trim()});
+          });
+          article.append(teach);
+        }
         list.append(article);
       }
       this._historyLoaded = true;
