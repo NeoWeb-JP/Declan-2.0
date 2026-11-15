@@ -33,8 +33,10 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
         raise ValueError("Invalid utterance")
     if not isinstance(exposed_entities, (list, tuple, set, frozenset)):
         raise ValueError("Invalid exposed entities")
+    if any(not isinstance(x, str) or len(x) > 100 for x in exposed_entities):
+        raise ValueError("Invalid exposed entities")
     entities = sorted(set(exposed_entities))
-    if len(entities) > MAX_CONTEXT or any(not isinstance(x, str) or len(x) > 100 for x in entities):
+    if len(entities) > MAX_CONTEXT:
         raise ValueError("Exposed entity context exceeds limit")
     prompt = (
         "You translate speech into a proposed Home Assistant action plan. "
