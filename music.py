@@ -60,20 +60,16 @@ def music_players(inventory, *, origin=None):
     if approved is not None:
         entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
         return approved, {entity: entities[entity] for entity in approved.values() if entity in entities}
-    destinations = PLAYERS.copy()
     entities = {row["entity_id"]: row for row in inventory
                 if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
-    if entities.get(destinations["everywhere"], {}).get("state") in (None, "unknown", "unavailable"):
-        candidates = [entity for entity, row in entities.items()
-                      if re.fullmatch(r"media_player\.[a-z0-9_]+", entity)
-                      and row.get("state") not in (None, "unknown", "unavailable")
-                      and str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"]
-        if len(candidates) == 1:
-            destinations["everywhere"] = candidates[0]
     registered = any("declan_music_assistant" in row for row in entities.values())
     if registered:
-        # Resolve Music Assistant wrappers from HA areas, including inherited device areas.
-        destinations = {"everywhere": destinations["everywhere"]}
+        # Fail closed: only registered Music Assistant players may be selected.
+        groups = [entity for entity, row in entities.items()
+                  if row.get("declan_music_assistant") is True
+                  and row.get("state") not in (None, "unknown", "unavailable")
+                  and str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"]
+        destinations = {"everywhere": groups[0] if len(groups) == 1 else None}
         rooms = {}
         for entity, row in entities.items():
             area = row.get("declan_area")
@@ -102,7 +98,7 @@ def music_players(inventory, *, origin=None):
         players = {entity: row for entity, row in entities.items()
                    if row.get("declan_music_assistant") is True or entity == destinations["everywhere"]}
         return destinations, players
-    return destinations, {entity: entities[entity] for entity in destinations.values() if entity in entities}
+    # Never fall back to hardcoded household targets without MA registration.\n    return {}, {}
 
 
 @contextmanager
