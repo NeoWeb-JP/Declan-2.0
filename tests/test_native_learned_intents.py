@@ -19,11 +19,17 @@ class NativeIntentsTests(unittest.TestCase):
         self.assertIn('not user.is_admin', VIEW)
         self.assertIn('{"forget", "previous"}', VIEW)
         self.assertIn('"teachable": item.get("teachable") is True', HISTORY)
-    def test_ui_edit_forget_teach(self):
-        for value in ('class="intents-list"', 'async loadLearnedIntents()', 'async changeLearnedIntent(body)',
-                      "window.confirm('Forget the learned command", "this.changeLearnedIntent({phrase, target:next, previous:target})",
-                      "this.changeLearnedIntent({turn_id:turn.id, target:target.trim()})"):
-            self.assertIn(value, JS)
-        self.assertIn('name.textContent = phrase', JS)
+    def test_training_backend_retained_but_no_duplicate_history_list(self):
+        # The learned-intent API remains for issue #98; management UI is deliberately
+        # not embedded in the rolling seven-day voice-review page.
+        self.assertIn('async loadLearnedIntents()', JS)
+        self.assertIn('async changeLearnedIntent(body)', JS)
+        self.assertIn("this.changeLearnedIntent({phrase, target:next, previous:target})", JS)
+        history_panel = JS.split('id="panel-conversations"', 1)[1].split('id="panel-players"', 1)[0]
+        self.assertNotIn('class="intents-list"', history_panel)
+        self.assertNotIn('Saved phrase corrections', history_panel)
+        self.assertIn("train.disabled = true;", JS)
+        self.assertIn("issue #97", JS)
         self.assertNotIn('Advanced editing remains in the existing Declan app.', JS)
+
 if __name__=="__main__": unittest.main()
