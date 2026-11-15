@@ -69,8 +69,6 @@ class ConfirmationGate:
                 return "allow", None
             if not group or (not group.startswith("custom:") and group not in groups()):
                 return "allow", None
-            if not group.startswith("custom:") and trusted_speaker(speaker):
-                return "allow", None
             if not session or not origin:
                 return "denied", None
             self.pending[key] = {"phrase": phrase, "expires": now + TTL_SECONDS}
