@@ -203,15 +203,20 @@ class APITests(TestCase):
             "sexy_time": {"script": "script.declan_sexy_time_controller", "sensitive": False}
         }):
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
-                opener.open.return_value = io.BytesIO(json.dumps({"service_response": {
-                    "operation": operation, "lighting_ok": True, "music_stopped": operation == "end",
-                }}).encode())
+                def correlated(request, timeout):
+                    data = json.loads(request.data)
+                    return io.BytesIO(json.dumps({"service_response": {
+                        "operation": operation, "lighting_ok": True, "music_stopped": operation == "end",
+                        "request_id": data["request_id"], "routine_id": data["routine_id"],
+                    }}).encode())
+                opener.open.side_effect = correlated
                 result = self.ask(phrase, path="/api/assist")
                 self.assertEqual(result["outcome"], "confirmed")
                 request = opener.open.call_args.args[0]
                 self.assertEqual(request.full_url,
                                  "http://ha.invalid/api/services/script/declan_sexy_time_controller?return_response")
-                self.assertEqual(json.loads(request.data), {"operation": operation, "music_player": "media_player.master_bedroom_declan"})
+                self.assertEqual(json.loads(request.data)["operation"], operation)
+                self.assertEqual(json.loads(request.data)["music_player"], "media_player.master_bedroom_declan")
                 self.assertIn(result["reply"], LINES[f"sexy_time_{operation}"][0])
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
             self.assertEqual(play.call_count, sum(value == "start" for value in server.SEXY_TIME_COMMANDS.values()))
@@ -219,7 +224,11 @@ class APITests(TestCase):
             self.assertEqual(play.call_args.args[2](connection)[0][0]["entity_id"], "media_player.master_bedroom_declan")
 
             play.return_value = ("Home Assistant took too long to respond.", "unverified")
-            opener.open.return_value = io.BytesIO(b'{"service_response":{"operation":"start","lighting_ok":true}}')
+            def partial_response(request, timeout):
+                data = json.loads(request.data)
+                return io.BytesIO(json.dumps({"service_response": {"operation": "start", "lighting_ok": True,
+                    "request_id": data["request_id"], "routine_id": data["routine_id"]}}).encode())
+            opener.open.side_effect = partial_response
             result = self.ask("sexy time", path="/api/assist")
             self.assertEqual(result["outcome"], "partial")
             self.assertIn(result["reply"], LINES["sexy_time_start"][0])
@@ -229,7 +238,11 @@ class APITests(TestCase):
             self.assertIn("Home Assistant took too long", turn["routine_status"])
             play.reset_mock()
 
-            opener.open.return_value = io.BytesIO(b'{"service_response":{"operation":"start","lighting_ok":false}}')
+            def unverified_response(request, timeout):
+                data = json.loads(request.data)
+                return io.BytesIO(json.dumps({"service_response": {"operation": "start", "lighting_ok": False,
+                    "request_id": data["request_id"], "routine_id": data["routine_id"]}}).encode())
+            opener.open.side_effect = unverified_response
             self.assertEqual(self.ask("sexy time", path="/api/assist")["outcome"], "unverified")
             play.assert_not_called()
 
