@@ -36,6 +36,9 @@ import approved_media_players
 import timers
 import updates
 import web_stt
+import openai_planner
+import guarded_fallback
+import ha_dispatcher
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 
@@ -1432,6 +1435,44 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
     return reply, outcome
 
 
+
+def guarded_openai_fallback(message, *, source):
+    """Opt-in fallback after local handlers. Sensitive targets excluded."""
+    if os.environ.get("DECLAN_OPENAI_FALLBACK_ENABLED") != "1":
+        return None
+    connection = ha_device_connection()
+    if connection is None:
+        return "Home Assistant is unavailable.", "unavailable", []
+    inventory, error = read_ha_inventory(connection)
+    if error or inventory is None:
+        return "I couldn't verify Home Assistant devices.", "unavailable", []
+    safe = [row for row in inventory if row["entity_id"].split(".", 1)[0]
+            in {"light", "switch", "fan", "cover"}]
+    try:
+        limit = int(os.environ.get("DECLAN_OPENAI_MONTHLY_LIMIT_MICRO_USD", "0"))
+        ceiling = int(os.environ.get("DECLAN_OPENAI_REQUEST_CEILING_MICRO_USD", "0"))
+        with history.database() as db:
+            result = guarded_fallback.run_guarded_fallback(
+                message, safe,
+                planner=lambda text, exposed: openai_planner.request_plan(text, exposed),
+                dispatcher=lambda action: ha_dispatcher.dispatch_verified(
+                    action, connection,
+                    authorised=lambda candidate: candidate.entity_id in {
+                        row["entity_id"] for row in safe
+                        if row["state"] not in ("unknown", "unavailable")
+                    }),
+                budget_db=db, monthly_limit_micro_usd=limit,
+                request_ceiling_micro_usd=ceiling,
+            )
+        return result["reply"], result["outcome"], [
+            {"entity_id": action.entity_id, "action": action.service,
+             "status": action.status, "detail": action.detail}
+            for action in result["actions"]
+        ]
+    except (ValueError, OSError, sqlite3.Error):
+        return "I couldn't safely complete that request using OpenAI.", "unresolved", []
+
+
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
     now = monotonic()
     while SESSIONS and now - next(iter(SESSIONS.values()))["at"] >= IDLE_SECONDS:
@@ -2237,6 +2278,11 @@ class Handler(BaseHTTPRequestHandler):
                         step["entity_id"] for step in action_results
                         if step["status"] in ("confirmed", "already_set") and "entity_id" in step
                     )) if outcome == "confirmed" and scope is not None and len(action_results) < 200 else ()
+        if routine_reply is None and light_result is None:
+            fallback = guarded_openai_fallback(effective_message, source=source)
+            if fallback is not None:
+                routine_reply, outcome, fallback_steps = fallback
+                action_results.extend(fallback_steps)
         chat_kind = effective_message.casefold().strip(" .?!")
         guest_mode = None
         if routine_reply is None and (chat_kind in CHAT_COMMANDS or NAME_PATTERN.fullmatch(chat_kind)):
