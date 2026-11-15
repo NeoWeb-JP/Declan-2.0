@@ -93,14 +93,12 @@ class DeclanManagementView(HomeAssistantView):
         except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
             return web.json_response({"status": "backend_unavailable"}, status=502)
 
-    async def get(self, request):
-        operation = request.match_info.get("operation")
+    async def get(self, request, operation):
         if operation not in GET_PATHS:
             return web.json_response({"status": "invalid_operation"}, status=404)
         return await self._relay(request, operation)
 
-    async def post(self, request):
-        operation = request.match_info.get("operation")
+    async def post(self, request, operation):
         if operation not in {"spotify", "import", "intents", "routines"}:
             return web.json_response({"status": "invalid_operation"}, status=404)
         if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= (131072 if operation == "import" else 32768 if operation == "routines" else 2048):

@@ -17,6 +17,14 @@ class NativeManagementContracts(unittest.TestCase):
         self.assertIn("allow_redirects=False", VIEW)
         self.assertIn("Cache-Control", VIEW)
 
+    def test_management_routes_accept_home_assistant_path_parameters(self):
+        tree = ast.parse(VIEW)
+        view = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "DeclanManagementView")
+        for method in ("get", "post"):
+            handler = next(node for node in view.body if isinstance(node, ast.AsyncFunctionDef) and node.name == method)
+            self.assertEqual([arg.arg for arg in handler.args.args], ["self", "request", "operation"])
+        self.assertIn('url = "/api/declan_two/management/{operation}"', VIEW)
+
     def test_credential_replacement_requires_explicit_confirmation(self):
         self.assertIn('self.path == "/api/native/spotify-credentials"', SERVER)
         self.assertIn('set(body) != {"client_id", "client_secret", "confirm"}', SERVER)
