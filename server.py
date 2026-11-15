@@ -38,6 +38,7 @@ import updates
 import web_stt
 import openai_planner
 import ai_settings
+import ai_credentials
 import guarded_fallback
 import ha_dispatcher
 from intent_preprocessing import preprocess_speech
@@ -1438,7 +1439,7 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
 
 def _bounded_ai_plan(message, exposed, settings):
-    plan = openai_planner.request_plan(message, exposed, model=settings["model"])
+    plan = openai_planner.request_plan(message, exposed, model=settings["model"], api_key=ai_credentials.get_key())
     if len(plan) > settings["max_actions"]:
         raise ValueError("Too many proposed actions")
     return plan
@@ -1770,7 +1771,7 @@ class Handler(BaseHTTPRequestHandler):
             self.spotify_settings()
         elif self.path == "/api/settings/ai":
             try:
-                self.send_json(200, {"settings": ai_settings.read()})
+                self.send_json(200, {"settings": ai_settings.read(), "key_configured": ai_credentials.configured()})
             except (OSError, sqlite3.Error, ValueError):
                 self.send_json(503, {"error": "AI settings unavailable."})
         elif self.path == "/api/settings/media-players":
@@ -1975,9 +1976,16 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/api/settings/ai":
                 try:
-                    if not isinstance(body, dict) or set(body) != {"settings"}:
+                    if not isinstance(body, dict):
                         raise ValueError("Invalid AI settings payload")
-                    self.send_json(200, {"settings": ai_settings.save(body["settings"])})
+                    if set(body) == {"api_key"}:
+                        ai_credentials.replace_key(body["api_key"])
+                        self.send_json(200, {"key_configured": True})
+                    elif set(body) == {"settings"}:
+                        self.send_json(200, {"settings": ai_settings.save(body["settings"]),
+                                             "key_configured": ai_credentials.configured()})
+                    else:
+                        raise ValueError("Invalid AI settings payload")
                 except ValueError as error:
                     self.send_json(400, {"error": str(error)})
                 except (OSError, sqlite3.Error):
