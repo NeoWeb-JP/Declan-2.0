@@ -248,7 +248,7 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <label><input type="checkbox" name="domain_fan"> Fans</label>
                   <label><input type="checkbox" name="domain_cover"> Covers</label>
                 </fieldset>
-                <p class="muted">Sensitive actions require confirmation. Only mapped routines are permitted. Ambiguous requests trigger clarification.</p>
+                <p class="muted">Sensitive mapped routines use Declan’s existing confirmation flow. AI cannot directly run scripts or garage/gate controls. Ambiguous requests trigger clarification.</p>
                 <label><input type="checkbox" name="diagnostics"> Record diagnostics</label>
                 <label><input type="checkbox" name="show_proposals"> Show AI proposals in History</label>
                 <button type="submit">Save AI settings</button>
