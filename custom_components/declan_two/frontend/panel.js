@@ -472,6 +472,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     const fields = [
       ['name', 'Routine key', name],
       ['script', 'HA script entity ID', item.script || ''],
+      ['remote', 'Optional projector remote entity ID', item.remote || ''],
       ['phrases', 'Trigger phrases (one per line)', (item.phrases || []).join('\n')],
       ['fields', 'Script parameters (JSON object)', JSON.stringify(item.fields || {})]
     ];
@@ -482,10 +483,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       const input = key === 'phrases' || key === 'fields' ? document.createElement('textarea') : document.createElement('input');
       input.dataset.field = key;
       input.value = value;
-      if (key === 'script') {
+      if (key === 'script' || key === 'remote') {
         const datalist = document.createElement('datalist');
         datalist.id = 'routine-scripts-' + Math.random().toString(36).slice(2);
-        const scripts = Object.values(this._hass?.states || {}).filter(entity => entity.entity_id?.startsWith('script.'));
+        const scripts = Object.values(this._hass?.states || {}).filter(entity => entity.entity_id?.startsWith(key + '.'));
         for (const entity of scripts) {
           const option = document.createElement('option');
           option.value = entity.entity_id;
@@ -542,6 +543,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         if (!field('script').value.trim() && ['morning', 'night', 'movie', 'movie_bedroom'].includes(name)) continue;
         routines[name] = {
           script: field('script').value.trim(),
+          remote: field('remote').value.trim(),
           phrases: field('phrases').value.split('\n').map(x => x.trim().toLowerCase()).filter(Boolean),
           fields: JSON.parse(field('fields').value),
           sensitive: field('sensitive').checked
