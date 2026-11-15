@@ -313,6 +313,22 @@ class DeclanTwoNativePanel extends HTMLElement {
                 </details>
               </div>
             </details>
+            <details class="settings-section settings-section--playlists">
+              <summary><span class="settings-section-icon" aria-hidden="true">♫</span><span class="settings-section-title">Spotify playlists<small>Browse and curate 25 playlists per category</small></span></summary>
+              <div class="settings-section-content">
+                <p class="muted">Add pins to keep playlists through discovery refreshes. Remove takes a playlist out of the current category (discovery may add it again). Delete excludes it from future discovery in this category.</p>
+                <div class="history-actions">
+                  <label>Category <select class="playlists-category" aria-label="Spotify playlist category"></select></label>
+                  <button type="button" class="playlists-refresh">Refresh playlists</button>
+                </div>
+                <p class="playlists-status muted" role="status" aria-live="polite">Expand this section to load your Spotify categories.</p>
+                <div class="playlists-list" aria-label="Playlists in selected category"></div>
+                <form class="playlists-add-form">
+                  <label>Spotify playlist link or URI <input class="playlists-new-uri" required placeholder="https://open.spotify.com/playlist/…" autocomplete="off"></label>
+                  <button type="submit">Add playlist</button>
+                </form>
+              </div>
+            </details>
             <details class="settings-section">
               <summary><span class="settings-section-icon" aria-hidden="true">⇩</span><span class="settings-section-title">Backup &amp; recovery<small>Export, restore and preview configuration</small></span></summary>
               <div class="settings-section-content">
@@ -378,6 +394,19 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.timeline-refresh', 'click', () => this.loadTimeline());
       this.bindPanelEvent('.voices-refresh', 'click', () => this.loadVoices());
 
+      this.bindPanelEvent('.settings-section--playlists', 'toggle', event => {
+        if (event.target.open) void this.loadPlaylists();
+      });
+      this.bindPanelEvent('.playlists-category', 'change', () => this.renderPlaylists());
+      this.bindPanelEvent('.playlists-refresh', 'click', () => this.loadPlaylists());
+      this.bindPanelEvent('.playlists-add-form', 'submit', event => {
+        event.preventDefault();
+        void this.updatePlaylist('add', this.shadowRoot.querySelector('.playlists-new-uri').value);
+      });
+      this.bindPanelEvent('.playlists-list', 'click', event => {
+        const button = event.target.closest('button[data-playlist-operation]');
+        if (button) void this.updatePlaylist(button.dataset.playlistOperation, button.dataset.playlistUri);
+      });
       this.bindPanelEvent('.players-refresh', 'click', () => this.loadPlayers());
       this.bindPanelEvent('.players-save', 'click', () => this.savePlayers());
       this.bindPanelEvent('.updates-check', 'click', () => this.checkUpdates());
@@ -864,6 +893,115 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
+  async loadPlaylists() {
+    if (this._playlistsPending || !this._hass || typeof this._hass.callApi !== 'function') return;
+    this._playlistsPending = true;
+    const status = this.shadowRoot.querySelector('.playlists-status');
+    status.textContent = 'Loading playlists from Home Assistant…';
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/music-playlists');
+      if (!data || !data.categories || typeof data.categories !== 'object') throw new Error('Invalid playlist response');
+      this._playlistCatalogue = data.categories;
+      const select = this.shadowRoot.querySelector('.playlists-category');
+      const selected = select.value;
+      select.replaceChildren();
+      for (const category of Object.keys(data.categories)) {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+        select.append(option);
+      }
+      if (Object.hasOwn(data.categories, selected)) select.value = selected;
+      this.renderPlaylists();
+    } catch {
+      status.textContent = 'Could not load Spotify playlists. Ensure Declan Local is installed and its music service is available.';
+    } finally {
+      this._playlistsPending = false;
+    }
+  }
+
+  renderPlaylists() {
+    const status = this.shadowRoot.querySelector('.playlists-status');
+    const list = this.shadowRoot.querySelector('.playlists-list');
+    const category = this.shadowRoot.querySelector('.playlists-category').value;
+    const data = this._playlistCatalogue?.[category];
+    list.replaceChildren();
+    if (!data) { status.textContent = 'No category selected.'; return; }
+    const playlists = Array.isArray(data.playlists) ? data.playlists : [];
+    status.textContent = category.replace(/_/g, ' ') + ': ' + playlists.length + ' of 25 playlists';
+    if (!playlists.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'No playlists saved yet. Add a Spotify playlist link below.';
+      list.append(empty);
+    }
+    for (const uri of playlists) {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      const title = document.createElement('span');
+      title.className = 'mono';
+      title.style.overflowWrap = 'anywhere';
+      title.textContent = uri;
+      row.append(title);
+      if ((data.favourites || []).includes(uri)) {
+        const pinned = document.createElement('span');
+        pinned.textContent = 'Pinned';
+        row.append(pinned);
+      }
+      for (const [operation, label] of [['remove', 'Remove'], ['delete', 'Delete / exclude']]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.playlistOperation = operation;
+        button.dataset.playlistUri = uri;
+        button.textContent = label;
+        button.setAttribute('aria-label', label + ' ' + uri);
+        row.append(button);
+      }
+      list.append(row);
+    }
+    if (Array.isArray(data.excluded) && data.excluded.length) {
+      const heading = document.createElement('h3');
+      heading.textContent = 'Excluded from discovery';
+      list.append(heading);
+      for (const uri of data.excluded) {
+        const row = document.createElement('div');
+        row.className = 'player-row';
+        const title = document.createElement('span');
+        title.className = 'mono';
+        title.style.overflowWrap = 'anywhere';
+        title.textContent = uri;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'Restore';
+        button.dataset.playlistOperation = 'remove';
+        button.dataset.playlistUri = uri;
+        row.append(title, button);
+        list.append(row);
+      }
+    }
+  }
+
+  async updatePlaylist(operation, playlist) {
+    if (this._playlistsPending || !this._hass || !playlist) return;
+    const category = this.shadowRoot.querySelector('.playlists-category').value;
+    if (!category) return;
+    this._playlistsPending = true;
+    const status = this.shadowRoot.querySelector('.playlists-status');
+    status.textContent = 'Saving playlist change…';
+    try {
+      const data = await this._hass.callApi('POST', 'declan_two/music-playlists',
+                                           {category, playlist: playlist.trim(), operation});
+      if (!data || !data.categories) throw new Error('Save not confirmed');
+      this._playlistCatalogue = data.categories;
+      this.shadowRoot.querySelector('.playlists-new-uri').value = '';
+      this.renderPlaylists();
+    } catch {
+      status.textContent = 'Playlist change failed. Check the link, the 25-playlist limit and Declan Local service availability.';
+    } finally {
+      this._playlistsPending = false;
+    }
+  }
+
   async loadPlayers() {
     if (this._playersPending || !this._hass || typeof this._hass.callApi !== 'function') return;
     this._playersPending = true;
@@ -885,7 +1023,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         select.id = id;
         select.dataset.room = room;
         label.htmlFor = id;
-        label.textContent = room.replace(/\b[a-z]/g, character => character.toUpperCase());
+        label.textContent = (data.room_labels && data.room_labels[room]) || room.replace(/\b[a-z]/g, character => character.toUpperCase());
         const empty = document.createElement('option');
         empty.value = '';
         empty.textContent = 'No approved player';

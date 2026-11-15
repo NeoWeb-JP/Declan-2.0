@@ -4,7 +4,7 @@ import io
 import json
 from datetime import datetime, timezone
 from unittest import TestCase
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
@@ -13,6 +13,7 @@ import server
 
 
 class MusicInventoryTests(TestCase):
+    @patch.dict("os.environ", {"DECLAN_ALLOW_UNCONFIGURED_MA": "1"})
     def test_native_datetime_does_not_break_discovery_or_group_membership(self):
         entity = "media_player.utility_queue"
         satellite = "assist_satellite.utility"

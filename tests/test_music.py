@@ -15,8 +15,12 @@ import server
 
 class MusicTests(unittest.TestCase):
     def setUp(self):
-        self.players = {entity: {"entity_id": entity, "state": "idle", "attributes": {}}
-                        for entity in music.PLAYERS.values()}
+        self.players = {entity: {"entity_id": entity, "state": "idle",
+                                 "attributes": {"friendly_name": "Everywhere"} if room == "everywhere" else {},
+                                 "declan_music_assistant": True,
+                                 "declan_area": {"bedroom": "Master Bedroom",
+                                                 "kitchen": "Kitchen"}.get(room)}
+                        for room, entity in music.PLAYERS.items()}
         self.bedroom, self.kitchen, self.group = (music.PLAYERS[room] for room in ("bedroom", "kitchen", "everywhere"))
         self.track = {"media_content_id": "spotify--account://track/0JkIre0YxNmKGMU5V7ZiDx",
                       "media_title": "Coward of the County", "media_artist": "Kenny Rogers"}
@@ -32,6 +36,7 @@ class MusicTests(unittest.TestCase):
         self.enterContext(patch.dict(music.os.environ, {
             "DECLAN_SPOTIFY_PRESETS": "{}", "DECLAN_SPOTIFY_CLIENT_ID": "test-client",
             "DECLAN_SPOTIFY_CLIENT_SECRET": "test-secret",
+            "DECLAN_ALLOW_UNCONFIGURED_MA": "1",
         }))
         self.enterContext(patch.object(music, "spotify_token", None))
         folder = self.enterContext(TemporaryDirectory())
@@ -204,7 +209,7 @@ class MusicTests(unittest.TestCase):
         self.assertIsNone(music.music_players(rows)[0]["bedroom"])
         self.assertEqual(music.music_players(rows, origin=satellite)[0]["bedroom"], target)
         self.assertEqual(music.music_players(rows, origin="other-device")[0]["bedroom"], other)
-        self.assertEqual(music.music_players(rows, origin=satellite)[0]["everywhere"], self.group)
+        self.assertIsNone(music.music_players(rows, origin=satellite)[0]["everywhere"])  # Group is not MA-registered.
 
     def test_sexy_time_uses_resolved_bedroom_speaker_for_start_and_end(self):
         target, native, satellite = self.bedroom_players()
@@ -271,6 +276,7 @@ class MusicTests(unittest.TestCase):
         replacement = "media_player.everywhere_3"
         self.players[self.group]["state"] = "unavailable"
         self.players[replacement] = {"entity_id": replacement, "state": "idle",
+                                     "declan_music_assistant": True,
                                      "attributes": {"friendly_name": "Everywhere"}}
         self.assertEqual(self.play("play music everywhere")[1], "confirmed")
         self.assertEqual(self.calls[-1], ("transfer_queue", {
@@ -358,12 +364,13 @@ class MusicTests(unittest.TestCase):
                 self.assertEqual(outcome, "confirmed", reply)
                 self.assertEqual(self.calls[-1], (action, {"entity_id": self.bedroom}))
 
-    def test_unqualified_assist_stop_only_controls_the_originating_room(self):
+    def test_unqualified_assist_stop_controls_all_active_approved_rooms(self):
         areas = lambda connection, origin: {"master bedroom": set(), "bedroom": set()}
         self.players[self.kitchen].update(state="playing", attributes=self.track)
         self.assertEqual(self.control("stop", origin="satellite", read_areas=areas, assist=True)[1], "confirmed")
-        self.assertEqual(self.calls, [("media_stop", {"entity_id": self.bedroom})])
-        self.assertEqual(self.players[self.kitchen]["state"], "playing")
+        self.assertEqual(self.calls, [("media_stop", {"entity_id": self.bedroom}),
+                                      ("media_stop", {"entity_id": self.kitchen})])
+        self.assertEqual(self.players[self.kitchen]["state"], "idle")
 
     def test_assist_pause_confirms_a_late_state_update_without_resending(self):
         original_open = self.open
@@ -420,7 +427,11 @@ class MusicTests(unittest.TestCase):
 
     def test_ambiguous_or_grouped_room_commands_do_not_stop_other_outputs(self):
         self.players[self.kitchen].update(state="playing", attributes=self.track)
-        self.assertEqual(self.control("stop")[1], "unresolved")
+        self.assertEqual(self.control("stop")[1], "confirmed")
+        self.assertEqual(self.players[self.bedroom]["state"], "idle")
+        self.assertEqual(self.players[self.kitchen]["state"], "idle")
+        self.calls.clear()
+        self.players[self.bedroom]["state"] = "playing"
         self.players[self.group].update(state="playing", attributes={"group_members": [self.bedroom, self.kitchen]})
         self.assertEqual(self.control("stop music in the bedroom")[1], "unresolved")
         self.assertEqual(self.calls, [])

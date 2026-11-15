@@ -83,6 +83,8 @@ class DeclanMediaPlayersView(HomeAssistantView):
                 return web.json_response({
                     "configured": payload.get("configured") is True,
                     "rooms": rooms, "selected": selected, "players": players,
+                    "room_labels": {room: str((payload.get("room_labels") or {}).get(room) or room)[:200]
+                                    for room in rooms},
                 }, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
             _LOGGER.debug("Declan approved players proxy failed")

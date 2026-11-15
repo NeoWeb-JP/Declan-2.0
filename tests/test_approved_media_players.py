@@ -44,6 +44,30 @@ class ApprovedMediaPlayerTests(unittest.TestCase):
         self.assertEqual(destinations, {"kitchen": None, "study": None})
         self.assertEqual(players, {})
 
+    def test_unconfigured_without_registration_never_uses_hardcoded_players(self):
+        with patch.object(approved, "load", return_value=None):
+            destinations, players = music.music_players([
+                {"entity_id": "media_player.kitchen_declan_voice_assistant",
+                 "state": "playing", "attributes": {"friendly_name": "Kitchen"}},
+                {"entity_id": "media_player.everywhere",
+                 "state": "playing", "attributes": {"friendly_name": "Everywhere"}},
+            ])
+        self.assertEqual(destinations, {})
+        self.assertEqual(players, {})
+
+    def test_registered_ma_players_are_not_implicitly_approved(self):
+        with patch.object(approved, "load", return_value=None), \
+             patch.dict(os.environ, {"DECLAN_ALLOW_UNCONFIGURED_MA": ""}):
+            destinations, players = music.music_players([
+                {"entity_id": "media_player.kitchen_ma", "state": "playing",
+                 "declan_area": "Kitchen", "declan_music_assistant": True},
+                {"entity_id": "media_player.everywhere_2", "state": "playing",
+                 "declan_music_assistant": True,
+                 "attributes": {"friendly_name": "Everywhere"}},
+            ])
+        self.assertEqual(destinations, {})
+        self.assertEqual(players, {})
+
     def test_invalid_mapping_is_rejected(self):
         with self.assertRaises(ValueError):
             approved.save({"kitchen": "switch.kitchen"})

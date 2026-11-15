@@ -60,20 +60,22 @@ def music_players(inventory, *, origin=None):
     if approved is not None:
         entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
         return approved, {entity: entities[entity] for entity in approved.values() if entity in entities}
-    destinations = PLAYERS.copy()
+    # Strict by default: registered MA devices are only candidates until the
+    # user approves the room mapping in Settings. The opt-in compatibility
+    # switch exists solely for installations migrating older auto-discovery.
+    if os.environ.get("DECLAN_ALLOW_UNCONFIGURED_MA", "") != "1":
+        return {}, {}
     entities = {row["entity_id"]: row for row in inventory
                 if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
-    if entities.get(destinations["everywhere"], {}).get("state") in (None, "unknown", "unavailable"):
-        candidates = [entity for entity, row in entities.items()
-                      if re.fullmatch(r"media_player\.[a-z0-9_]+", entity)
-                      and row.get("state") not in (None, "unknown", "unavailable")
-                      and str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"]
-        if len(candidates) == 1:
-            destinations["everywhere"] = candidates[0]
     registered = any("declan_music_assistant" in row for row in entities.values())
     if registered:
-        # Resolve Music Assistant wrappers from HA areas, including inherited device areas.
-        destinations = {"everywhere": destinations["everywhere"]}
+        # Fail closed: only registered Music Assistant players may be selected.
+        groups = [entity for entity, row in entities.items()
+                  if row.get("declan_music_assistant") is True
+                  and row.get("state") not in (None, "unknown", "unavailable")
+                  and (str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"
+                       or re.fullmatch(r"media_player\.everywhere(?:_[0-9]+)?", entity))]
+        destinations = {"everywhere": groups[0] if len(groups) == 1 else None}
         rooms = {}
         for entity, row in entities.items():
             area = row.get("declan_area")
@@ -102,7 +104,8 @@ def music_players(inventory, *, origin=None):
         players = {entity: row for entity, row in entities.items()
                    if row.get("declan_music_assistant") is True or entity == destinations["everywhere"]}
         return destinations, players
-    return destinations, {entity: entities[entity] for entity in destinations.values() if entity in entities}
+    # Never fall back to hardcoded household targets without MA registration.
+    return {}, {}
 
 
 @contextmanager
@@ -256,7 +259,7 @@ def spotify_search(opener, title, artist, types):
     market = os.environ.get("DECLAN_SPOTIFY_MARKET", "GB").strip().upper()
     if not re.fullmatch(r"[A-Z]{2}", market):
         raise ValueError("DECLAN_SPOTIFY_MARKET must be a two-letter country code")
-    params = urlencode({"q": query, "type": ",".join(types), "market": market, "limit": 5})
+    params = urlencode({"q": query, "type": ",".join(types), "market": market, "limit": 25 if types == ("playlist",) else 5})
     search_request = Request("https://api.spotify.com/v1/search?" + params,
                              headers={"Authorization": f"Bearer {access_token}"})
     try:
@@ -360,6 +363,36 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
         if error:
             return "I couldn't check the music players.", error
         destinations, players = music_players(inventory)
+        # Unqualified Stop is household-wide, regardless of the originating room.
+        # Only approved Music Assistant destinations may receive commands.
+        if action == "media_stop" and room is None:
+            active = dict.fromkeys(
+                entity for entity in destinations.values()
+                if entity and players.get(entity, {}).get("state") in ACTIVE
+            )
+            if not active:
+                return "There's no active Music Assistant playback to stop.", "confirmed"
+            # Stop the Everywhere group once, not again through its members.
+            group_entity = destinations.get("everywhere")
+            if group_entity in active:
+                members = (players[group_entity].get("attributes") or {}).get("group_members") or []
+                for member in members:
+                    if member != group_entity:
+                        active.pop(member, None)
+            failed = []
+            for entity in active:
+                try:
+                    request(connection, "/api/services/media_player/media_stop",
+                            {"entity_id": entity})
+                    if not wait_for(connection, entity,
+                                    lambda player: player.get("state") in STOPPED):
+                        failed.append(entity)
+                except (OSError, ValueError, HTTPError, TimeoutError):
+                    failed.append(entity)
+            if failed:
+                return (f"I couldn't verify playback stopped on {len(failed)} "
+                        "Music Assistant player(s).", "partial")
+            return "Stopped Music Assistant playback Everywhere.", "confirmed"
         group = destinations.get("everywhere")
         grouped = players.get(group, {})
         members = ((grouped.get("attributes") or {}).get("group_members") or []
@@ -482,6 +515,21 @@ def search_media(connection, destination, title, artist, provider):
                 return None
             uri, kind, name = choices(options, weights=[weights[item[0]] for item in options])[0]
             return uri.replace("spotify://", "https://open.spotify.com/", 1), kind, name
+        # Curated category playlists take precedence over generic Spotify search.
+        # The catalogue is owned by Declan 2.0, not the retired HA integration.
+        import spotify_playlists
+        category = "_".join(title.casefold().replace("-", " ").split())
+        if category.endswith("_music"):
+            category = category[:-6]
+        if not artist and category in spotify_playlists.CATEGORIES:
+            curated = spotify_playlists.listing()["categories"][category]["playlists"]
+            available = [uri for uri in curated if weights.get(media_key(uri), 1) > 0]
+            if available:
+                for count in range(len(recent), -1, -1):
+                    pool = [uri for uri in available if media_key(uri) not in recent[:count]]
+                    if pool:
+                        selected = choices(pool, weights=[weights.get(media_key(uri), 1) for uri in pool])[0]
+                        return selected.replace("spotify://", "https://open.spotify.com/", 1), "playlist", title
         types = (("track",) if artist else ("playlist",) if title.endswith(" music")
                  else ("track", "album", "artist", "playlist"))
         options = spotify_search(connection[2], title, artist, types)

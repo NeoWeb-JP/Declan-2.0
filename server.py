@@ -34,6 +34,7 @@ import device_status
 import history
 import music
 import approved_media_players
+import spotify_playlists
 import timers
 import updates
 import web_stt
@@ -1003,6 +1004,19 @@ def render_web_voice(message):
     return None
 
 
+def approved_area_labels(areas):
+    """Expose readable HA area names without replacing them with legacy aliases."""
+    labels = {}
+    # read_ha_areas includes compatibility aliases (e.g. bedroom for
+    # Master Bedroom). Prefer the full HA area name over its alias.
+    for name in areas:
+        key = music.room_key(name)
+        if len(name) > len(labels.get(key, "")):
+            labels[key] = name.title()
+    labels["everywhere"] = "Everywhere"
+    return labels
+
+
 def read_ha_inventory(connection):
     return ha_inventory.read(connection)
 
@@ -1021,6 +1035,12 @@ def stop_everywhere_output(connection):
     destinations, players = music.music_players(inventory)
     targets = sorted({entity for entity in destinations.values()
                       if entity and players.get(entity, {}).get("state") in music.ACTIVE})
+    # A running Everywhere group owns its members: one stop on the group
+    # must not dispatch additional stop requests to the same stream.
+    group = destinations.get("everywhere")
+    if group in targets:
+        members = (players[group].get("attributes") or {}).get("group_members") or []
+        targets = [entity for entity in targets if entity == group or entity not in members]
     if not targets:
         return "", "confirmed", "No approved music players are currently playing."
     failed = []
@@ -1738,7 +1758,8 @@ class Handler(BaseHTTPRequestHandler):
         candidates = {row["entity_id"]: row for row in inventory
                       if row.get("declan_music_assistant") is True
                       and row["entity_id"].startswith("media_player.")}
-        rooms = sorted({music.room_key(name) for name in areas} | {"everywhere"})
+        room_labels = approved_area_labels(areas)
+        rooms = sorted(room_labels)
         if body is not None:
             selected = body.get("rooms") if isinstance(body, dict) else None
             if not isinstance(selected, dict) or any(
@@ -1761,6 +1782,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {
             "configured": configured is not None,
             "rooms": rooms,
+            "room_labels": room_labels,
             "selected": configured or {},
             "players": [
                 {"entity_id": entity,
@@ -1789,7 +1811,7 @@ class Handler(BaseHTTPRequestHandler):
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
         players_auth = (
-            self.path in {"/api/settings/media-players", "/api/settings/ai"}
+            self.path in {"/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -1909,6 +1931,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(503, {"error": "AI settings unavailable."})
         elif self.path == "/api/settings/media-players":
             self.approved_player_settings()
+        elif self.path == "/api/settings/music-playlists":
+            try:
+                self.send_json(200, spotify_playlists.listing())
+            except (OSError, ValueError):
+                self.send_json(503, {"error": "Spotify playlists unavailable."})
         elif self.path == "/api/history/export":
             try:
                 turns = history.recent(limit=None)
@@ -2002,7 +2029,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -2020,7 +2047,7 @@ class Handler(BaseHTTPRequestHandler):
                 f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
             )
         ) and not (
-            self.path == "/api/settings/media-players"
+            self.path in {"/api/settings/media-players", "/api/settings/music-playlists"}
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -2126,6 +2153,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/api/settings/media-players":
                 self.approved_player_settings(body)
+                return
+            if self.path == "/api/settings/music-playlists":
+                try:
+                    self.send_json(200, spotify_playlists.manage(body))
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except OSError:
+                    self.send_json(503, {"error": "Spotify playlist storage unavailable."})
                 return
             if self.path == "/api/voicepipeline":
                 try:
@@ -2568,6 +2603,17 @@ def main():
         worker.start()
         next_prune = monotonic()
         next_music_check = monotonic() + 5
+        next_discovery_check = datetime.now().timestamp() + 10
+        discovery_running = False
+
+        def refresh_discovery():
+            nonlocal discovery_running
+            try:
+                spotify_playlists.discover(build_opener())
+            except Exception:
+                logging.exception("Spotify playlist discovery refresh failed.")
+            finally:
+                discovery_running = False
         url = f"http://127.0.0.1:{server.server_port}"
         try:
             opener = build_opener(ProxyHandler({}))
@@ -2590,6 +2636,18 @@ def main():
                         music.skip_blocked_tracks(ha_device_connection(), read_music_inventory)
                     except Exception:
                         logging.exception("Blocked music could not be checked.")
+                if datetime.now().timestamp() >= next_discovery_check:
+                    next_discovery_check = datetime.now().timestamp() + 3600
+                    if not discovery_running:
+                        try:
+                            catalogue = spotify_playlists.catalogue_path()
+                            stale = not catalogue.exists() or (datetime.now().timestamp() - catalogue.stat().st_mtime) >= 7 * 86400
+                            credentials, _ = music.spotify_credentials()
+                            if stale and all(credentials):
+                                discovery_running = True
+                                Thread(target=refresh_discovery, daemon=True).start()
+                        except (OSError, ValueError):
+                            logging.exception("Spotify playlist discovery schedule unavailable.")
                 if monotonic() >= next_prune:
                     try:
                         history.prune()
