@@ -45,14 +45,24 @@ class DeclanVoiceManager(TextToSpeechEntity):
         return await normalise_audio(extension, audio, get_ffmpeg_manager(self.hass).binary)
 
     async def _night_speech(self, result):
-        if not quiet_hours():
+        # The HA timezone, not the container timezone, defines quiet hours.
+        from datetime import datetime
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        zone_name = getattr(getattr(self.hass, "config", None), "time_zone", None)
+        try:
+            now = datetime.now(ZoneInfo(zone_name)) if zone_name else datetime.now().astimezone()
+        except (ZoneInfoNotFoundError, ValueError, TypeError):
+            _LOGGER.warning("Invalid Home Assistant timezone for quiet speech")
+            now = datetime.now().astimezone()
+        if not quiet_hours(now):
             return result
         from homeassistant.components.ffmpeg import get_ffmpeg_manager
         from .phrase_library import normalise_audio
 
         extension, audio = result
         pcm = await normalise_audio(extension, audio, get_ffmpeg_manager(self.hass).binary)
-        return "wav", attenuate_wav(pcm)
+        return "wav", attenuate_wav(pcm, now=now)
 
     async def async_get_tts_audio(self, message, language, options):
         config = self._entry.options
