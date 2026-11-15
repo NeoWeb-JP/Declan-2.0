@@ -13,6 +13,15 @@ This release consolidates the Home Assistant native Declan panel and Assist inte
 
 The Spotify client ID and secret are not exported or imported. A release must not overwrite stored credentials, force Spotify reauthentication, or reset media-player mappings.
 
+## Sensitive voice routine confirmation (issue #31)
+
+- Voice requests for bedtime and guest-register changes require a one-use confirmation unless a speaker is explicitly allowlisted and recognised with confidence of at least 0.85.
+- Set `DECLAN_TRUSTED_SPEAKERS` to comma-separated VoicePipeline speaker names to permit direct execution. An empty list trusts nobody.
+- `DECLAN_SENSITIVE_ROUTINES` defaults to `night,guest`; optionally include `morning,movie,dinner,sexy`.
+- The confirmation is tied to Assist conversation ID and physical satellite/device, expires after 30 seconds, and is consumed once. Browser management commands retain their existing access control.
+- Test actual HA follow-up behavior: some pipelines may require saying the wake word again for the confirmation. Automatic continued listening has **not** been verified.
+- Voice recognition confidence is not a biometric guarantee; the HA integration's authentication and existing permissions remain essential.
+
 ## Required acceptance before disabling Declan Web
 
 Record the installed HA integration version and backend commit/release for each test. **CI passing is not evidence of live acceptance.**
@@ -25,7 +34,9 @@ Record the installed HA integration version and backend commit/release for each 
 - [ ] Export settings, preview the export, verify the exact proposed changes, import only a safe test configuration, and download the recovery snapshot.
 - [ ] Check backend release install/status, failed update and restart/reconnection on mobile; confirm no stale sidebar proxy errors.
 - [ ] Confirm learned-intention edit, forget and teaching a missed command in the native panel. Confirm stale edit rejection and no command execution during save.
-- [ ] Verify sensitive routine confirmation, quiet hours, and existing Home Assistant scripts against the agreed NOW requirements (issues #12 and #31).
+- [ ] Verify bedtime and guest-change confirmation on real Assist satellites, including recognised/unknown speaker, expiry, replay, different satellite, learned alias and chained commands (issue #31).
+- [ ] Verify quiet-hours schedule, volume restoration, announcement destinations, routine selectors, and shared completion results in the deployed Home Assistant scripts (issue #12). These remain unverified and must not be marked complete on code inspection alone.
+- [ ] Verify cross-room follow-ups for a recognised speaker and no context leakage between unknown speakers (issue #12).
 - [ ] Take a backup of the Declan backend database, server configuration and HA integration configuration, then verify recovery steps.
 
 ## Cutover and rollback
