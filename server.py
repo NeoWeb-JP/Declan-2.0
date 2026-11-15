@@ -555,8 +555,9 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
             method="POST",
         )
         try:
-            with opener.open(request, timeout={"morning": 8, "night": 20, "movie": 55}[period]) as response:
-                payload = json.loads(response.read(65536))
+            with track_routine(routine_key, script):
+                with opener.open(request, timeout={"morning": 8, "night": 20, "movie": 55}[period]) as response:
+                    payload = json.loads(response.read(65536))
         except HTTPError as error:
             code = error.code
             error.close()
