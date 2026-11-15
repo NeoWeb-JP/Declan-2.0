@@ -199,7 +199,9 @@ class APITests(TestCase):
             "declan_area": "Master Bedroom", "declan_music_assistant": True,
         }], None)), patch.object(server.music, "control", return_value=("", "confirmed")), patch.object(
             server.music, "request"
-        ):
+        ), patch.object(server.routine_registry, "load", return_value={
+            "sexy_time": {"script": "script.declan_sexy_time_controller", "sensitive": False}
+        }):
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
                 opener.open.return_value = io.BytesIO(json.dumps({"service_response": {
                     "operation": operation, "lighting_ok": True, "music_stopped": operation == "end",
@@ -235,7 +237,9 @@ class APITests(TestCase):
         opener = Mock()
         opener.open.return_value = io.BytesIO(b"[]")
         connection = ("http://ha.invalid", {}, opener)
-        with patch.object(server, "ha_device_connection", return_value=connection):
+        with patch.object(server, "ha_device_connection", return_value=connection), patch.object(
+            server.routine_registry, "load", return_value={"dinner": {"script": "script.declan_dinner_is_served_2", "sensitive": False}}
+        ):
             for phrase in {*server.DINNER_PHRASES, "it’s dinner time"}:
                 opener.open.reset_mock()
                 opener.open.return_value = io.BytesIO(b"[]")
