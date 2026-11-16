@@ -62,13 +62,14 @@ items and undo a review. Flags persist in the integration's separate metadata st
 Checking a flag records your assessment; it does not repair or execute anything.
 The **Entities** inventory remains a complete inventory independent of review filters.
 
-A flag applies to the inspected version of the loaded routine. Configuration changes,
-new static findings, or a new failed/partial run make it unreviewed again. Resolved
-issues, ordinary successful runs and newly available traces do not clear a review.
-Review metadata stores the source identity and the issues assessed, independently
-for each routine. Existing legacy flags still match the exact fingerprint originally
-assessed; previously invalidated legacy flags require review again. Saving a flag from
-an outdated snapshot is rejected; refresh and review the current version. The separate
+Reviewed is a persistent manual decision. Only unticking the checkbox clears it.
+Configuration changes, new findings or new failed runs show **Changed since review**
+without removing the flag or moving the item back into Unreviewed. Current findings
+remain visible; Reviewed never means verified device success. Saved legacy decisions
+are restored with their original dates even when their old fingerprint has changed.
+Compiled HA script variables are fingerprinted by their contents, not memory addresses.
+Saving a new review from an outdated snapshot is rejected; refresh and review the
+current version. The separate
 admin-only `POST /api/declan_two/ha-audit/reviews` route writes review metadata only.
 
 ## Voice completion evidence
@@ -107,8 +108,8 @@ The background task runs the loaded script once, with only its declared fields,
 and supplies correlated request/routine IDs when supported. Its structured outcome,
 bounded step results and diagnostic code are persisted in HA storage; raw inputs,
 responses and exception text are excluded. The audit displays the latest background
-request beneath its routine. Partial/failed results are also logged and reopen a
-previous review. Refresh the audit after the routine has had time to finish.
+request beneath its routine. Partial/failed results are also logged and flagged as
+changes since a previous review. Refresh the audit after the routine has had time to finish.
 
 Receipts are idempotent by job ID, and a second request for an active routine is
 rejected as busy. At most four jobs may be active, and the latest 100 completed

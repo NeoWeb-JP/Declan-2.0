@@ -645,6 +645,10 @@ class DeclanTwoNativePanel extends HTMLElement {
         const count = findings.length ? ` · ${findings.length} findings` : item.findings ? ' · No static issues found; device success unverified' : '';
         addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}${item.findings ? item.reviewed ? ' · Reviewed' : ' · Unreviewed' : ''}`);
         if (item.findings) {
+          if (item.review_changed) {
+            addText(details.querySelector('summary'), 'span', ' - Changed since review');
+            addText(details, 'p', 'Configuration or findings changed since this review. Your Reviewed flag is kept. Review the current findings and untick Reviewed if you want to reopen this item.');
+          }
           if (item.stale) addText(details, 'p', 'Stale entity record: Home Assistant has no loaded routine definition for this entity.');
           const actions = document.createElement('div');
           actions.className = 'audit-routine-actions';
@@ -730,6 +734,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (saved.entity_id !== item.entity_id || saved.reviewed !== desired) throw new Error('Invalid review response');
       item.reviewed = saved.reviewed;
       item.reviewed_at = saved.reviewed_at;
+      item.review_changed = false;
       this.renderHAAudit();
       status.textContent = desired ? 'Marked reviewed. Hidden from Unreviewed routines.' : 'Marked unreviewed.';
     } catch (error) {

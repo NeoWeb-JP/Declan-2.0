@@ -172,6 +172,24 @@ test('reviewing a searched routine retains other reviews and clearing search rev
   assert.match(root.querySelector('.audit-results').textContent,/Scripts & automations \(3\)/);
 });
 
+test('changed reviews remain checked and visible in Reviewed after refresh', async t => {
+  const data = report();
+  data.routines = ['Good Morning','Good Night','Movie Time'].map((name,index) => ({...data.routines[0],
+    entity_id:'script.reviewed_' + index,name,reviewed:true,review_changed:index < 2,reviewed_at:'original-date'}));
+  const {element,root} = panel(t,data);
+  await element.loadHAAudit();
+  root.querySelector('.audit-review-filter').value = 'reviewed';
+  element.renderHAAudit();
+  assert.match(root.querySelector('.audit-results').textContent,/Scripts & automations \(3\)/);
+  assert.match(root.querySelector('.audit-results').textContent,/Changed since review/);
+  assert.ok([...root.querySelectorAll('.audit-results input[type="checkbox"]')].every(box => box.checked));
+  await element.loadHAAudit();
+  assert.match(root.querySelector('.audit-results').textContent,/Scripts & automations \(3\)/);
+  root.querySelector('.audit-review-filter').value = 'unreviewed';
+  element.renderHAAudit();
+  assert.match(root.querySelector('.audit-results').textContent,/Scripts & automations \(0\)/);
+});
+
 test('connection card automatically checks backend releases and opens the Updates page', async t => {
   const {element,root,calls} = panel(t, report());
   element._hass.callApi = async (...args) => {
