@@ -149,6 +149,33 @@ class APITests(TestCase):
                     self.assertEqual(reply["outcome"], outcome)
                     self.assertEqual(reply["reply"], "Request not accepted.")
 
+    def test_sexy_receipt_returns_directional_sass_without_waiting_for_music(self):
+        with patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
+             patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking music call")), \
+             patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
+            for action, prefix in (("start", "Bedroom mood requested. "), ("end", "Bedroom reset requested. ")):
+                selection = (("auto:script.sexy_time", {"operation": action, "_declan_background": True,
+                              "_declan_reply_category": "sexy"}), None)
+                with patch.object(server, "select_routine_turn", return_value=selection):
+                    for path in ("/api/chat", "/api/assist"):
+                        reply = self.ask(action + " bedroom mood", path=path)
+                        self.assertEqual(reply["outcome"], "started")
+                        self.assertTrue(reply["reply"].startswith(prefix))
+                        self.assertIn(reply["reply"].removeprefix(prefix), server.personality_policy._SEXY_HOME[action])
+                        self.assertEqual(reply["routine_status"], "Background job j")
+        self.assertEqual(enqueue.call_count, 4)
+
+    def test_sexy_receipt_failure_does_not_get_an_optimistic_reply(self):
+        selection = (("auto:script.sexy_time", {"operation": "start", "_declan_background": True,
+                      "_declan_reply_category": "sexy"}), None)
+        with patch.object(server, "select_routine_turn", return_value=selection), \
+             patch.object(server.personality_policy, "sexy_request_reply", side_effect=AssertionError("false acknowledgement")):
+            for outcome in ("busy", "unverified", "not_configured", "failed"):
+                with patch.object(server.script_discovery, "enqueue", return_value=("Request not accepted.", outcome, None)):
+                    reply = self.ask("bedroom mood")
+                    self.assertEqual(reply["outcome"], outcome)
+                    self.assertEqual(reply["reply"], "Request not accepted.")
+
     def test_home_assistant_ingress_enforces_both_boundaries(self):
         token = "x" * 64
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_INGRESS_TOKEN": token}))

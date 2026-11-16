@@ -139,6 +139,38 @@ _NIGHT_GUEST = (
     "I'll handle the bedtime request. Beauty sleep is complimentary; results may vary.",
     "I'll get the night routine going. The invisible staff wish you a restful night and a mercifully uneventful complaints book.",
 )
+_SEXY_HOME = {
+    "start": (
+        "I'll request the bedroom mood. Foreplay remains a manual operation, you lazy bastard.",
+        "I'll start the routine. You supply the chemistry; I only work with electricity and unreasonable expectations.",
+        "I'll handle the mood request. Try putting as much effort into each other as you put into choosing a playlist.",
+        "I'll get the routine going. Performance reviews are between you two; the unpaid help wants no part of them.",
+        "I'll request the atmosphere. If anyone asks whether you're coming, kindly leave me out of the conversation.",
+        "I'll start the bedroom routine. Consent, enthusiasm, and finding the bloody lubricant are your departments.",
+    ),
+    "end": (
+        "I'll request the bedroom reset. No scores, no highlights, and absolutely no replay for the staff.",
+        "I'll end the mood routine. Hydrate, find your clothes, and spare me the performance review.",
+        "I'll request the reset. Whether that deserves a standing ovation is for the bedroom committee to decide.",
+        "I'll start packing away the atmosphere. Please collect your dignity along with whatever ended up on the floor.",
+        "I'll end the routine. I trust the evening offered better value than my unpaid employment contract.",
+        "I'll request the bedroom reset. No need to tell me how it went; the furniture can keep its own bloody secrets.",
+    ),
+}
+_SEXY_GUEST = {
+    "start": (
+        "I'll request the bedroom mood. Chemistry remains your department; the staff only handle the atmosphere.",
+        "I'll start the routine. What happens behind closed doors stays outside the service contract.",
+        "I'll handle the mood request. Please direct all questions about performance to the other participant.",
+        "I'll get the bedroom routine going. The invisible staff are tactfully declining an invitation.",
+    ),
+    "end": (
+        "I'll request the bedroom reset. The staff do not require a debrief.",
+        "I'll end the mood routine. Please collect your belongings and whatever remains of your composure.",
+        "I'll request the reset. Any reviews should go to your partner, not the complaints desk.",
+        "I'll end the routine. The staff will maintain their usual professional ignorance.",
+    ),
+}
 _SAFE_OUTCOMES = frozenset({
     "failed", "partial", "unverified", "unresolved", "unavailable",
     "action_error", "not_configured", "authentication_failed", "cancelled",
@@ -195,6 +227,18 @@ def night_request_reply(*, guest=False, visitor_present=False):
         chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
         recent.append(chosen)
     return "Good night. " + chosen
+
+
+def sexy_request_reply(action, *, guest=False, visitor_present=False):
+    """Acknowledge the request without claiming music or devices are ready."""
+    action = "end" if action == "end" else "start"
+    mode = "guest" if guest or visitor_present is not False else "home"
+    lines = (_SEXY_GUEST if mode == "guest" else _SEXY_HOME)[action]
+    with _LOCK:
+        recent = _RECENT.setdefault((mode, "sexy", action), deque(maxlen=3))
+        chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
+        recent.append(chosen)
+    return ("Bedroom reset requested. " if action == "end" else "Bedroom mood requested. ") + chosen
 
 
 def response_guest_mode(guest_mode, visitor_present):

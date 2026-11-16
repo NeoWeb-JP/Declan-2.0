@@ -5,6 +5,29 @@ import server
 
 
 class RoutineDispatchTests(unittest.TestCase):
+    def test_sexy_aliases_preserve_direction_and_use_background_receipt(self):
+        script = {"entity_id": "script.bedroom_romance", "name": "Declan - Sexy Time Controller",
+                  "safe": True, "fields": ["operation", "requested_action"]}
+        with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "enqueue", return_value=("requested", "started", "job")) as enqueue, \
+             patch.object(server.script_discovery, "execute", side_effect=AssertionError("waited for music")):
+            for phrase, action in server.SEXY_TIME_COMMANDS.items():
+                selection = server.select_routine(phrase, None)
+                self.assertEqual(selection[0], "auto:" + script["entity_id"])
+                self.assertEqual(selection[1]["operation"], action)
+                self.assertEqual(selection[1]["requested_action"], action)
+                self.assertEqual(selection[1]["_declan_reply_category"], "sexy")
+                self.assertEqual(server.execute_routine(selection, [])[1], "started")
+                self.assertEqual(enqueue.call_args.args[2], {"operation": action, "requested_action": action})
+
+    def test_end_sexy_time_does_not_run_a_start_only_script(self):
+        script = {"entity_id": "script.sexy_time", "name": "Sexy Time", "safe": True, "fields": []}
+        with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)):
+            self.assertIsNone(server.select_routine("end sexy time", None))
+            self.assertIsNotNone(server.select_routine("sexy time", None))
+
     def test_night_aliases_use_live_script_background_execution(self):
         script = {"entity_id": "script.declan_good_night_shared_local_routine",
                   "name": "Declan - Good Night - Shared Local Routine", "safe": True}

@@ -346,6 +346,9 @@ def select_routine(phrase, origin):
             if movie and movie[0] != "toggle" and candidate == "movie time":
                 if not set(item.get("fields", [])) & {"operation", "movie_action", "action", "requested_action"}:
                     continue
+            if (SEXY_TIME_COMMANDS.get(phrase) == "end" and candidate == "sexy time"
+                    and not set(item.get("fields", [])) & {"operation", "requested_action"}):
+                continue
             parameters = {}
             if movie:
                 parameters = {"operation": movie[0], "movie_action": movie[0],
@@ -358,8 +361,11 @@ def select_routine(phrase, origin):
                 parameters = {"_declan_background": True, "_declan_reply_category": "morning"}
             elif phrase in GOOD_NIGHT_PHRASES or "good night" in script_discovery.phrases(item):
                 parameters = {"_declan_background": True, "_declan_reply_category": "night"}
-            elif phrase in SEXY_TIME_COMMANDS:
-                parameters = {"operation": SEXY_TIME_COMMANDS[phrase]}
+            elif phrase in SEXY_TIME_COMMANDS or "sexy time" in script_discovery.phrases(item):
+                parameters = {"operation": SEXY_TIME_COMMANDS.get(phrase, "start"),
+                              "_declan_background": True, "_declan_reply_category": "sexy"}
+                if "requested_action" in item.get("fields", []):
+                    parameters["requested_action"] = parameters["operation"]
             if is_house_status:
                 parameters["_declan_expect_response"] = True
             if {"dinner", "dinner is served"} & script_discovery.phrases(item):
@@ -2775,6 +2781,10 @@ class Handler(BaseHTTPRequestHandler):
                         guest=guest_mode != "off", visitor_present=visitor_present)
                 elif routine_turn[0][1].get("_declan_reply_category") == "night":
                     reply["reply"] = personality_policy.night_request_reply(
+                        guest=guest_mode != "off", visitor_present=visitor_present)
+                elif routine_turn[0][1].get("_declan_reply_category") == "sexy":
+                    reply["reply"] = personality_policy.sexy_request_reply(
+                        routine_turn[0][1].get("operation", "start"),
                         guest=guest_mode != "off", visitor_present=visitor_present)
                 else:
                     reply["reply"] = personality_policy.movie_request_reply(

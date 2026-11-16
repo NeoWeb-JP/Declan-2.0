@@ -6,6 +6,25 @@ import personality_policy as p
 
 
 class PersonalityPolicyTests(unittest.TestCase):
+    def test_sexy_start_and_end_replies_vary_without_claiming_playback_or_completion(self):
+        for action, prefix in (("start", "Bedroom mood requested. "), ("end", "Bedroom reset requested. ")):
+            replies = [p.sexy_request_reply(action, visitor_present=False) for _ in range(4)]
+            self.assertEqual(len(set(replies)), 4)
+            for reply in replies:
+                self.assertTrue(reply.startswith(prefix))
+                self.assertIn(reply.removeprefix(prefix), p._SEXY_HOME[action])
+                self.assertNotIn("is playing", reply)
+                self.assertNotIn("completed", reply)
+
+    def test_sexy_guest_and_unknown_visitor_replies_remain_private(self):
+        for options in ({"guest": True}, {"visitor_present": True}, {"visitor_present": None}):
+            for action in ("start", "end"):
+                replies = [p.sexy_request_reply(action, **options) for _ in range(4)]
+                self.assertEqual(len(set(replies)), 4)
+                for reply in replies:
+                    self.assertTrue(any(reply.endswith(line) for line in p._SEXY_GUEST[action]))
+                    self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
+
     def test_night_acknowledgements_are_varied_without_duplicate_sorted_or_success_claims(self):
         replies = [p.night_request_reply(visitor_present=False) for _ in range(4)]
         self.assertEqual(len(set(replies)), 4)
