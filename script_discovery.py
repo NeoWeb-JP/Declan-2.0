@@ -19,6 +19,14 @@ def phrases(item):
     name = normalise(item["name"])
     entity = normalise(item["entity_id"].removeprefix("script.").replace("_", " "))
     result = {name, entity}
+    # Home Assistant script labels commonly include the assistant name.
+    # Spoken "good night" should match "Declan - Good Night" without
+    # requiring a separate Declan-side alias or routine mapping.
+    for prefix in ("declan ", "declan local ", "declan 2 "):
+        if name.startswith(prefix):
+            result.add(name[len(prefix):])
+        if entity.startswith(prefix):
+            result.add(entity[len(prefix):])
     if name.endswith(" status"):
         result.update({"what is the " + name, "what is the status of the " + name.removesuffix(" status"),
                        "give me the " + name})
