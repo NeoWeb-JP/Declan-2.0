@@ -5,6 +5,20 @@ import server
 
 
 class RoutineDispatchTests(unittest.TestCase):
+    def test_night_aliases_use_live_script_background_execution(self):
+        script = {"entity_id": "script.declan_good_night_shared_local_routine",
+                  "name": "Declan - Good Night - Shared Local Routine", "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "enqueue", return_value=("requested", "started", "job")) as enqueue, \
+             patch.object(server.script_discovery, "execute", side_effect=AssertionError("waited for bedtime")):
+            for phrase in (*server.GOOD_NIGHT_PHRASES, "declan good night shared local routine"):
+                selection = server.select_routine(phrase, None)
+                self.assertEqual(selection, ("auto:" + script["entity_id"],
+                    {"_declan_background": True, "_declan_reply_category": "night"}))
+                self.assertEqual(server.execute_routine(selection, [])[1], "started")
+                self.assertEqual(enqueue.call_args.args[2], {})
+
     def test_morning_aliases_and_native_name_use_background_execution(self):
         script = {"entity_id": "script.declan_good_morning_shared_local_routine",
                   "name": "Declan - Good Morning - Shared Local Routine", "safe": True}
@@ -52,7 +66,8 @@ class RoutineDispatchTests(unittest.TestCase):
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
              patch.object(server.routine_registry, "load", side_effect=AssertionError("legacy mapping accessed")):
-            self.assertEqual(server.select_routine("good night", None), ("auto:script.good_night", {}))
+            self.assertEqual(server.select_routine("good night", None), ("auto:script.good_night",
+                {"_declan_background": True, "_declan_reply_category": "night"}))
 
     def test_other_device_status_is_not_intercepted(self):
         with patch.object(server, "ha_device_connection", return_value=None):

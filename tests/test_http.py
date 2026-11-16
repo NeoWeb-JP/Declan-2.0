@@ -100,6 +100,36 @@ class APITests(TestCase):
             self.assertEqual(reply["outcome"], "unverified")
             self.assertEqual(reply["reply"], "Request not confirmed.")
 
+    def test_night_receipt_returns_bedtime_sass_even_with_guest_mode_on(self):
+        selection = (("auto:script.good_night", {"_declan_background": True,
+                      "_declan_reply_category": "night"}), None)
+        with patch.object(server, "select_routine_turn", return_value=selection), \
+             patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
+             patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking call")), \
+             patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
+            for guest in ("off", "on"):
+                with patch.object(server, "read_guest_mode", return_value=guest):
+                    for path in ("/api/chat", "/api/assist"):
+                        reply = self.ask("goodnight", path=path)
+                        self.assertEqual(reply["outcome"], "started")
+                        self.assertTrue(reply["reply"].startswith("Good night. "))
+                        lines = server.personality_policy._NIGHT_GUEST if guest == "on" else server.personality_policy._NIGHT_HOME
+                        self.assertIn(reply["reply"].removeprefix("Good night. "), lines)
+                        self.assertNotIn("Sorted", reply["reply"])
+                        self.assertEqual(reply["routine_status"], "Background job j")
+        self.assertEqual(enqueue.call_count, 4)
+
+    def test_night_busy_or_unverified_receipt_never_claims_bedtime_started(self):
+        selection = (("auto:script.good_night", {"_declan_background": True,
+                      "_declan_reply_category": "night"}), None)
+        with patch.object(server, "select_routine_turn", return_value=selection), \
+             patch.object(server.personality_policy, "night_request_reply", side_effect=AssertionError("false acknowledgement")):
+            for outcome in ("busy", "unverified", "failed"):
+                with patch.object(server.script_discovery, "enqueue", return_value=("Request not accepted.", outcome, None)):
+                    reply = self.ask("goodnight")
+                    self.assertEqual(reply["outcome"], outcome)
+                    self.assertEqual(reply["reply"], "Request not accepted.")
+
     def test_home_assistant_ingress_enforces_both_boundaries(self):
         token = "x" * 64
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_INGRESS_TOKEN": token}))
