@@ -165,6 +165,7 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
             finding("error", "execution_failed", "execution",
                     "Open the corresponding run in Home Assistant Traces to inspect the failing action.")
         items.append({"entity_id": entity_id, "name": routine.get("name") or entity_id,
+                      "yaml_available": bool(routine.get("yaml_available")),
                       "fingerprint": review_fingerprint(routine, findings, execution),
                       "state": routine.get("state"), "disabled": bool(routine.get("disabled")),
                       "dependencies": [{"kind": kind, "id": target} for kind, target in sorted(dependencies)],

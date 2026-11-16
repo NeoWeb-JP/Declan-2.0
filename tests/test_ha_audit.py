@@ -1,6 +1,7 @@
 """Audit regressions using loaded-source fixtures, with no HA actions."""
 import asyncio
 import copy
+import json
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
@@ -143,6 +144,8 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
                    "homeassistant.components.http": module("http", HomeAssistantView=object),
                    "homeassistant.components.trace.util": module("trace", async_list_traces=trace_list, async_get_trace=trace_get),
                    "homeassistant.helpers.storage": module("storage", Store=FakeStore),
+                   "homeassistant.util": module("util"),
+                   "homeassistant.util.yaml": module("yaml", dump=lambda config: json.dumps(config)),
                    "homeassistant.helpers": module("helpers",
                        area_registry=SimpleNamespace(async_get=lambda hass: self.areas),
                        device_registry=SimpleNamespace(async_get=lambda hass: self.devices),
@@ -161,7 +164,9 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
                                  action_script=SimpleNamespace(sequence=[{"action": "light.turn_on", "entity_id": "light.missing"}]),
                                  referenced_entities={"light.missing"})
         state = SimpleNamespace(entity_id=entity.entity_id, state="on", attributes={"friendly_name": "Packaged automation", "secret": "hidden"})
-        self.hass = SimpleNamespace(data={"automation": SimpleNamespace(entities=[entity])},
+        async def executor(function, *args): return function(*args)
+        self.hass = SimpleNamespace(data={"automation": SimpleNamespace(entities=[entity], get_entity=lambda entity_id: entity if entity_id == entity.entity_id else None)},
+                                    async_add_executor_job=executor,
                                     states=SimpleNamespace(async_all=lambda: [state]),
                                     services=SimpleNamespace(async_services=lambda: {"light": {"turn_on": object()}}))
 
@@ -178,6 +183,42 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         disabled = next(r for r in report["routines"] if r["entity_id"] == "automation.disabled")
         self.assertTrue(disabled["disabled"])
         self.assertNotIn("hidden", str(report))
+        self.assertTrue(row["yaml_available"])
+        self.assertFalse(disabled["yaml_available"])
+
+    def yaml_request(self, entity_id, admin=True):
+        class Request(dict):
+            app = {"hass": self.hass}
+            query = {"entity_id": entity_id}
+        return Request(hass_user=SimpleNamespace(is_admin=admin))
+
+    async def test_yaml_export_reads_current_loaded_definition_without_runtime_metadata(self):
+        entity = self.hass.data["automation"].entities[0]
+        entity.raw_config["alias"] = "Current edited automation"
+        entity.raw_config["variables"] = {"message": "{{ states('sensor.example') }}"}
+        payload, options = await self.view.DeclanAuditYamlView().get(self.yaml_request(entity.entity_id))
+        self.assertEqual(payload["filename"], entity.entity_id + ".yaml")
+        self.assertIn("Current edited automation", payload["yaml"])
+        self.assertIn("{{ states('sensor.example') }}", payload["yaml"])
+        self.assertNotIn("loaded_sequence", payload["yaml"])
+        self.assertNotIn("reviewed_at", payload["yaml"])
+        self.assertEqual(options["headers"]["Cache-Control"], "no-store")
+
+    async def test_yaml_export_rejects_non_admin_invalid_ids_and_stale_entities(self):
+        with self.assertRaises(self.web.HTTPForbidden):
+            await self.view.DeclanAuditYamlView().get(self.yaml_request("automation.actual_entity", admin=False))
+        with self.assertRaises(self.web.HTTPBadRequest):
+            await self.view.DeclanAuditYamlView().get(self.yaml_request("../../secrets.yaml"))
+        payload, options = await self.view.DeclanAuditYamlView().get(self.yaml_request("automation.disabled"))
+        self.assertEqual(options["status"], 404)
+        self.assertNotIn("yaml", payload)
+
+    async def test_yaml_export_failure_is_redacted(self):
+        async def fail(*args): raise ValueError("private-configuration-value")
+        with patch.object(self.hass, "async_add_executor_job", fail), self.assertLogs(self.view._LOGGER, level="ERROR") as logs:
+            payload, options = await self.view.DeclanAuditYamlView().get(self.yaml_request("automation.actual_entity"))
+        self.assertEqual(options["status"], 503)
+        self.assertNotIn("private-configuration-value", str(payload) + str(logs.output))
 
     async def test_current_entry_collection_and_legacy_mapping_validate_same_device(self):
         self.hass.data["automation"].entities[0].action_script.sequence = [

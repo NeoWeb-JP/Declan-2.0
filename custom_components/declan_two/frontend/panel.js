@@ -27,7 +27,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         .tabs { display:flex; gap:8px; overflow-x:auto; padding:18px 0 6px; scrollbar-width:thin; }
         .tabs button { white-space:nowrap; flex-shrink:0; }
         .update-controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:14px 0; }
-        .updates-select { min-width:0; max-width:100%; padding:10px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
+        .updates-select, .audit-review-filter { min-width:0; max-width:100%; padding:10px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
         @media(max-width:520px) {
           .update-controls > button, .update-controls > select { flex:1 1 100%; width:100%; }
         }
@@ -288,7 +288,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <h2>Home Assistant Audit</h2>
           <p class="muted">Read-only snapshot of loaded scripts, automations and entities. No routines are run or changed. Finished traces do not verify device success. Retained traces may describe older configuration.</p>
           <button type="button" class="audit-refresh">Refresh audit</button>
-          <label>Show <select class="audit-review-filter updates-select"><option value="unreviewed">Unreviewed routines</option><option value="all">All routines</option><option value="reviewed">Reviewed and fixed</option></select></label>
+          <label>Show <select class="audit-review-filter"><option value="unreviewed">Unreviewed routines</option><option value="all">All routines</option><option value="reviewed">Reviewed and fixed</option></select></label>
           <p class="audit-status" role="status" aria-live="polite">Open this page to inspect Home Assistant.</p>
           <label>Search names, entities or findings <input class="audit-search" type="search" style="width:100%;padding:10px;margin:10px 0;background:#102635;color:#e7f7ff;border:1px solid #315568;border-radius:9px"></label>
           <div class="audit-results"></div>
@@ -482,11 +482,11 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.updates-install', 'click', () => this.installUpdate());
       this.bindPanelEvent('.updates-refresh', 'click', () => this.loadUpdateStatus());
       this.bindPanelEvent('.update-prereleases', 'change', () => {
-        this.shadowRoot.querySelector('.updates-select').replaceChildren(new Option('Check for releases first', ''));
+        this.shadowRoot.querySelector('#panel-updates .updates-select').replaceChildren(new Option('Check for releases first', ''));
         this.shadowRoot.querySelector('.updates-install').disabled = true;
       });
-      this.bindPanelEvent('.updates-select', 'change', () => {
-        this.shadowRoot.querySelector('.updates-install').disabled = !this.shadowRoot.querySelector('.updates-select').value;
+      this.bindPanelEvent('#panel-updates .updates-select', 'change', () => {
+        this.shadowRoot.querySelector('.updates-install').disabled = !this.shadowRoot.querySelector('#panel-updates .updates-select').value;
       });
 
       this.bindPanelEvent('.history-refresh', 'click', () => this.loadHistory());
@@ -634,6 +634,12 @@ class DeclanTwoNativePanel extends HTMLElement {
           checkbox.disabled = !item.fingerprint;
           label.prepend(checkbox);
           checkbox.addEventListener('change', () => this.setAuditReviewed(item, checkbox));
+          if (item.yaml_available) {
+            const download = addText(details, 'button', 'Download YAML');
+            download.type = 'button';
+            download.className = 'audit-yaml-download';
+            download.addEventListener('click', () => this.downloadAuditYaml(item, download));
+          }
           if (item.reviewed) addText(details, 'p', `Reviewed and fixed · ${item.reviewed_at || ''}`);
         }
         for (const finding of findings) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
@@ -646,6 +652,28 @@ class DeclanTwoNativePanel extends HTMLElement {
         group.append(details);
       }
       root.append(group);
+    }
+  }
+
+  async downloadAuditYaml(item, button) {
+    button.disabled = true;
+    const status = this.shadowRoot.querySelector('.audit-status');
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/ha-audit/yaml?entity_id=' + encodeURIComponent(item.entity_id));
+      if (data.entity_id !== item.entity_id || typeof data.yaml !== 'string' || !data.yaml.trim()) throw new Error('Invalid YAML response');
+      const url = URL.createObjectURL(new Blob([data.yaml], {type:'application/yaml;charset=utf-8'}));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = item.entity_id + '.yaml';
+      this.shadowRoot.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      status.textContent = 'Downloaded the current loaded Home Assistant YAML for ' + item.entity_id + '.';
+    } catch {
+      status.textContent = 'Could not download YAML. Refresh the audit and check that the routine is still loaded.';
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -864,7 +892,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (state === 'installing' || state === 'restarting') this.scheduleUpdatePoll();
       this.shadowRoot.querySelector('.updates-install').disabled = !data.enabled ||
         data.state === 'installing' || data.state === 'restarting' ||
-        !this.shadowRoot.querySelector('.updates-select').value;
+        !this.shadowRoot.querySelector('#panel-updates .updates-select').value;
     } catch (error) {
       status.textContent = 'Cannot read backend update status. Check the connection and administrator permissions.';
       recovery.hidden = false;
@@ -937,7 +965,7 @@ class DeclanTwoNativePanel extends HTMLElement {
 
   async checkUpdates() {
     const status = this.shadowRoot.querySelector('.updates-status');
-    const select = this.shadowRoot.querySelector('.updates-select');
+    const select = this.shadowRoot.querySelector('#panel-updates .updates-select');
     const button = this.shadowRoot.querySelector('.updates-check');
     button.disabled = true;
     select.replaceChildren(new Option('Checking…', ''));
@@ -968,7 +996,7 @@ class DeclanTwoNativePanel extends HTMLElement {
   }
 
   async installUpdate() {
-    const select = this.shadowRoot.querySelector('.updates-select');
+    const select = this.shadowRoot.querySelector('#panel-updates .updates-select');
     const version = select.value;
     if (!version || !window.confirm('Install Declan backend release ' + version +
       '? The backend may restart and automatically roll back if its health check fails.')) return;
