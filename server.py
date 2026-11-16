@@ -293,9 +293,33 @@ def parse_movie_request(phrase):
     return direction, room, app
 
 
+HOUSE_STATUS_REQUESTS = {
+    "house status", "home status", "what is the status of the house",
+    "what's the status of the house", "what is the house status",
+    "what's the house status", "give me a house status",
+    "give me the house status", "how is the house",
+}
+
+
+def house_status_routine(phrase):
+    """Only resolve household status through an explicitly configured script."""
+    if phrase not in HOUSE_STATUS_REQUESTS:
+        return None
+    mappings = routine_registry.load()
+    for name, item in mappings.items():
+        if name in {"house_status", "home_status"} or any(
+            template in {"house status", "home status"} for template in item["phrases"]
+        ):
+            return "custom:" + name, {}
+    return "unconfigured_house_status", {}
+
+
 def select_routine(phrase, origin):
     phrase = phrase.removeprefix("run ").removeprefix("the ")
     try:
+        house_status = house_status_routine(phrase)
+        if house_status:
+            return house_status
         mapped_phrase = routine_registry.match(phrase)
     except (OSError, ValueError, sqlite3.Error):
         mapped_phrase = None
@@ -349,6 +373,8 @@ def select_routine_turn(phrase, origin):
 
 def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
+    if period == "unconfigured_house_status":
+        return "Map your House Status script in Declan Settings under Home Assistant routines.", "not_configured", None
     if period.startswith("custom:"):
         return run_custom_routine(period[7:], action_results, approved=approved, parameters=options)
     if options is None:
