@@ -15,7 +15,7 @@ class RoutineDispatchTests(unittest.TestCase):
              patch.object(server.script_discovery, "discover", return_value=([script], None)):
             for phrase in ("what is the status of the house", "house status", "how is the house"):
                 with self.subTest(phrase=phrase):
-                    self.assertEqual(server.select_routine(phrase, None), ("auto:script.house_status", {}))
+                    self.assertEqual(server.select_routine(phrase, None), ("auto:script.house_status", {"_declan_expect_response": True}))
 
     def test_missing_house_status_never_falls_through_to_device_lookup(self):
         with patch.object(server, "ha_device_connection", return_value=None):
@@ -42,6 +42,19 @@ class RoutineDispatchTests(unittest.TestCase):
                              ("auto:script.movie_time", {"operation": "toggle", "movie_action": "toggle",
                                                            "action": "toggle", "room": "lounge",
                                                            "movie_room": "lounge"}))
+
+    def test_house_status_requests_script_response(self):
+        script = {"entity_id": "script.declan_home_health_summary",
+                  "name": "Declan - Home Health Summary", "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "execute",
+                          return_value=("All doors closed.", "reported_success", None)) as execute:
+            selection = server.select_routine("what is the status of the house", None)
+            self.assertEqual(selection[0], "auto:script.declan_home_health_summary")
+            result = server.execute_routine(selection, [])
+            self.assertEqual(result[0], "All doors closed.")
+            self.assertTrue(execute.call_args.kwargs["expect_response"])
 
     def test_guest_read_phrases_exist(self):
         self.assertEqual(server.GUEST_COMMANDS["who's in charge"], "check")
