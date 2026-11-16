@@ -6,6 +6,33 @@ import personality_policy as p
 
 
 class PersonalityPolicyTests(unittest.TestCase):
+    def test_movie_requests_vary_for_each_direction_without_claiming_completion(self):
+        for action, prefix in (("start", "Movie setup requested."), ("end", "Movie shutdown requested."),
+                               ("toggle", "Movie Time requested.")):
+            replies = [p.movie_request_reply(action, visitor_present=False) for _ in range(4)]
+            self.assertEqual(len(set(replies)), 4)
+            for reply in replies:
+                self.assertTrue(reply.startswith(prefix))
+                self.assertIn(reply.removeprefix(prefix + " "), p._MOVIE_HOME[action])
+                self.assertNotIn("completed", reply)
+                self.assertNotRegex(reply, r"\baudit\b")
+
+    def test_movie_guest_and_unknown_visitor_fallbacks_are_playful_and_private(self):
+        for options in ({"guest": True, "visitor_present": False}, {"visitor_present": True},
+                        {"visitor_present": None}):
+            for action in ("start", "end", "toggle"):
+                replies = [p.movie_request_reply(action, **options) for _ in range(4)]
+                self.assertEqual(len(set(replies)), 4)
+                for reply in replies:
+                    self.assertTrue(any(reply.endswith(line) for line in p._MOVIE_GUEST[action]))
+                    self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
+                    self.assertNotIn("record the result", reply)
+
+    def test_unknown_movie_direction_uses_direction_neutral_lines(self):
+        reply = p.movie_request_reply("future_action", visitor_present=False)
+        self.assertTrue(reply.startswith("Movie Time requested."))
+        self.assertTrue(any(reply.endswith(line) for line in p._MOVIE_HOME["toggle"]))
+
     def test_savage_default_and_no_immediate_repeats(self):
         replies = [p.decorate("Kitchen lights are on.", visitor_present=False) for _ in range(4)]
         self.assertEqual(len(set(replies)), 4)
@@ -104,3 +131,4 @@ class PersonalityPolicyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
