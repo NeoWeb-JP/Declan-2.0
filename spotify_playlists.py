@@ -151,10 +151,12 @@ def listing():
         with music.preference_db() as db:
             weights = dict(db.execute("SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://playlist/%'"))
             plays = dict(db.execute("SELECT uri, plays FROM playlist_play_counts"))
+            disliked_songs = [uri for uri, weight in db.execute(
+                "SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://track/%'") if weight == 0]
         return {"categories": load(), "max_playlists": CAPACITY, "refresh": dict(_REFRESH),
                 "preferences": {"favourites": [uri for uri, weight in weights.items() if weight > 1],
                                 "disliked_playlists": [uri for uri, weight in weights.items() if weight == 0],
-                                "disliked_songs": [uri for uri, weight in dict(db.execute("SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://track/%'")).items() if weight == 0],
+                                "disliked_songs": disliked_songs,
                                 "play_counts": plays}}
 
 
