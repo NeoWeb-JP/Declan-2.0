@@ -2492,11 +2492,11 @@ class Handler(BaseHTTPRequestHandler):
         # HA owns script permissions and execution. Declan does not keep a
         # separate confirmation or approval policy for discovered scripts.
         routine_approved = True
-        preview_request = re.match(r"^(?:preview|dry[ -]run)\\b[ ,:]*", phrase)
+        preview_request = re.match(r"^(?:preview|dry[ -]run)\b[ ,:]*", phrase)
         preview_phrase = phrase[preview_request.end():] if preview_request else None
         routine_preview = None
         if preview_phrase and not re.search(
-            r"\\b(?:light|lights|lamp|spotlight|brightness|dim|switch)\\b", preview_phrase
+            r"\b(?:light|lights|lamp|spotlight|brightness|dim|switch)\b", preview_phrase
         ):
             routine_preview = preview_routine(preview_phrase, origin_device or satellite)
         timer_result = None if routine_preview else timers.handle(
