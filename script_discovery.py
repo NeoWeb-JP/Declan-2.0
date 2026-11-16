@@ -92,7 +92,7 @@ def match(phrase, scripts):
     return "matched", item
 
 
-def execute(connection, item, *, parameters=None):
+def execute(connection, item, *, parameters=None, expect_response=False):
     """Verify the live HA script and send only parameters it declares."""
     scripts, error = discover(connection, fresh=True)
     if error:
@@ -109,6 +109,33 @@ def execute(connection, item, *, parameters=None):
     payload = {"entity_id": current["entity_id"]}
     if supplied:
         payload["variables"] = supplied
+    if expect_response:
+        # A status question needs the script's actual spoken summary, not
+        # an acknowledgement that an asynchronous script was started.
+        service = current["entity_id"].split(".", 1)[1]
+        request = Request(url + "/api/services/script/" + service + "?return_response",
+                          headers=headers, method="POST",
+                          data=json.dumps(supplied).encode())
+        try:
+            with opener.open(request, timeout=55) as response:
+                if response.status not in (200, 201):
+                    return "Home Assistant did not return a house status.", "unverified", None
+                result = json.loads(response.read(65536))
+        except (OSError, HTTPError, ValueError):
+            return ("The Home Assistant status script did not return a spoken summary. "
+                    "It needs a response_variable containing the status message.",
+                    "unverified", None)
+        data = result.get("service_response") if isinstance(result, dict) else None
+        if isinstance(data, dict) and current["entity_id"] in data:
+            data = data[current["entity_id"]]
+        if isinstance(data, dict):
+            for key in ("speech", "reply", "message", "response", "summary"):
+                value = data.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()[:4000], "reported_success", None
+        return ("The Home Assistant status script ran but did not return a spoken summary. "
+                "Return a response_variable with a message or speech field.",
+                "unverified", None)
     request = Request(url + "/api/services/script/turn_on",
                       headers=headers, method="POST",
                       data=json.dumps(payload).encode())
