@@ -33,6 +33,14 @@ class RoutineDispatchTests(unittest.TestCase):
         with patch.object(server, "ha_device_connection", return_value=None):
             self.assertIsNone(server.select_routine("what is the status of the projector", None))
 
+    def test_end_movie_time_never_selects_start_only_script(self):
+        script = {"entity_id": "script.movie_time", "name": "Movie Time", "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)):
+            self.assertIsNone(server.select_routine("end movie time", None))
+            self.assertEqual(server.select_routine("movie time", None),
+                             ("auto:script.movie_time", {"operation": "toggle", "room": "lounge"}))
+
     def test_guest_read_phrases_exist(self):
         self.assertEqual(server.GUEST_COMMANDS["who's in charge"], "check")
 
