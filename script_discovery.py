@@ -31,6 +31,12 @@ def phrases(item):
     for alias in tuple(result):
         if alias.endswith(" controller"):
             result.add(alias.removesuffix(" controller"))
+        # HA appends numeric suffixes when a script entity is duplicated.
+        # The full name remains authoritative; an ambiguous alias is never
+        # selected automatically when more than one script shares it.
+        numbered = re.fullmatch(r"(.+?) [0-9]+", alias)
+        if numbered:
+            result.add(numbered[1])
     if name.endswith(" status"):
         result.update({"what is the " + name, "what is the status of the " + name.removesuffix(" status"),
                        "give me the " + name})
