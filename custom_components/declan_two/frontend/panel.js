@@ -285,6 +285,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <h2>Home Assistant Audit</h2>
           <p class="muted">Read-only snapshot of loaded scripts, automations and entities. No routines are run or changed. Finished traces do not verify device success. Retained traces may describe older configuration.</p>
           <button type="button" class="audit-refresh">Refresh audit</button>
+          <label>Show <select class="audit-review-filter updates-select"><option value="unreviewed">Unreviewed routines</option><option value="all">All routines</option><option value="reviewed">Reviewed and fixed</option></select></label>
           <p class="audit-status" role="status" aria-live="polite">Open this page to inspect Home Assistant.</p>
           <label>Search names, entities or findings <input class="audit-search" type="search" style="width:100%;padding:10px;margin:10px 0;background:#102635;color:#e7f7ff;border:1px solid #315568;border-radius:9px"></label>
           <div class="audit-results"></div>
@@ -486,6 +487,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.history-refresh', 'click', () => this.loadHistory());
       this.bindPanelEvent('.audit-refresh', 'click', () => this.loadHAAudit());
       this.bindPanelEvent('.audit-search', 'input', () => this.renderHAAudit());
+      this.bindPanelEvent('.audit-review-filter', 'change', () => this.renderHAAudit());
       this.bindPanelEvent('.history-more', 'click', () => this.loadHistory(this._historyCursor));
       this.bindPanelEvent('.page-menu-toggle', 'click', () => {
         const nav = this.shadowRoot.querySelector('.page-navigation');
@@ -599,6 +601,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     const report = this._auditReport;
     if (!report) return;
     const query = this.shadowRoot.querySelector('.audit-search').value.trim().toLowerCase();
+    const reviewFilter = this.shadowRoot.querySelector('.audit-review-filter').value;
     const matches = item => JSON.stringify(item).toLowerCase().includes(query);
     const addText = (parent, tag, text) => {
       const element = document.createElement(tag);
@@ -607,7 +610,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       return element;
     };
     for (const [title, rows] of [['Scripts & automations', report.routines], ['Entities', report.entities]]) {
-      const matching = rows.filter(matches);
+      const matching = rows.filter(matches).filter(item => title === 'Entities' || reviewFilter === 'all' || (reviewFilter === 'reviewed' ? item.reviewed : !item.reviewed));
       const group = document.createElement('details');
       group.className = 'settings-spotify';
       addText(group, 'summary', `${title} (${matching.length})`);
@@ -617,7 +620,17 @@ class DeclanTwoNativePanel extends HTMLElement {
         details.className = 'timeline-subsection';
         const findings = item.findings || [];
         const count = findings.length ? ` · ${findings.length} findings` : item.findings ? ' · No static issues found; device success unverified' : '';
-        addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}`);
+        addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}${item.findings ? item.reviewed ? ' · Reviewed and fixed' : ' · Unreviewed' : ''}`);
+        if (item.findings) {
+          const label = addText(details, 'label', ' Reviewed and fixed');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = item.reviewed === true;
+          checkbox.disabled = !item.fingerprint;
+          label.prepend(checkbox);
+          checkbox.addEventListener('change', () => this.setAuditReviewed(item, checkbox));
+          if (item.reviewed) addText(details, 'p', `Reviewed and fixed · ${item.reviewed_at || ''}`);
+        }
         for (const finding of findings) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
         for (const dependency of item.dependencies || []) addText(details, 'p', `${dependency.kind}: ${dependency.id}`);
         for (const run of item.executions || []) {
@@ -628,6 +641,28 @@ class DeclanTwoNativePanel extends HTMLElement {
         group.append(details);
       }
       root.append(group);
+    }
+  }
+
+  async setAuditReviewed(item, checkbox) {
+    const desired = checkbox.checked;
+    checkbox.disabled = true;
+    const status = this.shadowRoot.querySelector('.audit-status');
+    try {
+      const saved = await this._hass.callApi('POST', 'declan_two/ha-audit/reviews', {
+        entity_id:item.entity_id, fingerprint:item.fingerprint, reviewed:desired
+      });
+      if (saved.entity_id !== item.entity_id || saved.reviewed !== desired) throw new Error('Invalid review response');
+      item.reviewed = saved.reviewed;
+      item.reviewed_at = saved.reviewed_at;
+      this.renderHAAudit();
+      status.textContent = desired ? 'Marked reviewed and fixed. Hidden from Unreviewed routines.' : 'Marked unreviewed.';
+    } catch (error) {
+      checkbox.checked = item.reviewed === true;
+      checkbox.disabled = false;
+      status.textContent = Number(error?.status_code || error?.status) === 409
+        ? 'This routine changed since the audit. Refresh and review the current version.'
+        : 'Could not save the review flag. Your previous status has been kept.';
     }
   }
 

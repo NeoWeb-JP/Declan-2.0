@@ -6,9 +6,31 @@ Only identifiers, state summaries and diagnostic codes leave this module.
 from collections.abc import Mapping
 from datetime import datetime, timezone
 import re
+import hashlib
+import json
 
 IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]*\.[a-z0-9_]+\Z")
 SELECTORS = {"entity_id": "entity", "device_id": "device", "area_id": "area"}
+
+
+def review_fingerprint(routine, findings, execution):
+    """Review validity follows loaded source and issues, not ordinary run activity."""
+    def encode(value):
+        if hasattr(value, "template"):
+            return value.template
+        if isinstance(value, (set, frozenset)):
+            return sorted(value, key=str)
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return str(value)
+    relevant = {"entity_id": routine["entity_id"], "config": routine.get("config"),
+                "disabled": routine.get("disabled", False),
+                "references": {kind: sorted(values, key=str) for kind, values in routine.get("references", {}).items()},
+                "findings": sorted([row for row in findings if row["path"] != "execution"], key=lambda row: json.dumps(row, sort_keys=True))}
+    if execution and execution[0]["status"] in {"failed", "partial"}:
+        relevant["latest_failure"] = {key: execution[0][key] for key in ("run_id", "status")}
+    payload = json.dumps(relevant, sort_keys=True, default=encode, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def trace_steps(trace):
@@ -143,6 +165,7 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
             finding("error", "execution_failed", "execution",
                     "Open the corresponding run in Home Assistant Traces to inspect the failing action.")
         items.append({"entity_id": entity_id, "name": routine.get("name") or entity_id,
+                      "fingerprint": review_fingerprint(routine, findings, execution),
                       "state": routine.get("state"), "disabled": bool(routine.get("disabled")),
                       "dependencies": [{"kind": kind, "id": target} for kind, target in sorted(dependencies)],
                       "findings": findings, "executions": execution})

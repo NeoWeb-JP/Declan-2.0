@@ -460,9 +460,11 @@ def run_custom_routine(name, action_results=None, *, approved=False, parameters=
 
 
 def chained_outcome(routine, lighting):
+    if routine == "execution_completed" and lighting == "confirmed":
+        return "execution_completed"
     if routine == "reported_success" and lighting == "confirmed":
         return "reported_success"
-    if routine in {"reported_success", "partial"} or lighting in {"confirmed", "partial"}:
+    if routine in {"reported_success", "execution_completed", "partial"} or lighting in {"confirmed", "partial"}:
         return "partial"
     if "unverified" in (routine, lighting):
         return "unverified"
@@ -2716,9 +2718,11 @@ class Handler(BaseHTTPRequestHandler):
             verified_routine = (outcome == "reported_success"
                                 and routine_reply is not None
                                 and routine_turn is not None)
-            if (outcome in ("confirmed", "reported_success") and not existing_lines
+            completed_routine = (outcome == "execution_completed"
+                                 and routine_reply is not None and routine_turn is not None)
+            if (outcome in ("confirmed", "reported_success", "execution_completed") and not existing_lines
                     and routine_reply is not None
-                    and (verified_routine or light_result is not None
+                    and (verified_routine or completed_routine or light_result is not None
                          or music.parse(phrase) or music.parse_control(phrase)
                          or (action_results and all(
                              step.get("status") in {"confirmed", "already_set", "completed"}
@@ -2733,7 +2737,7 @@ class Handler(BaseHTTPRequestHandler):
                 # not a technical HA script title or completion boilerplate.
                 spoken_reply = ("Sorted." if verified_routine else reply["reply"])
                 reply["reply"] = personality_policy.decorate(
-                    spoken_reply, outcome="confirmed" if verified_routine else outcome,
+                    spoken_reply, outcome="confirmed" if verified_routine or completed_routine else outcome,
                     guest=guest_mode != "off",
                     visitor_present=visitor_present,
                     category="music" if music.parse(phrase) or music.parse_control(phrase)

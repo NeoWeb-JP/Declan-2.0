@@ -35,8 +35,8 @@ class RoutineResultTests(unittest.TestCase):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "server.py").read_text()
         self.assertIn('outcome == "reported_success"', source)
-        self.assertIn('verified_routine or light_result is not None', source)
-        self.assertIn('outcome="confirmed" if verified_routine else outcome', source)
+        self.assertIn('verified_routine or completed_routine or light_result is not None', source)
+        self.assertIn('outcome="confirmed" if verified_routine or completed_routine else outcome', source)
         self.assertIn('spoken_reply = ("Sorted." if verified_routine else reply["reply"])', source)
         self.assertIn('personality_policy.decorate(\n                    spoken_reply,', source)
         import personality_policy
@@ -90,6 +90,11 @@ class RoutineResultTests(unittest.TestCase):
             {"required": True, "status": "confirmed"}])
         self.assertEqual(outcome, "reported_success")
         self.assertIn("completed successfully", reply)
+
+    def test_trace_completion_preserves_chained_action_outcomes(self):
+        import server
+        self.assertEqual(server.chained_outcome("execution_completed", "confirmed"), "execution_completed")
+        self.assertEqual(server.chained_outcome("execution_completed", "failed"), "partial")
 
     def test_unknown_is_not_success(self):
         self.assertEqual(self.run_script("unknown")[1], "unverified")

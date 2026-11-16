@@ -6,6 +6,7 @@ from threading import Lock
 from time import monotonic
 from urllib.error import HTTPError
 from urllib.request import Request
+from urllib.parse import urlencode
 
 _CACHE = {}
 _CACHE_LOCK = Lock()
@@ -110,6 +111,47 @@ def match(phrase, scripts):
     return "matched", item
 
 
+def completion_from_trace(connection, current, result):
+    """Read evidence for this invocation, never the latest unrelated script run."""
+    changed = result.get("changed_states") if isinstance(result, dict) else result
+    if not isinstance(changed, list):
+        return None
+    contexts = {row["context"]["id"] for row in changed
+                if isinstance(row, dict) and row.get("entity_id") == current["entity_id"]
+                and isinstance(row.get("context"), dict)
+                and isinstance(row["context"].get("id"), str)}
+    if len(contexts) != 1:
+        return None
+    context_id = contexts.pop()
+    url, headers, opener = connection
+    query = urlencode({"entity_id": current["entity_id"], "context_id": context_id})
+    try:
+        with opener.open(Request(url + "/api/declan_two/script-result?" + query, headers=headers), timeout=5) as response:
+            evidence = json.loads(response.read(65536))
+    except HTTPError as error:
+        error.close()
+        return None
+    except (OSError, ValueError, TypeError):
+        return None
+    if (not isinstance(evidence, dict) or evidence.get("entity_id") != current["entity_id"]
+            or evidence.get("context_id") != context_id or evidence.get("evidence") != "ha_trace"
+            or not isinstance(evidence.get("run_id"), str) or not evidence["run_id"]):
+        return None
+    status = evidence.get("status")
+    detail = "HA trace " + evidence["run_id"][:128] + "; device results not verified."
+    if status == "finished_unverified":
+        return "Routine finished.", "execution_completed", detail
+    if status == "partial":
+        return "The routine finished with action errors. Check its Home Assistant trace.", "partial", detail
+    if status == "failed":
+        return "The routine failed. Check its Home Assistant trace.", "failed", detail
+    if status == "cancelled":
+        return "The routine was cancelled.", "cancelled", detail
+    if status == "running":
+        return "The routine is still running.", "started", detail
+    return None
+
+
 def execute(connection, item, *, parameters=None, expect_response=False):
     """Verify the live HA script and send only parameters it declares."""
     scripts, error = discover(connection, fresh=True)
@@ -174,13 +216,15 @@ def execute(connection, item, *, parameters=None, expect_response=False):
                 with opener.open(plain_request, timeout=55) as response:
                     if response.status not in (200, 201):
                         return "Home Assistant did not confirm script dispatch.", "unverified", None
-                    response.read(8192)
+                    plain_result = json.loads(response.read(65536))
             except HTTPError as retry_error:
                 retry_code = retry_error.code
                 retry_error.close()
                 return f"Home Assistant rejected script execution (HTTP {retry_code}).", "failed", None
-            except OSError:
+            except (OSError, ValueError, TypeError):
                 return "Home Assistant could not confirm script execution.", "unverified", None
+            if not expect_response and (observed := completion_from_trace(connection, current, plain_result)):
+                return observed
             return (current["name"] + " was sent to Home Assistant, but this script service "
                     "does not support returning a completion result. Check the script trace.",
                     "unverified", None)
@@ -193,6 +237,8 @@ def execute(connection, item, *, parameters=None, expect_response=False):
     if isinstance(data, dict) and current["entity_id"] in data:
         data = data[current["entity_id"]]
     if not isinstance(data, dict):
+        if not expect_response and (observed := completion_from_trace(connection, current, result)):
+            return observed
         return "Home Assistant returned no script result. Check response_variable and traces.", "unverified", None
     if "outcome" in data:
         if "request_id" in allowed_fields and data.get("request_id") != request_id:
@@ -219,4 +265,6 @@ def execute(connection, item, *, parameters=None, expect_response=False):
         value = data.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()[:4000], "reported_success", None
+    if not expect_response and (observed := completion_from_trace(connection, current, result)):
+        return observed
     return "Home Assistant returned no completion status or spoken summary.", "unverified", None
