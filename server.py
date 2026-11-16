@@ -49,6 +49,7 @@ import ai_intent_gate
 import guarded_fallback
 import ha_dispatcher
 import routine_registry
+import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 import roast
@@ -343,7 +344,22 @@ def select_routine(phrase, origin):
     movie = parse_movie_request(phrase)
     if not movie:
         custom = routine_registry.match(phrase)
-        return ("custom:" + custom[0], custom[2] if len(custom) > 2 else {}) if custom else None
+        if custom:
+            return "custom:" + custom[0], custom[2] if len(custom) > 2 else {}
+        # Existing mappings always take precedence. Unknown or uninspectable
+        # scripts are never executed by the automatic discovery path.
+        if 1 <= len(phrase.split()) <= 12:
+            connection = ha_device_connection()
+            if connection:
+                scripts, error = script_discovery.discover(connection)
+                if error is None:
+                    found = script_discovery.match(phrase, scripts)
+                    if found:
+                        kind, item = found
+                        if kind == "ambiguous":
+                            return "auto_ambiguous", {}
+                        return "auto:" + item["entity_id"], {}
+        return None
     direction, room, app = movie
     if room in (None, "here"):
         area = None
@@ -374,6 +390,10 @@ def select_routine_turn(phrase, origin):
 
 def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
+    if period == "auto_ambiguous":
+        return "Several Home Assistant scripts match that name. Please use a more specific name.", "unresolved", None
+    if period.startswith("auto:"):
+        return script_discovery.execute(ha_device_connection(), {"entity_id": period[5:]})
     if period == "unconfigured_house_status":
         return "Map your House Status script in Declan Settings under Home Assistant routines.", "not_configured", None
     if period.startswith("custom:"):
