@@ -18,6 +18,10 @@ def review_fingerprint(routine, findings, execution):
     def encode(value):
         if hasattr(value, "template"):
             return value.template
+        # HA compiles variables into ScriptVariables instances. Their default
+        # repr contains a memory address that changes when scripts are reloaded.
+        if isinstance(getattr(value, "variables", None), Mapping):
+            return value.variables
         if isinstance(value, (set, frozenset)):
             return sorted(value, key=str)
         if isinstance(value, datetime):

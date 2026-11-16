@@ -331,7 +331,7 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
             async def json(self): return body
         return Request(hass_user=SimpleNamespace(is_admin=admin))
 
-    async def test_review_persists_and_source_changes_reopen_it(self):
+    async def test_review_persists_and_source_changes_are_flagged_without_clearing_it(self):
         report = await self.view.collect_report(self.hass)
         row = next(row for row in report["routines"] if row["entity_id"] == "automation.actual_entity")
         body = {"entity_id": row["entity_id"], "fingerprint": row["fingerprint"], "reviewed": True}
@@ -343,7 +343,9 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.hass.data["automation"].entities[0].raw_config["description"] = "Changed"
         changed = await self.view.collect_report(self.hass)
         await reviews.apply_reviews(self.hass, changed)
-        self.assertFalse(next(row for row in changed["routines"] if row["entity_id"] == body["entity_id"])["reviewed"])
+        changed_row = next(row for row in changed["routines"] if row["entity_id"] == body["entity_id"])
+        self.assertTrue(changed_row["reviewed"])
+        self.assertTrue(changed_row["review_changed"])
         rejected, options = await self.view.DeclanAuditReviewView().post(self.review_request(body))
         self.assertEqual(options["status"], 409)
         self.assertEqual(rejected["error"], "routine_changed")
@@ -375,7 +377,9 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         new_issue = self.review_fixture(recovered=True, failure="script.morning", changed="script.night")
         await reviews.apply_reviews(self.hass, new_issue)
         flags = {row["entity_id"]: row["reviewed"] for row in new_issue["routines"]}
-        self.assertEqual(flags, {"script.movie": True, "script.morning": False, "script.night": False})
+        self.assertEqual(flags, {"script.movie": True, "script.morning": True, "script.night": True})
+        changes = {row["entity_id"]: row["review_changed"] for row in new_issue["routines"]}
+        self.assertEqual(changes, {"script.movie": False, "script.morning": True, "script.night": True})
         row = report["routines"][-1]
         with patch.object(self.view, "collect_report", return_value=copy.deepcopy(report)):
             await self.view.DeclanAuditReviewView().post(self.review_request({"entity_id": row["entity_id"],
@@ -418,6 +422,42 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         old = next(item for item in recovered["routines"] if item["entity_id"] == row["entity_id"])
         self.assertTrue(old["reviewed"])
         self.assertEqual(old["reviewed_at"], "old")
+
+    async def test_invalidated_legacy_marks_are_restored_without_rewriting_storage(self):
+        report = self.review_fixture(recovered=True)
+        state = await reviews.review_state(self.hass)
+        for row in report["routines"]:
+            state["records"][row["entity_id"]] = {"fingerprint": "f" * 64, "reviewed_at": "original-date"}
+        await state["store"].async_save(state["records"])
+        self.hass.data.pop("declan_two_audit_reviews")
+        state = await reviews.review_state(self.hass)
+        before = copy.deepcopy(state["records"])
+        await reviews.apply_reviews(self.hass, report)
+        self.assertTrue(all(row["reviewed"] and row["review_changed"] for row in report["routines"]))
+        self.assertTrue(all(row["reviewed_at"] == "original-date" for row in report["routines"]))
+        self.assertEqual(state["records"], before)
+        self.assertEqual(report["summary"]["reviewed"], 3)
+
+    async def test_compiled_script_variables_keep_reviews_across_reloads(self):
+        class ScriptVariables:
+            def __init__(self, variables): self.variables = variables
+        source = {"sequence": [{"variables": {"message": "{{ greeting }}"}}]}
+        def fixture():
+            return audit.build_report({}, {}, set(), set(), set(), [
+                {"entity_id": "script.morning", "config": {**source, "loaded_sequence": [
+                    {"variables": ScriptVariables({"message": "{{ greeting }}"})}]}}], {})
+        report = fixture()
+        row = report["routines"][0]
+        with patch.object(self.view, "collect_report", return_value=fixture()):
+            saved, options = await self.view.DeclanAuditReviewView().post(self.review_request({
+                "entity_id": row["entity_id"], "fingerprint": row["fingerprint"], "reviewed": True}))
+        self.assertTrue(saved["reviewed"])
+        self.hass.data.pop("declan_two_audit_reviews")
+        refreshed = fixture()
+        await reviews.apply_reviews(self.hass, refreshed)
+        self.assertEqual(refreshed["routines"][0]["review_source"], row["review_source"])
+        self.assertTrue(refreshed["routines"][0]["reviewed"])
+        self.assertFalse(refreshed["routines"][0]["review_changed"])
 
     async def test_review_can_be_undone_and_needs_admin(self):
         report = await self.view.collect_report(self.hass)
