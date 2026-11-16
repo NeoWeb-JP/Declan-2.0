@@ -2,10 +2,13 @@
 import json
 import tempfile
 import unittest
+from email.message import Message
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import history
+import server
 
 
 class VerifiedRecordingLinksTests(unittest.TestCase):
@@ -53,6 +56,40 @@ class VerifiedRecordingLinksTests(unittest.TestCase):
         for ids in (["invalid/id"], ["x"] * 101, [None]):
             with self.assertRaises(ValueError):
                 history.verified_recording_turns(ids)
+
+    def remote_get(self, path, supplied='x' * 32):
+        handler = object.__new__(server.Handler)
+        handler.path = path
+        handler.client_address = ('192.0.2.10', 12345)
+        handler.server = SimpleNamespace(server_port=52737)
+        handler.headers = Message()
+        handler.headers['Authorization'] = 'Bearer ' + supplied
+        handler.headers['Host'] = 'declan.internal:52737'
+        handler.has_ingress_access = lambda: False
+        handler.send_json = Mock()
+        handler.send_body = Mock()
+        with patch.dict(server.os.environ, {'DECLAN_ASSIST_TOKEN':'x' * 32}):
+            handler.do_GET()
+        return handler.send_json.call_args.args
+
+    def test_ha_token_from_remote_host_loads_link_and_actual_reply(self):
+        history.record('s','assist','study light on it',server.UNMATCHED_REPLY,
+                       speaker={'interaction_id':'clip','name':'Jaco','confidence':0.49})
+        status, payload = self.remote_get('/api/history/recording-links?ids=clip')
+        self.assertEqual(status,200,payload)
+        turn_id=payload['links']['clip']
+        self.assertEqual(payload['turns'][str(turn_id)]['reply'],server.UNMATCHED_REPLY)
+        self.assertEqual(payload['turns'][str(turn_id)]['message'],'study light on it')
+
+    def test_recording_links_still_require_valid_token_and_valid_ids(self):
+        self.assertEqual(self.remote_get('/api/history/recording-links?ids=clip', supplied='wrong')[0],403)
+        self.assertEqual(self.remote_get('/api/history/recording-links?ids=invalid/id')[0],400)
+
+    def test_read_token_does_not_authorize_other_history_routes(self):
+        for path in ('/api/history/export','/api/history/clear','/api/history/intents',
+                     '/api/history/recording-links/extra?ids=clip'):
+            with self.subTest(path=path):
+                self.assertEqual(self.remote_get(path)[0],403)
 
 
 if __name__ == "__main__":

@@ -1951,7 +1951,8 @@ class Handler(BaseHTTPRequestHandler):
         # Read-only history is accessible to the HA integration using its
         # existing Assist token. All write/export/update routes stay protected.
         history_auth = (
-            urlsplit(self.path).path == "/api/history"
+            (urlsplit(self.path).path == "/api/history"
+             or urlsplit(self.path).path == "/api/history/recording-links")
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
