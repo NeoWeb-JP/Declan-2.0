@@ -43,6 +43,19 @@ class RoutineDispatchTests(unittest.TestCase):
                                                            "action": "toggle", "room": "lounge",
                                                            "movie_room": "lounge"}))
 
+    def test_house_status_requests_script_response(self):
+        script = {"entity_id": "script.declan_home_health_summary",
+                  "name": "Declan - Home Health Summary", "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "execute",
+                          return_value=("All doors closed.", "reported_success", None)) as execute:
+            selection = server.select_routine("what is the status of the house", None)
+            self.assertEqual(selection[0], "auto:script.declan_home_health_summary")
+            result = server.execute_routine(selection, [])
+            self.assertEqual(result[0], "All doors closed.")
+            self.assertTrue(execute.call_args.kwargs["expect_response"])
+
     def test_guest_read_phrases_exist(self):
         self.assertEqual(server.GUEST_COMMANDS["who's in charge"], "check")
 
