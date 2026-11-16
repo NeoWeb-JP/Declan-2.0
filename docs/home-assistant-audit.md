@@ -20,6 +20,13 @@ file layout are not preserved. Blueprint definitions keep their `use_blueprint` 
 the blueprint file itself is not bundled. Configured values can be present in the export,
 just as in HA's own configuration editor. The endpoint requires an HA administrator.
 
+**Edit YAML** opens that routine's native Home Assistant editor using its persistent
+script/automation ID, including when its entity ID has been renamed. If HA opens the
+visual editor, choose its three-dot menu and **Edit in YAML**. HA currently has no
+supported YAML-mode-only deep link. File/package-managed routines may be read-only in
+the native editor; HA retains control of edit/save permissions. Stale records have no
+editor button. Navigating to the editor does not save or change the routine.
+
 The audit inventories current states and the entity registry, including disabled entities.
 It inspects loaded script and automation configuration, expanded action sequences, and
 HA's extracted entity, device and area references. It checks explicit dependencies

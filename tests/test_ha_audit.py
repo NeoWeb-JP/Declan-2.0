@@ -166,6 +166,9 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         spec = importlib.util.spec_from_file_location("audit_fixture.ha_audit_view", INTEGRATION / "ha_audit_view.py")
         self.view = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.view)
+        discovery_spec = importlib.util.spec_from_file_location("audit_fixture.script_discovery_view", INTEGRATION / "script_discovery_view.py")
+        self.discovery_view = importlib.util.module_from_spec(discovery_spec)
+        discovery_spec.loader.exec_module(self.discovery_view)
         result_spec = importlib.util.spec_from_file_location("audit_fixture.script_result_view", INTEGRATION / "script_result_view.py")
         self.result_view = importlib.util.module_from_spec(result_spec)
         result_spec.loader.exec_module(self.result_view)
@@ -196,6 +199,41 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(disabled["yaml_available"])
         self.assertTrue(disabled["stale"])
         self.assertFalse(row["stale"])
+        self.assertEqual(row["editor_path"], "/config/automation/edit/persistent-id")
+        self.assertIsNone(disabled["editor_path"])
+
+    async def test_loaded_script_fields_reach_execution_when_state_has_no_field_attributes(self):
+        import io
+        import script_discovery
+        fields = {"requested_action": {"required": True}, "request_id": {}, "routine_id": {}}
+        loaded = SimpleNamespace(fields=fields, raw_config={"fields": fields}, unique_id="movie_time")
+        self.hass.data["script"] = SimpleNamespace(get_entity=lambda entity_id: loaded)
+        state = SimpleNamespace(entity_id="script.movie_time", attributes={"friendly_name": "Movie Time"})
+        self.hass.states.async_all = lambda domain=None: [state]
+        self.hass.services.has_service = lambda *args: True
+        self.reg.async_get = lambda entity_id: None
+        class Request(dict):
+            app = {"hass": self.hass}
+        payload, _ = await self.discovery_view.DeclanScriptDiscoveryView().get(Request(hass_user=SimpleNamespace(is_admin=True)))
+        item = payload["scripts"][0]
+        self.assertEqual(set(item["fields"]), set(fields))
+        calls = []
+        def open_request(request, timeout):
+            body = json.loads(request.data)
+            calls.append(body)
+            self.assertEqual(body["requested_action"], "toggle")
+            self.assertTrue(body["request_id"].startswith("declan-"))
+            self.assertEqual(body["routine_id"], "script.movie_time")
+            response = io.BytesIO(json.dumps({"service_response": {"outcome": "success", "request_id": body["request_id"],
+                "routine_id": body["routine_id"], "steps": [{"target": "screen", "status": "confirmed", "required": True}]}}).encode())
+            response.status = 200
+            return response
+        with patch.object(script_discovery, "discover", return_value=([item], None)):
+            result = script_discovery.execute(("http://ha", {}, SimpleNamespace(open=open_request)), item,
+                                              parameters={"requested_action": "toggle"})
+        self.assertEqual(result[1], "reported_success")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.discovery_view.declared_script_fields(SimpleNamespace(raw_config={"fields": fields})), sorted(fields))
 
     def yaml_request(self, entity_id, admin=True):
         class Request(dict):

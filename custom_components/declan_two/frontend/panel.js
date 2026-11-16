@@ -650,6 +650,13 @@ class DeclanTwoNativePanel extends HTMLElement {
             download.className = 'audit-yaml-download';
             download.addEventListener('click', () => this.downloadAuditYaml(item, download));
           }
+          if (!item.stale && typeof item.editor_path === 'string' && /^\/config\/(script|automation)\/edit\/[^/?#]+$/.test(item.editor_path)) {
+            const edit = addText(actions, 'button', 'Edit YAML');
+            edit.type = 'button';
+            edit.className = 'audit-yaml-edit';
+            edit.title = 'Open the Home Assistant editor. Choose the three-dot menu, then Edit in YAML.';
+            edit.addEventListener('click', () => this.openAuditEditor(item));
+          }
           if (item.reviewed) addText(details, 'p', `Reviewed and fixed · ${item.reviewed_at || ''}`);
         }
         for (const finding of findings) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
@@ -663,6 +670,13 @@ class DeclanTwoNativePanel extends HTMLElement {
       }
       root.append(group);
     }
+  }
+
+  openAuditEditor(item) {
+    const path = item.editor_path;
+    if (item.stale || typeof path !== 'string' || !/^\/config\/(script|automation)\/edit\/[^/?#]+$/.test(path)) return;
+    window.history.pushState({from:window.location.pathname + window.location.search}, '', path);
+    window.dispatchEvent(new CustomEvent('location-changed', {detail:{replace:false}}));
   }
 
   async downloadAuditYaml(item, button) {

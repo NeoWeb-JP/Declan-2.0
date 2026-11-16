@@ -251,6 +251,13 @@ def execute(connection, item, *, parameters=None, expect_response=False, action_
                     "unknown": "unverified", "started": "started", "busy": "busy"}
         if outcome not in statuses:
             return "Home Assistant returned an unknown script outcome.", "unverified", None
+        reasons = {
+            "screen_moving": "The projector screen is still moving. Please wait before trying Movie Time again.",
+            "screen_position_unverified": "I couldn't determine a safe screen position and direction. Movie Time was not run.",
+            "requested_action_missing_or_invalid": "Movie Time did not receive a valid start, end or toggle action. Nothing was run.",
+        }
+        if outcome in {"unknown", "busy"} and isinstance(data.get("reason_code"), str) and data["reason_code"] in reasons:
+            return reasons[data["reason_code"]], statuses[outcome], None
         steps = data.get("steps", [])
         if outcome == "success" and isinstance(steps, list):
             if any(isinstance(step, dict) and step.get("required", True)
