@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 import re
 from collections.abc import Mapping
+from urllib.parse import quote
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -58,7 +59,12 @@ async def collect_report(hass):
                 except Exception:
                     gaps.append(f"{entity_id}: {kind} references unavailable")
             state = states.get(entity_id, {})
+            editor_id = getattr(entity, "unique_id", None)
+            if editor_id is None and isinstance(raw, Mapping) and domain == "automation":
+                editor_id = raw.get("id")
+            editor_path = f"/config/{domain}/edit/{quote(str(editor_id), safe='')}" if editor_id is not None else None
             routines.append({"entity_id": entity_id, "name": state.get("name"),
+                             "editor_path": editor_path,
                              "stale": entity is None,
                              "yaml_available": isinstance(raw, Mapping),
                              "state": state.get("state"),

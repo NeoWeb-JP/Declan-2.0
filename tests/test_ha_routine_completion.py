@@ -8,7 +8,7 @@ import script_discovery
 
 
 class RoutineResultTests(unittest.TestCase):
-    def run_script(self, outcome, steps=None, recorded=None):
+    def run_script(self, outcome, steps=None, recorded=None, reason=None):
         item = {"entity_id": "script.declan_local_good_morning",
                 "name": "Declan - Good Morning - Shared Local Routine",
                 "fields": ["request_id", "routine_id"], "safe": True}
@@ -19,7 +19,7 @@ class RoutineResultTests(unittest.TestCase):
             self.assertTrue(payload["request_id"].startswith("declan-"))
             result = {"service_response": {
                 "outcome": outcome, "request_id": payload["request_id"],
-                "routine_id": payload["routine_id"], "steps": steps or []}}
+                "routine_id": payload["routine_id"], "steps": steps or [], "reason_code": reason}}
             response = MagicMock()
             response.status = 200
             response.read.return_value = json.dumps(result).encode()
@@ -120,6 +120,15 @@ class RoutineResultTests(unittest.TestCase):
 
     def test_unknown_is_not_success(self):
         self.assertEqual(self.run_script("unknown")[1], "unverified")
+
+    def test_known_movie_guard_reasons_are_spoken_clearly(self):
+        reply, outcome, _ = self.run_script("unknown", reason="requested_action_missing_or_invalid")
+        self.assertEqual(outcome, "unverified")
+        self.assertIn("start, end or toggle", reply)
+        self.assertNotIn("Shared Local Routine", reply)
+        reply, outcome, _ = self.run_script("busy", reason="screen_moving")
+        self.assertEqual(outcome, "busy")
+        self.assertIn("still moving", reply)
 
     def test_partial_is_not_success(self):
         self.assertEqual(self.run_script("partial")[1], "partial")

@@ -6,6 +6,7 @@ All templates, nested scripts, conditions, other domains and unknown sources fai
 import json
 import re
 from pathlib import Path
+from collections.abc import Mapping
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -13,6 +14,15 @@ from homeassistant.components.http import HomeAssistantView
 ENTITY = re.compile(r"script\.[a-z0-9_]+\Z")
 LIGHT = re.compile(r"light\.[a-z0-9_]+\Z")
 SAFE_ACTIONS = {"light.turn_on", "light.turn_off", "light.toggle"}
+
+
+def declared_script_fields(loaded):
+    """Script fields belong to the loaded entity/service, not state attributes."""
+    fields = getattr(loaded, "fields", None)
+    if not isinstance(fields, Mapping):
+        raw = getattr(loaded, "raw_config", None)
+        fields = raw.get("fields") if isinstance(raw, Mapping) else None
+    return sorted(key for key in fields if isinstance(key, str)) if isinstance(fields, Mapping) else []
 
 
 def inspect_script(definition):
@@ -83,6 +93,7 @@ class DeclanScriptDiscoveryView(HomeAssistantView):
         areas = area_registry.async_get(hass)
         entities = entity_registry.async_get(hass)
         scripts = []
+        component = hass.data.get("script")
         for entity in hass.states.async_all("script"):
             if not ENTITY.fullmatch(entity.entity_id):
                 continue
@@ -92,6 +103,7 @@ class DeclanScriptDiscoveryView(HomeAssistantView):
             # Stale/restored entities must never be offered for execution.
             if not hass.services.has_service("script", key):
                 continue
+            loaded = component.get_entity(entity.entity_id) if component else None
             entry = entities.async_get(entity.entity_id)
             area_id = entry.area_id if entry else None
             if not area_id and entry and entry.device_id:
@@ -103,8 +115,7 @@ class DeclanScriptDiscoveryView(HomeAssistantView):
                 "entity_id": entity.entity_id,
                 "name": entity.attributes.get("friendly_name") or key.replace("_", " ").title(),
                 "area": area.name if area else "",
-                "fields": sorted((entity.attributes.get("fields") or {}).keys())
-                          if isinstance(entity.attributes.get("fields"), dict) else [],
+                "fields": declared_script_fields(loaded),
                 "safe": True,
                 "reason": "available_in_home_assistant",
             })

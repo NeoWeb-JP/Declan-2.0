@@ -266,3 +266,32 @@ test('stale records are hidden by default in both audit groups and can be shown 
   assert.match(root.querySelector('.audit-results').textContent,/Old Dinner/);
   assert.match(root.querySelector('.audit-results').textContent,/Stale entity record/);
 });
+
+test('Edit YAML navigates to the persistent native script editor without writing configuration', async t => {
+  const data = report();
+  data.routines[0].editor_path = '/config/script/edit/original_script_key';
+  const {element,root,calls} = panel(t,data);
+  await element.loadHAAudit();
+  const win = element.ownerDocument.defaultView;
+  let navigated = false;
+  win.addEventListener('location-changed', () => {navigated = true;});
+  const button = root.querySelector('.audit-yaml-edit');
+  assert.equal(button.textContent,'Edit YAML');
+  assert.match(button.title,/three-dot menu/);
+  button.click();
+  assert.equal(win.location.pathname,'/config/script/edit/original_script_key');
+  assert.equal(navigated,true);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0][0],'GET');
+});
+
+test('stale records and invalid editor paths cannot navigate', async t => {
+  const data = report();
+  data.routines[0].editor_path = 'https://example.invalid/';
+  const {element,root} = panel(t,data);
+  await element.loadHAAudit();
+  assert.equal(root.querySelector('.audit-yaml-edit'),null);
+  element.openAuditEditor({editor_path:'/config/script/edit/test',stale:true});
+  element.openAuditEditor({editor_path:'https://example.invalid/'});
+  assert.equal(element.ownerDocument.defaultView.location.pathname,'/');
+});
