@@ -59,6 +59,7 @@ async def collect_report(hass):
                     gaps.append(f"{entity_id}: {kind} references unavailable")
             state = states.get(entity_id, {})
             routines.append({"entity_id": entity_id, "name": state.get("name"),
+                             "yaml_available": isinstance(raw, Mapping),
                              "state": state.get("state"),
                              "disabled": registered.get(entity_id, {}).get("disabled", False),
                              "config": config, "references": refs})
@@ -159,3 +160,34 @@ class DeclanAuditReviewView(HomeAssistantView):
             state["records"] = records
         return web.json_response({"entity_id": body["entity_id"], "reviewed": body["reviewed"],
                                   "reviewed_at": reviewed_at}, headers={"Cache-Control": "no-store"})
+
+
+class DeclanAuditYamlView(HomeAssistantView):
+    url = "/api/declan_two/ha-audit/yaml"
+    name = "api:declan_two:ha_audit_yaml"
+    requires_auth = True
+
+    async def get(self, request):
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        entity_id = request.query.get("entity_id", "")
+        if not re.fullmatch(r"(?:script|automation)\.[a-z0-9_]+", entity_id):
+            raise web.HTTPBadRequest()
+        hass = request.app["hass"]
+        component = hass.data.get(entity_id.split(".", 1)[0])
+        entity = component.get_entity(entity_id) if component else None
+        raw = getattr(entity, "raw_config", None)
+        if not isinstance(raw, Mapping):
+            return web.json_response({"error": "configuration_unavailable"}, status=404,
+                                     headers={"Cache-Control": "no-store"})
+        from homeassistant.util.yaml import dump
+        try:
+            yaml_text = await hass.async_add_executor_job(dump, dict(raw))
+        except Exception as error:
+            _LOGGER.error("Home Assistant audit YAML export failed (%s)", type(error).__name__)
+            return web.json_response({"error": "yaml_export_failed"}, status=503,
+                                     headers={"Cache-Control": "no-store"})
+        header = f"# Home Assistant loaded definition: {entity_id}\n"
+        return web.json_response({"entity_id": entity_id, "filename": entity_id + ".yaml",
+                                  "yaml": header + yaml_text}, headers={"Cache-Control": "no-store"})

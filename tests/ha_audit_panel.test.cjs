@@ -182,3 +182,73 @@ test('connection-card check failure keeps API status and restores retry control'
   assert.equal(root.querySelector('.state').textContent,'Declan API connected');
   assert.equal(root.querySelector('.overview-update-check').disabled,false);
 });
+
+test('release checks populate the backend picker and leave the audit filter intact', async t => {
+  const {element,root,calls} = panel(t,{current:'2.8.2',versions:['2.8.3','2.8.2']});
+  const audit = root.querySelector('.audit-review-filter');
+  audit.value = 'reviewed';
+  const original = [...audit.options].map(option => option.value);
+  await element.checkUpdates();
+  const releases = root.querySelector('#panel-updates .updates-select');
+  assert.deepEqual([...releases.options].map(option => option.value),['2.8.3','2.8.2']);
+  assert.equal(releases.value,'2.8.3');
+  assert.equal(root.querySelector('.updates-install').disabled,false);
+  assert.deepEqual([...audit.options].map(option => option.value),original);
+  assert.equal(audit.value,'reviewed');
+  assert.equal(calls[0][2].operation,'check');
+  element._hass.callApi = async (...args) => {calls.push(args);return {};};
+  element.loadUpdateStatus = async () => {};
+  root.querySelector('.update-prereleases').checked = true;
+  element.ownerDocument.defaultView.confirm = () => true;
+  await element.installUpdate();
+  assert.equal(calls[1][2].version,'2.8.3');
+  assert.equal(calls[1][2].operation,'install');
+});
+
+test('prerelease changes reset only the release picker and status cannot enable a placeholder', async t => {
+  const {element,root} = panel(t,{enabled:true,state:'idle',current:'2.8.2'});
+  const audit = root.querySelector('.audit-review-filter');
+  audit.value = 'all';
+  await element.loadUpdateStatus();
+  assert.equal(root.querySelector('.updates-install').disabled,true);
+  root.querySelector('.update-prereleases').dispatchEvent(new element.ownerDocument.defaultView.Event('change'));
+  assert.equal(audit.value,'all');
+  assert.equal(audit.options.length,3);
+  assert.equal(root.querySelector('#panel-updates .updates-select').value,'');
+  assert.equal(root.querySelector('.updates-install').disabled,true);
+});
+
+test('routine YAML download uses the current HA endpoint and downloads the returned YAML', async t => {
+  const data = report();
+  data.routines[0].yaml_available = true;
+  const {element,root,calls} = panel(t,data);
+  await element.loadHAAudit();
+  const win = element.ownerDocument.defaultView;
+  let blob,download;
+  win.URL.createObjectURL = value => {blob = value;return 'blob:test-yaml';};
+  win.URL.revokeObjectURL = () => {};
+  win.HTMLAnchorElement.prototype.click = function() {download = this.download;};
+  element._hass.callApi = async (...args) => {
+    calls.push(args);
+    return {entity_id:'script.dinner',yaml:'alias: Current dinner\nsequence: []\n'};
+  };
+  const button = root.querySelector('.audit-yaml-download');
+  await element.downloadAuditYaml(element._auditReport.routines[0],button);
+  assert.equal(calls[1][0],'GET');
+  assert.equal(calls[1][1],'declan_two/ha-audit/yaml?entity_id=script.dinner');
+  assert.equal(download,'script.dinner.yaml');
+  assert.equal(blob.type,'application/yaml;charset=utf-8');
+  assert.match(root.querySelector('.audit-status').textContent,/Downloaded the current loaded/);
+  assert.equal(button.disabled,false);
+});
+
+test('stale routines have no YAML download and failed exports restore retry control', async t => {
+  const {element,root} = panel(t,report());
+  await element.loadHAAudit();
+  assert.equal(root.querySelector('.audit-yaml-download'),null);
+  element._hass.callApi = async () => {throw {status_code:404};};
+  const button = element.ownerDocument.createElement('button');
+  await element.downloadAuditYaml(element._auditReport.routines[0],button);
+  assert.match(root.querySelector('.audit-status').textContent,/Could not download YAML/);
+  assert.equal(button.disabled,false);
+});

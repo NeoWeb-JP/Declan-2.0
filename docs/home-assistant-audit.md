@@ -4,6 +4,17 @@ Open **Declan > Home Assistant Audit** using a Home Assistant administrator acco
 Opening the page or pressing **Refresh audit** reads the currently loaded HA sources.
 Search names, entity IDs or finding codes. Both groups and individual rows start collapsed.
 
+Use **Download YAML** inside a routine row to export its current loaded Home Assistant
+definition. This is read from HA when clicked, not from Declan's repository or the earlier
+audit snapshot. It contains the routine's configuration only, without audit/review metadata,
+trace variables or runtime history. No household action is executed and nothing is written
+back to HA. Stale entities without a loaded definition have no download button.
+
+The export represents loaded configuration, so original comments, formatting and include
+file layout are not preserved. Blueprint definitions keep their `use_blueprint` reference;
+the blueprint file itself is not bundled. Configured values can be present in the export,
+just as in HA's own configuration editor. The endpoint requires an HA administrator.
+
 The audit inventories current states and the entity registry, including disabled entities.
 It inspects loaded script and automation configuration, expanded action sequences, and
 HA's extracted entity, device and area references. It checks explicit dependencies
