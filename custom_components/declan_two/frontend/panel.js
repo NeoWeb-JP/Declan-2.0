@@ -1117,6 +1117,28 @@ class DeclanTwoNativePanel extends HTMLElement {
       details.append(form);
       list.append(details);
     }
+    const dislikedPlaylists = this._playlistPreferences?.disliked_playlists || [];
+    const blockedPlaylists = document.createElement('details');
+    blockedPlaylists.className = 'settings-subsection playlist-category-accordion';
+    blockedPlaylists.dataset.playlistCategory = 'disliked_playlists';
+    blockedPlaylists.open = previouslyOpen.has('disliked_playlists') || openCategory === 'disliked_playlists';
+    const blockedHeading = document.createElement('summary');
+    blockedHeading.textContent = 'Disliked playlists (' + dislikedPlaylists.length + ')';
+    blockedPlaylists.append(blockedHeading);
+    for (const uri of dislikedPlaylists) {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      const label = document.createElement('span');
+      label.textContent = uri;
+      const restore = document.createElement('button');
+      restore.type = 'button';
+      restore.textContent = 'Restore playlist';
+      restore.dataset.playlistOperation = 'restore';
+      restore.dataset.playlistUri = uri;
+      row.append(label, restore);
+      blockedPlaylists.append(row);
+    }
+    list.append(blockedPlaylists);
     const dislikedSongs = this._playlistPreferences?.disliked_songs || [];
     const songs = document.createElement('details');
     songs.className = 'settings-subsection playlist-category-accordion';
