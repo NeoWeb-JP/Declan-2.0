@@ -359,11 +359,17 @@ def select_routine(phrase, origin):
                 scripts, error = script_discovery.discover(connection)
                 if error is None:
                     found = script_discovery.match(phrase, scripts)
+                    # Spoken questions such as "what is the status of the
+                    # house" name the House Status routine, not a device.
+                    if not found and phrase in HOUSE_STATUS_REQUESTS:
+                        found = script_discovery.match("house status", scripts)
                     if found:
                         kind, item = found
                         if kind == "ambiguous":
                             return "auto_ambiguous", {}
                         return "auto:" + item["entity_id"], {}
+        if phrase in HOUSE_STATUS_REQUESTS:
+            return "unconfigured_house_status", {}
         return None
     direction, room, app = movie
     if room in (None, "here"):
