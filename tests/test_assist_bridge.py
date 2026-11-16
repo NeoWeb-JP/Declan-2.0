@@ -107,6 +107,19 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertEqual(result.conversation_id, "old")
         self.intent.IntentResponse.return_value.async_set_error.assert_called_once()
 
+    async def test_retry_continuation_is_explicit_and_errors_never_keep_listening(self):
+        agent = self.conversation.DeclanTwoAgent(self.entry)
+        agent.hass = object()
+        user_input = SimpleNamespace(text='office light on it',language='en',conversation_id='old',
+                                     device_id='device',context=SimpleNamespace(user_id='user'))
+        self.response.json.return_value = {'reply':'Could you say it another way?', 'session_id':'retry',
+                                           'continue_conversation':True}
+        self.assertTrue((await agent.async_process(user_input)).continue_conversation)
+        self.response.json.return_value = {'reply':'Sorted', 'session_id':'retry','continue_conversation':False}
+        self.assertFalse((await agent.async_process(user_input)).continue_conversation)
+        self.response.status = 502
+        self.assertFalse((await agent.async_process(user_input)).continue_conversation)
+
     async def test_event_logging_and_unload(self):
         hass = SimpleNamespace(config_entries=SimpleNamespace(async_forward_entry_setups=AsyncMock(),
                                                               async_unload_platforms=AsyncMock(return_value=True)),

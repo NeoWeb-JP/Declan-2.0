@@ -46,7 +46,10 @@ class DeclanHistoryView(HomeAssistantView):
                         raise ValueError("Invalid recording links")
                     verified = {key: value for key, value in links.items()
                                 if key in identifiers and type(value) is int and value > 0}
-                    return web.json_response({"links": verified}, headers={"Cache-Control": "no-store"})
+                    turns = payload.get("turns", {})
+                    safe_turns = {str(value): {"reply": str(turns.get(str(value), {}).get("reply") or "")[:4000]}
+                                  for value in verified.values()}
+                    return web.json_response({"links": verified, "turns": safe_turns}, headers={"Cache-Control": "no-store"})
             except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
                 return web.json_response({"status": "backend_unavailable"}, status=502)
         before = request.query.get("before")
@@ -74,6 +77,8 @@ class DeclanHistoryView(HomeAssistantView):
                         continue
                     turns.append({
                         "id": item.get("id") if type(item.get("id")) is int else None,
+                        "created_at": str(item.get("created_at") or "")[:50],
+                        "recording_id": str((item.get("speaker_match") or {}).get("interaction_id") or "")[:80],
                         "message": str(item.get("message") or "")[:1000],
                         "reply": str(item.get("reply") or "")[:4000],
                         "source": str(item.get("source") or "")[:50],
