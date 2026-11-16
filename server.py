@@ -329,9 +329,11 @@ def select_routine(phrase, origin):
     movie = parse_movie_request(phrase)
     if movie:
         direction, room, app = movie
-        candidates.extend((f"{direction} movie time", "movie time"))
+        candidates.extend((f"{direction} movie time",))
+        if direction == "toggle":
+            candidates.append("movie time")
         if room:
-            candidates.insert(1, f"movie time {room}")
+            candidates.insert(1, f"{direction} movie time {room}")
     for candidate in dict.fromkeys(candidates):
         found = script_discovery.match(candidate, scripts)
         if found:
