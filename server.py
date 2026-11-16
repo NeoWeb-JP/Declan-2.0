@@ -772,6 +772,10 @@ def parse_light_command(phrase):
     clauses = re.split(separator, phrase)
     targets = []
     for index, clause in enumerate(clauses):
+        adjustment = re.fullmatch(r"(dim|brighten) (?:the )?(.+)", clause)
+        if adjustment:
+            targets.append((adjustment[2], "darker" if adjustment[1] == "dim" else "brighter"))
+            continue
         relative_prefix = r"(?:make )?" if index and phrase.startswith("make ") else "make "
         relative = re.fullmatch(relative_prefix + r"(?:the )?(.+?) (darker|lighter|brighter|very bright)", clause)
         if relative:

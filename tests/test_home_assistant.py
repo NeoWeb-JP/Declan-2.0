@@ -166,6 +166,67 @@ class LightingTests(TestCase):
         self.assertEqual(self.ha.entities["light.bedroom_lamp"]["attributes"]["brightness"], 128)
         self.run_light("dim the lights in the lounge by 120 percent", "unresolved")
 
+    def test_bare_dim_and_brighten_adjust_current_brightness(self):
+        lamp = self.ha.entities["light.lounge_lamp"]
+        lamp["attributes"]["friendly_name"] = "Lounge Spotlights"
+        for phrase, change in (
+            ("Dim lounge spotlights", -10),
+            ("dim the lounge spotlights", -10),
+            ("brighten lounge spotlights", 10),
+            ("brighten the lights in the lounge", 10),
+            ("make the lounge spotlights darker", -10),
+            ("make the lounge spotlights lighter", 10),
+            ("make the lounge spotlights brighter", 10),
+        ):
+            for starting_percent in (50, 80):
+                with self.subTest(phrase=phrase, starting_percent=starting_percent):
+                    lamp["attributes"]["brightness"] = round(starting_percent * 255 / 100)
+                    self.ha.calls.clear()
+                    self.run_light(server.history.normalize_phrase(phrase), "confirmed")
+                    expected = starting_percent + change
+                    self.assertEqual(lamp["attributes"]["brightness"], round(expected * 255 / 100))
+                    writes = [(route, data) for route, data in self.ha.calls if "/services/" in route]
+                    self.assertEqual(writes, [("/api/services/light/turn_on", {
+                        "entity_id": "light.lounge_lamp", "brightness_pct": expected,
+                    })])
+                    self.assertEqual(self.ha.entities["light.bedroom_lamp"]["attributes"]["brightness"], 128)
+
+    def test_dim_absolute_and_explicit_relative_percentages_still_work(self):
+        lamp = self.ha.entities["light.lounge_lamp"]
+        self.run_light("dim the lounge lamp to 30 percent", "confirmed")
+        self.assertEqual(lamp["attributes"]["brightness"], round(30 * 255 / 100))
+        self.run_light("brighten the lounge lamp by 20 percent", "confirmed")
+        self.assertEqual(lamp["attributes"]["brightness"], round(50 * 255 / 100))
+        self.run_light("dim the lounge lamp by 20 percent", "confirmed")
+        self.assertEqual(lamp["attributes"]["brightness"], round(30 * 255 / 100))
+
+    def test_bare_relative_commands_preserve_brightness_bounds(self):
+        lamp = self.ha.entities["light.lounge_lamp"]
+        for phrase, starting, expected in (("dim lounge lamp", 5, 1),
+                                           ("brighten lounge lamp", 95, 100)):
+            with self.subTest(phrase=phrase):
+                lamp["attributes"]["brightness"] = round(starting * 255 / 100)
+                self.run_light(phrase, "confirmed")
+                self.assertEqual(lamp["attributes"]["brightness"], round(expected * 255 / 100))
+
+    def test_bare_relative_commands_leave_off_and_non_dimmable_lights_alone(self):
+        for phrase in ("dim study light", "brighten study light", "dim fairy lights"):
+            with self.subTest(phrase=phrase):
+                self.run_light(phrase, "unavailable")
+        lamp = self.ha.entities["light.lounge_lamp"]
+        lamp["state"] = "off"
+        self.run_light("brighten lounge lamp", "unavailable")
+        self.assertFalse(any("/services/" in route for route, _ in self.ha.calls))
+
+    def test_bare_dim_preserves_ambiguity_and_on_off_resolution(self):
+        self.ha.entities["light.second"] = light("second", "on", friendly_name="Lounge Lamp", brightness=128)
+        self.run_light("dim lounge lamp", "unresolved")
+        self.assertFalse(any("/services/" in route for route, _ in self.ha.calls))
+        self.ha.entities.pop("light.second")
+        self.run_light("lounge lamp off", "confirmed")
+        self.run_light("lounge lamp on", "confirmed")
+        self.assertEqual(self.ha.entities["light.lounge_lamp"]["state"], "on")
+
     def test_contextual_lights_status_and_preview(self):
         self.run_light("turn on some lights in here", "confirmed", origin_device="study-device")
         self.assertEqual(self.ha.entities["light.study_light"]["state"], "on")
