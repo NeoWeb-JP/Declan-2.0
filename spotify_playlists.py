@@ -226,10 +226,12 @@ QUERIES = {
 }
 
 
-def discover(opener, category=None):
-    """Search Spotify playlists and preserve existing results on failed searches."""
+def discover(opener, category):
+    """Search exactly one user-selected category; never refresh everything."""
+    if category not in CATEGORIES:
+        raise ValueError("Select a Spotify category to refresh")
     import music
-    targets = (category,) if category else CATEGORIES
+    targets = (category,)
     results = {}
     titles = {}
     for name in targets:
