@@ -360,6 +360,29 @@ def select_routine_turn(phrase, origin):
     return (routine, None) if routine else None
 
 
+
+def preview_routine(phrase, origin=None):
+    """Read-only preview of a Home Assistant script; never dispatch actions."""
+    selection = select_routine_turn(phrase, origin)
+    if not selection:
+        return "I couldn't find that script in Home Assistant. Nothing has been run.", "unresolved"
+    (kind, options), follow_on = selection
+    if follow_on:
+        return "I cannot preview chained commands yet. Nothing has been run.", "unresolved"
+    if kind == "auto_ambiguous":
+        return "Several Home Assistant scripts match. Nothing has been run.", "unresolved"
+    if kind == "unconfigured_house_status":
+        return "I couldn't find a House Status script in Home Assistant. Nothing has been run.", "not_configured"
+    if not kind.startswith("auto:"):
+        return "I couldn't identify a Home Assistant script. Nothing has been run.", "unresolved"
+    script = kind[5:]
+    variables = ", ".join(f"{key}={value}" for key, value in options.items())
+    detail = f" with {variables}" if variables else ""
+    return (f"Preview: I would request Home Assistant script {script}{detail}. "
+            "The script's internal actions and final reply cannot be predicted without running it. "
+            "Simulated spoken response: Starting the routine. Nothing has been run.", "preview")
+
+
 def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
     if period == "auto_ambiguous":
@@ -2469,12 +2492,21 @@ class Handler(BaseHTTPRequestHandler):
         # HA owns script permissions and execution. Declan does not keep a
         # separate confirmation or approval policy for discovered scripts.
         routine_approved = True
-        timer_result = timers.handle(
+        preview_request = re.match(r"^(?:preview|dry[ -]run)\\b[ ,:]*", phrase)
+        preview_phrase = phrase[preview_request.end():] if preview_request else None
+        routine_preview = None
+        if preview_phrase and not re.search(
+            r"\\b(?:light|lights|lamp|spotlight|brightness|dim|switch)\\b", preview_phrase
+        ):
+            routine_preview = preview_routine(preview_phrase, origin_device or satellite)
+        timer_result = None if routine_preview else timers.handle(
             phrase, opener,
             satellite=satellite if isinstance(satellite, str) and len(satellite) <= 128 else None,
             device=origin_device, browser=source != "assist",
         )
-        if timer_result:
+        if routine_preview:
+            routine_reply, outcome = routine_preview
+        elif timer_result:
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
