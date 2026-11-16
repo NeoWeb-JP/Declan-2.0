@@ -23,9 +23,18 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"status": "invalid_json"}, status=400)
-        if not isinstance(body, dict) or (set(body) != {"category", "playlist", "operation"} and not (set(body) == {"category", "operation"} and body.get("operation") == "refresh")):
+        if not isinstance(body, dict):
             return web.json_response({"status": "invalid_request"}, status=400)
-        if body["category"] not in CATEGORIES or body["operation"] not in ("add", "remove", "delete", "refresh") or (body["operation"] != "refresh" and (not isinstance(body["playlist"], str) or len(body["playlist"]) > 256)):
+        if body.get("operation") == "add_genre":
+            if set(body) != {"operation", "genre"} or not isinstance(body["genre"], str) or len(body["genre"]) > 40:
+                return web.json_response({"status": "invalid_request"}, status=400)
+        elif (set(body) != {"category", "playlist", "operation"}
+              and not (set(body) == {"category", "operation"} and body.get("operation") == "refresh")):
+            return web.json_response({"status": "invalid_request"}, status=400)
+        elif (not isinstance(body["category"], str) or len(body["category"]) > 40
+              or body["operation"] not in ("add", "remove", "delete", "refresh")
+              or (body["operation"] != "refresh" and
+                  (not isinstance(body["playlist"], str) or len(body["playlist"]) > 256))):
             return web.json_response({"status": "invalid_request"}, status=400)
         return await self._relay(request, body)
 
@@ -55,7 +64,7 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
                 if not isinstance(payload, dict) or not isinstance(payload.get("categories"), dict):
                     raise ValueError("Invalid Spotify playlist catalogue")
                 categories = {}
-                for name in CATEGORIES:
+                for name in list(payload["categories"])[:50]:
                     item = payload["categories"].get(name, {})
                     if not isinstance(item, dict):
                         item = {}
