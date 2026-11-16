@@ -30,6 +30,27 @@ class RoutineDispatchTests(unittest.TestCase):
             selection = server.select_routine("what is the status of the house", None)
         self.assertEqual(selection, ("auto:script.house_status", {}))
 
+    def test_house_status_unavailable_never_falls_through_to_device_lookup(self):
+        with patch.object(server.routine_registry, "load", return_value={}), \
+             patch.object(server.routine_registry, "match", return_value=None), \
+             patch.object(server, "ha_device_connection", return_value=None):
+            for phrase in ("what is the status of the house", "house status", "how is the house"):
+                with self.subTest(phrase=phrase):
+                    self.assertEqual(server.select_routine_turn(phrase, None),
+                                     (("unconfigured_house_status", {}), None))
+
+    def test_house_status_question_uses_canonical_discovery_name(self):
+        script = {"entity_id": "script.house_status", "name": "House Status", "safe": True}
+        def match(phrase, scripts):
+            return ("matched", script) if phrase == "house status" else None
+        with patch.object(server.routine_registry, "load", return_value={}), \
+             patch.object(server.routine_registry, "match", return_value=None), \
+             patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "match", side_effect=match):
+            self.assertEqual(server.select_routine("what is the status of the house", None),
+                             ("auto:script.house_status", {}))
+
     def test_other_device_status_is_not_intercepted(self):
         with patch.object(server.routine_registry, "load", return_value={}):
             self.assertIsNone(server.house_status_routine("what is the status of the projector"))
