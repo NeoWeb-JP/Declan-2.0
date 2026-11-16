@@ -25,6 +25,44 @@ class PlaylistPreferenceTests(unittest.TestCase):
         self.environment.stop()
         self.temp.cleanup()
 
+    def test_discovery_requires_explicit_category(self):
+        with self.assertRaises(ValueError):
+            spotify_playlists.discover(None, None)
+        with self.assertRaises(ValueError):
+            spotify_playlists.discover(None, "all")
+
+    def test_refresh_only_changes_selected_category(self):
+        spotify_playlists.refresh({"country": [A], "rock": [B]})
+        spotify_playlists.refresh({"country": [B]})
+        self.assertIn(B, spotify_playlists.load()["rock"]["playlists"])
+        self.assertIn(B, spotify_playlists.load()["country"]["playlists"])
+
+    def test_manual_playlist_survives_multiple_refreshes(self):
+        spotify_playlists.manage({"category": "country", "playlist": A, "operation": "add"})
+        spotify_playlists.refresh({"country": [B]})
+        spotify_playlists.refresh({"country": []})
+        data = spotify_playlists.load()["country"]
+        self.assertIn(A, data["manual"])
+        self.assertIn(A, data["playlists"])
+
+    def test_liked_discovery_playlist_survives_refresh(self):
+        spotify_playlists.refresh({"rock": [A, B]})
+        spotify_playlists.manage({"category": "rock", "playlist": A, "operation": "favourite"})
+        spotify_playlists.refresh({"rock": [B]})
+        data = spotify_playlists.load()["rock"]
+        self.assertIn(A, data["playlists"])
+        self.assertNotIn(A, data["manual"])
+
+    def test_disliked_playlist_stays_blocked_after_refresh(self):
+        spotify_playlists.manage({"category": "braai", "playlist": A, "operation": "add"})
+        spotify_playlists.manage({"category": "braai", "playlist": A, "operation": "dislike"})
+        spotify_playlists.refresh({"braai": [A, B]})
+        data = spotify_playlists.load()["braai"]
+        self.assertIn(A, data["manual"])
+        self.assertIn(A, data["excluded"])
+        self.assertNotIn(A, data["playlists"])
+        self.assertIn(A, spotify_playlists.listing()["preferences"]["disliked_playlists"])
+
     def test_love_and_dislike_commands(self):
         self.assertEqual(music.parse_feedback("i love this playlist")[0], "i love this playlist")
         self.assertEqual(music.parse_feedback("i don't like this song")[0], "i don't like this song")

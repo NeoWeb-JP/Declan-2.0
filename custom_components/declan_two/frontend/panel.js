@@ -360,7 +360,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             <details class="settings-section settings-section--playlists">
               <summary><span class="settings-section-icon" aria-hidden="true">♫</span><span class="settings-section-title">Spotify playlists<small>Browse and curate 25 playlists per category</small></span></summary>
               <div class="settings-section-content">
-                <p class="muted playlists-help">Add pins to keep playlists through discovery refreshes. Remove takes a playlist out of the current category (discovery may add it again). Delete excludes it from future discovery in this category.</p>
+                <p class="muted playlists-help">Discovery refresh is manual only, using Refresh inside each category. Your playlists and liked playlists are protected; disliked playlists stay blocked. Remove takes a playlist out of the current category (discovery may add it again). Delete excludes it from future discovery in this category.</p>
                 <p class="playlists-status muted" role="status" aria-live="polite">Expand this section to load your Spotify categories.</p>
                 <div class="playlists-list" aria-label="Playlists grouped by category"></div>
               </div>
@@ -1127,9 +1127,13 @@ class DeclanTwoNativePanel extends HTMLElement {
           link.textContent = 'Open in Spotify';
           row.append(link);
         }
-        if ((data.favourites || []).includes(uri)) {
+        if ((data.manual || []).includes(uri)) {
           const pinned = document.createElement('span');
-          pinned.textContent = 'Pinned';
+          pinned.textContent = 'Your playlist · protected from refresh';
+          row.append(pinned);
+        } else if (favourite || (data.favourites || []).includes(uri)) {
+          const pinned = document.createElement('span');
+          pinned.textContent = 'Liked · protected from refresh';
           row.append(pinned);
         }
         for (const [operation, action] of [['remove', 'Remove'], ['delete', 'Delete / exclude']]) {
@@ -1165,7 +1169,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       const form = document.createElement('form');
       form.className = 'playlists-add-form';
       const labelInput = document.createElement('label');
-      labelInput.textContent = 'Spotify playlist link or URI';
+      labelInput.textContent = 'Add your own Spotify playlist (kept during refresh)';
       const input = document.createElement('input');
       input.required = true;
       input.placeholder = 'https://open.spotify.com/playlist/…';

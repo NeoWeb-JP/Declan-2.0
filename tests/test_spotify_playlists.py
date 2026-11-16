@@ -67,7 +67,7 @@ class SpotifyPlaylists(unittest.TestCase):
         self.assertEqual(selected[0], "https://open.spotify.com/playlist/" + "A" * 22)
         self.assertEqual(selected[1], "playlist")
 
-    def test_weekly_discovery_uses_declan_spotify_search_and_preserves_pins(self):
+    def test_manual_category_discovery_uses_declan_spotify_search_and_preserves_pins(self):
         import music
         playlists.manage({"category": "braai", "playlist": self.a, "operation": "add"})
         playlists.manage({"category": "braai", "playlist": self.b, "operation": "delete"})
@@ -76,8 +76,8 @@ class SpotifyPlaylists(unittest.TestCase):
             ("https://open.spotify.com/playlist/" + "C" * 22, "playlist", "Found"),
         ]
         with patch.object(music, "spotify_search", return_value=results) as search:
-            data = playlists.discover(object())
-        self.assertEqual(len(search.call_args_list), 22)
+            data = playlists.discover(object(), "braai")
+        self.assertEqual(len(search.call_args_list), 2)
         self.assertEqual(data["braai"]["playlists"],
                          [self.a, "spotify://playlist/" + "C" * 22])
         self.assertEqual(data["braai"]["excluded"], [self.b])
