@@ -1650,6 +1650,19 @@ class DeclanTwoNativePanel extends HTMLElement {
       reply.className = 'reply';
       reply.textContent = result.reply || '(No spoken reply)';
       article.append(question, reply);
+      if (result.outcome === 'preview' && typeof window.speechSynthesis !== 'undefined') {
+        const spoken = result.reply.includes('Simulated spoken response:')
+          ? result.reply.split('Simulated spoken response:')[1].replace(/Nothing has been run\\.?$/, '').trim()
+          : result.reply;
+        const play = document.createElement('button');
+        play.type = 'button';
+        play.textContent = 'Play preview response';
+        play.addEventListener('click', () => {
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(new SpeechSynthesisUtterance(spoken));
+        });
+        article.append(play);
+      }
       this.shadowRoot.querySelector('.chat-replies').prepend(article);
       input.value = '';
       status.textContent = 'Reply received.';
