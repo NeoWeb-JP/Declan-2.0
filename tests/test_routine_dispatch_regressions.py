@@ -15,7 +15,7 @@ class RoutineDispatchTests(unittest.TestCase):
              patch.object(server.script_discovery, "discover", return_value=([script], None)):
             for phrase in ("what is the status of the house", "house status", "how is the house"):
                 with self.subTest(phrase=phrase):
-                    self.assertEqual(server.select_routine(phrase, None), ("auto:script.house_status", {}))
+                    self.assertEqual(server.select_routine(phrase, None), ("auto:script.house_status", {"_declan_expect_response": True}))
 
     def test_missing_house_status_never_falls_through_to_device_lookup(self):
         with patch.object(server, "ha_device_connection", return_value=None):
