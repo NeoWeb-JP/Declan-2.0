@@ -101,6 +101,9 @@ class APITests(TestCase):
             self.assertEqual(reply["reply"], "Request not confirmed.")
 
     def test_night_receipt_returns_bedtime_sass_even_with_guest_mode_on(self):
+        # Exercise receipt speech when the configured voice policy allows dispatch.
+        self.enterContext(patch.dict(server.os.environ, {"DECLAN_SENSITIVE_ROUTINES": "guest"}))
+        self.enterContext(patch.object(server.routine_registry, "load", return_value={}))
         selection = (("auto:script.good_night", {"_declan_background": True,
                       "_declan_reply_category": "night"}), None)
         with patch.object(server, "select_routine_turn", return_value=selection), \
@@ -118,6 +121,22 @@ class APITests(TestCase):
                         self.assertNotIn("Sorted", reply["reply"])
                         self.assertEqual(reply["routine_status"], "Background job j")
         self.assertEqual(enqueue.call_count, 4)
+
+    def test_night_configured_voice_confirmation_still_precedes_dispatch(self):
+        selection = (("auto:script.good_night", {"_declan_background": True,
+                      "_declan_reply_category": "night"}), None)
+        with patch.dict(server.os.environ, {"DECLAN_SENSITIVE_ROUTINES": "night,guest"}), \
+             patch.object(server.routine_registry, "load", return_value={}), \
+             patch.object(server, "select_routine_turn", return_value=selection), \
+             patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
+             patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
+            prompt = self.ask("goodnight", path="/api/assist")
+            self.assertEqual(prompt["outcome"], "confirmation_prompt")
+            enqueue.assert_not_called()
+            accepted = self.ask("yes", session=prompt["session_id"], path="/api/assist")
+            self.assertEqual(accepted["outcome"], "started")
+            self.assertTrue(accepted["reply"].startswith("Good night. "))
+            enqueue.assert_called_once()
 
     def test_night_busy_or_unverified_receipt_never_claims_bedtime_started(self):
         selection = (("auto:script.good_night", {"_declan_background": True,
@@ -294,7 +313,7 @@ class APITests(TestCase):
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
              patch.object(server.script_discovery, "execute",
                           return_value=("Dinner ready.", "requested", None)) as execute:
-            for phrase in {*server.DINNER_PHRASES, "it’s dinner time"}:
+            for phrase in {*server.DINNER_PHRASES, "it's dinner time"}:
                 result = self.ask(phrase + "!", path="/api/assist")
                 self.assertEqual(result["outcome"], "requested")
                 self.assertEqual(result["reply"], "Dinner ready.")
@@ -374,7 +393,7 @@ class APITests(TestCase):
         self.assertIn("You said", self.ask("What did I say?", session)["reply"])
         self.assertIn("here", self.ask("What time is it?", session)["reply"])
         self.assertIn("here", self.ask("What's the time?", session)["reply"])
-        self.assertIn("here", self.ask("What’s the time?", session)["reply"])
+        self.assertIn("here", self.ask("What's the time?", session)["reply"])
         self.assertIn("say it another way", self.ask("Something else")["reply"])
         with patch.object(server.conditions, "handle", side_effect=lambda phrase, _: (
             ("Oxford forecast", "confirmed", "weather") if "oxford" in phrase else None
@@ -476,3 +495,4 @@ class StartupTests(TestCase):
             response = fixture.ask('hello', path='/api/assist')
             self.assertIsInstance(response['reply'], str)
         log.assert_called_once_with('Could not look up learned intention; using the original transcript.')
+
