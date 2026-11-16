@@ -344,13 +344,15 @@ def select_routine(phrase, origin):
             # Generic Movie Time is valid for start/end only if HA declares
             # an operation/action field that can distinguish the direction.
             if movie and movie[0] != "toggle" and candidate == "movie time":
-                if not set(item.get("fields", [])) & {"operation", "movie_action", "action"}:
+                if not set(item.get("fields", [])) & {"operation", "movie_action", "action", "requested_action"}:
                     continue
             parameters = {}
             if movie:
                 parameters = {"operation": movie[0], "movie_action": movie[0],
                               "action": movie[0], "room": movie[1] or "lounge",
                               "movie_room": movie[1] or "lounge"}
+                if "requested_action" in item.get("fields", []):
+                    parameters["requested_action"] = movie[0]
             elif phrase in SEXY_TIME_COMMANDS:
                 parameters = {"operation": SEXY_TIME_COMMANDS[phrase]}
             if is_house_status:

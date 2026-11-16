@@ -124,6 +124,11 @@ class RoutineResultTests(unittest.TestCase):
     def test_partial_is_not_success(self):
         self.assertEqual(self.run_script("partial")[1], "partial")
 
+    def test_busy_screen_is_not_an_unknown_outcome_or_success(self):
+        reply, outcome, _ = self.run_script("busy")
+        self.assertEqual(outcome, "busy")
+        self.assertIn("already in progress", reply)
+
     def test_unconfirmed_required_step_rejects_success(self):
         self.assertEqual(self.run_script("success", [
             {"required": True, "status": "unverified"}])[1], "unverified")

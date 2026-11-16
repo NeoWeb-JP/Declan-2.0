@@ -9,6 +9,17 @@ class RoutineDispatchTests(unittest.TestCase):
         self.assertEqual(server.parse_movie_request("end movie time")[0], "end")
         self.assertEqual(server.parse_movie_request("stop cinema mode")[0], "end")
 
+    def test_movie_requested_action_field_is_supported_for_all_directions(self):
+        script = {"entity_id": "script.movie_time", "name": "Declan - Movie Time - Shared Local Routine",
+                  "safe": True, "fields": ["requested_action", "request_id", "routine_id"]}
+        with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)):
+            for phrase, action in (("start movie time", "start"), ("end movie time", "end"), ("movie time", "toggle")):
+                selection = server.select_routine(phrase, None)
+                self.assertIsNotNone(selection)
+                self.assertEqual(selection[0], "auto:script.movie_time")
+                self.assertEqual(selection[1]["requested_action"], action)
+
     def test_house_status_resolves_from_ha_inventory_only(self):
         script = {"entity_id": "script.house_status", "name": "House Status", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
