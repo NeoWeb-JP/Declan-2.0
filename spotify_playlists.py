@@ -120,9 +120,14 @@ def manage(body):
             elif operation == "restore":
                 item["excluded"] = [uri for uri in item["excluded"] if uri != selected]
             elif operation == "favourite":
-                if selected not in item["playlists"]:
-                    if len(item["playlists"]) >= CAPACITY:
-                        raise ValueError("Category has 25 playlists; remove one first")
+                if selected not in item["playlists"] and len(item["playlists"]) >= CAPACITY:
+                    raise ValueError("Category has 25 playlists; remove one first")
+                item["discovered"] = [uri for uri in item["discovered"] if uri != selected]
+                if selected not in item["favourites"]:
+                    item["favourites"].append(selected)
+            elif operation == "unfavourite" and selected in item["favourites"]:
+                item["favourites"] = [uri for uri in item["favourites"] if uri != selected]
+                if selected not in item["discovered"]:
                     item["discovered"].append(selected)
             data = normalize(data)
             save(data)
