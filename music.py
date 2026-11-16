@@ -335,8 +335,34 @@ def parse(phrase):
 def request(connection, path, data=None, *, timeout=None):
     label = ('stop_dispatch' if path.endswith('/media_stop') else
              'play_dispatch' if path.endswith('/play_media') else 'ha_media_request')
-    with diagnostics.stage(label):
-        return _request(connection, path, data, timeout=timeout)
+    with diagnostics.stage(label) as entry:
+        # Only record validated entity IDs, never URLs, headers or media payloads.
+        entity = data.get("entity_id") if isinstance(data, dict) else path.removeprefix("/api/states/")
+        if isinstance(entity, str) and re.fullmatch(r"media_player\.[a-z0-9_]{1,100}", entity):
+            entry["player_entity_id"] = entity
+        source = data.get("source_player") if isinstance(data, dict) else None
+        if isinstance(source, str) and re.fullmatch(r"media_player\.[a-z0-9_]{1,100}", source):
+            entry["source_player_entity_id"] = source
+        try:
+            return _request(connection, path, data, timeout=timeout)
+        except HTTPError as error:
+            entry["http_status"] = error.code
+            entry["failure_kind"] = ("rate_limited" if error.code == 429 else
+                                     "service_unavailable" if error.code in {502, 503, 504} else "http_error")
+            raise
+        except TimeoutError:
+            entry["failure_kind"] = "timeout"
+            raise
+
+
+def player_available(entity, state):
+    """Record the selected player even when no service can be dispatched."""
+    available = state not in (None, "unknown", "unavailable")
+    with diagnostics.stage("music_player") as entry:
+        if isinstance(entity, str) and re.fullmatch(r"media_player\.[a-z0-9_]{1,100}", entity):
+            entry["player_entity_id"] = entity
+        entry["outcome"] = "available" if available else "unavailable"
+    return available
 
 
 def _request(connection, path, data=None, *, timeout=None):
@@ -449,7 +475,7 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         player = players.get(entity, {})
         state = player.get("state")
-        if state in (None, "unavailable", "unknown"):
+        if not player_available(entity, state):
             return f"The music player {location} is unavailable.", "unavailable"
         if entity != group and entity in members:
             return "That player is part of Everywhere. Say Everywhere to control the group.", "unresolved"
@@ -492,6 +518,10 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
         return f"I sent the playback command {location}, but couldn't verify the result.", "unverified"
     except HTTPError as error:
         error.close()
+        if error.code == 429:
+            return "Music playback is being rate limited. I haven't retried the command.", "unverified"
+        if error.code in {502, 503, 504}:
+            return "Home Assistant's music service is temporarily unavailable. I couldn't verify playback.", "unverified"
         return f"Home Assistant returned an error for the playback command {location}.", "unverified"
     except (OSError, ValueError):
         return f"I couldn't verify the playback command {location}.", "unverified"
@@ -654,7 +684,7 @@ def play(command, connection, read_inventory, *, origin=None):
             destination = destinations.get(room)
         if destination is None:
             return f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"
-        if players.get(destination, {}).get("state") in (None, "unknown", "unavailable"):
+        if not player_available(destination, players.get(destination, {}).get("state")):
             return f"The Music Assistant player {location} is unavailable.", "unavailable"
         previous_state = players[destination]["state"]
         previous_track = (players[destination].get("attributes") or {}).get("media_content_id")
@@ -790,6 +820,8 @@ def play(command, connection, read_inventory, *, origin=None):
         error.close()
         if error.code == 429:
             detail = "Music playback is being rate limited. I haven't retried the request."
+        elif error.code in {502, 503, 504}:
+            detail = "Home Assistant's music service is temporarily unavailable. I couldn't verify playback."
         else:
             detail = "Home Assistant returned an error for the music request."
         return ("I stopped the previous stream. " if stopped else "") + detail, "unverified"
