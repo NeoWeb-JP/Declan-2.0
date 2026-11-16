@@ -90,7 +90,7 @@ class ScriptSafetyTests(unittest.TestCase):
             [{"entity_id": "script.house_status", "name": "House Status", "safe": False}], None)):
             result = script_discovery.execute(("http://ha", {}, opener), {"entity_id": "script.house_status"})
         self.assertEqual(result[1], "unverified")
-        self.assertIn("no script result", result[0])
+        self.assertIn("did not return a valid script result", result[0])
         self.assertEqual(opener.open.call_count, 1)
 
 
