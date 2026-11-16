@@ -31,31 +31,47 @@ def catalogue_path():
 
 
 def normalize(raw):
-    # Dislikes are global, not category-specific: a playlist must not
-    # reappear via another genre's discovery refresh.
-    try:
-        import music
-        with music.preference_db() as db:
-            globally_disliked = {uri for (uri,) in db.execute(
-                "SELECT uri FROM preferences WHERE weight = 0 AND uri LIKE 'spotify://playlist/%'"
-            )}
-    except (OSError, ValueError):
-        globally_disliked = set()
+    """Keep user-added and liked playlists independently of discovery results.
+
+    A dislike is retained in the global preference database and excluded from
+    playback, not erased from the catalogue. Only discovery-owned entries
+    rotate during refresh.
+    """
+    import music
+    with music.preference_db() as db:
+        preferences = dict(db.execute(
+            "SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://playlist/%'"
+        ))
+    disliked = {uri for uri, weight in preferences.items() if weight == 0}
+    liked = {uri for uri, weight in preferences.items() if weight > 1}
     result = {}
     for category in CATEGORIES:
         item = raw.get(category, {}) if isinstance(raw, dict) else {}
         item = item if isinstance(item, dict) else {}
+        manual = unique(item.get("manual") or [])
+        pinned = unique(item.get("favourites") or [])
         excluded = unique(item.get("excluded") or [])
-        excluded = list(dict.fromkeys(excluded + sorted(globally_disliked)))
-        favourites = [x for x in unique(item.get("favourites") or []) if x not in excluded][:CAPACITY]
-        discovered = [x for x in unique(item.get("discovered") or []) if x not in excluded and x not in favourites]
-        discovered = discovered[:CAPACITY - len(favourites)]
+        # Existing installations stored manual additions in favourites. Keep
+        # those pinned, and treat them as manual for future refreshes.
+        manual = list(dict.fromkeys(manual + pinned))
+        discovered = unique(item.get("discovered") or [])
+        protected = list(dict.fromkeys(manual + [uri for uri in discovered if uri in liked]))
+        if len(protected) > CAPACITY:
+            # Never silently discard protected entries to make room.
+            # Older oversized catalogues remain visible for manual resolution.
+            LOGGER.warning("Spotify category %s exceeds %d protected playlists", category, CAPACITY)
+        excluded = list(dict.fromkeys(excluded + sorted(disliked)))
+        visible_protected = [uri for uri in protected if uri not in excluded]
+        available = max(0, CAPACITY - len(visible_protected))
+        rotating = [uri for uri in discovered if uri not in protected and uri not in excluded][:available]
+        active = visible_protected + rotating
         titles = item.get("titles") if isinstance(item.get("titles"), dict) else {}
         titles = {uri: name[:160] for uri, name in titles.items()
-                  if isinstance(uri, str) and isinstance(name, str) and uri in favourites + discovered + excluded}
-        result[category] = {"favourites": favourites, "excluded": excluded,
-                            "discovered": discovered, "playlists": favourites + discovered,
-                            "titles": titles}
+                  if isinstance(uri, str) and isinstance(name, str)
+                  and uri in active + excluded + protected}
+        result[category] = {"manual": manual, "favourites": pinned,
+                            "excluded": excluded, "discovered": discovered,
+                            "playlists": active, "titles": titles}
     return result
 
 
@@ -138,11 +154,14 @@ def manage(body):
             data = normalize(data)
             save(data)
             return {"categories": data, "max_playlists": CAPACITY}
-        for key in ("favourites", "discovered", "excluded"):
+        for key in ("manual", "favourites", "discovered", "excluded"):
             item[key] = [x for x in item[key] if x != selected]
         if operation == "add":
-            if len(item["favourites"]) >= CAPACITY:
-                raise ValueError("Category has 25 pinned playlists; remove one first")
+            if selected in data[category]["playlists"]:
+                return {"categories": data, "max_playlists": CAPACITY}
+            if len(data[category]["playlists"]) >= CAPACITY:
+                raise ValueError("Category has 25 playlists; remove one first")
+            item["manual"].append(selected)
             item["favourites"].append(selected)
         elif operation == "delete":
             item["excluded"].append(selected)
@@ -172,7 +191,17 @@ def refresh(discovered, titles=None):
         data = load()
         for category in CATEGORIES:
             if category in discovered:
-                data[category]["discovered"] = unique(discovered[category])
+                # Preserve liked discovery entries, even when Spotify search
+                # no longer returns them. Dislikes stay excluded globally.
+                import music
+                with music.preference_db() as db:
+                    liked = {uri for uri, weight in db.execute(
+                        "SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://playlist/%'"
+                    ) if weight > 1}
+                previous = data[category]["discovered"]
+                data[category]["discovered"] = unique(discovered[category]) + [
+                    uri for uri in previous if uri in liked and uri not in discovered[category]
+                ]
                 if titles and category in titles:
                     data[category]["titles"].update(titles[category])
         data = normalize(data)
