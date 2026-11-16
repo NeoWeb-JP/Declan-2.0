@@ -153,15 +153,16 @@ class APITests(TestCase):
         with patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
              patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking music call")), \
              patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
-            for action, prefix in (("start", "Bedroom mood requested. "), ("end", "Bedroom reset requested. ")):
+            for action in ("start", "end"):
                 selection = (("auto:script.sexy_time", {"operation": action, "_declan_background": True,
                               "_declan_reply_category": "sexy"}), None)
                 with patch.object(server, "select_routine_turn", return_value=selection):
                     for path in ("/api/chat", "/api/assist"):
                         reply = self.ask(action + " bedroom mood", path=path)
                         self.assertEqual(reply["outcome"], "started")
-                        self.assertTrue(reply["reply"].startswith(prefix))
-                        self.assertIn(reply["reply"].removeprefix(prefix), server.personality_policy._SEXY_HOME[action])
+                        self.assertIn(reply["reply"], server.personality_policy._SEXY_HOME[action])
+                        self.assertNotIn("Bedroom mood requested", reply["reply"])
+                        self.assertNotIn("Bedroom reset requested", reply["reply"])
                         self.assertEqual(reply["routine_status"], "Background job j")
         self.assertEqual(enqueue.call_count, 4)
 
@@ -328,8 +329,7 @@ class APITests(TestCase):
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
                 result = self.ask(phrase, path="/api/assist")
                 self.assertEqual(result["outcome"], "started")
-                prefix = "Bedroom reset requested." if operation == "end" else "Bedroom mood requested."
-                self.assertTrue(result["reply"].startswith(prefix))
+                self.assertIn(result["reply"], server.personality_policy._SEXY_HOME[operation])
                 self.assertEqual(enqueue.call_args.args[2]["operation"], operation)
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
 
@@ -382,7 +382,7 @@ class APITests(TestCase):
             routine.assert_not_called()
             accepted = self.ask("FINISH BEDROOM SESSION!", path="/api/assist")
             self.assertEqual(accepted["outcome"], "started")
-            self.assertTrue(accepted["reply"].startswith("Bedroom reset requested."))
+            self.assertIn(accepted["reply"], server.personality_policy._SEXY_HOME["end"])
             self.assertEqual(routine.call_args.args[2]["operation"], "end")
             self.assertEqual(server.history.recent(limit=1)[0]["message"], "FINISH BEDROOM SESSION!")
             self.assertEqual(self.request(path, body={"forget": "finish bedroom session"}, headers=headers)[0], 200)
