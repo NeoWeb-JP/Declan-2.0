@@ -128,3 +128,57 @@ test('failed or stale review save preserves the prior review flag', async t => {
   assert.equal(checkbox.disabled,false);
   assert.match(root.querySelector('.audit-status').textContent,/routine changed/);
 });
+
+test('connection card automatically checks backend releases and opens the Updates page', async t => {
+  const {element,root,calls} = panel(t, report());
+  element._hass.callApi = async (...args) => {
+    calls.push(args);
+    if (args[1] === 'declan_two/capabilities') return {compatible:true,status:'connected',server_version:'2.8.1'};
+    if (args[0] === 'GET') return {enabled:true,state:'idle',current:'2.8.1'};
+    return {current:'2.8.1',versions:['2.8.1','2.10.0','2.9.0']};
+  };
+  await element.refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(root.querySelector('.overview-update-status').textContent,/Update available: 2.10.0/);
+  assert.equal(calls[2][2].operation,'check');
+  assert.equal(calls[2][2].include_prereleases,false);
+  assert.equal(root.querySelector('.state').textContent,'Declan API connected');
+  let selected;
+  element.selectTab = name => {selected = name;};
+  root.querySelector('.overview-update-open').click();
+  assert.equal(selected,'updates');
+  assert.ok(calls.every(args => args[2]?.operation !== 'install'));
+});
+
+test('connection update badge distinguishes current, old and prerelease versions', t => {
+  const {element,root} = panel(t, report());
+  element.renderConnectionUpdates({current:'v2.8.1',versions:['2.8.1','2.7.10','2.8.1-rc.1']});
+  assert.match(root.querySelector('.overview-update-status').textContent,/up to date/);
+  element.renderConnectionUpdates({current:'2.8.1-rc.9',versions:['2.8.1-rc.10']});
+  assert.match(root.querySelector('.overview-update-status').textContent,/Update available/);
+  element.renderConnectionUpdates({current:'2.8.1-rc.10',versions:['2.8.1']});
+  assert.match(root.querySelector('.overview-update-status').textContent,/Update available/);
+  element.renderConnectionUpdates({current:'unknown',versions:[]});
+  assert.match(root.querySelector('.overview-update-status').textContent,/Could not determine/);
+});
+
+test('connection card skips release discovery during installation or when updater is disabled', async t => {
+  const {element,root,calls} = panel(t, report());
+  for (const state of [{enabled:true,state:'installing'}, {enabled:true,state:'restarting'}, {enabled:false,state:'idle'}]) {
+    element._hass.callApi = async (...args) => {calls.push(args);return state;};
+    await element.checkConnectionUpdates();
+    assert.equal(root.querySelector('.overview-update-check').disabled,false);
+  }
+  assert.equal(calls.length,3);
+  assert.ok(calls.every(args => args[0] === 'GET'));
+});
+
+test('connection-card check failure keeps API status and restores retry control', async t => {
+  const {element,root} = panel(t, report());
+  root.querySelector('.state').textContent = 'Declan API connected';
+  element._hass.callApi = async () => {throw new Error('offline');};
+  await element.checkConnectionUpdates();
+  assert.match(root.querySelector('.overview-update-status').textContent,/Update check unavailable/);
+  assert.equal(root.querySelector('.state').textContent,'Declan API connected');
+  assert.equal(root.querySelector('.overview-update-check').disabled,false);
+});

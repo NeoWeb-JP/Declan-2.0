@@ -90,6 +90,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         .overview-connection-indicator { width:9px; height:9px; border-radius:50%; background:#6b9aaf; }
         .overview-connection .state { font-size:.95rem; }
         .overview-connection .detail { margin:6px 0 0; font-size:.85rem; }
+        .overview-update-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
         @media(max-width:520px) { .overview-chat { padding:18px; } .overview-chat-intro { gap:10px; } .overview-chat-intro h2 { font-size:1.25rem; } .overview-chat .chat-controls { flex-wrap:wrap; } .overview-chat .chat-controls input { flex:1 1 100%; } .overview-chat .chat-send { width:100%; } .overview-voice-controls button { flex:1 1 100%; } .overview-connection { padding:16px 18px; } }
         .turn { padding:14px 0; border-top:1px solid #1d3d51; overflow-wrap:anywhere; }
         .turn p { margin:6px 0; white-space:pre-wrap; }
@@ -273,6 +274,8 @@ class DeclanTwoNativePanel extends HTMLElement {
             <div class="overview-connection-heading"><h2>Connection status</h2><span class="overview-connection-indicator" aria-hidden="true"></span></div>
             <div class="state" role="status" aria-live="polite">Waiting for Home Assistant…</div>
             <p class="detail muted">Checking the Declan backend through Home Assistant.</p>
+            <p class="overview-update-status muted" role="status" aria-live="polite">Updates have not been checked.</p>
+            <div class="overview-update-actions"><button type="button" class="overview-update-check">Check for updates</button><button type="button" class="overview-update-open">Open Updates</button></div>
           </div>
         </section>
         <section class="card panel" id="panel-conversations" role="region" aria-label="Declan page" hidden>
@@ -474,6 +477,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.players-refresh', 'click', () => this.loadPlayers());
       this.bindPanelEvent('.players-save', 'click', () => this.savePlayers());
       this.bindPanelEvent('.updates-check', 'click', () => this.checkUpdates());
+      this.bindPanelEvent('.overview-update-check', 'click', () => this.checkConnectionUpdates());
+      this.bindPanelEvent('.overview-update-open', 'click', () => this.selectTab('updates'));
       this.bindPanelEvent('.updates-install', 'click', () => this.installUpdate());
       this.bindPanelEvent('.updates-refresh', 'click', () => this.loadUpdateStatus());
       this.bindPanelEvent('.update-prereleases', 'change', () => {
@@ -867,6 +872,69 @@ class DeclanTwoNativePanel extends HTMLElement {
     }
   }
 
+  newerBackendRelease(candidate, current) {
+    const parse = value => typeof value === 'string' ? value.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-([A-Za-z0-9.-]+))?$/) : null;
+    const next = parse(candidate), installed = parse(current);
+    if (!next || !installed) return false;
+    for (let index = 1; index <= 3; index++) {
+      if (Number(next[index]) !== Number(installed[index])) return Number(next[index]) > Number(installed[index]);
+    }
+    if (!next[4] || !installed[4]) return Boolean(!next[4] && installed[4]);
+    const left = next[4].split('.'), right = installed[4].split('.');
+    for (let index = 0; index < Math.max(left.length, right.length); index++) {
+      if (left[index] === right[index]) continue;
+      if (left[index] === undefined || right[index] === undefined) return right[index] === undefined;
+      const leftNumeric = /^\d+$/.test(left[index]), rightNumeric = /^\d+$/.test(right[index]);
+      if (leftNumeric && rightNumeric) return Number(left[index]) > Number(right[index]);
+      if (leftNumeric !== rightNumeric) return rightNumeric;
+      return left[index] > right[index];
+    }
+    return false;
+  }
+
+  renderConnectionUpdates(data) {
+    const status = this.shadowRoot.querySelector('.overview-update-status');
+    const current = data.current;
+    if (!Array.isArray(data.versions) || typeof current !== 'string' || !/^v?\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(current)) {
+      status.textContent = 'Could not determine update availability. Open Updates for details.';
+      return;
+    }
+    const newer = data.versions.filter(version => this.newerBackendRelease(version, current));
+    const latest = newer.reduce((best, version) => !best || this.newerBackendRelease(version, best) ? version : best, null);
+    status.textContent = latest ? `Update available: ${latest}. Open Updates to review and install.`
+      : data.versions.length ? 'Backend is up to date for the selected release channel.' : 'No eligible releases found. Open Updates for details.';
+  }
+
+  async checkConnectionUpdates() {
+    if (!this._hass || this._overviewUpdatePending) return;
+    const button = this.shadowRoot.querySelector('.overview-update-check');
+    const status = this.shadowRoot.querySelector('.overview-update-status');
+    this._overviewUpdatePending = true;
+    button.disabled = true;
+    status.textContent = 'Checking for backend updates…';
+    try {
+      const state = await this._hass.callApi('GET', 'declan_two/updates');
+      if (!state || typeof state.enabled !== 'boolean') throw new Error('Invalid update status');
+      if (!state.enabled) {
+        status.textContent = 'Backend updater is not enabled. Open Updates for details.';
+        return;
+      }
+      if (state.state === 'installing' || state.state === 'restarting') {
+        status.textContent = 'Backend update in progress. Open Updates to follow progress.';
+        return;
+      }
+      const data = await this._hass.callApi('POST', 'declan_two/updates', {
+        operation:'check', include_prereleases:this.shadowRoot.querySelector('.update-prereleases').checked
+      });
+      this.renderConnectionUpdates(data);
+    } catch {
+      status.textContent = 'Update check unavailable. Open Updates to retry.';
+    } finally {
+      this._overviewUpdatePending = false;
+      button.disabled = false;
+    }
+  }
+
   async checkUpdates() {
     const status = this.shadowRoot.querySelector('.updates-status');
     const select = this.shadowRoot.querySelector('.updates-select');
@@ -892,6 +960,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         status.textContent = 'No eligible releases found.';
       }
       this.shadowRoot.querySelector('.update-version').textContent = 'Backend version: ' + (data.current || 'unknown');
+      this.renderConnectionUpdates(data);
     } catch (error) {
       select.replaceChildren(new Option('Check failed', ''));
       status.textContent = 'Release check failed: ' + (error?.message || 'backend unavailable');
@@ -2193,6 +2262,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         connectionAction.dataset.status = 'connected';
         state.textContent = 'Declan API connected';
         detail.textContent = result.server_version ? 'Backend version: ' + result.server_version : 'Backend connected';
+        void this.checkConnectionUpdates();
       } else {
         connectionAction.dataset.status = 'error';
         state.textContent = 'Declan API incompatible';
