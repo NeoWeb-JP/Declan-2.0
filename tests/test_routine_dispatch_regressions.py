@@ -51,6 +51,24 @@ class RoutineDispatchTests(unittest.TestCase):
             self.assertEqual(server.select_routine("what is the status of the house", None),
                              ("auto:script.house_status", {}))
 
+    def test_routine_preview_describes_without_executing(self):
+        mapping = {"night": {"script": "script.declan_good_night", "phrases": ["good night"],
+                             "fields": {}, "sensitive": False}}
+        with patch.object(server.routine_registry, "load", return_value=mapping), \
+             patch.object(server, "ha_device_connection", side_effect=AssertionError("must not execute")):
+            reply, outcome = server.preview_routine("good night")
+        self.assertEqual(outcome, "preview")
+        self.assertIn("script.declan_good_night", reply)
+        self.assertIn("Simulated spoken response: Good night.", reply)
+        self.assertIn("Nothing has been run.", reply)
+
+    def test_unmapped_routine_preview_fails_closed(self):
+        with patch.object(server.routine_registry, "load", return_value={}), \
+             patch.object(server, "ha_device_connection", return_value=None):
+            reply, outcome = server.preview_routine("good night")
+        self.assertEqual(outcome, "not_configured")
+        self.assertIn("Nothing has been run.", reply)
+
     def test_other_device_status_is_not_intercepted(self):
         with patch.object(server.routine_registry, "load", return_value={}):
             self.assertIsNone(server.house_status_routine("what is the status of the projector"))
