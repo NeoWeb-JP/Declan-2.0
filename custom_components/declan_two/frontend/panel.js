@@ -1127,9 +1127,13 @@ class DeclanTwoNativePanel extends HTMLElement {
           link.textContent = 'Open in Spotify';
           row.append(link);
         }
-        if ((data.favourites || []).includes(uri)) {
+        if ((data.manual || []).includes(uri)) {
           const pinned = document.createElement('span');
-          pinned.textContent = 'Pinned';
+          pinned.textContent = 'Your playlist · protected from refresh';
+          row.append(pinned);
+        } else if (favourite || (data.favourites || []).includes(uri)) {
+          const pinned = document.createElement('span');
+          pinned.textContent = 'Liked · protected from refresh';
           row.append(pinned);
         }
         for (const [operation, action] of [['remove', 'Remove'], ['delete', 'Delete / exclude']]) {
@@ -1165,7 +1169,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       const form = document.createElement('form');
       form.className = 'playlists-add-form';
       const labelInput = document.createElement('label');
-      labelInput.textContent = 'Spotify playlist link or URI';
+      labelInput.textContent = 'Add your own Spotify playlist (kept during refresh)';
       const input = document.createElement('input');
       input.required = true;
       input.placeholder = 'https://open.spotify.com/playlist/…';
