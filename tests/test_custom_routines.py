@@ -14,7 +14,7 @@ class CustomRoutineTests(unittest.TestCase):
 
     def test_sensitive_mapping_fails_closed(self):
         self.mapping["tea"]["sensitive"] = True
-        self.assertEqual(server.run_custom_routine("tea")[1], "unresolved")
+        self.assertEqual(server.run_custom_routine("tea")[1], "not_configured")
 
     def test_sensitive_gate_requires_confirmation_not_voice_id(self):
         import sensitive_confirmations
@@ -32,7 +32,10 @@ class CustomRoutineTests(unittest.TestCase):
         self.assertEqual(server.run_custom_routine("unknown")[1], "not_configured")
 
     def test_voice_selection(self):
-        self.assertEqual(server.select_routine("make tea", None), ("custom:tea", {}))
+        script = {"entity_id": "script.make_tea", "name": "Make Tea", "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)):
+            self.assertEqual(server.select_routine("make tea", None), ("auto:script.make_tea", {}))
 
     def test_verified_response_requires_matching_ids(self):
         class Opener:

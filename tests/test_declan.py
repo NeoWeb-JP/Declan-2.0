@@ -16,12 +16,13 @@ import timers
 
 class CoreTests(TestCase):
     def test_room_selection_prefers_explicit_room(self):
-        with patch.object(server, "ha_device_connection", return_value=("url", {}, None)), patch.object(
-            server, "read_ha_areas", return_value={"master bedroom": set()}
-        ):
-            self.assertEqual(server.select_routine("movie time", "satellite")[1]["movie_room"], "bedroom")
+        script = {"entity_id": "script.movie_time", "name": "Movie Time",
+                  "fields": ["operation", "room"], "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("url", {}, None)), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)):
+            self.assertEqual(server.select_routine("movie time", "satellite")[1]["room"], "lounge")
             selection = server.select_routine("movie time in the lounge", "satellite")
-            self.assertEqual(selection[1]["movie_room"], "lounge")
+            self.assertEqual(selection[1]["room"], "lounge")
 
     def test_routine_success_requires_confirmed_steps(self):
         result = {
@@ -98,7 +99,7 @@ class ChainingTests(TestCase):
         order = []
 
         def run_routine(selection, action_results):
-            self.assertEqual(selection, ("morning", {}))
+            self.assertEqual(selection, ("auto:script.good_morning", {}))
             order.append("routine")
             action_results.append({"target": "Dining lights", "status": "unverified"})
             return "Good morning.", "partial", "I couldn't confirm the dining lights."
@@ -112,6 +113,7 @@ class ChainingTests(TestCase):
 
         with ExitStack() as stack:
             stack.enter_context(patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": "test-token"}))
+            stack.enter_context(patch.object(server, "select_routine", side_effect=lambda phrase, origin: ("auto:script.good_morning", {}) if phrase in {"good morning", "run good morning"} else None))
             stack.enter_context(patch.object(server, "execute_routine", side_effect=run_routine))
             stack.enter_context(patch.object(server, "handle_light_request", side_effect=turn_lights))
             stack.enter_context(patch.object(server, "SESSIONS", server.OrderedDict()))

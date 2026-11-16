@@ -41,11 +41,15 @@ class RoutineTests(TestCase):
         return {"schema_version": 1, **parameters, "outcome": "success", "guest_mode": "off",
                 "steps": [{"target": "lights", "status": "confirmed"}], **extra}
 
-    def test_native_custom_phrases_select_builtins(self):
-        self.mappings["morning"]["phrases"] = ["wake the house"]
-        self.assertEqual(server.select_routine("wake the house", None), ("morning", {}))
-        self.mappings["movie_bedroom"]["phrases"] = ["bedroom cinema"]
-        self.assertEqual(server.select_routine("bedroom cinema", None)[1]["movie_room"], "bedroom")
+    def test_ha_script_names_replace_native_custom_phrases(self):
+        scripts = [{"entity_id": "script.wake_the_house", "name": "Wake The House", "safe": True},
+                   {"entity_id": "script.bedroom_cinema", "name": "Bedroom Cinema", "safe": True}]
+        with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=(scripts, None)):
+            self.assertEqual(server.select_routine("wake the house", None),
+                             ("auto:script.wake_the_house", {}))
+            self.assertEqual(server.select_routine("bedroom cinema", None),
+                             ("auto:script.bedroom_cinema", {}))
 
     def test_builtin_sensitive_flag_fails_closed(self):
         self.mappings["morning"]["sensitive"] = True
@@ -90,39 +94,10 @@ class RoutineTests(TestCase):
                 self.assertTrue(reply.startswith(intro), reply)
                 self.assertNotIn("Projector media player", reply)
 
-    def test_movie_app_launch_requires_verified_routine(self):
-        selection = server.select_routine("open netflix in the lounge", "bedroom-satellite")
-        self.assertEqual(selection, ("movie", {
-            "movie_action": "start", "movie_room": "lounge", "requested_app": "netflix",
-        }))
-        self.respond(lambda data: self.confirmed(data, outcome="partial", resolved_action="start"))
-        steps = []
-        reply, outcome, _ = server.execute_routine(selection, steps)
-        self.assertEqual(outcome, "partial")
-        self.assertEqual(steps[-1]["status"], "skipped")
-        self.assertEqual(len(self.calls), 1)
-        self.delay.assert_not_called()
-        server.routine_last_attempts.clear()
-        events = []
+    def test_movie_app_launch_does_not_use_unverified_legacy_mapping(self):
+        with patch.object(server, "ha_device_connection", return_value=None):
+            self.assertIsNone(server.select_routine("open netflix in the lounge", "bedroom-satellite"))
 
-        def finish(data):
-            events.append("script finished")
-            return self.confirmed(data, resolved_action="start")
-
-        self.respond(finish)
-        def wait(seconds):
-            events.append(("delay", seconds))
-            if seconds == 2:
-                self.assertEqual(json.loads(self.calls[-1].data)["command"], "KEY_HOME")
-
-        self.delay.side_effect = wait
-        reply, outcome, _ = server.execute_routine(selection, steps)
-        self.assertEqual(outcome, "reported_success")
-        self.assertEqual(events, ["script finished", ("delay", 7)])
-        self.assertIn(reply.removeprefix("Starting Movie Time. "), LINES["movie_start"][0])
-        self.assertEqual(steps[-1]["status"], "sent")
-        self.assertEqual(json.loads(self.calls[-3].data)["requested_action"], "start")
-        self.assertEqual(json.loads(self.calls[-1].data)["command"], ["KEY_HOME", "app:netflix"])
 
     def test_missing_movie_mapping_never_discovers_or_runs(self):
         self.mappings.pop("movie")

@@ -1,4 +1,4 @@
-"""Discover and execute only independently verified, low-risk HA scripts."""
+"""Discover and run Home Assistant scripts without per-script approval."""
 import json
 import re
 from threading import Lock
@@ -19,6 +19,24 @@ def phrases(item):
     name = normalise(item["name"])
     entity = normalise(item["entity_id"].removeprefix("script.").replace("_", " "))
     result = {name, entity}
+    # Home Assistant script labels commonly include the assistant name.
+    # Spoken "good night" should match "Declan - Good Night" without
+    # requiring a separate Declan-side alias or routine mapping.
+    for prefix in ("declan ", "declan local ", "declan 2 "):
+        if name.startswith(prefix):
+            result.add(name[len(prefix):])
+        if entity.startswith(prefix):
+            result.add(entity[len(prefix):])
+    # "Declan - Sexy Time Controller" should respond to "sexy time".
+    for alias in tuple(result):
+        if alias.endswith(" controller"):
+            result.add(alias.removesuffix(" controller"))
+        # HA appends numeric suffixes when a script entity is duplicated.
+        # The full name remains authoritative; an ambiguous alias is never
+        # selected automatically when more than one script shares it.
+        numbered = re.fullmatch(r"(.+?) [0-9]+", alias)
+        if numbered:
+            result.add(numbered[1])
     if name.endswith(" status"):
         result.update({"what is the " + name, "what is the status of the " + name.removesuffix(" status"),
                        "give me the " + name})
@@ -71,21 +89,29 @@ def match(phrase, scripts):
     if len(matches) != 1:
         return "ambiguous", matches
     item = matches[0]
-    return ("safe" if item["safe"] else "protected"), item
+    return "matched", item
 
 
-def execute(connection, item):
-    """Inspect again at execution time; never trust a prior UI classification."""
+def execute(connection, item, *, parameters=None):
+    """Verify the live HA script and send only parameters it declares."""
     scripts, error = discover(connection, fresh=True)
     if error:
-        return "I couldn't verify the script's safety. Nothing was run.", "unverified", None
+        return "I couldn't verify that script exists in Home Assistant. Nothing was run.", "unverified", None
     current = next((row for row in scripts if row["entity_id"] == item["entity_id"]), None)
-    if not current or not current["safe"]:
-        return "That script needs explicit approval before voice execution.", "unresolved", None
+    if not current:
+        return "That script is no longer available in Home Assistant.", "unresolved", None
     url, headers, opener = connection
+    allowed_fields = current.get("fields", [])
+    if not isinstance(allowed_fields, list):
+        allowed_fields = []
+    supplied = {key: value for key, value in (parameters or {}).items()
+                if key in allowed_fields and isinstance(value, (str, int, float, bool))}
+    payload = {"entity_id": current["entity_id"]}
+    if supplied:
+        payload["variables"] = supplied
     request = Request(url + "/api/services/script/turn_on",
                       headers=headers, method="POST",
-                      data=json.dumps({"entity_id": current["entity_id"]}).encode())
+                      data=json.dumps(payload).encode())
     try:
         with opener.open(request, timeout=15) as response:
             if response.status not in (200, 201):

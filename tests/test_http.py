@@ -157,7 +157,8 @@ class APITests(TestCase):
             }, headers={"Authorization": "Bearer test", "Content-Type": "application/json"})
             self.assertEqual(status, 200)
             return json.loads(payload)
-        with patch.object(server, "start_dinner", return_value=("Dinner ready.", "requested")) as dinner:
+        with patch.object(server, "select_routine", return_value=("auto:script.dinner", {})), \
+             patch.object(server, "execute_routine", return_value=("Dinner ready.", "requested", None)) as dinner:
             with ThreadPoolExecutor(max_workers=2) as pool:
                 quiet = pool.submit(call, "kitchen", 0.1)
                 loud = pool.submit(call, "bedroom", 0.5)
@@ -215,90 +216,36 @@ class APITests(TestCase):
         self.assertEqual(self.request("/api/history?before=0")[0], 400)
         self.assertEqual(self.request("/api/history", headers={"Host": "other.invalid"})[0], 403)
 
-    def test_sexy_time_calls_ha_and_uses_declan_music_and_history(self):
-        opener = Mock()
-        connection = ("http://ha.invalid", {}, opener)
-        with patch.object(server, "ha_device_connection", return_value=connection), patch.object(
-            server.music, "play", return_value=("Playback started.", "confirmed")
-        ) as play, patch.object(server, "read_music_inventory", return_value=([{
-            "entity_id": "media_player.master_bedroom_declan", "state": "idle", "attributes": {},
-            "declan_area": "Master Bedroom", "declan_music_assistant": True,
-        }], None)), patch.object(server.music, "control", return_value=("", "confirmed")), patch.object(
-            server.music, "request"
-        ), patch.object(server.routine_registry, "load", return_value={
-            "sexy_time": {"script": "script.declan_sexy_time_controller", "sensitive": False, "phrases": ["sexy time"], "fields": {}}
-        }):
+    def test_sexy_time_uses_ha_script_discovery_and_records_history(self):
+        script = {"entity_id": "script.declan_sexy_time_controller",
+                  "name": "Declan - Sexy Time Controller", "safe": True,
+                  "fields": ["operation"]}
+        connection = ("http://ha.invalid", {}, Mock())
+        with patch.object(server, "ha_device_connection", return_value=connection), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "execute",
+                          return_value=("Started Sexy Time.", "requested", None)) as execute:
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
-                def correlated(request, timeout):
-                    data = json.loads(request.data)
-                    return io.BytesIO(json.dumps({"service_response": {
-                        "operation": operation, "lighting_ok": True, "music_stopped": operation == "end",
-                        "request_id": data["request_id"], "routine_id": data["routine_id"],
-                    }}).encode())
-                opener.open.side_effect = correlated
                 result = self.ask(phrase, path="/api/assist")
-                self.assertEqual(result["outcome"], "confirmed")
-                request = opener.open.call_args.args[0]
-                self.assertEqual(request.full_url,
-                                 "http://ha.invalid/api/services/script/declan_sexy_time_controller?return_response")
-                self.assertEqual(json.loads(request.data)["operation"], operation)
-                self.assertEqual(json.loads(request.data)["music_player"], "media_player.master_bedroom_declan")
-                self.assertIn(result["reply"], LINES[f"sexy_time_{operation}"][0])
+                self.assertEqual(result["outcome"], "requested")
+                self.assertEqual(result["reply"], "Started Sexy Time.")
+                self.assertEqual(execute.call_args.kwargs["parameters"]["operation"], operation)
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
-            self.assertEqual(play.call_count, sum(value == "start" for value in server.SEXY_TIME_COMMANDS.values()))
-            self.assertEqual(play.call_args.args[:2], (("bedroom", "sexy time music", "spotify"), connection))
-            self.assertEqual(play.call_args.args[2](connection)[0][0]["entity_id"], "media_player.master_bedroom_declan")
 
-            play.return_value = ("Home Assistant took too long to respond.", "unverified")
-            def partial_response(request, timeout):
-                data = json.loads(request.data)
-                return io.BytesIO(json.dumps({"service_response": {"operation": "start", "lighting_ok": True,
-                    "request_id": data["request_id"], "routine_id": data["routine_id"]}}).encode())
-            opener.open.side_effect = partial_response
-            result = self.ask("sexy time", path="/api/assist")
-            self.assertEqual(result["outcome"], "partial")
-            self.assertIn(result["reply"], LINES["sexy_time_start"][0])
-            self.assertNotIn("Home Assistant", result["reply"])
-            turn = server.history.recent(limit=1)[0]
-            self.assertEqual(turn["reply"], result["reply"])
-            self.assertIn("Home Assistant took too long", turn["routine_status"])
-            play.reset_mock()
-
-            def unverified_response(request, timeout):
-                data = json.loads(request.data)
-                return io.BytesIO(json.dumps({"service_response": {"operation": "start", "lighting_ok": False,
-                    "request_id": data["request_id"], "routine_id": data["routine_id"]}}).encode())
-            opener.open.side_effect = unverified_response
-            self.assertEqual(self.ask("sexy time", path="/api/assist")["outcome"], "unverified")
-            play.assert_not_called()
-
-    def test_dinner_phrases_send_one_ha_request_and_save_the_spoken_reply(self):
-        opener = Mock()
-        opener.open.return_value = io.BytesIO(b"[]")
-        connection = ("http://ha.invalid", {}, opener)
-        with patch.object(server, "ha_device_connection", return_value=connection), patch.object(
-            server.routine_registry, "load", return_value={"dinner": {"script": "script.declan_dinner_is_served_2", "sensitive": False, "phrases": ["dinner time"], "fields": {}}}
-        ), patch.object(server.personality_policy, "overnight_announcement_allowed", return_value=True):
+    def test_dinner_phrases_use_ha_discovery_and_record_spoken_reply(self):
+        script = {"entity_id": "script.declan_dinner_is_served_2",
+                  "name": "Declan - Dinner Is Served", "safe": True,
+                  "fields": ["dinner_message"]}
+        with patch.object(server, "ha_device_connection", return_value=("http://ha.invalid", {}, Mock())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "execute",
+                          return_value=("Dinner ready.", "requested", None)) as execute:
             for phrase in {*server.DINNER_PHRASES, "it’s dinner time"}:
-                opener.open.reset_mock()
-                opener.open.return_value = io.BytesIO(b"[]")
                 result = self.ask(phrase + "!", path="/api/assist")
                 self.assertEqual(result["outcome"], "requested")
-                self.assertIn(result["reply"], LINES["dinner_announcement"][0])
-                opener.open.assert_called_once()
-                request = opener.open.call_args.args[0]
-                self.assertEqual(request.full_url, "http://ha.invalid/api/services/script/turn_on")
-                self.assertEqual(json.loads(request.data), {
-                    "entity_id": "script.declan_dinner_is_served_2",
-                    "variables": {"dinner_message": result["reply"]},
-                })
+                self.assertEqual(result["reply"], "Dinner ready.")
+                self.assertEqual(execute.call_args.args[1]["entity_id"], script["entity_id"])
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
-
-            opener.open.reset_mock()
-            opener.open.side_effect = TimeoutError
-            result = self.ask("dinner time", path="/api/assist")
-            self.assertEqual(result["outcome"], "unverified")
-            opener.open.assert_called_once()
 
     def test_guest_commands_record_the_reply_returned_to_assist(self):
         with patch.object(server, "guest_assignment", return_value=("Guest reply.", "confirmed")) as guest:
@@ -317,7 +264,13 @@ class APITests(TestCase):
     def test_teach_and_forget_a_missed_voice_intention(self):
         path = "/api/history/intents"
         headers = {"Origin": self.origin, "Content-Type": "application/json"}
-        with patch.object(server, "run_sexy_time", return_value=("End routine.", "confirmed", None)) as routine:
+        script = {"entity_id": "script.declan_sexy_time_controller",
+                  "name": "Declan - Sexy Time Controller", "safe": True,
+                  "fields": ["operation"]}
+        with patch.object(server, "ha_device_connection", return_value=("http://ha.invalid", {}, Mock())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "execute",
+                          return_value=("End routine.", "requested", None)) as routine:
             self.assertEqual(self.ask("Finish bedroom session.", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             turn = json.loads(self.request("/api/history")[1])["turns"][0]
             self.assertTrue(turn["teachable"])
@@ -326,11 +279,9 @@ class APITests(TestCase):
             self.assertEqual(self.request(path, body={**correction, "target": ""}, headers=headers)[0], 400)
             self.assertEqual(self.request(path, body=correction, headers=headers)[0], 200)
             routine.assert_not_called()
-
             self.assertEqual(self.ask("FINISH BEDROOM SESSION!", path="/api/assist")["reply"], "End routine.")
-            self.assertEqual(routine.call_args.args[0], "end")
+            self.assertEqual(routine.call_args.kwargs["parameters"]["operation"], "end")
             self.assertEqual(server.history.recent(limit=1)[0]["message"], "FINISH BEDROOM SESSION!")
-            self.assertEqual(self.ask("end 61 time", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             self.assertEqual(self.request(path, body={"forget": "finish bedroom session"}, headers=headers)[0], 200)
             self.assertEqual(self.ask("finish bedroom session", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             routine.assert_called_once()

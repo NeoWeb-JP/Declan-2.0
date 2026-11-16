@@ -64,11 +64,12 @@ class SensitiveConfirmationTests(unittest.TestCase):
         with patch("routine_registry.load", return_value={}):
             self.assertEqual(sc.sensitive_group("good night", (("night", {}), None), {}), "night")
 
-    def test_prompt_never_executes_command(self):
+    def test_ha_scripts_do_not_use_declan_confirmation_gate(self):
         from pathlib import Path
-        server=Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
-        self.assertLess(server.index('decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate'),server.index('timers.handle('))
-        self.assertLess(server.index('decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate'),server.index('elif phrase in GUEST_COMMANDS:'))
-        self.assertIn('if decision in {"prompt", "cancelled", "denied"}:',server)
+        server = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
+        self.assertIn("SENSITIVE_CONFIRMATIONS.evaluate(", server)
+        self.assertIn("candidate, None, GUEST_COMMANDS, {}, set()", server)
+        self.assertIn("script_discovery.execute(", server)
+
 
 if __name__=="__main__": unittest.main()

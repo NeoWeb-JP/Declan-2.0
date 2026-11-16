@@ -15,11 +15,12 @@ class ScriptDiscoveryUITests(unittest.TestCase):
         self.assertIn("declan_two/script-discovery", PANEL)
         self.assertIn("refine your search", PANEL)
 
-    def test_existing_mappings_remain_editable(self):
-        self.assertIn('class="settings-subsection routine-overrides"', PANEL)
-        self.assertIn("this.addRoutineRow(name, item)", PANEL)
+    def test_no_mapping_or_approval_ui(self):
+        self.assertIn("No mapping or approval required", PANEL)
+        self.assertIn("Available to Declan automatically", PANEL)
+        self.assertNotIn("Review / enable", PANEL)
+        self.assertNotIn("Protected · approval required", PANEL)
         self.assertIn("declan_two/management/routines", PANEL)
-        self.assertIn("Customise", PANEL)
 
     def test_no_placeholder_mappings_are_saved(self):
         self.assertNotIn("if (!Object.hasOwn(result.routines || {}, name)) this.addRoutineRow", PANEL)

@@ -303,89 +303,58 @@ HOUSE_STATUS_REQUESTS = {
 }
 
 
-def house_status_routine(phrase):
-    """Only resolve household status through an explicitly configured script."""
-    if phrase not in HOUSE_STATUS_REQUESTS:
-        return None
-    mappings = routine_registry.load()
-    for name, item in mappings.items():
-        if name in {"house_status", "home_status"} or any(
-            template in {"house status", "home status"} for template in item["phrases"]
-        ):
-            return "custom:" + name, {}
-    # Let safe automatic discovery resolve an unmapped House Status script.
-    return None
-
-
 def select_routine(phrase, origin):
+    """Resolve routine requests exclusively against Home Assistant scripts."""
     phrase = phrase.removeprefix("run ").removeprefix("the ")
-    try:
-        house_status = house_status_routine(phrase)
-        if house_status:
-            return house_status
-        mapped_phrase = routine_registry.match(phrase)
-    except (OSError, ValueError, sqlite3.Error):
-        mapped_phrase = None
-    # Movie direction must be parsed before a saved generic "movie time"
-    # mapping can swallow "end movie time" or "stop cinema time".
-    movie_request = parse_movie_request(phrase)
-    if movie_request and movie_request[0] == "end":
-        mapped_phrase = None
-    if mapped_phrase:
-        key = mapped_phrase[0]
-        if key in {"morning", "night"}:
-            return key, {}
-        if key in {"movie", "movie_bedroom"}:
-            return "movie", {"movie_action": "start", "movie_room": "bedroom" if key == "movie_bedroom" else "lounge", "requested_app": None}
-        return "custom:" + key, mapped_phrase[2] if len(mapped_phrase) > 2 else {}
-    if phrase in GOOD_MORNING_PHRASES:
-        return "morning", {}
-    if phrase in GOOD_NIGHT_PHRASES:
-        return "night", {}
-    movie = parse_movie_request(phrase)
-    if not movie:
-        custom = routine_registry.match(phrase)
-        if custom:
-            return "custom:" + custom[0], custom[2] if len(custom) > 2 else {}
-        # Existing mappings always take precedence. Unknown or uninspectable
-        # scripts are never executed by the automatic discovery path.
-        # Dinner has its own validated dispatcher and must not make an
-        # additional discovery request (which can consume a shared HA response).
-        if phrase in DINNER_PHRASES or phrase in {"it's dinner time", "it’s dinner time"}:
-            return None
-        if 1 <= len(phrase.split()) <= 12:
-            connection = ha_device_connection()
-            if connection:
-                scripts, error = script_discovery.discover(connection)
-                if error is None:
-                    found = script_discovery.match(phrase, scripts)
-                    # Spoken questions such as "what is the status of the
-                    # house" name the House Status routine, not a device.
-                    if not found and phrase in HOUSE_STATUS_REQUESTS:
-                        found = script_discovery.match("house status", scripts)
-                    if found:
-                        kind, item = found
-                        if kind == "ambiguous":
-                            return "auto_ambiguous", {}
-                        return "auto:" + item["entity_id"], {}
-        if phrase in HOUSE_STATUS_REQUESTS:
-            return "unconfigured_house_status", {}
+    if not 1 <= len(phrase.split()) <= 20:
         return None
-    direction, room, app = movie
-    if room in (None, "here"):
-        area = None
-        if origin and (connection := ha_device_connection()):
-            areas = read_ha_areas(connection, origin)
-            area = next(iter(areas), None)
-        if area in ("lounge", "living room", "bedroom", "master bedroom"):
-            room = area
-        elif room == "here" or origin and not area:
-            return "movie", None
-    return "movie", {
-        "movie_action": direction,
-        "movie_room": "bedroom" if room in ("bedroom", "master bedroom") else "lounge",
-        "requested_app": app,
-    }
+    is_house_status = phrase in HOUSE_STATUS_REQUESTS
+    connection = ha_device_connection()
+    if connection is None:
+        return ("unconfigured_house_status", {}) if is_house_status else None
+    scripts, error = script_discovery.discover(connection)
+    if error:
+        return ("unconfigured_house_status", {}) if is_house_status else None
+    candidates = [phrase]
+    if is_house_status:
+        candidates.extend(("house status", "home health summary"))
+    if phrase in GOOD_MORNING_PHRASES:
+        candidates.append("good morning")
+    if phrase in GOOD_NIGHT_PHRASES:
+        candidates.append("good night")
+    if phrase.replace("’", "'") in DINNER_PHRASES:
+        candidates.extend(("dinner is served", "dinner"))
+    if phrase in SEXY_TIME_COMMANDS:
+        candidates.append("sexy time")
+    movie = parse_movie_request(phrase)
+    if movie:
+        direction, room, app = movie
+        candidates.extend((f"{direction} movie time",))
+        candidates.append("movie time")
+        if room:
+            candidates.insert(1, f"{direction} movie time {room}")
+    for candidate in dict.fromkeys(candidates):
+        found = script_discovery.match(candidate, scripts)
+        if found:
+            kind, item = found
+            if kind == "ambiguous":
+                return "auto_ambiguous", {}
+            # Generic Movie Time is valid for start/end only if HA declares
+            # an operation/action field that can distinguish the direction.
+            if movie and movie[0] != "toggle" and candidate == "movie time":
+                if not set(item.get("fields", [])) & {"operation", "movie_action", "action"}:
+                    continue
+            parameters = {}
+            if movie:
+                parameters = {"operation": movie[0], "movie_action": movie[0],
+                              "action": movie[0], "room": movie[1] or "lounge",
+                              "movie_room": movie[1] or "lounge"}
+            elif phrase in SEXY_TIME_COMMANDS:
+                parameters = {"operation": SEXY_TIME_COMMANDS[phrase]}
+            return "auto:" + item["entity_id"], parameters
+    if is_house_status:
+        return "unconfigured_house_status", {}
+    return None
 
 
 def select_routine_turn(phrase, origin):
@@ -399,61 +368,27 @@ def select_routine_turn(phrase, origin):
     return (routine, None) if routine else None
 
 
-def preview_routine(phrase, origin=None):
-    """Describe a routine without dispatching any Home Assistant actions.
 
-    A preview cannot know a script's runtime service response. The simulated
-    spoken line is explicitly labelled, never reported as an actual outcome.
-    """
+def preview_routine(phrase, origin=None):
+    """Read-only preview of a Home Assistant script; never dispatch actions."""
     selection = select_routine_turn(phrase, origin)
     if not selection:
-        return ("I couldn't find a configured routine for that phrase. "
-                "Nothing has been run.", "unresolved")
+        return "I couldn't find that script in Home Assistant. Nothing has been run.", "unresolved"
     (kind, options), follow_on = selection
     if follow_on:
-        return ("Preview of chained routines isn't supported yet. "
-                "Nothing has been run.", "unresolved")
+        return "I cannot preview chained commands yet. Nothing has been run.", "unresolved"
     if kind == "auto_ambiguous":
-        return ("Several scripts match. Please use a more specific routine name. "
-                "Nothing has been run.", "unresolved")
+        return "Several Home Assistant scripts match. Nothing has been run.", "unresolved"
     if kind == "unconfigured_house_status":
-        return ("House Status isn't configured. Map its script in Declan Settings. "
-                "Nothing has been run.", "not_configured")
-    try:
-        mappings = routine_registry.load()
-    except (OSError, ValueError, sqlite3.Error):
-        return ("Routine configuration is unavailable. Nothing has been run.", "unverified")
-    if kind.startswith("custom:"):
-        key = kind[7:]
-    elif kind in {"morning", "night"}:
-        key = kind
-    elif kind == "movie":
-        key = "movie_bedroom" if options.get("movie_room") == "bedroom" else "movie"
-    elif kind.startswith("auto:"):
-        return (f"Preview: I would request Home Assistant script {kind[5:]}. "
-                "I cannot predict its internal actions or actual response without running it. "
-                "Nothing has been run.", "preview")
-    else:
-        return ("I can't safely preview that routine. Nothing has been run.", "unresolved")
-    mapping = mappings.get(key)
-    if not mapping:
-        return (f"The {key.replace('_', ' ')} routine is not mapped. "
-                "Nothing has been run.", "not_configured")
-    script = mapping["script"]
-    label = key.replace("_", " ")
-    details = [f"request the Home Assistant script {script}"]
-    if options.get("movie_action"):
-        details.append(f"set Movie Time to {options['movie_action']}")
-    if mapping.get("fields"):
-        details.append("pass the configured script fields")
-    if mapping.get("sensitive"):
-        details.append("require confirmation before actual execution")
-    plan = "; ".join(details)
-    # This is the *simulated* response, not an assertion of success.
-    spoken = f"Starting {label}." if key not in {"night", "morning"} else f"Good {key}."
-    return (f"Preview for {label}: I would {plan}. "
-            f"I cannot verify the script's internal actions or final result without running it. "
-            f"Simulated spoken response: {spoken} Nothing has been run.", "preview")
+        return "I couldn't find a House Status script in Home Assistant. Nothing has been run.", "not_configured"
+    if not kind.startswith("auto:"):
+        return "I couldn't identify a Home Assistant script. Nothing has been run.", "unresolved"
+    script = kind[5:]
+    variables = ", ".join(f"{key}={value}" for key, value in options.items())
+    detail = f" with {variables}" if variables else ""
+    return (f"Preview: I would request Home Assistant script {script}{detail}. "
+            "The script's internal actions and final reply cannot be predicted without running it. "
+            "Simulated spoken response: Starting the routine. Nothing has been run.", "preview")
 
 
 def execute_routine(selection, action_results, *, approved=False):
@@ -461,31 +396,21 @@ def execute_routine(selection, action_results, *, approved=False):
     if period == "auto_ambiguous":
         return "Several Home Assistant scripts match that name. Please use a more specific name.", "unresolved", None
     if period.startswith("auto:"):
-        return script_discovery.execute(ha_device_connection(), {"entity_id": period[5:]})
+        return script_discovery.execute(ha_device_connection(), {"entity_id": period[5:]},
+                                        parameters=options)
     if period == "unconfigured_house_status":
-        return "Map your House Status script in Declan Settings under Home Assistant routines.", "not_configured", None
-    if period.startswith("custom:"):
-        return run_custom_routine(period[7:], action_results, approved=approved, parameters=options)
-    if options is None:
-        return "Which room do you mean for Movie Time?", "unresolved", None
-    options = options.copy()
-    requested_app = options.pop("requested_app", None)
-    app = MOVIE_APPS.get(requested_app)
-    if requested_app and (not app or options.get("movie_action") != "start"):
-        return "Please name a supported app with an explicit start Movie Time command.", "unresolved", None
-    return run_routine(period, movie_app=app, action_results=action_results, approved=approved, **options)
+        return "I could not find a House Status script in Home Assistant.", "not_configured", None
+    return "I couldn't find that routine in Home Assistant.", "not_configured", None
 
 
 def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
-    """Run an explicitly mapped HA script; never infer sensitive approval."""
+    """Run a legacy mapped HA script; no per-script approval required."""
     try:
         item = routine_registry.load().get(name)
     except (ValueError, OSError, sqlite3.Error):
         return "Routine configuration is unavailable.", "unverified", None
     if not item:
         return "That routine is not configured.", "not_configured", None
-    if item["sensitive"] and not approved:
-        return "This routine requires explicit confirmation before execution.", "unresolved", None
     connection = ha_device_connection()
     if connection is None:
         return "Home Assistant is not connected.", "not_configured", None
@@ -495,7 +420,7 @@ def run_custom_routine(name, action_results=None, *, approved=False, parameters=
         if parameters["room"] not in areas:
             return "I could not match that room to a Home Assistant area.", "unresolved", None
     script = item["script"]
-    # No script guessing or fallback: only a script selected in Settings may execute.
+    # Preserve legacy script parameters for existing installations.
     request_id = "declan-" + secrets.token_hex(16)
     payload = {**item["fields"], **(parameters or {}), "request_id": request_id, "routine_id": script}
     request = Request(f"{url}/api/services/script/{script.split('.', 1)[1]}?return_response",
@@ -2049,17 +1974,7 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings document unavailable."})
         elif self.path == "/api/native/routines":
-            try:
-                connection = ha_device_connection()
-                if connection:
-                    inventory, inventory_error = read_ha_inventory(connection)
-                    if not inventory_error:
-                        available = {item.get("entity_id") for item in inventory if isinstance(item, dict)}
-                        if any(isinstance(entity, str) and entity.startswith("script.") for entity in available):
-                            routine_registry.bootstrap(available)
-                self.send_json(200, {"routines": routine_registry.load()})
-            except (ValueError, OSError, sqlite3.Error):
-                self.send_json(503, {"error": "Routine settings unavailable."})
+            self.send_json(410, {"error": "Routine mappings are retired. Home Assistant scripts are the source of truth."})
         elif self.path == "/api/native/intents":
             try:
                 self.send_json(200, {"intents": history.learned_intents()})
@@ -2402,15 +2317,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(503, {'error': 'Settings could not be imported.'})
                 return
             if self.path == "/api/native/routines":
-                try:
-                    if not isinstance(body, dict) or set(body) != {"routines"}:
-                        raise ValueError("Invalid routine request")
-                    routine_registry.save(body["routines"])
-                    self.send_json(200, {"saved": True})
-                except ValueError as error:
-                    self.send_json(400, {"error": str(error)})
-                except (OSError, sqlite3.Error):
-                    self.send_json(503, {"error": "Routine settings unavailable."})
+                self.send_json(410, {"error": "Routine mappings are retired. Manage scripts in Home Assistant."})
                 return
             if self.path == "/api/native/intents":
                 try:
@@ -2590,13 +2497,14 @@ class Handler(BaseHTTPRequestHandler):
                 effective_message = target
                 phrase = history.normalize_phrase(target)
         opener = build_opener(ProxyHandler({}), NoRedirect())
-        routine_approved = False
+        # HA owns script permissions. Guest assignment is a separate privileged
+        # action and retains its existing voice confirmation protection.
+        routine_approved = True
         if source == "assist":
             spoken = history.normalize_phrase(message)
             candidate = spoken if spoken in sensitive_confirmations.YES | sensitive_confirmations.NO else phrase
-            routine_candidate = select_routine_turn(candidate, origin_device or satellite)
             group = sensitive_confirmations.sensitive_group(
-                candidate, routine_candidate, GUEST_COMMANDS, SEXY_TIME_COMMANDS, DINNER_PHRASES)
+                candidate, None, GUEST_COMMANDS, {}, set())
             if not session_id:
                 session_id = secrets.token_urlsafe(24)
             decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate(
@@ -2604,24 +2512,21 @@ class Handler(BaseHTTPRequestHandler):
                 phrase=candidate, group=group, speaker=body.get("speaker"))
             if decision in {"prompt", "cancelled", "denied"}:
                 response = {
-                    "prompt": "Please confirm or cancel this routine within 30 seconds.",
-                    "cancelled": "Cancelled. I haven't run that routine.",
-                    "denied": "I can't identify the originating satellite for that sensitive routine.",
+                    "prompt": "Please confirm or cancel this action within 30 seconds.",
+                    "cancelled": "Cancelled. Nothing has been run.",
+                    "denied": "I can't identify the originating satellite for that action.",
                 }[decision]
                 self.send_json(200, {"reply": response, "session_id": session_id,
                                      "outcome": "confirmation_" + decision})
                 return
             if decision == "confirmed":
-                routine_approved = True
                 phrase = approved_phrase
                 effective_message = approved_phrase
-        preview_request = re.match(r"^(?:preview|dry[ -]run)\\b[ ,:]*", phrase)
+        preview_request = re.match(r"^(?:preview|dry[ -]run)\b[ ,:]*", phrase)
         preview_phrase = phrase[preview_request.end():] if preview_request else None
-        # Preview must never reach the normal routine, media, or timer dispatch.
-        # Lighting preview retains its existing dedicated safe implementation.
         routine_preview = None
         if preview_phrase and not re.search(
-            r"\\b(?:light|lights|lamp|spotlight|brightness|dim|switch)\\b", preview_phrase
+            r"\b(?:light|lights|lamp|spotlight|brightness|dim|switch)\b", preview_phrase
         ):
             routine_preview = preview_routine(preview_phrase, origin_device or satellite)
         timer_result = None if routine_preview else timers.handle(
@@ -2639,8 +2544,6 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome, routine_status = stop_pending_routines()
         elif phrase == "stop":
             routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
-        elif phrase.replace("’", "'") in DINNER_PHRASES:
-            routine_reply, outcome = start_dinner(ha_device_connection(), approved=routine_approved)
         elif (roast_target := roast.target(phrase)) is not None:
             roast_guest_mode = personality_policy.response_guest_mode(
                 read_guest_mode(), read_visitors_present()
@@ -2648,8 +2551,6 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = roast.respond(
                 roast_target, guest=roast_guest_mode != "off"
             ), "confirmed"
-        elif phrase in SEXY_TIME_COMMANDS:
-            routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection(), approved=routine_approved)
         elif phrase in GUEST_COMMANDS:
             routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
         elif guest_names := re.fullmatch(
@@ -2661,7 +2562,7 @@ class Handler(BaseHTTPRequestHandler):
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
             lighting_context = ()
             routine, follow_on = routine_turn
-            routine_reply, outcome, routine_status = (execute_routine(routine, action_results, approved=routine_approved) if routine_approved or routine[0].startswith("custom:") else execute_routine(routine, action_results))
+            routine_reply, outcome, routine_status = execute_routine(routine, action_results)
             if follow_on:
                 light_steps = []
                 if follow_on.startswith("play "):
