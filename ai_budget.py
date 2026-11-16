@@ -58,6 +58,14 @@ def settle(db, reservation_id, actual_micro_usd):
 
 
 def monthly_reserved(db, *, now=None):
+    """Return zero until the first AI reservation creates the budget table."""
     month = _month(now)
+    # Fresh installations have no ai_budget table until their first request.
+    # A read-only settings page must not fail just because AI has never run.
+    row = db.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'ai_budget'"
+    ).fetchone()
+    if row is None:
+        return 0
     row = db.execute("SELECT reserved FROM ai_budget WHERE month = ?", (month,)).fetchone()
     return row[0] if row else 0

@@ -3,10 +3,24 @@ import sqlite3
 from contextlib import contextmanager
 from unittest.mock import patch
 import ai_settings
+import ai_budget
 from ai_settings import DEFAULTS, validate
 
 
 class AISettingsTests(unittest.TestCase):
+    def test_monthly_usage_before_first_ai_request(self):
+        db = sqlite3.connect(":memory:")
+        try:
+            self.assertEqual(ai_budget.monthly_reserved(db), 0)
+            self.assertIsNone(db.execute(
+                "SELECT name FROM sqlite_master WHERE name='ai_budget'"
+            ).fetchone())
+            ai_budget.reserve(db, limit_micro_usd=1000000,
+                              max_request_micro_usd=50000)
+            self.assertEqual(ai_budget.monthly_reserved(db), 50000)
+        finally:
+            db.close()
+
     def test_persist_and_reload(self):
         connection = sqlite3.connect(":memory:")
         @contextmanager
