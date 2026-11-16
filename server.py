@@ -34,6 +34,7 @@ DECLAN_EVENT_LOG.setLevel(logging.INFO)
 import voice_profiles
 import voicepipeline
 import device_status
+import retry_learning
 import history
 import music
 import approved_media_players
@@ -2102,7 +2103,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Missing recording identifiers.")
                 identifiers = params["ids"][0].split(",")
                 links = history.verified_recording_turns(identifiers)
-                self.send_json(200, {"links": links})
+                linked = set(links.values())
+                turns = {str(row["id"]): row for row in history.recent(limit=None) if row["id"] in linked}
+                self.send_json(200, {"links": links, "turns": turns})
             except ValueError:
                 self.send_json(400, {"error": "Invalid recording identifiers."})
             except (OSError, sqlite3.Error):
@@ -2116,7 +2119,7 @@ class Handler(BaseHTTPRequestHandler):
                 turns = history.recent(before, limit=51)
                 aliases = history.learned_intents() if before is None else None
                 for turn in turns:
-                    turn["teachable"] = (turn["source"] in {"assist", "browser_voice"}
+                    turn["teachable"] = (turn["source"] in {"assist", "browser_voice", "browser_keyboard", "ha_sentence"}
                                          and 0 < len(history.normalize_phrase(turn["message"])) <= 120)
             except ValueError:
                 self.send_json(400, {"error": "Invalid history cursor."})
@@ -2401,6 +2404,15 @@ class Handler(BaseHTTPRequestHandler):
                         if not isinstance(phrase, str) or not isinstance(body["previous"], str) or history.learned_intent(phrase) != body["previous"]:
                             raise ValueError("Intention changed. Refresh before forgetting.")
                         history.forget_intent(phrase)
+                    elif set(body) == {"recording_id", "target"}:
+                        recording_id = voicepipeline.identifier(body["recording_id"])
+                        rows = voicepipeline.interactions() + voicepipeline.interactions(history=True)
+                        matches = [row for row in rows if row.get("id") == recording_id]
+                        transcripts = {row.get("transcript") for row in matches}
+                        if len(transcripts) != 1 or not matches or any(
+                                row.get("status") in {"dismissed", "rejected", "discarded"} for row in matches):
+                            raise ValueError("Refresh and choose a recording with a transcript.")
+                        history.teach_phrase(transcripts.pop(), body["target"])
                     elif set(body) == {"turn_id", "target"} and type(body["turn_id"]) is int:
                         history.teach_intent(body["turn_id"], body["target"], UNMATCHED_REPLY)
                     else:
@@ -2408,6 +2420,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(200, {"saved": True})
                 except ValueError as error:
                     self.send_json(400, {"error": str(error)})
+                except voicepipeline.PipelineError as error:
+                    self.send_json(error.status, {"error": str(error)})
                 except (OSError, sqlite3.Error):
                     self.send_json(503, {"error": "Intention change unavailable."})
                 return
@@ -2557,7 +2571,7 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             effective_message = message
         phrase = history.normalize_phrase(effective_message)
-        if source in {"assist", "browser_voice"} and len(phrase) <= 120:
+        if len(phrase) <= 120:
             try:
                 target = history.learned_intent(phrase)
             except (OSError, sqlite3.Error):
@@ -2567,6 +2581,24 @@ class Handler(BaseHTTPRequestHandler):
                 # Interpret once through the normal handlers. Never follow alias chains.
                 effective_message = target
                 phrase = history.normalize_phrase(target)
+        with SESSION_LOCK:
+            previous = SESSIONS.get(session_id)
+            pending_retry = previous.pop("pending_retry", None) if previous else None
+        if pending_retry and (pending_retry["scope"] != scope or scope is None
+                              or monotonic() - pending_retry["at"] > retry_learning.WINDOW_SECONDS):
+            pending_retry = None
+        if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
+            with SESSION_LOCK:
+                reply = converse(message, session_id, "", scope=scope)
+                reply.update(outcome="cancelled", continue_conversation=False)
+                try:
+                    history.record(reply["session_id"], source, message, "", "cancelled",
+                                   speaker=body.get("speaker") if source == "assist" else None)
+                except (OSError, sqlite3.Error):
+                    reply["history_saved"] = False
+                    self.log_error("Could not save conversation history.")
+            self.send_json(200, reply)
+            return
         opener = build_opener(ProxyHandler({}), NoRedirect())
         # HA owns script permissions. Guest assignment is a separate privileged
         # action and retains its existing voice confirmation protection.
@@ -2587,8 +2619,16 @@ class Handler(BaseHTTPRequestHandler):
                     "cancelled": "Cancelled. Nothing has been run.",
                     "denied": "I can't identify the originating satellite for that action.",
                 }[decision]
-                self.send_json(200, {"reply": response, "session_id": session_id,
-                                     "outcome": "confirmation_" + decision})
+                result = {"reply": response, "session_id": session_id,
+                          "outcome": "confirmation_" + decision,
+                          "continue_conversation": decision == "prompt"}
+                try:
+                    history.record(session_id, source, message, response, result["outcome"],
+                                   speaker=body.get("speaker"), diagnostic_id=diagnostics.current_id())
+                except (OSError, sqlite3.Error):
+                    result["history_saved"] = False
+                    self.log_error("Could not save conversation history.")
+                self.send_json(200, result)
                 return
             if decision == "confirmed":
                 phrase = approved_phrase
@@ -2857,6 +2897,22 @@ class Handler(BaseHTTPRequestHandler):
                     and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
                     and any(step.get("detail") == "unresolved" for step in action_results)):
                 session["failed_light_phrase"] = {"text": message, "scope": scope, "actions": actions}
+            needs_retry = reply["reply"] == UNMATCHED_REPLY
+            reply["continue_conversation"] = needs_retry
+            reply["follow_up_timeout"] = 10 if needs_retry else 0
+            if needs_retry and scope is not None:
+                session["pending_retry"] = {"text": message, "scope": scope, "at": monotonic()}
+            retry_succeeded = (outcome in {"confirmed", "reported_success", "execution_completed",
+                                         "timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"}
+                               or outcome is None and not needs_retry)
+            if (pending_retry and retry_succeeded
+                    and retry_learning.similar(pending_retry["text"], message)
+                    and history.normalize_phrase(pending_retry["text"]) != history.normalize_phrase(effective_message)):
+                try:
+                    history.teach_phrase(pending_retry["text"], effective_message, automatic=True)
+                    reply["learned_from_retry"] = True
+                except (ValueError, OSError, sqlite3.Error):
+                    self.log_error("Could not save successful retry training.")
             try:
                 history.record(reply["session_id"], source, message, reply["reply"], outcome, routine_status,
                                action_results, phrase_suggestion, speaker=body.get("speaker") if source == "assist" else None,

@@ -135,7 +135,7 @@ class DeclanManagementView(HomeAssistantView):
             return await self._relay(request, "routines", body)
         if operation == "intents":
             if not isinstance(body, dict) or set(body) not in (
-                {"phrase", "target", "previous"}, {"forget", "previous"}, {"turn_id", "target"}
+                {"phrase", "target", "previous"}, {"forget", "previous"}, {"turn_id", "target"}, {"recording_id", "target"}
             ):
                 return web.json_response({"status": "invalid_request"}, status=400)
             if any(not isinstance(v, str) or not 0 < len(v) <= 120 for k, v in body.items() if k != "turn_id"):

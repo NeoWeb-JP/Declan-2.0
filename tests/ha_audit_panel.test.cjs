@@ -34,6 +34,99 @@ function responseProfile() {
       {default: phase === 'requested' ? [`${mode} response <img src=x>`] : [], start: [], end: [], toggle: []}]))]));
 }
 
+test('training loads actual linked replies and permits explicit teaching of older unlinked recordings', async t => {
+  const {element, root, calls} = panel(t, {});
+  const now = new Date().toISOString();
+  element._hass.callApi = async (...args) => {
+    calls.push(args);
+    if (args[0] === 'POST') return {saved:true};
+    if (args[1].includes('recording_ids=')) return {links:{linked:77}, turns:{77:{message:'study light on it', reply:'Could you say it another way?'}}};
+    if (args[1] === 'declan_two/history') return {turns:[{id:77, recording_id:'linked', created_at:now,
+      message:'office light on it', reply:'Could you say it another way?'},
+      {id:78, recording_id:'', created_at:now, message:'typed request', reply:'A saved reply'}], next:null};
+    if (args[1].includes('history=1')) return {interactions:[]};
+    return {profiles:[], interactions:[{id:'linked', transcript:'office light on it',recorded_at:now},
+      {id:'old',transcript:'study light on it',recorded_at:now}]};
+  };
+  await element.loadTimeline();
+  assert.equal(root.querySelectorAll('.timeline-entry').length, 3);
+  const cards = [...root.querySelectorAll('.timeline-row')];
+  assert.match(cards[0].textContent, /Could you say it another way/);
+  assert.match(cards[0].textContent, /Training phrase: study light on it/);
+  assert.match(cards[1].textContent, /No response was saved/);
+  const form = cards[1].querySelector('.training-form');
+  const input = form.querySelector('input');
+  assert.equal(input.disabled, false);
+  assert.equal(form.querySelector('label').textContent, 'The command you meant');
+  input.value = 'turn study light on';
+  form.querySelector('button').click();
+  await new Promise(resolve => setImmediate(resolve));
+  const post = calls.find(args => args[0] === 'POST');
+  assert.deepEqual(JSON.parse(JSON.stringify(post[2])), {recording_id:'old',target:'turn study light on'});
+  assert.match(cards[1].textContent, /Command learned/);
+  assert.equal(root.querySelector('.training-form input').maxLength, 120);
+});
+
+test('conversation teaching remains available when both voice review sources fail', async t => {
+  const {element, root} = panel(t, {});
+  element._hass.callApi = async (method, path) => {
+    if (path === 'declan_two/history') return {turns:[{id:5,created_at:new Date().toISOString(),
+      message:'a keyboard command',reply:'saved response'}],next:null};
+    throw new Error('VoicePipeline offline');
+  };
+  await element.loadTimeline();
+  assert.equal(root.querySelectorAll('.timeline-entry').length,1);
+  assert.equal(root.querySelector('.training-form input').disabled,false);
+  assert.equal(root.querySelector('.timeline-subsection').hidden,true);
+  assert.match(root.querySelector('.timeline-status').textContent,/2 source/);
+});
+
+test('voice retry waits for the spoken prompt and cancellation prevents a late restart', async t => {
+  const {element, root} = panel(t, {reply:'Could you say it another way?',session_id:'retry',continue_conversation:true});
+  Object.defineProperty(element,'isConnected',{value:true});
+  const win = element.ownerDocument.defaultView;
+  let utterance;
+  win.SpeechSynthesisUtterance = class {constructor(text) {this.text = text;}};
+  win.speechSynthesis = {speak(value){utterance=value;},cancel(){}};
+  let restarts = 0;
+  element.startMicrophone = async options => {assert.equal(options.followUp,true); restarts++;};
+  root.querySelector('#native-chat-input').value = 'office light on it';
+  element._voiceTranscript = 'office light on it';
+  await element.sendChat();
+  assert.equal(restarts,0);
+  assert.equal(utterance.text,'Could you say it another way?');
+  utterance.onend();
+  assert.equal(restarts,1);
+  element.cancelMicrophone();
+  utterance.onend();
+  assert.equal(restarts,1);
+});
+
+test('a silent follow-up closes the microphone after ten seconds without sending a command', async t => {
+  const {element, root, calls} = panel(t, {});
+  Object.defineProperty(element,'isConnected',{value:true});
+  const win = element.ownerDocument.defaultView;
+  let stopped=0, closed=0, expiry;
+  win.setTimeout = (callback, milliseconds) => {assert.equal(milliseconds,10000); expiry=callback; return 1;};
+  win.clearTimeout = () => {};
+  Object.defineProperty(win.navigator,'mediaDevices',{value:{getUserMedia:async () => ({getTracks:() => [{stop(){stopped++;}}]})}});
+  win.AudioContext = class {
+    destination = {};
+    resume = async () => {};
+    close = async () => {closed++;};
+    createMediaStreamSource = () => ({connect(){},disconnect(){}});
+    createScriptProcessor = () => ({connect(){},disconnect(){}});
+  };
+  await element.startMicrophone({followUp:true});
+  assert.equal(root.querySelector('.mic-stop').textContent,'Stop listening');
+  expiry();
+  assert.equal(stopped,1);
+  assert.equal(closed,1);
+  assert.equal(element._micStream,null);
+  assert.equal(calls.length,0);
+  assert.match(root.querySelector('.mic-status').textContent,/No response received/);
+});
+
 test('routine response editor safely edits adds deletes and saves only the selected routine', async t => {
   const {element, root, calls} = panel(t, {});
   const data = responseProfile();
@@ -482,5 +575,4 @@ test('stale records and invalid editor paths cannot navigate', async t => {
   element.openAuditEditor({editor_path:'https://example.invalid/'});
   assert.equal(element.ownerDocument.defaultView.location.pathname,'/');
 });
-
 

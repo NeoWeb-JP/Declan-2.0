@@ -132,6 +132,16 @@ class DeclanTwoNativePanel extends HTMLElement {
         .timeline-subsection { margin:10px 0; padding:10px 12px; border:1px solid #315568; border-radius:10px; }
         .timeline-subsection > summary { cursor:pointer; font-weight:600; color:#c6eaf5; }
         .timeline-subsection > p { overflow-wrap:anywhere; }
+        .timeline-subsection > summary:focus-visible { outline:2px solid #91e3ff; outline-offset:3px; border-radius:4px; }
+        .timeline-subsection > summary:focus:not(:focus-visible) { outline:none; }
+        .training-form { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin-top:12px; }
+        .training-form label { display:grid; flex:1 1 240px; gap:8px; min-width:0; color:#c6eaf5; }
+        .training-form input { width:100%; min-width:0; min-height:44px; padding:10px 12px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
+        .training-form input:focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
+        .training-form input::placeholder { color:#a1ccdf; opacity:1; }
+        .training-form button { min-height:44px; }
+        .training-form input:disabled, .training-form button:disabled { opacity:.5; cursor:not-allowed; }
+        @media(max-width:520px) { .training-form button { width:100%; } }
         .timeline-list { display:grid; gap:12px; min-width:0; }
         .timeline-group { min-width:0; overflow:hidden; border:1px solid #315568; border-radius:14px; background:#0e2230; }
         .timeline-group[open] { border-color:#47758b; background:#0b1d29; }
@@ -441,7 +451,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       this.bindPanelEvent('.refresh', 'click', () => this.refresh());
       this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
-      this.bindPanelEvent('.mic-stop', 'click', () => this.stopMicrophone());
+      this.bindPanelEvent('.mic-stop', 'click', () => this._micFollowUp ? this.cancelMicrophone() : this.stopMicrophone());
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
       this.bindPanelEvent('.ai-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveAISettings();
@@ -2017,6 +2027,10 @@ class DeclanTwoNativePanel extends HTMLElement {
   }
 
   cancelMicrophone() {
+    this._voiceEpoch = (this._voiceEpoch || 0) + 1;
+    this._micFollowUp = false;
+    if (this._followUpSpeech && window.speechSynthesis) window.speechSynthesis.cancel();
+    this._followUpSpeech = false;
     if (this._micTimer) clearTimeout(this._micTimer);
     this._micTimer = null;
     if (this._micProcessor) this._micProcessor.disconnect();
@@ -2028,7 +2042,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     this.shadowRoot.querySelector('.mic-stop').disabled = true;
   }
 
-  async startMicrophone() {
+  async startMicrophone({followUp = false} = {}) {
     if (this._micStream) return;
     const status = this.shadowRoot.querySelector('.mic-status');
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -2040,10 +2054,21 @@ class DeclanTwoNativePanel extends HTMLElement {
         : 'This Home Assistant app/browser view does not provide microphone recording. Open the same Home Assistant URL in Safari over HTTPS to use Speak to Declan. You can still type requests here.';
       return;
     }
+    const epoch = this._voiceEpoch || 0;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1, echoCancellation: true}, video: false});
+      if ((this._voiceEpoch || 0) !== epoch || !this.isConnected) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      this._micFollowUp = followUp;
+      this._micHeardSpeech = false;
+      let lastSpeech = performance.now();
       const context = new (window.AudioContext || window.webkitAudioContext)();
+      this._micStream = stream;
+      this._micContext = context;
       await context.resume();
+      if ((this._voiceEpoch || 0) !== epoch) return;
       const source = context.createMediaStreamSource(stream);
       const processor = context.createScriptProcessor(4096, 1, 1);
       const samples = [];
@@ -2051,6 +2076,11 @@ class DeclanTwoNativePanel extends HTMLElement {
         if (!this._micStream) return;
         const input = event.inputBuffer.getChannelData(0);
         samples.push(new Float32Array(input));
+        if (followUp) {
+          const rms = Math.sqrt(input.reduce((sum, value) => sum + value * value, 0) / input.length);
+          if (rms > 0.012) { this._micHeardSpeech = true; lastSpeech = performance.now(); }
+          else if (this._micHeardSpeech && performance.now() - lastSpeech > 900) void this.stopMicrophone();
+        }
       };
       source.connect(processor);
       processor.connect(context.destination);
@@ -2059,10 +2089,16 @@ class DeclanTwoNativePanel extends HTMLElement {
       this._micSource = source;
       this._micProcessor = processor;
       this._micSamples = samples;
-      this._micTimer = setTimeout(() => void this.stopMicrophone(), 20000);
+      this._micTimer = setTimeout(() => {
+        if (followUp && !this._micHeardSpeech) {
+          this.cancelMicrophone();
+          status.textContent = 'Stopped listening. No response received.';
+        } else void this.stopMicrophone();
+      }, followUp ? 10000 : 20000);
       this.shadowRoot.querySelector('.mic-start').disabled = true;
       this.shadowRoot.querySelector('.mic-stop').disabled = false;
-      status.textContent = 'Recording… tap Stop and transcribe when finished.';
+      this.shadowRoot.querySelector('.mic-stop').textContent = followUp ? 'Stop listening' : 'Stop and transcribe';
+      status.textContent = followUp ? 'Listening for your rephrasing. Say cancel or stop to finish.' : 'Recording. Tap Stop and transcribe when finished.';
     } catch {
       this.cancelMicrophone();
       status.textContent = 'Microphone permission denied or recording unavailable.';
@@ -2072,9 +2108,11 @@ class DeclanTwoNativePanel extends HTMLElement {
   async stopMicrophone() {
     if (!this._micStream) return;
     const status = this.shadowRoot.querySelector('.mic-status');
+    const followUp = this._micFollowUp;
     const rate = this._micContext.sampleRate;
     const chunks = this._micSamples;
     this.cancelMicrophone();
+    const transcriptionEpoch = this._voiceEpoch;
     status.textContent = 'Transcribing…';
     const count = chunks.reduce((n, chunk) => n + chunk.length, 0);
     if (!count) { status.textContent = 'No audio captured.'; return; }
@@ -2094,9 +2132,12 @@ class DeclanTwoNativePanel extends HTMLElement {
         binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
       }
       const result = await this._hass.callApi('POST', 'declan_two/microphone', {audio: btoa(binary)});
+      if (followUp && (this._voiceEpoch !== transcriptionEpoch || !this.isConnected)) return;
       if (typeof result.text !== 'string' || !result.text.trim()) throw new Error('No speech recognized');
       this.shadowRoot.querySelector('#native-chat-input').value = result.text.trim();
+      this._voiceTranscript = result.text.trim();
       status.textContent = 'Transcribed. Review the text and press Send.';
+      if (followUp) await this.sendChat();
     } catch {
       status.textContent = 'Could not transcribe audio. Check microphone permissions and the Declan backend.';
     }
@@ -2109,12 +2150,14 @@ class DeclanTwoNativePanel extends HTMLElement {
     const send = this.shadowRoot.querySelector('.chat-send');
     const message = input.value.trim();
     if (!message || message.length > 1000) return;
+    const requestEpoch = this._voiceEpoch || 0;
     this._chatPending = true;
     send.disabled = true;
     status.textContent = 'Waiting for Declan…';
     try {
+      const voice = this._voiceTranscript === message;
       const result = await this._hass.callApi('POST', 'declan_two/chat', {
-        message, session_id: this._chatSession || null
+        message, source:voice ? 'voice' : 'keyboard', session_id: this._chatSession || null
       });
       if (!result || typeof result.reply !== 'string') throw new Error('Invalid reply');
       if (typeof result.session_id === 'string') this._chatSession = result.session_id;
@@ -2142,6 +2185,21 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.shadowRoot.querySelector('.chat-replies').prepend(article);
       input.value = '';
       status.textContent = 'Reply received.';
+      this._voiceTranscript = null;
+      if (voice && result.continue_conversation === true && (this._voiceEpoch || 0) === requestEpoch) {
+        const epoch = this._voiceEpoch || 0;
+        const listen = () => {
+          this._followUpSpeech = false;
+          if ((this._voiceEpoch || 0) === epoch && this.isConnected) void this.startMicrophone({followUp:true});
+        };
+        if (window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined') {
+          const prompt = new SpeechSynthesisUtterance(result.reply);
+          prompt.onend = listen;
+          prompt.onerror = () => { this._followUpSpeech = false; };
+          this._followUpSpeech = true;
+          window.speechSynthesis.speak(prompt);
+        } else listen();
+      }
     } catch {
       status.textContent = 'Unable to send message. Check the Declan connection and try again.';
     } finally {
@@ -2160,7 +2218,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         this._hass.callApi('GET', 'declan_two/voice-review'),
         this._hass.callApi('GET', 'declan_two/voice-review?history=1')
       ]);
-      if (pending.status !== 'fulfilled' && reviewed.status !== 'fulfilled') throw new Error('Voice review unavailable');
+      // Conversation history remains available when VoicePipeline is offline.
       this._voiceProfiles = pending.status === 'fulfilled' && Array.isArray(pending.value.profiles) ? pending.value.profiles : [];
       const pendingRows = pending.status === 'fulfilled' && Array.isArray(pending.value.interactions) ? pending.value.interactions : [];
       const reviewedRows = reviewed.status === 'fulfilled' && Array.isArray(reviewed.value.interactions) ? reviewed.value.interactions : [];
@@ -2175,8 +2233,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       for (const item of pendingRows) if (item.id && recent(item)) recordings.set(String(item.id), {kind:'pending', item});
       for (const item of reviewedRows) if (item.id && recent(item) && !recordings.has(String(item.id))) recordings.set(String(item.id), {kind:'reviewed', item});
       // Never infer a conversation turn from transcript text or timestamps.
-      // A recording is teachable only when the backend confirms one unique link.
+      // Unique links attach saved replies. Older unlinked transcripts can be taught explicitly.
       this._recordingTurnLinks = {};
+      this._recordingReplies = {};
       const ids = [...recordings.keys()].filter(id => /^[A-Za-z0-9_-]{1,80}$/.test(id));
       try {
         for (let offset = 0; offset < ids.length; offset += 100) {
@@ -2184,17 +2243,34 @@ class DeclanTwoNativePanel extends HTMLElement {
             'declan_two/history?recording_ids=' + encodeURIComponent(ids.slice(offset, offset + 100).join(',')));
           if (result && result.links && typeof result.links === 'object') {
             Object.assign(this._recordingTurnLinks, result.links);
+            Object.assign(this._recordingReplies, result.turns || {});
           }
         }
       } catch {
-        // Voice review remains available, but teaching must stay disabled.
+        // Explicit teaching can still use the recording's own transcript.
         this._recordingTurnLinks = {};
       }
-      this._timelineRows = [...recordings.values()].sort((a,b) => Date.parse(b.item.recorded_at) - Date.parse(a.item.recorded_at));
+      const conversationRows = [];
+      let historyUnavailable = false;
+      try {
+        let before = null;
+        do {
+          const history = await this._hass.callApi('GET', 'declan_two/history' + (before ? '?before=' + before : ''));
+          for (const turn of history.turns || []) {
+            if (Date.parse(turn.created_at) < cutoff) continue;
+            if (turn.recording_id && recordings.has(turn.recording_id)) continue;
+            conversationRows.push({kind:'conversation', item:{...turn, turn_id:turn.id,
+              transcript:turn.message, recorded_at:turn.created_at, id:null}});
+          }
+          before = history.next;
+          if (!history.turns?.length || Date.parse(history.turns.at(-1).created_at) < cutoff) break;
+        } while (before);
+      } catch { historyUnavailable = true; }
+      this._timelineRows = [...recordings.values(), ...conversationRows].sort((a,b) => Date.parse(b.item.recorded_at) - Date.parse(a.item.recorded_at));
       this._timelineLoaded = true;
       this.renderTimeline();
-      const missing = [pending, reviewed].filter(result => result.status !== 'fulfilled').length;
-      status.textContent = this._timelineRows.length + ' recordings from the last 7 days' +
+      const missing = [pending, reviewed].filter(result => result.status !== 'fulfilled').length + Number(historyUnavailable);
+      status.textContent = this._timelineRows.length + ' interactions from the last 7 days' +
         (missing ? ' · ' + missing + ' source(s) unavailable; some recordings may be missing.' : '');
     } catch (error) {
       status.textContent = 'Could not load recordings. Check the VoicePipeline connection and HA permissions.';
@@ -2208,7 +2284,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     list.replaceChildren();
     const rows = this._timelineRows || [];
     const groups = new Map();
-    const groupFor = row => row.kind === 'pending' ? 'Unconfirmed' :
+    const groupFor = row => row.kind === 'conversation' ? 'Other interactions' : row.kind === 'pending' ? 'Unconfirmed' :
       /dismiss|reject|discard/.test(String(row.item.status || '').toLowerCase()) ? 'Rejected' : 'Confirmed';
     const sectionFor = (title, open = false) => {
       const details = document.createElement('details');
@@ -2227,6 +2303,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     sectionFor('Unconfirmed', true);
     sectionFor('Confirmed');
     sectionFor('Rejected');
+    sectionFor('Other interactions');
     const subsection = (parent, title, open = false) => {
       const details = document.createElement('details');
       details.className = 'timeline-subsection';
@@ -2247,7 +2324,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       entry.open = pending;
       const summary = document.createElement('summary');
       summary.textContent = (item.transcript || '(No transcript)') + ' · ' +
-        (pending ? 'Needs review' : rejected ? 'Rejected' : speaker || 'Confirmed');
+        (kind === 'conversation' ? 'Recorded' : pending ? 'Needs review' : rejected ? 'Rejected' : speaker || 'Confirmed');
       entry.append(summary);
       const card = document.createElement('article');
       card.className = 'timeline-row timeline-row--' + (pending ? 'pending' : rejected ? 'rejected' : 'confirmed');
@@ -2255,7 +2332,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       heading.className = 'timeline-heading';
       const state = document.createElement('span');
       state.className = 'timeline-status-label timeline-status-label--' + (pending ? 'pending' : rejected ? 'rejected' : 'confirmed');
-      state.textContent = pending ? 'Needs review' : rejected ? 'Rejected' : 'Confirmed';
+      state.textContent = kind === 'conversation' ? 'Recorded' : pending ? 'Needs review' : rejected ? 'Rejected' : 'Confirmed';
       heading.append(state);
       const recorded = document.createElement('span');
       recorded.className = 'muted';
@@ -2263,6 +2340,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       heading.append(recorded);
       card.append(heading);
       const voice = subsection(card, 'Voice matching', pending);
+      voice.hidden = kind === 'conversation';
       const controls = document.createElement('div');
       controls.className = 'timeline-controls';
       const select = document.createElement('select');
@@ -2341,11 +2419,12 @@ class DeclanTwoNativePanel extends HTMLElement {
       const training = subsection(card, 'Teach Declan');
       const trainStatus = document.createElement('p');
       trainStatus.className = 'muted';
-      const turnId = this._recordingTurnLinks?.[String(item.id)];
-      const verified = Number.isSafeInteger(turnId) && turnId > 0 && !rejected;
+      const turnId = item.turn_id || this._recordingTurnLinks?.[String(item.id)];
+      const trainingPhrase = this._recordingReplies?.[String(turnId)]?.message || item.transcript;
+      const verified = !rejected && !!item.transcript && (Number.isSafeInteger(turnId) && turnId > 0 || !!item.id);
       trainStatus.textContent = verified
-        ? 'What should Declan understand when you say this? Nothing is learned until you save.'
-        : 'Teaching requires a verified conversation link. This recording cannot be taught yet.';
+        ? 'Enter a command Declan understands. Saving teaches this phrase without running the command.'
+        : 'A transcript is needed to teach Declan. Rejected recordings cannot be used for training.';
       const target = document.createElement('input');
       target.type = 'text';
       target.maxLength = 120;
@@ -2365,19 +2444,28 @@ class DeclanTwoNativePanel extends HTMLElement {
         train.disabled = true;
         try {
           const result = await this._hass.callApi('POST', 'declan_two/management/intents',
-            {turn_id:turnId, target:corrected});
+            Number.isSafeInteger(turnId) ? {turn_id:turnId, target:corrected} : {recording_id:item.id, target:corrected});
           if (result?.saved !== true) throw new Error('Not saved');
           trainStatus.textContent = 'Command learned. Future requests will use your correction.';
-          await this.loadLearnedIntents();
+          train.disabled = false;
         } catch {
           trainStatus.textContent = 'Training was not confirmed. Refresh before retrying.';
           train.disabled = false;
         }
       });
-      training.append(trainStatus, target, train);
+      const form = document.createElement('div');
+      form.className = 'training-form';
+      const label = document.createElement('label');
+      label.textContent = 'The command you meant';
+      label.append(target);
+      form.append(label, train);
+      const phrase = document.createElement('p');
+      phrase.className = 'muted';
+      phrase.textContent = 'Training phrase: ' + (trainingPhrase || '(No transcript)');
+      training.append(phrase, trainStatus, form);
       const response = subsection(card, "Declan's response");
       const reply = document.createElement('p');
-      reply.textContent = item.reply || 'Not available';
+      reply.textContent = item.reply || this._recordingReplies?.[String(turnId)]?.reply || 'No response was saved for this recording.';
       response.append(reply);
       const diagnostics = subsection(card, 'Diagnostics');
       const diagnosticText = document.createElement('p');
@@ -2551,5 +2639,4 @@ class DeclanTwoNativePanel extends HTMLElement {
 if (!customElements.get('declan-two-native-panel')) {
   customElements.define('declan-two-native-panel', DeclanTwoNativePanel);
 }
-
 

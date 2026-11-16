@@ -54,7 +54,7 @@ async def receive(client):
                 and isinstance(confidence, (int, float)) and not isinstance(confidence, bool)
                 and math.isfinite(confidence) and 0 <= confidence <= 1
             )
-            if valid and not speaker_unknown:
+            if valid:
                 identity = (identity_id, name, confidence)
             _LOGGER.info(
                 "DECLAN_WYOMING_SPEAKER event=received valid=%s unknown=%s",

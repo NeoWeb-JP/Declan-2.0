@@ -16,17 +16,17 @@ class UnifiedTimelineTests(unittest.TestCase):
     def test_one_history_page_with_three_voice_review_categories(self):
         for label in ("Unconfirmed", "Confirmed", "Rejected"):
             self.assertIn("sectionFor('" + label + "'", TIMELINE)
-        self.assertNotIn("Conversation history", TIMELINE)
+        self.assertIn("sectionFor('Other interactions');", TIMELINE)
         self.assertNotIn("Saved phrase corrections", HISTORY)
         self.assertNotIn('class="timeline-filter"', HISTORY)
         self.assertIn("declan_two/history?recording_ids=", TIMELINE)
         self.assertIn('class="timeline-list"', HISTORY)
 
-    def test_no_duplicate_recordings_or_conversation_only_rows(self):
+    def test_unique_recordings_and_unlinked_conversation_rows(self):
         self.assertIn("const recordings = new Map();", TIMELINE)
         self.assertIn("recordings.set(String(item.id), {kind:'pending', item})", TIMELINE)
         self.assertIn("!recordings.has(String(item.id))", TIMELINE)
-        self.assertNotIn("kind:'conversation'", TIMELINE)
+        self.assertIn("kind:'conversation'", TIMELINE)
         self.assertIn("Never merge recordings and conversation turns by text or time", TIMELINE)
 
     def test_seven_day_cutoff_for_all_statuses(self):
@@ -41,8 +41,8 @@ class UnifiedTimelineTests(unittest.TestCase):
         self.assertIn("entry.open = pending;", TIMELINE)
         self.assertIn("subsection(card, 'Voice matching', pending)", TIMELINE)
         self.assertIn("train.disabled = !verified;", TIMELINE)
-        self.assertIn("verified conversation link", TIMELINE)
-        self.assertIn("item.reply || 'Not available'", TIMELINE)
+        self.assertIn("{recording_id:item.id, target:corrected}", TIMELINE)
+        self.assertIn("this._recordingReplies?.[String(turnId)]?.reply", TIMELINE)
         self.assertIn("Recording ID:", TIMELINE)
 
     def test_confirm_reject_play_and_speaker_correction(self):

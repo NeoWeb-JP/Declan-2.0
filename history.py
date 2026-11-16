@@ -115,12 +115,12 @@ def learned_intent(phrase):
 def teach_intent(turn_id, target, unmatched_reply):
     with database() as connection:
         turn = connection.execute(
-            "SELECT message FROM turns WHERE id = ? AND source IN ('assist', 'browser_voice')",
+            "SELECT message FROM turns WHERE id = ?",
             (turn_id,),
         ).fetchone()
         phrase = normalize_phrase(turn[0]) if turn else ""
         if not 0 < len(phrase) <= 120:
-            raise ValueError("Choose a missed voice command from history (up to 120 characters).")
+            raise ValueError("Choose a command from history (up to 120 characters).")
         target = normalize_phrase(target)
         if not 0 < len(target) <= 120 or any(ord(char) < 32 for char in target):
             raise ValueError("Enter the command you meant, up to 120 characters.")
@@ -137,6 +137,20 @@ def forget_intent(phrase):
     with database() as connection:
         _intent_table(connection)
         connection.execute("DELETE FROM learned_intents WHERE phrase = ?", (phrase,))
+
+
+def teach_phrase(phrase, target, *, automatic=False):
+    """Save an explicit correction, or add a retry without overwriting user training."""
+    if not isinstance(phrase, str) or not isinstance(target, str):
+        raise ValueError("Enter a phrase and the command you meant.")
+    phrase, target = normalize_phrase(phrase), normalize_phrase(target)
+    if not all(0 < len(value) <= 120 and not any(ord(c) < 32 for c in value)
+               for value in (phrase, target)) or phrase == target:
+        raise ValueError("Enter a different command, up to 120 characters.")
+    with database() as connection:
+        connection.execute(
+            "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) ON CONFLICT(phrase) " +
+            ("DO NOTHING" if automatic else "DO UPDATE SET target = excluded.target"), (phrase, target))
 
 
 def clear():
@@ -157,13 +171,14 @@ def record(session_id, source, message, reply, outcome=None, routine_status=None
            phrase_suggestion=None, *, speaker=None, diagnostic_id=None):
     match = speaker_match(speaker) if source == "assist" else None
     with database() as connection:
-        connection.execute(
+        cursor = connection.execute(
             "INSERT INTO turns(created_at, session_id, source, message, reply, outcome, routine_status, "
             "action_results, phrase_suggestion, speaker_match, diagnostic_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (time(), session_id, source, message, reply, outcome, routine_status,
              json.dumps(action_results) if action_results else None, phrase_suggestion,
              json.dumps(match) if match else None, diagnostic_id),
         )
+        return cursor.lastrowid
 
 
 def recent(before=None, limit=50):
