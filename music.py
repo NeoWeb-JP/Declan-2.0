@@ -720,6 +720,10 @@ def play(command, connection, read_inventory, *, origin=None):
                 source_name = {"spotify": "Spotify", "radio": "radio", "tunein": "TuneIn"}[provider]
                 return f"I couldn't find {title} on {source_name}.", "unavailable"
             uri, kind, selected_name = selection
+            if provider == "spotify" and PREFERENCES.exists():
+                with preference_db() as db:
+                    if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0", (media_key(uri),)).fetchone():
+                        return "That Spotify item is on your disliked list. I won't play it.", "unavailable"
             if provider == "spotify" and source:
                 request(connection, "/api/services/media_player/media_stop", {"entity_id": source})
                 if not wait_for(connection, source, lambda player: player.get("state") in STOPPED):
