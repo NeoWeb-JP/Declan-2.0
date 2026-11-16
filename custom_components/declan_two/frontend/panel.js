@@ -575,8 +575,18 @@ class DeclanTwoNativePanel extends HTMLElement {
       const counts = report.summary || {};
       status.textContent = `Snapshot ${report.generated_at} (${report.coverage || 'coverage unknown'}): ${counts.scripts} scripts, ${counts.automations} automations, ${counts.entities} entities. ${counts.error} errors, ${counts.warning} warnings, ${counts.unverified} unverified findings. ` + (report.gaps || []).join('; ');
       this.renderHAAudit();
-    } catch {
-      status.textContent = 'Audit unavailable. Check your administrator access and the installed Declan integration. No current findings are available.';
+    } catch (error) {
+      this._auditReport = null;
+      this.shadowRoot.querySelector('.audit-results').replaceChildren();
+      const code = Number(error?.status_code || error?.status || 0);
+      const explanation = code === 401 ? 'Your Home Assistant session has expired. Sign in again.'
+        : code === 403 ? 'Home Assistant administrator access is required.'
+        : code === 404 ? 'The audit endpoint is not loaded. Restart Home Assistant after updating the Declan integration.'
+        : code === 503 ? 'The audit collector failed. Check the Home Assistant log for the audit error type.'
+        : code >= 500 ? 'Home Assistant could not complete the audit. Check its logs for the collector error.'
+        : error?.message === 'Invalid audit response' ? 'The audit returned an invalid response. Update the Declan integration and reload this page.'
+        : 'Could not reach the audit endpoint. Check your Home Assistant connection and retry.';
+      status.textContent = `Audit unavailable${code ? ' (HTTP ' + code + ')' : ''}. ${explanation} No current findings are available.`;
     } finally {
       this._auditPending = false;
       button.disabled = false;

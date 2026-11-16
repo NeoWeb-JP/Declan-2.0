@@ -103,8 +103,10 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.web = SimpleNamespace(HTTPForbidden=type("Forbidden", (Exception,), {}),
                                    json_response=lambda report, **kwargs: (report, kwargs))
         self.reg = SimpleNamespace(entities={"automation.disabled": SimpleNamespace(disabled_by="user")})
-        self.devices = SimpleNamespace(devices={"device1": object()})
-        self.areas = SimpleNamespace(areas={"kitchen": object()})
+        # HA 2026.11 devices is a collection of entries, not an ID-keyed map.
+        # SimpleNamespace is deliberately unhashable, like HA DeviceEntry.
+        self.devices = SimpleNamespace(devices=[SimpleNamespace(id="device1")])
+        self.areas = SimpleNamespace(async_list_areas=lambda: [SimpleNamespace(id="kitchen")])
         def module(name, **values):
             return types.SimpleNamespace(**values)
         self.trace_rows = []
@@ -148,6 +150,29 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         disabled = next(r for r in report["routines"] if r["entity_id"] == "automation.disabled")
         self.assertTrue(disabled["disabled"])
         self.assertNotIn("hidden", str(report))
+
+    async def test_current_entry_collection_and_legacy_mapping_validate_same_device(self):
+        self.hass.data["automation"].entities[0].action_script.sequence = [
+            {"action": "light.turn_on", "target": {"device_id": "device1", "area_id": "kitchen"}}]
+        for entries in ([SimpleNamespace(id="device1")], {"device1": SimpleNamespace(id="device1")}):
+            self.devices.devices = entries
+            report = await self.view.collect_report(self.hass)
+            routine = next(row for row in report["routines"] if row["entity_id"] == "automation.actual_entity")
+            self.assertNotIn("missing_device", {f["code"] for f in routine["findings"]})
+            self.assertNotIn("missing_area", {f["code"] for f in routine["findings"]})
+
+    async def test_collection_failure_returns_redacted_503(self):
+        class Request(dict):
+            app = {"hass": self.hass}
+        request = Request(hass_user=SimpleNamespace(is_admin=True))
+        async def fail(*args):
+            raise TypeError("private-token-must-not-appear")
+        with patch.object(self.view, "collect_report", fail), self.assertLogs(self.view._LOGGER, level="ERROR") as logs:
+            report, options = await self.view.DeclanHAAuditView().get(request)
+        self.assertEqual(options["status"], 503)
+        self.assertEqual(report, {"error": "audit_collection_failed"})
+        self.assertNotIn("private-token", str(report) + str(logs.output))
+        self.assertIn("TypeError", str(logs.output))
 
     async def test_non_admin_cannot_collect(self):
         request = {"hass_user": SimpleNamespace(is_admin=False)}

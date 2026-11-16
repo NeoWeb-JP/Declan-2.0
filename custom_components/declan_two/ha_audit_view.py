@@ -1,11 +1,21 @@
 """Admin-only audit of current loaded HA sources, without service calls."""
 import asyncio
+import logging
 from collections.abc import Mapping
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 
 from .ha_audit import build_report, trace_steps
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def registry_ids(entries):
+    """Support older ID mappings and HA's current iterable entry collections."""
+    if isinstance(entries, Mapping):
+        return set(entries)
+    return {entry if isinstance(entry, str) else entry.id for entry in entries}
 
 
 async def collect_report(hass):
@@ -80,7 +90,8 @@ async def collect_report(hass):
                         gaps.append(f"{entity_id}: action trace details unavailable")
     except Exception:
         gaps.append("Action trace details unavailable; run summaries only")
-    return build_report(states, registered, set(devices.devices), set(areas.areas),
+    return build_report(states, registered, registry_ids(devices.devices),
+                        {area.id for area in areas.async_list_areas()},
                         services, routines, traces, gaps)
 
 
@@ -93,5 +104,11 @@ class DeclanHAAuditView(HomeAssistantView):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
-        report = await collect_report(request.app["hass"])
+        try:
+            report = await collect_report(request.app["hass"])
+        except Exception as error:
+            # Do not return exception messages or configs, which may contain secrets.
+            _LOGGER.error("Home Assistant audit collection failed (%s)", type(error).__name__)
+            return web.json_response({"error": "audit_collection_failed"}, status=503,
+                                     headers={"Cache-Control": "no-store"})
         return web.json_response(report, headers={"Cache-Control": "no-store"})
