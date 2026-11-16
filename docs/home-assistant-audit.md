@@ -82,15 +82,17 @@ spoken summary, and explicit script failures or mismatched response IDs are pres
 HA's internal loaded-entity and trace interfaces can vary by release. Missing evidence
 is reported rather than replaced by example YAML or an assumed successful result.
 
-## Movie Time and Good Morning background execution
+## Movie Time, Good Morning and Good Night background execution
 
-Movie Time and Good Morning post to the admin-only `POST /api/declan_two/routine-jobs` endpoint.
+Movie Time, Good Morning and Good Night post to the admin-only `POST /api/declan_two/routine-jobs` endpoint.
 HA persists the request and schedules a background task before returning HTTP 202.
 Declan acknowledges that receipt immediately with a request-specific line of sass;
 it does not wait for projector startup, screen movement, or final state checks and
 does not claim completion. Their existing YAML needs no changes. Good Morning
 returns a varied morning greeting and sass while its light checks run in the
-background. Guest/unknown-visitor replies omit private household details.
+background. Good Night likewise returns varied bedtime sass and runs its existing
+shutdown checks in the background, without claiming everything is off.
+Guest/unknown-visitor replies omit private household details.
 Other routines and status summaries retain their existing execution behavior.
 
 Update both the backend and HA integration, then restart HA to register the endpoint.

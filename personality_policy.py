@@ -119,6 +119,26 @@ _MORNING_GUEST = (
     "I'll handle the morning request. Whatever kept you up, the coffee machine would appreciate a little enthusiasm too.",
     "I'll get the morning routine going. The staff accept tips, compliments, and a merciful lack of small talk before coffee.",
 )
+_NIGHT_HOME = (
+    "I'll start the bedtime routine. Anything still turned on under the duvet is your own bloody responsibility.",
+    "I'll handle the night routine. You handle getting into bed without turning it into an Olympic event.",
+    "I'll request the bedtime setup. If you plan on keeping each other up, kindly leave the unpaid help out of it.",
+    "I'll start the night routine. Sweet dreams, filthy thoughts, and absolutely no technical support for either.",
+    "I'll handle the bedtime request. Take your clothes, your questionable intentions, and your complaints upstairs.",
+    "I'll start the routine. If the mattress gets more action than the plot of tonight's film, I don't need a review.",
+    "I'll get the bedtime routine going. Tux will conduct the final inspection; Finn is only interested in stealing the warm spot.",
+    "I'll handle the night routine. Try giving your partner a goodnight kiss with the commitment you give your phone.",
+    "I'll start the bedtime routine. Beauty sleep is a bold strategy, but I admire your bloody optimism.",
+    "I'll handle the night request. If someone asks whether you're coming, please remember I am not part of that conversation.",
+)
+_NIGHT_GUEST = (
+    "I'll start the bedtime routine. Please take your dramatic performances upstairs; the staff are retiring.",
+    "I'll handle the night routine. Sweet dreams, and keep any plot twists under the duvet.",
+    "I'll request the bedtime setup. Please find your room, your belongings, and the correct side of the bed.",
+    "I'll start the routine. Anything happening under the blankets remains outside the staff's service contract.",
+    "I'll handle the bedtime request. Beauty sleep is complimentary; results may vary.",
+    "I'll get the night routine going. The invisible staff wish you a restful night and a mercifully uneventful complaints book.",
+)
 _SAFE_OUTCOMES = frozenset({
     "failed", "partial", "unverified", "unresolved", "unavailable",
     "action_error", "not_configured", "authentication_failed", "cancelled",
@@ -164,6 +184,17 @@ def morning_request_reply(*, guest=False, visitor_present=False):
         chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
         recent.append(chosen)
     return "Good morning. " + chosen
+
+
+def night_request_reply(*, guest=False, visitor_present=False):
+    """Acknowledge bedtime without claiming the household has shut down."""
+    mode = "guest" if guest or visitor_present is not False else "home"
+    lines = _NIGHT_GUEST if mode == "guest" else _NIGHT_HOME
+    with _LOCK:
+        recent = _RECENT.setdefault((mode, "night"), deque(maxlen=3))
+        chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
+        recent.append(chosen)
+    return "Good night. " + chosen
 
 
 def response_guest_mode(guest_mode, visitor_present):

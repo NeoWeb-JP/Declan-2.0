@@ -6,6 +6,25 @@ import personality_policy as p
 
 
 class PersonalityPolicyTests(unittest.TestCase):
+    def test_night_acknowledgements_are_varied_without_duplicate_sorted_or_success_claims(self):
+        replies = [p.night_request_reply(visitor_present=False) for _ in range(4)]
+        self.assertEqual(len(set(replies)), 4)
+        for reply in replies:
+            self.assertTrue(reply.startswith("Good night. "))
+            self.assertIn(reply.removeprefix("Good night. "), p._NIGHT_HOME)
+            self.assertNotIn("Sorted", reply)
+            self.assertNotIn("completed", reply)
+            self.assertNotIn("lights are off", reply)
+
+    def test_night_guest_and_unknown_presence_keep_household_details_private(self):
+        for options in ({"guest": True, "visitor_present": False}, {"visitor_present": True},
+                        {"visitor_present": None}):
+            replies = [p.night_request_reply(**options) for _ in range(4)]
+            self.assertEqual(len(set(replies)), 4)
+            for reply in replies:
+                self.assertIn(reply.removeprefix("Good night. "), p._NIGHT_GUEST)
+                self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
+
     def test_morning_acknowledgements_are_varied_and_do_not_claim_device_success(self):
         replies = [p.morning_request_reply(visitor_present=False) for _ in range(4)]
         self.assertEqual(len(set(replies)), 4)
