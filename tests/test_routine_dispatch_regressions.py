@@ -22,11 +22,13 @@ class RoutineDispatchTests(unittest.TestCase):
                 with self.subTest(phrase=phrase):
                     self.assertEqual(server.select_routine(phrase, None), ("custom:house_status", {}))
 
-    def test_house_status_without_mapping_is_not_a_device_lookup(self):
-        with patch.object(server.routine_registry, "load", return_value={}):
+    def test_house_status_without_mapping_uses_safe_discovery(self):
+        script = {"entity_id": "script.house_status", "name": "House Status", "safe": True}
+        with patch.object(server.routine_registry, "load", return_value={}), \
+             patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)):
             selection = server.select_routine("what is the status of the house", None)
-        self.assertEqual(selection, ("unconfigured_house_status", {}))
-        self.assertEqual(server.execute_routine(selection, [])[1], "not_configured")
+        self.assertEqual(selection, ("auto:script.house_status", {}))
 
     def test_other_device_status_is_not_intercepted(self):
         with patch.object(server.routine_registry, "load", return_value={}):
