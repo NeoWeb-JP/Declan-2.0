@@ -27,6 +27,10 @@ def phrases(item):
             result.add(name[len(prefix):])
         if entity.startswith(prefix):
             result.add(entity[len(prefix):])
+    # "Declan - Sexy Time Controller" should respond to "sexy time".
+    for alias in tuple(result):
+        if alias.endswith(" controller"):
+            result.add(alias.removesuffix(" controller"))
     if name.endswith(" status"):
         result.update({"what is the " + name, "what is the status of the " + name.removesuffix(" status"),
                        "give me the " + name})
