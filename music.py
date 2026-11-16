@@ -114,12 +114,13 @@ def preference_db():
     with closing(sqlite3.connect(PREFERENCES, timeout=1)) as db, db:
         db.execute("CREATE TABLE IF NOT EXISTS preferences (uri TEXT PRIMARY KEY, weight INTEGER NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS recent_playlists (id INTEGER PRIMARY KEY, category TEXT, uri TEXT)")
+        db.execute("CREATE TABLE IF NOT EXISTS playlist_play_counts (uri TEXT PRIMARY KEY, plays INTEGER NOT NULL DEFAULT 0)")
         yield db
 
 
 def parse_feedback(phrase):
     match = re.fullmatch(
-        r"(never play this song again|i like this song|we like this song|i like this playlist|we like this playlist)"
+        r"(never play this song again|never play this playlist again|i don't like this song|we don't like this song|i don't like this playlist|we don't like this playlist|i love this song|we love this song|i love this playlist|we love this playlist|i like this song|we like this song|i like this playlist|we like this playlist)"
         r"(?: (?:in (?:the )?)?(.+))?", phrase,
     )
     return match.groups() if match else None
@@ -151,20 +152,20 @@ def feedback(command, connection, read_inventory):
             return "Tell me which active music player you mean.", "unresolved"
         entity, player = next(iter(active.items()))
         attrs = player.get("attributes") or {}
-        playlist = phrase.endswith("playlist")
+        playlist = "playlist" in phrase
         kind = "playlist" if playlist else "track"
         uri = next((media_key(value) for value in (attrs.get("media_playlist_id"), attrs.get("media_content_id"))
                     if isinstance(value, str) and media_key(value).startswith(f"spotify://{kind}/")
                     and SPOTIFY_REFERENCE.fullmatch(value)), None)
         if not uri:
             return f"I couldn't identify the current Spotify {kind}.", "unresolved"
-        ban = phrase.startswith("never")
+        ban = phrase.startswith("never") or "don't like" in phrase
         with preference_db() as db:
             if not ban and db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0", (uri,)).fetchone():
                 return "That song is on your do-not-play list.", "unresolved"
             db.execute("INSERT INTO preferences VALUES (?, ?) ON CONFLICT(uri) DO UPDATE SET weight = "
                        "CASE WHEN excluded.weight = 0 THEN 0 ELSE min(5, max(1, weight) + 1) END",
-                       (uri, 0 if ban else 2))
+                       (uri, 0 if ban else 3))
         label = (attrs.get("media_playlist") or "this playlist") if playlist else (attrs.get("media_title") or "this song")
         return (f"Blocked {label}. I'll skip it when it comes up." if ban else f"Saved {label} as a favourite."), "music_feedback"
     except (OSError, ValueError, sqlite3.Error):
@@ -187,7 +188,12 @@ def skip_blocked_tracks(connection, read_inventory):
         now = monotonic()
         for entity, player in playback_sources(*music_players(inventory)).items():
             track = media_key(spotify_id(player))
-            if player.get("state") == "playing" and track in blocked and now >= recent_blacklist_skips.get(entity, 0):
+            attrs = player.get("attributes") or {}
+            playlist_uri = next((media_key(value) for value in
+                                 (attrs.get("media_playlist_id"), attrs.get("media_content_id"))
+                                 if isinstance(value, str) and
+                                 media_key(value).startswith("spotify://playlist/")), None)
+            if player.get("state") == "playing" and (track in blocked or playlist_uri in blocked) and now >= recent_blacklist_skips.get(entity, 0):
                 recent_blacklist_skips[entity] = now + 10
                 request(connection, "/api/services/media_player/media_next_track", {"entity_id": entity}, timeout=2)
     except HTTPError as error:
@@ -714,6 +720,10 @@ def play(command, connection, read_inventory, *, origin=None):
                 source_name = {"spotify": "Spotify", "radio": "radio", "tunein": "TuneIn"}[provider]
                 return f"I couldn't find {title} on {source_name}.", "unavailable"
             uri, kind, selected_name = selection
+            if provider == "spotify" and PREFERENCES.exists():
+                with preference_db() as db:
+                    if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0", (media_key(uri),)).fetchone():
+                        return "That Spotify item is on your disliked list. I won't play it.", "unavailable"
             if provider == "spotify" and source:
                 request(connection, "/api/services/media_player/media_stop", {"entity_id": source})
                 if not wait_for(connection, source, lambda player: player.get("state") in STOPPED):
@@ -757,6 +767,7 @@ def play(command, connection, read_inventory, *, origin=None):
         verified = wait_for(connection, destination, verify, attempts=12 if timed_out else 4)
         if not move and kind == "playlist" and provider == "spotify" and (verified or observed_playback):
             with preference_db() as db:
+                db.execute("INSERT INTO playlist_play_counts(uri, plays) VALUES (?, 1) ON CONFLICT(uri) DO UPDATE SET plays = plays + 1", (media_key(uri),))
                 db.execute("INSERT INTO recent_playlists(category, uri) VALUES (?, ?)", (title, media_key(uri)))
                 db.execute("DELETE FROM recent_playlists WHERE id <= "
                            "(SELECT max(id) - 500 FROM recent_playlists)")

@@ -1053,6 +1053,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       const data = await this._hass.callApi('GET', 'declan_two/music-playlists');
       if (!data || !data.categories || typeof data.categories !== 'object') throw new Error('Invalid playlist response');
       this._playlistCatalogue = data.categories;
+      this._playlistPreferences = data.preferences || {};
       this.renderPlaylists();
     } catch {
       status.textContent = 'Could not load Spotify playlists. Check the Declan 2.0 connection and try again.';
@@ -1099,6 +1100,24 @@ class DeclanTwoNativePanel extends HTMLElement {
         const name = data.titles?.[uri];
         title.textContent = name || uri;
         row.append(title);
+        const plays = document.createElement('span');
+        plays.className = 'muted';
+        plays.textContent = 'Plays: ' + (this._playlistPreferences?.play_counts?.[uri] || 0);
+        row.append(plays);
+        const favourite = (this._playlistPreferences?.favourites || []).includes(uri);
+        const favouriteButton = document.createElement('button');
+        favouriteButton.type = 'button';
+        favouriteButton.dataset.playlistOperation = favourite ? 'unfavourite' : 'favourite';
+        favouriteButton.dataset.playlistUri = uri;
+        favouriteButton.textContent = favourite ? '★ Favourite' : '☆ Favourite';
+        favouriteButton.setAttribute('aria-pressed', String(favourite));
+        row.append(favouriteButton);
+        const dislikeButton = document.createElement('button');
+        dislikeButton.type = 'button';
+        dislikeButton.dataset.playlistOperation = 'dislike';
+        dislikeButton.dataset.playlistUri = uri;
+        dislikeButton.textContent = 'Dislike / never play';
+        row.append(dislikeButton);
         if (name) {
           const link = document.createElement('a');
           link.href = uri.replace('spotify://playlist/', 'https://open.spotify.com/playlist/');
@@ -1137,7 +1156,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           const button = document.createElement('button');
           button.type = 'button';
           button.textContent = 'Restore';
-          button.dataset.playlistOperation = 'remove';
+          button.dataset.playlistOperation = (this._playlistPreferences?.disliked_playlists || []).includes(uri) ? 'restore' : 'remove';
           button.dataset.playlistUri = uri;
           row.append(title, button);
           details.append(row);
@@ -1159,6 +1178,50 @@ class DeclanTwoNativePanel extends HTMLElement {
       details.append(form);
       list.append(details);
     }
+    const dislikedPlaylists = this._playlistPreferences?.disliked_playlists || [];
+    const blockedPlaylists = document.createElement('details');
+    blockedPlaylists.className = 'settings-subsection playlist-category-accordion';
+    blockedPlaylists.dataset.playlistCategory = 'disliked_playlists';
+    blockedPlaylists.open = previouslyOpen.has('disliked_playlists') || openCategory === 'disliked_playlists';
+    const blockedHeading = document.createElement('summary');
+    blockedHeading.textContent = 'Disliked playlists (' + dislikedPlaylists.length + ')';
+    blockedPlaylists.append(blockedHeading);
+    for (const uri of dislikedPlaylists) {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      const label = document.createElement('span');
+      label.textContent = uri;
+      const restore = document.createElement('button');
+      restore.type = 'button';
+      restore.textContent = 'Restore playlist';
+      restore.dataset.playlistOperation = 'restore';
+      restore.dataset.playlistUri = uri;
+      row.append(label, restore);
+      blockedPlaylists.append(row);
+    }
+    list.append(blockedPlaylists);
+    const dislikedSongs = this._playlistPreferences?.disliked_songs || [];
+    const songs = document.createElement('details');
+    songs.className = 'settings-subsection playlist-category-accordion';
+    songs.dataset.playlistCategory = 'disliked_songs';
+    songs.open = previouslyOpen.has('disliked_songs') || openCategory === 'disliked_songs';
+    const heading = document.createElement('summary');
+    heading.textContent = 'Disliked songs (' + dislikedSongs.length + ')';
+    songs.append(heading);
+    for (const uri of dislikedSongs) {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      const label = document.createElement('span');
+      label.textContent = uri;
+      const restore = document.createElement('button');
+      restore.type = 'button';
+      restore.textContent = 'Restore song';
+      restore.dataset.playlistOperation = 'restore';
+      restore.dataset.playlistUri = uri;
+      row.append(label, restore);
+      songs.append(row);
+    }
+    list.append(songs);
     status.textContent = Object.keys(catalogue).length + ' Spotify categories loaded. Expand a genre to manage its playlists.';
   }
 
@@ -1171,7 +1234,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       const data = await this._hass.callApi('POST', 'declan_two/music-playlists',
                                            {category, playlist: playlist.trim(), operation});
       if (!data || !data.categories) throw new Error('Save not confirmed');
-      this._playlistCatalogue = data.categories;
+      const updated = await this._hass.callApi('GET', 'declan_two/music-playlists');
+      this._playlistCatalogue = updated.categories;
+      this._playlistPreferences = updated.preferences || {};
       this.renderPlaylists(category);
       status.textContent = 'Saved playlist change for ' + category + '.';
     } catch {
