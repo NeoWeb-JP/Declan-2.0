@@ -31,5 +31,30 @@ page clears the previous snapshot when refreshing, including when a refresh fail
 Recommendations are for manual review in Home Assistant. Nothing modifies household
 scripts, automations, helpers, entities, or their enabled state.
 
+## Human review flags
+
+Each routine has a **Reviewed and fixed** checkbox. The routine list defaults to
+**Unreviewed routines**; use **All routines** or **Reviewed and fixed** to find reviewed
+items and undo a review. Flags persist in the integration's separate metadata store.
+Checking a flag records your assessment; it does not repair or execute anything.
+The **Entities** inventory remains a complete inventory independent of review filters.
+
+A flag applies to the inspected version of the loaded routine. Configuration changes,
+changed static findings, or a new failed/partial run make it unreviewed again. Ordinary
+successful runs and newly available traces do not clear a review. Saving a flag from
+an outdated snapshot is rejected; refresh and review the current version. The separate
+admin-only `POST /api/declan_two/ha-audit/reviews` route writes review metadata only.
+
+## Voice completion evidence
+
+When a script returns no structured outcome, Declan can read
+`GET /api/declan_two/script-result` using the script state context returned by the
+original service call. The lookup requires exactly one retained trace for that script
+and context. It never runs the script again. A finished error-free run produces
+`execution_completed` with a short spoken acknowledgement and personality; device
+state verification remains separate. Suppressed action errors remain partial, and
+missing/ambiguous evidence stays unverified. Status questions still need their actual
+spoken summary, and explicit script failures or mismatched response IDs are preserved.
+
 HA's internal loaded-entity and trace interfaces can vary by release. Missing evidence
 is reported rather than replaced by example YAML or an assumed successful result.

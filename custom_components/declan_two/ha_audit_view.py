@@ -1,12 +1,15 @@
 """Admin-only audit of current loaded HA sources, without service calls."""
 import asyncio
 import logging
+from datetime import datetime, timezone
+import re
 from collections.abc import Mapping
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 
 from .ha_audit import build_report, trace_steps
+from .audit_reviews import apply_reviews, review_state
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -106,9 +109,53 @@ class DeclanHAAuditView(HomeAssistantView):
             raise web.HTTPForbidden()
         try:
             report = await collect_report(request.app["hass"])
+            await apply_reviews(request.app["hass"], report)
         except Exception as error:
             # Do not return exception messages or configs, which may contain secrets.
             _LOGGER.error("Home Assistant audit collection failed (%s)", type(error).__name__)
             return web.json_response({"error": "audit_collection_failed"}, status=503,
                                      headers={"Cache-Control": "no-store"})
         return web.json_response(report, headers={"Cache-Control": "no-store"})
+
+
+class DeclanAuditReviewView(HomeAssistantView):
+    url = "/api/declan_two/ha-audit/reviews"
+    name = "api:declan_two:ha_audit_reviews"
+    requires_auth = True
+
+    async def post(self, request):
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        try:
+            body = await request.json()
+        except (ValueError, TypeError):
+            raise web.HTTPBadRequest() from None
+        if (not isinstance(body, dict) or type(body.get("reviewed")) is not bool
+                or not isinstance(body.get("entity_id"), str)
+                or not re.fullmatch(r"(?:script|automation)\.[a-z0-9_]+", body["entity_id"])
+                or not isinstance(body.get("fingerprint"), str)
+                or not re.fullmatch(r"[a-f0-9]{64}", body["fingerprint"])):
+            raise web.HTTPBadRequest()
+        hass = request.app["hass"]
+        report = await collect_report(hass)
+        routine = next((row for row in report["routines"] if row["entity_id"] == body["entity_id"]), None)
+        if routine is None or routine["fingerprint"] != body["fingerprint"]:
+            return web.json_response({"error": "routine_changed"}, status=409,
+                                     headers={"Cache-Control": "no-store"})
+        state = await review_state(hass)
+        reviewed_at = datetime.now(timezone.utc).isoformat() if body["reviewed"] else None
+        async with state["lock"]:
+            records = dict(state["records"])
+            if body["reviewed"]:
+                records[body["entity_id"]] = {"fingerprint": body["fingerprint"], "reviewed_at": reviewed_at}
+            else:
+                records.pop(body["entity_id"], None)
+            try:
+                await state["store"].async_save(records)
+            except Exception:
+                return web.json_response({"error": "review_save_failed"}, status=503,
+                                         headers={"Cache-Control": "no-store"})
+            state["records"] = records
+        return web.json_response({"entity_id": body["entity_id"], "reviewed": body["reviewed"],
+                                  "reviewed_at": reviewed_at}, headers={"Cache-Control": "no-store"})

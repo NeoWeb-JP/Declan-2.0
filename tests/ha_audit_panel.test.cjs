@@ -21,6 +21,7 @@ function report() {
   return {read_only:true, generated_at:'2026-11-16T11:00:00Z', gaps:[],
     summary:{scripts:1, automations:0, entities:1, error:1, warning:0, unverified:0},
     routines:[{entity_id:'script.dinner', name:'<img src=x onerror=alert(1)>', state:'off',
+      fingerprint:'a'.repeat(64), reviewed:false,
       dependencies:[{kind:'entity',id:'light.dining'}],
       findings:[{severity:'error',code:'missing_entity',path:'config.sequence[0]',recommendation:'Review light.dining in HA.'}],
       executions:[{run_id:'abc',status:'failed',start:'2026-11-16',last_step:'sequence/0'}]}],
@@ -88,4 +89,42 @@ test('audit failures distinguish missing route, permissions, collector errors an
     assert.equal(element._auditReport,null);
     assert.equal(root.querySelector('.audit-refresh').disabled,false);
   }
+});
+
+test('reviewed routines disappear from Unreviewed and can be reopened from Reviewed', async t => {
+  const {element,root,calls} = panel(t, report());
+  await element.loadHAAudit();
+  const item = element._auditReport.routines[0];
+  element._hass.callApi = async (...args) => {
+    calls.push(args);
+    return {entity_id:item.entity_id,reviewed:args[2].reviewed,reviewed_at:'2026-11-16'};
+  };
+  const checkbox = root.querySelector('.audit-results input[type="checkbox"]');
+  checkbox.checked = true;
+  await element.setAuditReviewed(item,checkbox);
+  assert.match(root.querySelector('.audit-results').textContent,/Scripts & automations \(0\)/);
+  assert.equal(calls[1][0],'POST');
+  assert.equal(calls[1][1],'declan_two/ha-audit/reviews');
+  assert.equal(calls[1][2].fingerprint,'a'.repeat(64));
+  root.querySelector('.audit-review-filter').value = 'reviewed';
+  element.renderHAAudit();
+  assert.match(root.querySelector('.audit-results').textContent,/Reviewed and fixed/);
+  const undo = root.querySelector('.audit-results input[type="checkbox"]');
+  undo.checked = false;
+  await element.setAuditReviewed(item,undo);
+  assert.equal(item.reviewed,false);
+});
+
+test('failed or stale review save preserves the prior review flag', async t => {
+  const {element,root} = panel(t, report());
+  await element.loadHAAudit();
+  const item = element._auditReport.routines[0];
+  const checkbox = root.querySelector('.audit-results input[type="checkbox"]');
+  element._hass.callApi = async () => {throw {status_code:409};};
+  checkbox.checked = true;
+  await element.setAuditReviewed(item,checkbox);
+  assert.equal(item.reviewed,false);
+  assert.equal(checkbox.checked,false);
+  assert.equal(checkbox.disabled,false);
+  assert.match(root.querySelector('.audit-status').textContent,/routine changed/);
 });
