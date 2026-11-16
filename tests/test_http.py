@@ -278,7 +278,7 @@ class APITests(TestCase):
         connection = ("http://ha.invalid", {}, opener)
         with patch.object(server, "ha_device_connection", return_value=connection), patch.object(
             server.routine_registry, "load", return_value={"dinner": {"script": "script.declan_dinner_is_served_2", "sensitive": False, "phrases": ["dinner time"], "fields": {}}}
-        ):
+        ), patch.object(server.personality_policy, "overnight_announcement_allowed", return_value=True):
             for phrase in {*server.DINNER_PHRASES, "it’s dinner time"}:
                 opener.open.reset_mock()
                 opener.open.return_value = io.BytesIO(b"[]")
