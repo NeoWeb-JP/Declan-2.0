@@ -186,6 +186,38 @@ def recent(before=None, limit=50):
     return turns
 
 
+def verified_recording_turns(interaction_ids):
+    """Only expose unique, explicitly linked voice turns from the review window."""
+    if not isinstance(interaction_ids, list) or len(interaction_ids) > 100 or any(
+        not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", value)
+        for value in interaction_ids
+    ):
+        raise ValueError("Invalid recording identifiers.")
+    requested = set(interaction_ids)
+    matches = {}
+    ambiguous = set()
+    with database() as connection:
+        rows = connection.execute(
+            "SELECT id, speaker_match FROM turns WHERE source = 'assist' AND "
+            "created_at >= ? AND speaker_match IS NOT NULL",
+            (time() - 7 * 24 * 60 * 60,),
+        )
+        for turn_id, encoded in rows:
+            try:
+                speaker = json.loads(encoded)
+            except (TypeError, ValueError):
+                continue
+            recording_id = speaker.get("interaction_id") if isinstance(speaker, dict) else None
+            if recording_id not in requested:
+                continue
+            if recording_id in matches:
+                ambiguous.add(recording_id)
+            else:
+                matches[recording_id] = turn_id
+    return {key: value for key, value in matches.items() if key not in ambiguous}
+
+
+
 def edit_intent(phrase, target, previous):
     """Edit an existing correction; a stale tab must not overwrite a newer edit."""
     if not all(isinstance(value, str) for value in (phrase, target, previous)):

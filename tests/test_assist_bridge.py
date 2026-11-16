@@ -371,7 +371,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             entity = add.call_args.args[0][0]
             entity.hass = hass
             entity.entity_id = "tts.declan_2_0_voice_manager"
-            with patch.object(platform, "generate_from_existing_tts", AsyncMock(return_value=("mp3", b"audio"))) as generate:
+            with patch.object(platform, "quiet_hours", return_value=False), patch.object(platform, "generate_from_existing_tts", AsyncMock(return_value=("mp3", b"audio"))) as generate:
                 self.assertEqual(await entity.async_get_tts_audio("Hello", "en", {}), ("mp3", b"audio"))
             generate.assert_awaited_once_with(
                 hass, provider_entity_id="tts.elevenlabs_text_to_speech", text="Hello",

@@ -1572,6 +1572,22 @@ class DeclanTwoNativePanel extends HTMLElement {
       const recordings = new Map();
       for (const item of pendingRows) if (item.id && recent(item)) recordings.set(String(item.id), {kind:'pending', item});
       for (const item of reviewedRows) if (item.id && recent(item) && !recordings.has(String(item.id))) recordings.set(String(item.id), {kind:'reviewed', item});
+      // Never infer a conversation turn from transcript text or timestamps.
+      // A recording is teachable only when the backend confirms one unique link.
+      this._recordingTurnLinks = {};
+      const ids = [...recordings.keys()].filter(id => /^[A-Za-z0-9_-]{1,80}$/.test(id));
+      try {
+        for (let offset = 0; offset < ids.length; offset += 100) {
+          const result = await this._hass.callApi('GET',
+            'declan_two/history?recording_ids=' + encodeURIComponent(ids.slice(offset, offset + 100).join(',')));
+          if (result && result.links && typeof result.links === 'object') {
+            Object.assign(this._recordingTurnLinks, result.links);
+          }
+        }
+      } catch {
+        // Voice review remains available, but teaching must stay disabled.
+        this._recordingTurnLinks = {};
+      }
       this._timelineRows = [...recordings.values()].sort((a,b) => Date.parse(b.item.recorded_at) - Date.parse(a.item.recorded_at));
       this._timelineLoaded = true;
       this.renderTimeline();
@@ -1723,12 +1739,40 @@ class DeclanTwoNativePanel extends HTMLElement {
       const training = subsection(card, 'Teach Declan');
       const trainStatus = document.createElement('p');
       trainStatus.className = 'muted';
-      trainStatus.textContent = 'Training unavailable for this recording until the recording-to-turn link is implemented (issue #97).';
+      const turnId = this._recordingTurnLinks?.[String(item.id)];
+      const verified = Number.isSafeInteger(turnId) && turnId > 0 && !rejected;
+      trainStatus.textContent = verified
+        ? 'What should Declan understand when you say this? Nothing is learned until you save.'
+        : 'Teaching requires a verified conversation link. This recording cannot be taught yet.';
+      const target = document.createElement('input');
+      target.type = 'text';
+      target.maxLength = 120;
+      target.placeholder = 'The command you meant';
+      target.setAttribute('aria-label', 'Correct command for Declan');
+      target.disabled = !verified;
       const train = document.createElement('button');
       train.type = 'button';
       train.textContent = 'Save training';
-      train.disabled = true;
-      training.append(trainStatus, train);
+      train.disabled = !verified;
+      train.addEventListener('click', async () => {
+        const corrected = target.value.trim();
+        if (!verified || !corrected || corrected.length > 120) {
+          trainStatus.textContent = 'Enter the intended command (up to 120 characters).';
+          return;
+        }
+        train.disabled = true;
+        try {
+          const result = await this._hass.callApi('POST', 'declan_two/management/intents',
+            {turn_id:turnId, target:corrected});
+          if (result?.saved !== true) throw new Error('Not saved');
+          trainStatus.textContent = 'Command learned. Future requests will use your correction.';
+          await this.loadLearnedIntents();
+        } catch {
+          trainStatus.textContent = 'Training was not confirmed. Refresh before retrying.';
+          train.disabled = false;
+        }
+      });
+      training.append(trainStatus, target, train);
       const response = subsection(card, "Declan's response");
       const reply = document.createElement('p');
       reply.textContent = item.reply || 'Not available';
