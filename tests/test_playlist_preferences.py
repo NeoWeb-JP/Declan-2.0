@@ -49,6 +49,20 @@ class PlaylistPreferenceTests(unittest.TestCase):
         spotify_playlists.refresh({"country": [A], "rock": [A]})
         self.assertIn(A, spotify_playlists.listing()["categories"]["rock"]["playlists"])
 
+    def test_disliked_songs_can_be_restored_separately(self):
+        song = "spotify://track/" + "C" * 22
+        with music.preference_db() as db:
+            db.execute("INSERT INTO preferences(uri, weight) VALUES (?, 0)", (song,))
+        self.assertIn(song, spotify_playlists.listing()["preferences"]["disliked_songs"])
+        spotify_playlists.manage({"category": "disliked_songs", "playlist": song, "operation": "restore"})
+        self.assertNotIn(song, spotify_playlists.listing()["preferences"]["disliked_songs"])
+
+    def test_global_disliked_playlist_restore(self):
+        spotify_playlists.refresh({"country": [A], "rock": [A]})
+        spotify_playlists.manage({"category": "country", "playlist": A, "operation": "dislike"})
+        spotify_playlists.manage({"category": "disliked_playlists", "playlist": A, "operation": "restore"})
+        self.assertNotIn(A, spotify_playlists.listing()["preferences"]["disliked_playlists"])
+
     def test_play_counts_are_read_from_database(self):
         with music.preference_db() as db:
             db.execute("INSERT INTO playlist_play_counts(uri, plays) VALUES (?, ?)", (A, 7))
