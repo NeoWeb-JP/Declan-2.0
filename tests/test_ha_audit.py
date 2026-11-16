@@ -89,6 +89,15 @@ class AuditTests(unittest.TestCase):
         self.assertTrue(report["read_only"])
         self.assertIn("no_trace", self.codes(report))
 
+    def test_stale_registry_records_are_distinct_from_loaded_routines_and_counts(self):
+        report = self.report(routines=[{"entity_id": "script.current", "config": {}, "stale": False},
+                                       {"entity_id": "script.old", "config": None, "stale": True}],
+                             states={"script.current": {"state": "unavailable"}, "script.old": {"state": "unavailable"}})
+        self.assertEqual(report["summary"]["scripts"], 1)
+        self.assertEqual(report["summary"]["stale"], 1)
+        self.assertFalse(report["routines"][0]["stale"])
+        self.assertTrue(next(row for row in report["entities"] if row["entity_id"] == "script.old")["stale"])
+
     def test_continue_on_error_is_partial_and_step_values_are_redacted(self):
         steps = audit.trace_steps({"trace": {"sequence/0": [{"error": "secret-token", "changed_variables": {"secret": "hidden"}}],
                                              "sequence/1": [{"result": {"success": True}}]}})
@@ -185,6 +194,8 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("hidden", str(report))
         self.assertTrue(row["yaml_available"])
         self.assertFalse(disabled["yaml_available"])
+        self.assertTrue(disabled["stale"])
+        self.assertFalse(row["stale"])
 
     def yaml_request(self, entity_id, admin=True):
         class Request(dict):

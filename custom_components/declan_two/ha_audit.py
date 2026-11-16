@@ -165,12 +165,15 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
             finding("error", "execution_failed", "execution",
                     "Open the corresponding run in Home Assistant Traces to inspect the failing action.")
         items.append({"entity_id": entity_id, "name": routine.get("name") or entity_id,
+                      "stale": bool(routine.get("stale")),
                       "yaml_available": bool(routine.get("yaml_available")),
                       "fingerprint": review_fingerprint(routine, findings, execution),
                       "state": routine.get("state"), "disabled": bool(routine.get("disabled")),
                       "dependencies": [{"kind": kind, "id": target} for kind, target in sorted(dependencies)],
                       "findings": findings, "executions": execution})
+    stale_ids = {row["entity_id"] for row in items if row["stale"]}
     entities = [{"entity_id": key, "name": states.get(key, {}).get("name") or key,
+                 "stale": key in stale_ids,
                  "state": states.get(key, {}).get("state"),
                  "disabled": bool(registry.get(key, {}).get("disabled"))} for key in sorted(known)]
     return {"generated_at": datetime.now(timezone.utc).isoformat(), "read_only": True,
@@ -178,8 +181,9 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                 f["code"] == "configuration_unavailable" for row in items for f in row["findings"]
             ) else "available_loaded_sources",
             "gaps": list(gaps), "routines": items, "entities": entities,
-            "summary": {"scripts": sum(r["entity_id"].startswith("script.") for r in items),
-                        "automations": sum(r["entity_id"].startswith("automation.") for r in items),
+            "summary": {"scripts": sum(r["entity_id"].startswith("script.") and not r["stale"] for r in items),
+                        "automations": sum(r["entity_id"].startswith("automation.") and not r["stale"] for r in items),
+                        "stale": len(stale_ids),
                         "entities": len(entities),
-                        **{severity: sum(f["severity"] == severity for r in items for f in r["findings"])
+                        **{severity: sum(f["severity"] == severity for r in items if not r["stale"] for f in r["findings"])
                            for severity in ("error", "warning", "unverified")}}}

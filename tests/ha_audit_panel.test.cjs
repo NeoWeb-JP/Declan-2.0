@@ -252,3 +252,17 @@ test('stale routines have no YAML download and failed exports restore retry cont
   assert.match(root.querySelector('.audit-status').textContent,/Could not download YAML/);
   assert.equal(button.disabled,false);
 });
+
+test('stale records are hidden by default in both audit groups and can be shown explicitly', async t => {
+  const data = report();
+  data.routines.push({entity_id:'script.old',name:'Old Dinner',state:'unavailable',stale:true,findings:[]});
+  data.entities.push({entity_id:'script.old',name:'Old Dinner',state:'unavailable',stale:true});
+  const {element,root} = panel(t,data);
+  await element.loadHAAudit();
+  assert.equal(root.querySelector('.audit-show-stale').checked,false);
+  assert.doesNotMatch(root.querySelector('.audit-results').textContent,/Old Dinner/);
+  root.querySelector('.audit-show-stale').checked = true;
+  root.querySelector('.audit-show-stale').dispatchEvent(new element.ownerDocument.defaultView.Event('change'));
+  assert.match(root.querySelector('.audit-results').textContent,/Old Dinner/);
+  assert.match(root.querySelector('.audit-results').textContent,/Stale entity record/);
+});

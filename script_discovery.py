@@ -152,7 +152,7 @@ def completion_from_trace(connection, current, result):
     return None
 
 
-def execute(connection, item, *, parameters=None, expect_response=False):
+def execute(connection, item, *, parameters=None, expect_response=False, action_results=None):
     """Verify the live HA script and send only parameters it declares."""
     scripts, error = discover(connection, fresh=True)
     if error:
@@ -260,6 +260,16 @@ def execute(connection, item, *, parameters=None, expect_response=False):
         description = {"success": "completed successfully", "partial": "partially completed",
                        "failed": "failed", "cancelled": "was cancelled",
                        "unknown": "could not be verified", "started": "started but not completed"}[outcome]
+        if action_results is not None and isinstance(steps, list):
+            for step in steps[:200]:
+                if not isinstance(step, dict) or not isinstance(step.get("target"), str):
+                    continue
+                if step.get("status") not in {"confirmed", "already_set", "unverified", "failed", "skipped", "requested", "already_requested", "not_requested", "not_configured"}:
+                    continue
+                action_results.append({
+                    **{key: step[key][:240] for key in ("target", "status", "action", "entity_id") if isinstance(step.get(key), str)},
+                    **({"required": step["required"]} if type(step.get("required")) is bool else {}),
+                })
         return current["name"] + " " + description + ".", statuses[outcome], None
     for key in ("speech", "reply", "message", "response", "summary"):
         value = data.get(key)

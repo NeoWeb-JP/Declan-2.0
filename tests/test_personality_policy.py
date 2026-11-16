@@ -29,6 +29,20 @@ class PersonalityPolicyTests(unittest.TestCase):
             self.assertEqual(p.decorate("Dinner could not be confirmed.", category="dinner", outcome=outcome),
                              "Dinner could not be confirmed.")
 
+    def test_optional_dinner_music_is_reported_as_requested_not_playing(self):
+        step = {"target": "dinner_music", "action": "request_playback", "required": False, "status": "requested"}
+        note = p.dinner_music_feedback([step], visitor_present=False)
+        self.assertIn("requested the music", note)
+        self.assertIn("Spotify", note)
+        self.assertNotIn("is playing", note)
+        self.assertEqual(p.dinner_music_feedback([]), "")
+        self.assertEqual(p.dinner_music_feedback([{**step, "required": True}]), "")
+        failed = p.dinner_music_feedback([{**step, "status": "not_configured"}])
+        self.assertIn("couldn't confirm", failed)
+        self.assertNotIn("requested the music", failed)
+        guest = p.dinner_music_feedback([step], guest=True)
+        self.assertNotIn("bloody", guest)
+
     def test_decoration_is_idempotent_across_categories_and_modes(self):
         home = p.decorate("Lights on.", visitor_present=False)
         self.assertEqual(p.decorate(home, visitor_present=False, category="music"), home)

@@ -60,6 +60,22 @@ _SAFE_OUTCOMES = frozenset({
 })
 
 
+def dinner_music_feedback(steps, *, guest=False, visitor_present=False):
+    """Describe optional handoff evidence without claiming playback started."""
+    music = [step for step in steps if isinstance(step, dict)
+             and step.get("target") == "dinner_music" and step.get("action") == "request_playback"
+             and step.get("required") is False]
+    if not music:
+        return ""
+    status = music[-1].get("status")
+    if status in {"requested", "already_requested"}:
+        prefix = "I've requested the music." if status == "requested" else "The music request is already in progress."
+        if guest or visitor_present is not False:
+            return prefix + " Spotify works on its own timetable and doesn't like to be hurried. Who knows when it'll join the party."
+        return prefix + " Spotify works on its own bloody timetable and doesn't like to be hurried, so God knows when it'll join the party."
+    return "The lights are set, but I couldn't confirm the music request."
+
+
 def response_guest_mode(guest_mode, visitor_present):
     """Keep Guest Mode authority independent of the privacy-preserving persona."""
     return "on" if guest_mode != "off" or visitor_present is not False else "off"

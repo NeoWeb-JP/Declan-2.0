@@ -59,6 +59,7 @@ async def collect_report(hass):
                     gaps.append(f"{entity_id}: {kind} references unavailable")
             state = states.get(entity_id, {})
             routines.append({"entity_id": entity_id, "name": state.get("name"),
+                             "stale": entity is None,
                              "yaml_available": isinstance(raw, Mapping),
                              "state": state.get("state"),
                              "disabled": registered.get(entity_id, {}).get("disabled", False),
