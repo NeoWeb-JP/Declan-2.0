@@ -1535,8 +1535,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       }
       status.textContent = response.key_configured ? 'AI settings loaded. OpenAI API key configured.' : 'AI settings loaded. Configure an OpenAI API key before enabling fallback.';
       this.shadowRoot.querySelector('.ai-usage').textContent = 'Monthly usage information is available in the AI settings response.';
-    } catch {
-      status.textContent = 'Could not load AI settings. Changes are not saved.';
+    } catch (error) {
+      this._aiSettings = null;
+      const detail = error?.message ? ': ' + String(error.message).slice(0, 180) : '';
+      status.textContent = 'Could not load AI settings' + detail + '. Changes are not saved.';
     }
   }
 
