@@ -6,6 +6,24 @@ import personality_policy as p
 
 
 class PersonalityPolicyTests(unittest.TestCase):
+    def test_morning_acknowledgements_are_varied_and_do_not_claim_device_success(self):
+        replies = [p.morning_request_reply(visitor_present=False) for _ in range(4)]
+        self.assertEqual(len(set(replies)), 4)
+        for reply in replies:
+            self.assertTrue(reply.startswith("Good morning. "))
+            self.assertIn(reply.removeprefix("Good morning. "), p._MORNING_HOME)
+            self.assertNotIn("completed", reply)
+            self.assertNotIn("lights are", reply)
+
+    def test_morning_guest_and_unknown_presence_replies_keep_household_details_private(self):
+        for options in ({"guest": True, "visitor_present": False}, {"visitor_present": True},
+                        {"visitor_present": None}):
+            replies = [p.morning_request_reply(**options) for _ in range(4)]
+            self.assertEqual(len(set(replies)), 4)
+            for reply in replies:
+                self.assertIn(reply.removeprefix("Good morning. "), p._MORNING_GUEST)
+                self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
+
     def test_movie_requests_vary_for_each_direction_without_claiming_completion(self):
         for action, prefix in (("start", "Movie setup requested."), ("end", "Movie shutdown requested."),
                                ("toggle", "Movie Time requested.")):

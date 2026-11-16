@@ -5,6 +5,20 @@ import server
 
 
 class RoutineDispatchTests(unittest.TestCase):
+    def test_morning_aliases_and_native_name_use_background_execution(self):
+        script = {"entity_id": "script.declan_good_morning_shared_local_routine",
+                  "name": "Declan - Good Morning - Shared Local Routine", "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "enqueue", return_value=("requested", "started", "job")) as enqueue, \
+             patch.object(server.script_discovery, "execute", side_effect=AssertionError("waited for morning")):
+            for phrase in (*server.GOOD_MORNING_PHRASES, "declan good morning shared local routine"):
+                selection = server.select_routine(phrase, None)
+                self.assertEqual(selection, ("auto:" + script["entity_id"],
+                    {"_declan_background": True, "_declan_reply_category": "morning"}))
+                self.assertEqual(server.execute_routine(selection, [])[1], "started")
+                self.assertEqual(enqueue.call_args.args[2], {})
+
     def test_movie_direction_is_parsed_without_mapping(self):
         self.assertEqual(server.parse_movie_request("end movie time")[0], "end")
         self.assertEqual(server.parse_movie_request("stop cinema mode")[0], "end")

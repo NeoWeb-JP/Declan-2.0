@@ -82,13 +82,15 @@ spoken summary, and explicit script failures or mismatched response IDs are pres
 HA's internal loaded-entity and trace interfaces can vary by release. Missing evidence
 is reported rather than replaced by example YAML or an assumed successful result.
 
-## Movie Time background execution
+## Movie Time and Good Morning background execution
 
-Movie Time now posts to the admin-only `POST /api/declan_two/routine-jobs` endpoint.
+Movie Time and Good Morning post to the admin-only `POST /api/declan_two/routine-jobs` endpoint.
 HA persists the request and schedules a background task before returning HTTP 202.
 Declan acknowledges that receipt immediately with a request-specific line of sass;
 it does not wait for projector startup, screen movement, or final state checks and
-does not claim completion. The existing Movie Time YAML needs no changes.
+does not claim completion. Their existing YAML needs no changes. Good Morning
+returns a varied morning greeting and sass while its light checks run in the
+background. Guest/unknown-visitor replies omit private household details.
 Other routines and status summaries retain their existing execution behavior.
 
 Update both the backend and HA integration, then restart HA to register the endpoint.
@@ -108,3 +110,7 @@ rejected as busy. At most four jobs may be active, and the latest 100 completed
 requests are retained. HA shutdown cancels background tasks; unfinished records
 become unverified/interrupted after restart and are never replayed. Finishing a
 background job never creates a second spoken response.
+
+The static audit still reports templates it cannot evaluate. An `action` label in
+a variables/result payload is data, so it is not classified as a dynamic service.
+Actual service calls and templated values remain subject to dependency inspection.

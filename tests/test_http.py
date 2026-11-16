@@ -76,6 +76,30 @@ class APITests(TestCase):
             self.assertIsNone(READ_VISITORS_PRESENT())
             factory.assert_not_called()
 
+    def test_morning_receipt_returns_morning_sass_on_browser_and_assist(self):
+        selection = (("auto:script.good_morning", {"_declan_background": True,
+                      "_declan_reply_category": "morning"}), None)
+        with patch.object(server, "select_routine_turn", return_value=selection), \
+             patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")), \
+             patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking call")), \
+             patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
+            for path in ("/api/chat", "/api/assist"):
+                reply = self.ask("good morning", path=path)
+                self.assertEqual(reply["outcome"], "started")
+                self.assertTrue(reply["reply"].startswith("Good morning. "))
+                self.assertIn(reply["reply"].removeprefix("Good morning. "), server.personality_policy._MORNING_HOME)
+                self.assertEqual(reply["routine_status"], "Background job j")
+
+    def test_morning_receipt_failure_is_not_replaced_by_cheerful_acknowledgement(self):
+        selection = (("auto:script.good_morning", {"_declan_background": True,
+                      "_declan_reply_category": "morning"}), None)
+        with patch.object(server, "select_routine_turn", return_value=selection), \
+             patch.object(server.script_discovery, "enqueue", return_value=("Request not confirmed.", "unverified", None)), \
+             patch.object(server.personality_policy, "morning_request_reply", side_effect=AssertionError("false acknowledgement")):
+            reply = self.ask("good morning")
+            self.assertEqual(reply["outcome"], "unverified")
+            self.assertEqual(reply["reply"], "Request not confirmed.")
+
     def test_home_assistant_ingress_enforces_both_boundaries(self):
         token = "x" * 64
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_INGRESS_TOKEN": token}))

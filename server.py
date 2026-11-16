@@ -354,6 +354,8 @@ def select_routine(phrase, origin):
                 if "requested_action" in item.get("fields", []):
                     parameters["requested_action"] = movie[0]
                 parameters["_declan_background"] = True
+            elif phrase in GOOD_MORNING_PHRASES or "good morning" in script_discovery.phrases(item):
+                parameters = {"_declan_background": True, "_declan_reply_category": "morning"}
             elif phrase in SEXY_TIME_COMMANDS:
                 parameters = {"operation": SEXY_TIME_COMMANDS[phrase]}
             if is_house_status:
@@ -2766,9 +2768,13 @@ class Handler(BaseHTTPRequestHandler):
                         reply["reply"] += " " + music_note
             if (outcome == "started" and routine_turn and not routine_turn[1]
                     and routine_turn[0][1].get("_declan_background")):
-                reply["reply"] = personality_policy.movie_request_reply(
-                    routine_turn[0][1].get("requested_action", routine_turn[0][1].get("operation", "toggle")),
-                    guest=guest_mode != "off", visitor_present=visitor_present)
+                if routine_turn[0][1].get("_declan_reply_category") == "morning":
+                    reply["reply"] = personality_policy.morning_request_reply(
+                        guest=guest_mode != "off", visitor_present=visitor_present)
+                else:
+                    reply["reply"] = personality_policy.movie_request_reply(
+                        routine_turn[0][1].get("requested_action", routine_turn[0][1].get("operation", "toggle")),
+                        guest=guest_mode != "off", visitor_present=visitor_present)
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:
