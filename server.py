@@ -303,89 +303,41 @@ HOUSE_STATUS_REQUESTS = {
 }
 
 
-def house_status_routine(phrase):
-    """Only resolve household status through an explicitly configured script."""
-    if phrase not in HOUSE_STATUS_REQUESTS:
-        return None
-    mappings = routine_registry.load()
-    for name, item in mappings.items():
-        if name in {"house_status", "home_status"} or any(
-            template in {"house status", "home status"} for template in item["phrases"]
-        ):
-            return "custom:" + name, {}
-    # Let safe automatic discovery resolve an unmapped House Status script.
-    return None
-
-
 def select_routine(phrase, origin):
+    """Resolve routines exclusively from the current Home Assistant inventory."""
     phrase = phrase.removeprefix("run ").removeprefix("the ")
-    try:
-        house_status = house_status_routine(phrase)
-        if house_status:
-            return house_status
-        mapped_phrase = routine_registry.match(phrase)
-    except (OSError, ValueError, sqlite3.Error):
-        mapped_phrase = None
-    # Movie direction must be parsed before a saved generic "movie time"
-    # mapping can swallow "end movie time" or "stop cinema time".
-    movie_request = parse_movie_request(phrase)
-    if movie_request and movie_request[0] == "end":
-        mapped_phrase = None
-    if mapped_phrase:
-        key = mapped_phrase[0]
-        if key in {"morning", "night"}:
-            return key, {}
-        if key in {"movie", "movie_bedroom"}:
-            return "movie", {"movie_action": "start", "movie_room": "bedroom" if key == "movie_bedroom" else "lounge", "requested_app": None}
-        return "custom:" + key, mapped_phrase[2] if len(mapped_phrase) > 2 else {}
-    if phrase in GOOD_MORNING_PHRASES:
-        return "morning", {}
-    if phrase in GOOD_NIGHT_PHRASES:
-        return "night", {}
-    movie = parse_movie_request(phrase)
-    if not movie:
-        custom = routine_registry.match(phrase)
-        if custom:
-            return "custom:" + custom[0], custom[2] if len(custom) > 2 else {}
-        # Existing mappings always take precedence. Unknown or uninspectable
-        # scripts are never executed by the automatic discovery path.
-        # Dinner has its own validated dispatcher and must not make an
-        # additional discovery request (which can consume a shared HA response).
-        if phrase in DINNER_PHRASES or phrase in {"it's dinner time", "it’s dinner time"}:
-            return None
-        if 1 <= len(phrase.split()) <= 12:
-            connection = ha_device_connection()
-            if connection:
-                scripts, error = script_discovery.discover(connection)
-                if error is None:
-                    found = script_discovery.match(phrase, scripts)
-                    # Spoken questions such as "what is the status of the
-                    # house" name the House Status routine, not a device.
-                    if not found and phrase in HOUSE_STATUS_REQUESTS:
-                        found = script_discovery.match("house status", scripts)
-                    if found:
-                        kind, item = found
-                        if kind == "ambiguous":
-                            return "auto_ambiguous", {}
-                        return "auto:" + item["entity_id"], {}
-        if phrase in HOUSE_STATUS_REQUESTS:
-            return "unconfigured_house_status", {}
+    if not 1 <= len(phrase.split()) <= 20:
         return None
-    direction, room, app = movie
-    if room in (None, "here"):
-        area = None
-        if origin and (connection := ha_device_connection()):
-            areas = read_ha_areas(connection, origin)
-            area = next(iter(areas), None)
-        if area in ("lounge", "living room", "bedroom", "master bedroom"):
-            room = area
-        elif room == "here" or origin and not area:
-            return "movie", None
-    return "movie", {
-        "movie_action": direction,
-        "movie_room": "bedroom" if room in ("bedroom", "master bedroom") else "lounge",
-        "requested_app": app,
-    }
+    connection = ha_device_connection()
+    if not connection:
+        return None
+    scripts, error = script_discovery.discover(connection)
+    if error:
+        return None
+    candidates = [phrase]
+    if phrase in HOUSE_STATUS_REQUESTS:
+        candidates.append("house status")
+    if phrase in GOOD_MORNING_PHRASES:
+        candidates.append("good morning")
+    if phrase in GOOD_NIGHT_PHRASES:
+        candidates.append("good night")
+    if phrase in DINNER_PHRASES:
+        candidates.extend(("dinner is served", "dinner"))
+    if phrase in SEXY_TIME_COMMANDS:
+        candidates.append("sexy time")
+    movie = parse_movie_request(phrase)
+    if movie:
+        candidates.append("movie time in the bedroom" if movie[1] in ("bedroom", "master bedroom") else "movie time")
+    for candidate in dict.fromkeys(candidates):
+        found = script_discovery.match(candidate, scripts)
+        if found:
+            kind, item = found
+            if kind == "ambiguous":
+                return "auto_ambiguous", {}
+            return "auto:" + item["entity_id"], {}
+    if phrase in HOUSE_STATUS_REQUESTS:
+        return "unconfigured_house_status", {}
+    return None
 
 
 def select_routine_turn(phrase, origin):
@@ -406,7 +358,7 @@ def execute_routine(selection, action_results, *, approved=False):
     if period.startswith("auto:"):
         return script_discovery.execute(ha_device_connection(), {"entity_id": period[5:]})
     if period == "unconfigured_house_status":
-        return "Map your House Status script in Declan Settings under Home Assistant routines.", "not_configured", None
+        return "I could not find a House Status script in Home Assistant.", "not_configured", None
     if period.startswith("custom:"):
         return run_custom_routine(period[7:], action_results, approved=approved, parameters=options)
     if options is None:
@@ -2571,8 +2523,8 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome, routine_status = stop_pending_routines()
         elif phrase == "stop":
             routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
-        elif phrase.replace("’", "'") in DINNER_PHRASES:
-            routine_reply, outcome = start_dinner(ha_device_connection(), approved=routine_approved)
+        elif phrase.replace("’", "'") in DINNER_PHRASES and not select_routine(phrase, origin_device or satellite):
+            routine_reply, outcome = ("I could not find a Dinner script in Home Assistant.", "not_configured")
         elif (roast_target := roast.target(phrase)) is not None:
             roast_guest_mode = personality_policy.response_guest_mode(
                 read_guest_mode(), read_visitors_present()
@@ -2580,8 +2532,8 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = roast.respond(
                 roast_target, guest=roast_guest_mode != "off"
             ), "confirmed"
-        elif phrase in SEXY_TIME_COMMANDS:
-            routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection(), approved=routine_approved)
+        elif phrase in SEXY_TIME_COMMANDS and not select_routine(phrase, origin_device or satellite):
+            routine_reply, outcome = "I could not find a Sexy Time script in Home Assistant.", "not_configured"
         elif phrase in GUEST_COMMANDS:
             routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
         elif guest_names := re.fullmatch(
