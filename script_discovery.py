@@ -29,6 +29,8 @@ def discover(connection, *, fresh=False):
     if connection is None:
         return [], "not_connected"
     url, headers, opener = connection
+    if opener is None or not hasattr(opener, "open"):
+        return [], "inspection_unavailable"
     if not fresh:
         with _CACHE_LOCK:
             cached = _CACHE.get(url)
