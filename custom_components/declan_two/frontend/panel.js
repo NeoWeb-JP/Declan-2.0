@@ -658,6 +658,28 @@ class DeclanTwoNativePanel extends HTMLElement {
     } finally { this.responseBusy(false); }
   }
 
+  parseResponseBatch(text, existing) {
+    if (text.length > 120000) throw new Error('The pasted list is too large.');
+    let source = text.trim();
+    // Also accept the quoted, comma-separated brace list used in the UI example.
+    if (source.startsWith('{') && source.endsWith('}')) source = '[' + source.slice(1, -1) + ']';
+    let values;
+    try { values = JSON.parse(source); }
+    catch { throw new Error('Paste a JSON list such as ["Response one", "Response two"].'); }
+    if (!Array.isArray(values) || !values.length || values.length > 100) throw new Error('Paste a list of 1 to 100 responses.');
+    if (values.some(line => typeof line !== 'string' || !line.trim() || line.trim().length > 1000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(line))) {
+      throw new Error('Each response must be text containing 1 to 1000 characters.');
+    }
+    const seen = new Set(existing.map(line => line.trim()));
+    const added = [];
+    for (const value of values) {
+      const line = value.trim();
+      if (!seen.has(line)) { added.push(line); seen.add(line); }
+    }
+    if (existing.length + added.length > 100) throw new Error('This list can hold at most 100 responses. Nothing was added.');
+    return {added, skipped: values.length - added.length};
+  }
+
   renderResponseEditor() {
     const host = this.shadowRoot.querySelector('.responses-editor');
     host.replaceChildren();
@@ -700,7 +722,27 @@ class DeclanTwoNativePanel extends HTMLElement {
           add.addEventListener('click', () => { lines.push(''); this.responseChanged(); render(); [...rows.querySelectorAll('textarea')].at(-1)?.focus(); });
           rows.append(add);
         };
-        filter.addEventListener('change', render); render(); section.append(tone);
+        const bulk = document.createElement('details'); bulk.className = 'card';
+        const bulkHeading = document.createElement('summary'); bulkHeading.textContent = 'Add responses in bulk'; bulk.append(bulkHeading);
+        const bulkHelp = document.createElement('p'); bulkHelp.className = 'muted';
+        bulkHelp.textContent = 'Paste a JSON list to add responses to the action selected above. Existing responses stay in place and duplicates are skipped. Review the individual responses, then save.'; bulk.append(bulkHelp);
+        const bulkInput = document.createElement('textarea'); bulkInput.className = 'responses-bulk-input'; bulkInput.rows = 6; bulkInput.maxLength = 120000;
+        bulkInput.placeholder = '["Response one", "Response two"]';
+        bulkInput.setAttribute('aria-label', `${title}, ${label} bulk responses`);
+        bulkInput.style.cssText = 'width:100%;padding:10px;background:#102635;color:#e7f7ff;border:1px solid #315568;border-radius:9px;font:inherit;resize:vertical';
+        const importButton = document.createElement('button'); importButton.type = 'button'; importButton.className = 'responses-import'; importButton.textContent = 'Add pasted responses';
+        const bulkStatus = document.createElement('p'); bulkStatus.className = 'responses-import-status muted'; bulkStatus.setAttribute('role', 'status'); bulkStatus.setAttribute('aria-live', 'polite');
+        importButton.addEventListener('click', () => {
+          try {
+            const lines = profile[phase][mode][filter.value];
+            const {added, skipped} = this.parseResponseBatch(bulkInput.value, lines);
+            if (added.length) { lines.push(...added); this.responseChanged(); render(); }
+            bulkInput.value = '';
+            bulkStatus.textContent = `${added.length} responses added to ${filter.value}. ${skipped} duplicates skipped. Review the list, then save responses.`;
+          } catch (error) { bulkStatus.textContent = error.message; }
+        });
+        bulk.append(bulkInput, importButton, bulkStatus); tone.append(bulk);
+        filter.addEventListener('change', () => { bulkStatus.textContent = ''; render(); }); render(); section.append(tone);
       }
       host.append(section);
     }
@@ -2509,4 +2551,5 @@ class DeclanTwoNativePanel extends HTMLElement {
 if (!customElements.get('declan-two-native-panel')) {
   customElements.define('declan-two-native-panel', DeclanTwoNativePanel);
 }
+
 
