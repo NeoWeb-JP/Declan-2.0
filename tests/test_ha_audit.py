@@ -348,6 +348,77 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(options["status"], 409)
         self.assertEqual(rejected["error"], "routine_changed")
 
+    def review_fixture(self, *, recovered=False, failure=None, changed=None):
+        ids = ["script.movie", "script.morning", "script.night"]
+        return audit.build_report(
+            {"light.fixture": {"state": "on" if recovered else "unavailable"}}, {}, set(), set(), {"light.turn_on"},
+            [{"entity_id": entity_id, "config": {"description": "changed" if changed == entity_id else "same",
+                "action": "light.turn_on", "entity_id": "light.fixture"},
+              "background_result": {"job_id": "new-failure" if failure == entity_id else "old-" + entity_id,
+                  "outcome": "partial" if not recovered or failure == entity_id else "reported_success"}}
+             for entity_id in ids],
+            {entity_id: [{"run_id": "old-failure", "error": "hidden"}] if not recovered else
+             [{"run_id": "new-success", "script_execution": "finished"}] for entity_id in ids})
+
+    async def test_reviewing_three_routines_merges_and_survives_reload_and_recovery(self):
+        report = self.review_fixture()
+        for row in report["routines"]:
+            with patch.object(self.view, "collect_report", return_value=copy.deepcopy(report)):
+                await self.view.DeclanAuditReviewView().post(self.review_request({"entity_id": row["entity_id"],
+                    "fingerprint": row["fingerprint"], "reviewed": True}))
+        self.hass.data.pop("declan_two_audit_reviews")
+        await reviews.apply_reviews(self.hass, report)
+        self.assertTrue(all(row["reviewed"] for row in report["routines"]))
+        recovered = self.review_fixture(recovered=True)
+        await reviews.apply_reviews(self.hass, recovered)
+        self.assertTrue(all(row["reviewed"] for row in recovered["routines"]))
+        new_issue = self.review_fixture(recovered=True, failure="script.morning", changed="script.night")
+        await reviews.apply_reviews(self.hass, new_issue)
+        flags = {row["entity_id"]: row["reviewed"] for row in new_issue["routines"]}
+        self.assertEqual(flags, {"script.movie": True, "script.morning": False, "script.night": False})
+        row = report["routines"][-1]
+        with patch.object(self.view, "collect_report", return_value=copy.deepcopy(report)):
+            await self.view.DeclanAuditReviewView().post(self.review_request({"entity_id": row["entity_id"],
+                "fingerprint": row["fingerprint"], "reviewed": False}))
+        self.hass.data.pop("declan_two_audit_reviews")
+        await reviews.apply_reviews(self.hass, report)
+        self.assertEqual(sum(row["reviewed"] for row in report["routines"]), 2)
+
+    async def test_concurrent_review_saves_preserve_each_routine(self):
+        report = self.review_fixture()
+        state = await reviews.review_state(self.hass)
+        original = state["store"].async_save
+        async def slow_save(records):
+            await asyncio.sleep(0)
+            await original(records)
+        with patch.object(self.view, "collect_report", return_value=copy.deepcopy(report)), \
+             patch.object(state["store"], "async_save", slow_save):
+            await asyncio.gather(*(self.view.DeclanAuditReviewView().post(self.review_request({
+                "entity_id": row["entity_id"], "fingerprint": row["fingerprint"], "reviewed": True}))
+                for row in report["routines"]))
+        self.hass.data.pop("declan_two_audit_reviews")
+        await reviews.apply_reviews(self.hass, report)
+        self.assertEqual(report["summary"]["reviewed"], 3)
+
+    async def test_legacy_review_records_keep_exact_fingerprint_compatibility(self):
+        report = self.review_fixture()
+        row = report["routines"][0]
+        state = await reviews.review_state(self.hass)
+        state["records"][row["entity_id"]] = {"fingerprint": row["fingerprint"], "reviewed_at": "old"}
+        await reviews.apply_reviews(self.hass, report)
+        self.assertTrue(row["reviewed"])
+        self.assertEqual(row["reviewed_at"], "old")
+        target = report["routines"][-1]
+        with patch.object(self.view, "collect_report", return_value=copy.deepcopy(report)):
+            await self.view.DeclanAuditReviewView().post(self.review_request({"entity_id": target["entity_id"],
+                "fingerprint": target["fingerprint"], "reviewed": True}))
+        self.hass.data.pop("declan_two_audit_reviews")
+        recovered = self.review_fixture(recovered=True)
+        await reviews.apply_reviews(self.hass, recovered)
+        old = next(item for item in recovered["routines"] if item["entity_id"] == row["entity_id"])
+        self.assertTrue(old["reviewed"])
+        self.assertEqual(old["reviewed_at"], "old")
+
     async def test_review_can_be_undone_and_needs_admin(self):
         report = await self.view.collect_report(self.hass)
         row = report["routines"][0]

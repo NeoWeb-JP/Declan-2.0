@@ -162,8 +162,17 @@ class DeclanAuditReviewView(HomeAssistantView):
         reviewed_at = datetime.now(timezone.utc).isoformat() if body["reviewed"] else None
         async with state["lock"]:
             records = dict(state["records"])
+            # Upgrade still-valid legacy flags while saving, preserving their
+            # assessment dates and never accepting an already-stale fingerprint.
+            for row in report["routines"]:
+                previous = records.get(row["entity_id"])
+                if (isinstance(previous, dict) and "review_source" not in previous
+                        and previous.get("fingerprint") == row["fingerprint"]):
+                    records[row["entity_id"]] = {**previous, "review_source": row["review_source"],
+                                                "review_issues": row["review_issues"]}
             if body["reviewed"]:
-                records[body["entity_id"]] = {"fingerprint": body["fingerprint"], "reviewed_at": reviewed_at}
+                records[body["entity_id"]] = {"fingerprint": body["fingerprint"], "reviewed_at": reviewed_at,
+                    "review_source": routine["review_source"], "review_issues": routine["review_issues"]}
             else:
                 records.pop(body["entity_id"], None)
             try:

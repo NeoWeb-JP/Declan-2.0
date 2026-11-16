@@ -291,10 +291,12 @@ class DeclanTwoNativePanel extends HTMLElement {
           <h2>Home Assistant Audit</h2>
           <p class="muted">Read-only snapshot of loaded scripts, automations and entities. No routines are run or changed. Finished traces do not verify device success. Retained traces may describe older configuration.</p>
           <button type="button" class="audit-refresh">Refresh audit</button>
-          <div class="audit-toolbar"><label>Show <select class="audit-review-filter"><option value="unreviewed">Unreviewed routines</option><option value="all">All routines</option><option value="reviewed">Reviewed and fixed</option></select></label>
+          <div class="audit-toolbar"><label>Show <select class="audit-review-filter"><option value="unreviewed">Unreviewed routines</option><option value="all">All routines</option><option value="reviewed">Reviewed</option></select></label>
           <label class="audit-stale-label"><input type="checkbox" class="audit-show-stale"> Show stale entity records</label></div>
           <p class="audit-status" role="status" aria-live="polite">Open this page to inspect Home Assistant.</p>
           <label>Search names, entities or findings <input class="audit-search" type="search" style="width:100%;padding:10px;margin:10px 0;background:#102635;color:#e7f7ff;border:1px solid #315568;border-radius:9px"></label>
+          <button type="button" class="audit-search-clear" hidden>Clear search</button>
+          <p class="audit-filter-status" aria-live="polite"></p>
           <div class="audit-results"></div>
         </section>
         <section class="card panel" id="panel-players" role="region" aria-label="Declan page" hidden>
@@ -496,6 +498,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.history-refresh', 'click', () => this.loadHistory());
       this.bindPanelEvent('.audit-refresh', 'click', () => this.loadHAAudit());
       this.bindPanelEvent('.audit-search', 'input', () => this.renderHAAudit());
+      this.bindPanelEvent('.audit-search-clear', 'click', () => {
+        this.shadowRoot.querySelector('.audit-search').value = '';
+        this.renderHAAudit();
+      });
       this.bindPanelEvent('.audit-review-filter', 'change', () => this.renderHAAudit());
       this.bindPanelEvent('.audit-show-stale', 'change', () => this.renderHAAudit());
       this.bindPanelEvent('.history-more', 'click', () => this.loadHistory(this._historyCursor));
@@ -613,6 +619,12 @@ class DeclanTwoNativePanel extends HTMLElement {
     const query = this.shadowRoot.querySelector('.audit-search').value.trim().toLowerCase();
     const reviewFilter = this.shadowRoot.querySelector('.audit-review-filter').value;
     const showStale = this.shadowRoot.querySelector('.audit-show-stale').checked;
+    const routines = report.routines.filter(item => showStale || !item.stale);
+    const reviewed = routines.filter(item => item.reviewed).length;
+    this.shadowRoot.querySelector('.audit-filter-status').textContent =
+      `${reviewed} reviewed, ${routines.length - reviewed} unreviewed routines.` +
+      (query ? ' Search is active and hides non-matching routines. Clear search to see the full list.' : '');
+    this.shadowRoot.querySelector('.audit-search-clear').hidden = !query;
     const matches = item => JSON.stringify(item).toLowerCase().includes(query);
     const addText = (parent, tag, text) => {
       const element = document.createElement(tag);
@@ -631,13 +643,13 @@ class DeclanTwoNativePanel extends HTMLElement {
         details.className = 'timeline-subsection';
         const findings = item.findings || [];
         const count = findings.length ? ` · ${findings.length} findings` : item.findings ? ' · No static issues found; device success unverified' : '';
-        addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}${item.findings ? item.reviewed ? ' · Reviewed and fixed' : ' · Unreviewed' : ''}`);
+        addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}${item.findings ? item.reviewed ? ' · Reviewed' : ' · Unreviewed' : ''}`);
         if (item.findings) {
           if (item.stale) addText(details, 'p', 'Stale entity record: Home Assistant has no loaded routine definition for this entity.');
           const actions = document.createElement('div');
           actions.className = 'audit-routine-actions';
           details.append(actions);
-          const label = addText(actions, 'label', 'Reviewed and fixed');
+          const label = addText(actions, 'label', 'Reviewed');
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
           checkbox.checked = item.reviewed === true;
@@ -657,7 +669,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             edit.title = 'Open the Home Assistant editor. Choose the three-dot menu, then Edit in YAML.';
             edit.addEventListener('click', () => this.openAuditEditor(item));
           }
-          if (item.reviewed) addText(details, 'p', `Reviewed and fixed · ${item.reviewed_at || ''}`);
+          if (item.reviewed) addText(details, 'p', `Reviewed · ${item.reviewed_at || ''}`);
         }
         for (const finding of findings) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
         if (item.background_result) {
@@ -719,7 +731,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       item.reviewed = saved.reviewed;
       item.reviewed_at = saved.reviewed_at;
       this.renderHAAudit();
-      status.textContent = desired ? 'Marked reviewed and fixed. Hidden from Unreviewed routines.' : 'Marked unreviewed.';
+      status.textContent = desired ? 'Marked reviewed. Hidden from Unreviewed routines.' : 'Marked unreviewed.';
     } catch (error) {
       checkbox.checked = item.reviewed === true;
       checkbox.disabled = false;

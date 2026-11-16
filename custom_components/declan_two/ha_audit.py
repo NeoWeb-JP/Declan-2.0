@@ -47,6 +47,20 @@ def trace_steps(trace):
     return steps
 
 
+def review_evidence(routine, findings, execution):
+    """Separate unchanged source from issues a human has already assessed."""
+    source = review_fingerprint({**routine, "background_result": None}, [], [])
+    issues = [["finding", row["severity"], row["code"], row["path"]]
+              for row in findings if row["path"] != "execution"]
+    issues.extend(["trace", row["run_id"], row["status"]] for row in execution
+                  if row["status"] in {"failed", "partial"})
+    background = routine.get("background_result") or {}
+    if background.get("outcome") in {"failed", "partial", "unverified", "cancelled"}:
+        issues.append(["background", background.get("job_id"), background["outcome"]])
+    return source, sorted({hashlib.sha256(json.dumps(issue, sort_keys=True).encode()).hexdigest()
+                           for issue in issues})
+
+
 def build_report(states, registry, devices, areas, services, routines, traces, gaps=()):
     """Analyze a fresh snapshot; inputs are not modified or persisted."""
     known = set(states) | set(registry)
@@ -170,7 +184,9 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
         elif any(row["status"] in {"failed", "partial"} for row in execution):
             finding("error", "execution_failed", "execution",
                     "Open the corresponding run in Home Assistant Traces to inspect the failing action.")
+        review_source, review_issues = review_evidence(routine, findings, execution)
         items.append({"entity_id": entity_id, "name": routine.get("name") or entity_id,
+                      "review_source": review_source, "review_issues": review_issues,
                       "background_result": routine.get("background_result"),
                       "editor_path": routine.get("editor_path"),
                       "stale": bool(routine.get("stale")),

@@ -122,7 +122,7 @@ test('reviewed routines disappear from Unreviewed and can be reopened from Revie
   assert.equal(calls[1][2].fingerprint,'a'.repeat(64));
   root.querySelector('.audit-review-filter').value = 'reviewed';
   element.renderHAAudit();
-  assert.match(root.querySelector('.audit-results').textContent,/Reviewed and fixed/);
+  assert.match(root.querySelector('.audit-results').textContent,/Reviewed/);
   const undo = root.querySelector('.audit-results input[type="checkbox"]');
   undo.checked = false;
   await element.setAuditReviewed(item,undo);
@@ -141,6 +141,35 @@ test('failed or stale review save preserves the prior review flag', async t => {
   assert.equal(checkbox.checked,false);
   assert.equal(checkbox.disabled,false);
   assert.match(root.querySelector('.audit-status').textContent,/routine changed/);
+});
+
+test('reviewing a searched routine retains other reviews and clearing search reveals them', async t => {
+  const data = report();
+  data.routines = ['Movie Time','Good Morning','Good Night'].map((name,index) => ({...data.routines[0],
+    name,entity_id:'script.routine_' + index,reviewed:index < 2,reviewed_at:index < 2 ? 'earlier' : null}));
+  const {element,root} = panel(t,data);
+  await element.loadHAAudit();
+  root.querySelector('.audit-search').value = 'good night';
+  element.renderHAAudit();
+  element._hass.callApi = async (method,path,body) => ({...body,reviewed_at:'now'});
+  const checkbox = root.querySelector('.audit-results input[type="checkbox"]');
+  checkbox.checked = true;
+  await element.setAuditReviewed(data.routines[2],checkbox);
+  root.querySelector('.audit-review-filter').value = 'reviewed';
+  element.renderHAAudit();
+  assert.ok(data.routines.every(item => item.reviewed));
+  assert.match(root.querySelector('.audit-filter-status').textContent,/3 reviewed, 0 unreviewed/);
+  assert.match(root.querySelector('.audit-filter-status').textContent,/Search is active/);
+  assert.match(root.querySelector('.audit-results').textContent,/Scripts & automations \(1\)/);
+  root.querySelector('.audit-search-clear').click();
+  assert.equal(root.querySelector('.audit-search').value,'');
+  assert.match(root.querySelector('.audit-results').textContent,/Scripts & automations \(3\)/);
+  assert.equal(root.querySelector('.audit-search-clear').hidden,true);
+  assert.doesNotMatch(root.querySelector('#panel-audit').textContent,/Reviewed and fixed/);
+  assert.equal(root.querySelector('.audit-review-filter option[value="reviewed"]').textContent,'Reviewed');
+  element._hass.callApi = async () => data;
+  await element.loadHAAudit();
+  assert.match(root.querySelector('.audit-results').textContent,/Scripts & automations \(3\)/);
 });
 
 test('connection card automatically checks backend releases and opens the Updates page', async t => {
