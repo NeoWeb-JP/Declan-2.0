@@ -75,3 +75,17 @@ test('duplicate refreshes are coalesced and navigation selects the audit page', 
   assert.equal(root.querySelector('#panel-overview').hidden,true);
   assert.equal(calls.length,0);
 });
+
+test('audit failures distinguish missing route, permissions, collector errors and connectivity', async t => {
+  const {element,root} = panel(t, report());
+  for (const [code, message] of [[401,/session has expired/], [403,/administrator access is required/],
+    [404,/Restart Home Assistant/], [503,/audit collector failed/], [500,/Check its logs/], [0,/connection and retry/]]) {
+    element._hass.callApi = async () => {throw {status_code:code, message:'private-token-do-not-display'};};
+    await element.loadHAAudit();
+    assert.match(root.querySelector('.audit-status').textContent, message);
+    assert.doesNotMatch(root.querySelector('.audit-status').textContent,/private-token/);
+    if (code) assert.match(root.querySelector('.audit-status').textContent,new RegExp('HTTP ' + code));
+    assert.equal(element._auditReport,null);
+    assert.equal(root.querySelector('.audit-refresh').disabled,false);
+  }
+});
