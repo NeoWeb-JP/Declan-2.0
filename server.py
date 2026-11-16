@@ -130,6 +130,13 @@ GUEST_COMMANDS = {
     "who is looking after the house": "check",
     "the guests have left": "clear",
     "our guests have left": "clear",
+    "all guests have left": "clear",
+    "all guest have left": "clear",
+    "the guest has left": "clear",
+    "our guest has left": "clear",
+    "guests have left": "clear",
+    "guest has left": "clear",
+    "everyone has left": "clear",
     "clear the guests in charge": "clear",
 }
 UNMATCHED_REPLY = "I didn't catch what you wanted me to do. Could you say it another way?"

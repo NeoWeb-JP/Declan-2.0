@@ -18,6 +18,15 @@ class RoutineDispatchTests(unittest.TestCase):
     def test_guest_read_phrases_exist(self):
         self.assertEqual(server.GUEST_COMMANDS["who's in charge"], "check")
 
+    def test_guest_departure_variants_clear_guest_mode(self):
+        for phrase in (
+            "all guests have left", "all guest have left",
+            "the guest has left", "our guest has left",
+            "guests have left", "guest has left", "everyone has left",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertEqual(server.GUEST_COMMANDS[phrase], "clear")
+
 
 if __name__ == "__main__":
     unittest.main()
