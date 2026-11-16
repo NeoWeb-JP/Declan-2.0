@@ -28,6 +28,13 @@ def phrases(item):
             result.add(name[len(prefix):])
         if entity.startswith(prefix):
             result.add(entity[len(prefix):])
+    # A Home Assistant script may have a descriptive implementation suffix,
+    # e.g. "Declan - Good Morning - Shared Local Routine". Resolve the short
+    # spoken name to the real registered script rather than an obsolete alias.
+    for alias in tuple(result):
+        for suffix in (" shared local routine", " local routine"):
+            if alias.endswith(suffix):
+                result.add(alias.removesuffix(suffix))
     # "Declan - Sexy Time Controller" should respond to "sexy time".
     for alias in tuple(result):
         if alias.endswith(" controller"):
