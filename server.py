@@ -29,6 +29,8 @@ import sensitive_confirmations
 import diagnostics
 import declan_logs
 import configuration
+DECLAN_EVENT_LOG = logging.getLogger("declan.server")
+DECLAN_EVENT_LOG.setLevel(logging.INFO)
 import voice_profiles
 import voicepipeline
 import device_status
@@ -1804,6 +1806,16 @@ class Handler(BaseHTTPRequestHandler):
             if trace['outcome'] == 'unknown':
                 trace['outcome'] = 'failed' if status >= 400 else 'completed'
             diagnostics.persist(trace)
+        # Record useful request outcomes without logging request bodies,
+        # tokens, query strings or routine transcripts.
+        route = urlsplit(self.path).path
+        if status >= 400:
+            DECLAN_EVENT_LOG.warning("HTTP %d %s %s", status, self.command, route)
+        elif self.command == "POST" and route in {
+            "/api/assist", "/api/chat", "/api/settings/music-playlists",
+            "/api/settings/media-players", "/api/updates/install"
+        }:
+            DECLAN_EVENT_LOG.info("HTTP %d POST %s", status, route)
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
@@ -2775,10 +2787,12 @@ def main():
                 if json.load(response) != {"status": "ok"}:
                     raise ValueError("Unexpected health response.")
             print(f"Declan 2.0 is ready at {url}/", flush=True)
+            DECLAN_EVENT_LOG.info("Declan backend started and health check passed (port %d)", server.server_port)
             while worker.is_alive():
                 worker.join(timeout=0.5)
                 if updates.RESTART.is_set():
                     print("Restarting Declan to activate the selected release.", flush=True)
+                    DECLAN_EVENT_LOG.info("Restarting Declan to activate selected release")
                     raise SystemExit(75)
                 try:
                     timers.ring_due(opener)
