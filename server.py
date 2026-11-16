@@ -54,6 +54,7 @@ import routine_registry
 import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
+import routine_responses
 import roast
 import personality_policy
 
@@ -1965,7 +1966,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         native_settings_auth = (
             self.path in {"/api/native/settings-status", "/api/native/settings-export",
-                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/logs", "/api/native/intents", "/api/native/routines"}
+                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/logs", "/api/native/intents", "/api/native/routines", "/api/native/routine-responses"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
@@ -2015,6 +2016,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"document": document})
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings document unavailable."})
+        elif self.path == "/api/native/routine-responses":
+            scripts, error = script_discovery.discover(ha_device_connection(), fresh=True)
+            if error:
+                self.send_json(503, {"error": "Home Assistant routines unavailable. Try again."})
+            else:
+                self.send_json(200, {"routines": [{"entity_id": row["entity_id"], "name": row["name"]} for row in scripts]})
         elif self.path == "/api/native/routines":
             self.send_json(410, {"error": "Routine mappings are retired. Home Assistant scripts are the source of truth."})
         elif self.path == "/api/native/intents":
@@ -2183,7 +2190,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json(401, {"error": "Invalid bridge credentials."})
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines"}:
+        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines", "/api/native/routine-responses"}:
             self.send_json(404, {"error": "Not found."})
             return
         elif not (
@@ -2236,7 +2243,7 @@ class Handler(BaseHTTPRequestHandler):
                 f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
             )
         ) and not (
-            self.path in {"/api/native/intents", "/api/native/routines"}
+            self.path in {"/api/native/intents", "/api/native/routines", "/api/native/routine-responses"}
             and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
             and secrets.compare_digest(
                 self.headers.get("Authorization", "").encode(),
@@ -2265,7 +2272,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            max_size = 450000 if self.path == "/api/voice-profiles" else 196608 if self.path == "/api/settings/import" else 65536 if self.path in {"/api/assist/history", "/api/assist", "/api/chat"} else 8192
+            max_size = 131072 if self.path == "/api/native/routine-responses" else 450000 if self.path == "/api/voice-profiles" else 196608 if self.path == "/api/settings/import" else 65536 if self.path in {"/api/assist/history", "/api/assist", "/api/chat"} else 8192
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
@@ -2357,6 +2364,28 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {'error': str(error)})
                 except (OSError, sqlite3.Error):
                     self.send_json(503, {'error': 'Settings could not be imported.'})
+                return
+            if self.path == "/api/native/routine-responses":
+                try:
+                    if not isinstance(body, dict) or set(body) not in ({"entity_id"}, {"entity_id", "profile", "expected"}):
+                        raise ValueError("Invalid response change")
+                    entity = body.get("entity_id")
+                    if not isinstance(entity, str) or not routine_responses.ENTITY.fullmatch(entity):
+                        raise ValueError("Select a routine")
+                    scripts, error = script_discovery.discover(ha_device_connection(), fresh=True)
+                    if error:
+                        self.send_json(503, {"error": "Home Assistant routines unavailable. Try again."})
+                        return
+                    item = next((row for row in scripts if row['entity_id'] == entity), None)
+                    if item is None:
+                        raise ValueError("That routine is no longer available. Reload routines.")
+                    result = (routine_responses.save(item, body['profile'], body['expected'])
+                              if 'profile' in body else routine_responses.snapshot(item))
+                    self.send_json(200, result)
+                except ValueError as error:
+                    self.send_json(400, {"error": str(error)})
+                except (OSError, sqlite3.Error):
+                    self.send_json(503, {"error": "Routine responses unavailable."})
                 return
             if self.path == "/api/native/routines":
                 self.send_json(410, {"error": "Routine mappings are retired. Manage scripts in Home Assistant."})
@@ -2577,6 +2606,7 @@ class Handler(BaseHTTPRequestHandler):
             device=origin_device, browser=source != "assist",
         )
         routine_turn = None
+        routine_voice_result = None
         if routine_preview:
             routine_reply, outcome = routine_preview
         elif timer_result:
@@ -2607,6 +2637,7 @@ class Handler(BaseHTTPRequestHandler):
             routine, follow_on = routine_turn
             routine_reply, outcome, routine_status = execute_routine(routine, action_results)
             if follow_on:
+                routine_voice_result = (routine_reply, outcome)
                 light_steps = []
                 if follow_on.startswith("play "):
                     command = music.parse(follow_on)
@@ -2790,6 +2821,27 @@ class Handler(BaseHTTPRequestHandler):
                     reply["reply"] = personality_policy.movie_request_reply(
                         routine_turn[0][1].get("requested_action", routine_turn[0][1].get("operation", "toggle")),
                         guest=guest_mode != "off", visitor_present=visitor_present)
+            if (routine_turn
+                    and outcome != "preview"
+                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
+                    and not any(word in phrase.casefold() for word in
+                                ("smoke", "fire alarm", "carbon monoxide", "security alert",
+                                 "emergency", "intruder", "panic alarm"))):
+                if routine_voice_result:
+                    original, routine_outcome = routine_voice_result
+                    reply["reply"] = routine_responses.render(
+                        routine_turn[0], routine_outcome, original,
+                        guest=guest_mode != "off" or visitor_present is not False) + routine_reply[len(original):]
+                else:
+                    reply["reply"] = routine_responses.render(
+                        routine_turn[0], outcome, reply["reply"],
+                        guest=guest_mode != "off" or visitor_present is not False)
+                if (outcome in {"confirmed", "reported_success", "execution_completed"}
+                        and routine_turn[0][1].get("_declan_reply_category") == "dinner"):
+                    music_note = personality_policy.dinner_music_feedback(
+                        action_results, guest=guest_mode != "off", visitor_present=visitor_present)
+                    if music_note and music_note not in reply["reply"]:
+                        reply["reply"] += " " + music_note
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:
@@ -2892,4 +2944,5 @@ def main():
 if __name__ == "__main__":
     declan_logs.install()
     main()
+
 

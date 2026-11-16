@@ -28,6 +28,86 @@ function report() {
     entities:[{entity_id:'light.dining',name:'Dining',state:'unavailable'}]};
 }
 
+function responseProfile() {
+  return Object.fromEntries(['requested', 'completed', 'failure'].map(phase => [phase,
+    Object.fromEntries(['sass', 'guest'].map(mode => [mode,
+      {default: phase === 'requested' ? [`${mode} response <img src=x>`] : [], start: [], end: [], toggle: []}]))]));
+}
+
+test('routine response editor safely edits adds deletes and saves only the selected routine', async t => {
+  const {element, root, calls} = panel(t, {});
+  const data = responseProfile();
+  element._hass.callApi = async (...args) => {
+    calls.push(args);
+    if (args[0] === 'GET') return {routines: [{entity_id:'script.morning', name:'Morning <img src=x>'}]};
+    return args[2].profile ? {saved:true, expected:'b'.repeat(64)} : {profile:data, expected:'a'.repeat(64)};
+  };
+  await element.loadResponseRoutines();
+  root.querySelector('.responses-routine').value = 'script.morning';
+  await element.chooseResponseRoutine();
+  assert.equal(root.querySelector('.responses-editor img'), null);
+  assert.ok([...root.querySelectorAll('.responses-editor details')].every(row => !row.open));
+  const input = root.querySelector('.responses-editor textarea');
+  input.value = 'Edited sass'; input.dispatchEvent(new input.ownerDocument.defaultView.Event('input'));
+  const tone = input.closest('details');
+  [...tone.querySelectorAll('button')].find(button => button.textContent === 'Add response').click();
+  const added = [...tone.querySelectorAll('textarea')].at(-1);
+  added.value = 'Added sass'; added.dispatchEvent(new added.ownerDocument.defaultView.Event('input'));
+  tone.querySelector('button').click();
+  await element.saveResponses();
+  const payload = calls.at(-1)[2];
+  assert.equal(payload.entity_id, 'script.morning');
+  assert.deepEqual([...payload.profile.requested.sass.default], ['Added sass']);
+  assert.deepEqual([...payload.profile.requested.guest.default], ['guest response <img src=x>']);
+  assert.match(root.querySelector('.responses-status').textContent, /saved/);
+  assert.equal(element._responsesDirty, false);
+  const secondEdit = root.querySelector('.responses-editor textarea');
+  secondEdit.value = 'Second edit after saving';
+  secondEdit.dispatchEvent(new secondEdit.ownerDocument.defaultView.Event('input'));
+  await element.saveResponses();
+  assert.equal(calls.at(-1)[2].profile.requested.sass.default[0], 'Second edit after saving');
+});
+
+test('response save failure retains edits and permits retry; blank lists are valid', async t => {
+  const {element, root} = panel(t, {});
+  element._responseEntity = 'script.morning';
+  element._responseExpected = 'a'.repeat(64);
+  element._responseProfile = responseProfile();
+  element._responseProfile.requested.sass.default = [];
+  element._responsesDirty = true;
+  element.renderResponseEditor();
+  element._hass.callApi = async () => { throw {body:{error:'Responses changed elsewhere. Reload before saving.'}}; };
+  await element.saveResponses();
+  assert.match(root.querySelector('.responses-status').textContent, /changed elsewhere/);
+  assert.equal(element._responsesDirty, true);
+  assert.equal(root.querySelector('.responses-save').disabled, false);
+  assert.equal(element._responseProfile.requested.sass.default.length, 0);
+});
+
+test('response editor prevents a routine switch with unsaved edits and blocks duplicate loads', async t => {
+  const {element, root, calls} = panel(t, {});
+  root.querySelector('.responses-routine').append(new root.ownerDocument.defaultView.Option('Morning', 'script.morning'));
+  element._responseEntity = 'script.morning'; element._responsesDirty = true;
+  root.ownerDocument.defaultView.confirm = () => false;
+  await element.chooseResponseRoutine();
+  assert.equal(root.querySelector('.responses-routine').value, 'script.morning');
+  assert.equal(calls.length, 0);
+  element._responsesPending = true;
+  await element.loadResponseRoutines(); await element.saveResponses();
+  assert.equal(calls.length, 0);
+});
+
+test('response editor rejects blank and duplicate lines before sending a save', async t => {
+  const {element, root, calls} = panel(t, {});
+  element._responseProfile = responseProfile();
+  element._responseProfile.completed.sass.default = [''];
+  await element.saveResponses();
+  assert.match(root.querySelector('.responses-status').textContent, /blank or duplicate/);
+  element._responseProfile.completed.sass.default = ['Duplicate', ' Duplicate '];
+  await element.saveResponses();
+  assert.equal(calls.length, 0);
+});
+
 test('background partial outcomes and steps remain inspectable without speaking', async t => {
   const data = report();
   data.routines[0].background_result = {job_id:'declan-job1',outcome:'partial',updated_at:'2026-11-16',
@@ -356,3 +436,4 @@ test('stale records and invalid editor paths cannot navigate', async t => {
   element.openAuditEditor({editor_path:'https://example.invalid/'});
   assert.equal(element.ownerDocument.defaultView.location.pathname,'/');
 });
+

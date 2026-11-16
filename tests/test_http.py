@@ -53,6 +53,57 @@ class APITests(TestCase):
         self.assertEqual(status, 200, result)
         return json.loads(result)
 
+    def test_routine_response_editor_reads_saves_and_rejects_stale_edits_without_execution(self):
+        item = {"entity_id": "script.good_morning", "name": "Declan - Good Morning", "safe": False}
+        headers = {"Origin": self.origin, "Content-Type": "application/json"}
+        with patch.object(server.script_discovery, "discover", return_value=([item], None)), \
+             patch.object(server.script_discovery, "execute", side_effect=AssertionError("editor executed a script")), \
+             patch.object(server.script_discovery, "enqueue", side_effect=AssertionError("editor queued a script")):
+            code, payload = self.request('/api/native/routine-responses', headers=headers)
+            self.assertEqual(code, 200)
+            self.assertEqual(json.loads(payload)['routines'][0]['entity_id'], item['entity_id'])
+            code, payload = self.request('/api/native/routine-responses', body={'entity_id': item['entity_id']}, headers=headers)
+            self.assertEqual(code, 200)
+            state = json.loads(payload)
+            state['profile']['requested']['sass']['default'] = ['My custom morning response.']
+            state['profile']['requested']['guest']['default'] = ['A guest morning response.']
+            body = {'entity_id': item['entity_id'], **state}
+            code, payload = self.request('/api/native/routine-responses', body=body, headers=headers)
+            self.assertEqual(code, 200, payload)
+            self.assertTrue(json.loads(payload)['saved'])
+            selection = (("auto:script.good_morning", {"_declan_background": True, "_declan_reply_category": "morning"}), None)
+            with patch.object(server, 'select_routine_turn', return_value=selection), \
+                 patch.object(server.script_discovery, 'enqueue', return_value=('Requested.', 'started', 'job')), \
+                 patch.object(server.CAPTURE_ARBITER, 'claim', return_value=True):
+                for path in ('/api/chat', '/api/assist'):
+                    reply = self.ask('good morning', path=path)
+                    self.assertEqual(reply['reply'], 'My custom morning response.')
+                    self.assertEqual(reply['outcome'], 'started')
+                with patch.object(server, 'read_visitors_present', return_value=None):
+                    self.assertEqual(self.ask('good morning')['reply'], 'A guest morning response.')
+                chained = (selection[0], 'turn on the study light')
+                with patch.object(server, 'select_routine_turn', return_value=chained), \
+                     patch.object(server, 'handle_light_request', return_value=('The study light failed.', 'failed')):
+                    reply = self.ask('good morning and turn on the study light')
+                    self.assertIn('My custom morning response.', reply['reply'])
+                    self.assertIn('The study light failed.', reply['reply'])
+                    self.assertEqual(reply['outcome'], server.chained_outcome('started', 'failed'))
+            body['profile']['requested']['sass']['default'] = ['Stale overwrite']
+            code, payload = self.request('/api/native/routine-responses', body=body, headers=headers)
+            self.assertEqual(code, 400)
+            self.assertIn('changed elsewhere', json.loads(payload)['error'])
+
+    def test_response_editor_reports_missing_routines_and_inspection_failure(self):
+        headers = {"Origin": self.origin, "Content-Type": "application/json"}
+        with patch.object(server.script_discovery, 'discover', return_value=([], None)):
+            code, _ = self.request('/api/native/routine-responses', body={'entity_id': 'script.deleted'}, headers=headers)
+            self.assertEqual(code, 400)
+        with patch.object(server.script_discovery, 'discover', return_value=([], 'unavailable')):
+            code, _ = self.request('/api/native/routine-responses', headers=headers)
+            self.assertEqual(code, 503)
+        code, _ = self.request('/api/native/routine-responses', body={'entity_id': '../bad'}, headers=headers)
+        self.assertEqual(code, 400)
+
     def test_visitor_presence_is_independent_and_validated(self):
         with patch.dict(server.os.environ, {"DECLAN_HA_URL": "http://ha.local",
                                             "DECLAN_HA_TOKEN": "secret"}), patch.object(
@@ -525,4 +576,5 @@ class StartupTests(TestCase):
             response = fixture.ask('hello', path='/api/assist')
             self.assertIsInstance(response['reply'], str)
         log.assert_called_once_with('Could not look up learned intention; using the original transcript.')
+
 

@@ -258,6 +258,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button type="button" class="page-choice" data-page="conversations">History &amp; Voice Recognition</button>
           <button type="button" class="page-choice" data-page="players">Media players</button>
           <button type="button" class="page-choice" data-page="audit">Home Assistant Audit</button>
+          <button type="button" class="page-choice" data-page="responses">Routine responses</button>
           <button type="button" class="page-choice" data-page="settings">Settings</button>
           <button type="button" class="page-choice" data-page="updates">Updates</button>
         </nav>
@@ -286,6 +287,17 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh recordings</button></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load the last seven days of recordings.</p>
           <div class="timeline-list" aria-label="Voice recording review"></div>
+        </section>
+        <section class="panel card" id="panel-responses" hidden>
+          <h2>Routine responses</h2>
+          <p class="muted">Choose a routine to review its sass and Guest Mode responses. Declan picks a line from the matching list. Changes take effect after saving.</p>
+          <div class="update-controls">
+            <label>Routine <select class="responses-routine updates-select" aria-label="Routine"><option value="">Select a routine</option></select></label>
+            <button type="button" class="responses-reload">Reload routines</button>
+            <button type="button" class="responses-save" disabled>Save responses</button>
+          </div>
+          <p class="responses-status muted" role="status" aria-live="polite"></p>
+          <div class="responses-editor"></div>
         </section>
         <section class="card panel" id="panel-audit" role="region" aria-label="Home Assistant Audit" hidden>
           <h2>Home Assistant Audit</h2>
@@ -511,6 +523,9 @@ class DeclanTwoNativePanel extends HTMLElement {
         this.shadowRoot.querySelector('.page-menu-toggle').setAttribute('aria-expanded', String(!nav.hidden));
       });
       this.shadowRoot.querySelectorAll('.page-choice').forEach(button => button.addEventListener('click', () => this.selectTab(button.dataset.page)));
+      this.bindPanelEvent('.responses-routine', 'change', () => void this.chooseResponseRoutine());
+      this.bindPanelEvent('.responses-reload', 'click', () => void this.loadResponseRoutines(true));
+      this.bindPanelEvent('.responses-save', 'click', () => void this.saveResponses());
       this.shadowRoot.addEventListener('keydown', event => {
         if (event.key === 'Escape') this.closePageMenu();
       });
@@ -571,10 +586,149 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'audit') void this.loadHAAudit();
+    if (name === 'responses' && !this._responseRoutinesLoaded) void this.loadResponseRoutines();
     if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
+  }
+
+  responseBusy(value) {
+    this._responsesPending = value;
+    this.shadowRoot.querySelectorAll('#panel-responses button, #panel-responses select, #panel-responses textarea').forEach(el => { el.disabled = value; });
+    this.shadowRoot.querySelector('.responses-save').disabled = value || !this._responseProfile || !this._responsesDirty;
+  }
+
+  responseChanged() {
+    this._responsesDirty = true;
+    this.shadowRoot.querySelector('.responses-save').disabled = false;
+    this.shadowRoot.querySelector('.responses-status').textContent = 'Unsaved changes.';
+  }
+
+  async loadResponseRoutines(reload = false) {
+    if (!this._hass || this._responsesPending) return;
+    if (this._responsesDirty && !window.confirm('Discard unsaved response changes and reload?')) return;
+    this.responseBusy(true);
+    const status = this.shadowRoot.querySelector('.responses-status');
+    status.textContent = 'Loading Home Assistant routines…';
+    try {
+      const result = await this._hass.callApi('GET', 'declan_two/management/routine-responses');
+      if (!Array.isArray(result.routines)) throw new Error('Invalid routine list');
+      const select = this.shadowRoot.querySelector('.responses-routine');
+      select.replaceChildren(new Option('Select a routine', ''));
+      result.routines.sort((a, b) => a.name.localeCompare(b.name)).forEach(row => {
+        select.append(new Option(`${row.name} (${row.entity_id})`, row.entity_id));
+      });
+      this._responseRoutinesLoaded = true;
+      this._responseEntity = '';
+      this._responseProfile = null;
+      this._responsesDirty = false;
+      this.shadowRoot.querySelector('.responses-editor').replaceChildren();
+      status.textContent = result.routines.length ? 'Select a routine to edit its responses.' : 'No Home Assistant scripts found.';
+    } catch (error) {
+      status.textContent = 'Could not load routines. Use Reload routines to retry.';
+    } finally { this.responseBusy(false); }
+  }
+
+  async chooseResponseRoutine() {
+    if (this._responsesPending) return;
+    const select = this.shadowRoot.querySelector('.responses-routine');
+    if (this._responsesDirty && !window.confirm('Discard unsaved changes for this routine?')) {
+      select.value = this._responseEntity || '';
+      return;
+    }
+    const entity = select.value;
+    this._responseProfile = null;
+    this._responseEntity = entity;
+    this._responsesDirty = false;
+    this.shadowRoot.querySelector('.responses-editor').replaceChildren();
+    if (!entity) { this.responseBusy(false); return; }
+    this.responseBusy(true);
+    const status = this.shadowRoot.querySelector('.responses-status');
+    status.textContent = 'Loading responses…';
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/management/routine-responses', {entity_id: entity});
+      if (!result.profile || typeof result.expected !== 'string') throw new Error('Invalid responses');
+      this._responseProfile = result.profile;
+      this._responseExpected = result.expected;
+      this.renderResponseEditor();
+      status.textContent = 'Edit, add or delete lines, then save. Empty lists use neutral wording. Action lists use Default when empty.';
+    } catch (error) {
+      status.textContent = 'Could not load responses. Select the routine again to retry.';
+    } finally { this.responseBusy(false); }
+  }
+
+  renderResponseEditor() {
+    const host = this.shadowRoot.querySelector('.responses-editor');
+    host.replaceChildren();
+    const profile = this._responseProfile;
+    for (const [phase, title, explanation] of [
+      ['requested', 'Routine requested', 'Spoken when Home Assistant accepts a background request. These lines should describe a request, rather than claim completion.'],
+      ['completed', 'Routine finished', 'Spoken after the routine finishes. A finished trace does not verify individual devices.'],
+      ['failure', 'Failures and incomplete results', 'Optional responses for failed, partial, cancelled or unverified runs. The actual error or diagnostic is always included.']
+    ]) {
+      const section = document.createElement('details');
+      section.className = 'card';
+      const summary = document.createElement('summary');
+      summary.textContent = title;
+      section.append(summary);
+      const help = document.createElement('p'); help.className = 'muted'; help.textContent = explanation; section.append(help);
+      for (const [mode, label] of [['sass', 'Sass'], ['guest', 'Guest Mode']]) {
+        const tone = document.createElement('details'); tone.className = 'card';
+        const heading = document.createElement('summary'); heading.textContent = label; tone.append(heading);
+        const filterLabel = document.createElement('label'); filterLabel.textContent = 'Response for ';
+        const filter = document.createElement('select'); filter.className = 'updates-select'; filter.setAttribute('aria-label', `${title}, ${label}, action`);
+        for (const action of ['default', 'start', 'end', 'toggle']) filter.append(new Option(action === 'default' ? 'Default' : action[0].toUpperCase() + action.slice(1), action));
+        if (!profile[phase][mode].default.length && profile[phase][mode].start.length) filter.value = 'start';
+        filterLabel.append(filter); tone.append(filterLabel);
+        const rows = document.createElement('div'); tone.append(rows);
+        const render = () => {
+          rows.replaceChildren();
+          const lines = profile[phase][mode][filter.value];
+          const count = document.createElement('p'); count.className = 'muted'; count.textContent = `${lines.length} responses`; rows.append(count);
+          lines.forEach((line, index) => {
+            const row = document.createElement('div'); row.className = 'turn';
+            const input = document.createElement('textarea'); input.value = line; input.rows = 3; input.maxLength = 1000;
+            input.style.cssText = 'width:100%;padding:10px;background:#102635;color:#e7f7ff;border:1px solid #315568;border-radius:9px;font:inherit;resize:vertical';
+            input.setAttribute('aria-label', `${label} ${phase} ${filter.value} response ${index + 1}`);
+            input.addEventListener('input', () => { lines[index] = input.value; this.responseChanged(); });
+            const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete response';
+            remove.addEventListener('click', () => { lines.splice(index, 1); this.responseChanged(); render(); });
+            row.append(input, remove); rows.append(row);
+          });
+          const add = document.createElement('button'); add.type = 'button'; add.textContent = 'Add response'; add.disabled = lines.length >= 100;
+          add.addEventListener('click', () => { lines.push(''); this.responseChanged(); render(); [...rows.querySelectorAll('textarea')].at(-1)?.focus(); });
+          rows.append(add);
+        };
+        filter.addEventListener('change', render); render(); section.append(tone);
+      }
+      host.append(section);
+    }
+  }
+
+  async saveResponses() {
+    if (this._responsesPending || !this._responseProfile) return;
+    const status = this.shadowRoot.querySelector('.responses-status');
+    const profile = JSON.parse(JSON.stringify(this._responseProfile));
+    for (const phase of Object.values(profile)) for (const mode of Object.values(phase)) for (const [action, lines] of Object.entries(mode)) {
+      mode[action] = lines.map(line => line.trim());
+      if (mode[action].some(line => !line || line.length > 1000) || new Set(mode[action]).size !== lines.length) {
+        status.textContent = 'Responses must contain 1 to 1000 characters. Remove blank or duplicate lines before saving.'; return;
+      }
+    }
+    this.responseBusy(true); status.textContent = 'Saving responses…';
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/management/routine-responses', {
+        entity_id: this._responseEntity, profile, expected: this._responseExpected
+      });
+      if (result.saved !== true || typeof result.expected !== 'string') throw new Error('Save not confirmed');
+      this._responseProfile = profile; this._responseExpected = result.expected; this._responsesDirty = false;
+      this.renderResponseEditor();
+      status.textContent = 'Responses saved. Declan will use these lists on the next request.';
+    } catch (error) {
+      const detail = error?.body?.error;
+      status.textContent = typeof detail === 'string' ? detail : 'Could not save responses. Your edits are kept here; retry saving.';
+    } finally { this.responseBusy(false); }
   }
 
   async loadHAAudit() {
@@ -2355,3 +2509,4 @@ class DeclanTwoNativePanel extends HTMLElement {
 if (!customElements.get('declan-two-native-panel')) {
   customElements.define('declan-two-native-panel', DeclanTwoNativePanel);
 }
+
