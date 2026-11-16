@@ -349,6 +349,10 @@ def select_routine(phrase, origin):
             return "custom:" + custom[0], custom[2] if len(custom) > 2 else {}
         # Existing mappings always take precedence. Unknown or uninspectable
         # scripts are never executed by the automatic discovery path.
+        # Dinner has its own validated dispatcher and must not make an
+        # additional discovery request (which can consume a shared HA response).
+        if phrase in DINNER_PHRASES or phrase in {"it's dinner time", "it’s dinner time"}:
+            return None
         if 1 <= len(phrase.split()) <= 12:
             connection = ha_device_connection()
             if connection:
