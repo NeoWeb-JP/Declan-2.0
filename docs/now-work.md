@@ -1,97 +1,35 @@
-> **Canonical requirements:** [Issue #12](https://github.com/NeoWeb-JP/Declan-2.0/issues/12). The issue's 61 owner-approved acceptance criteria supersede any conflicting historical text below. This document is an archived implementation log, not a second requirements source. In particular, Stop is Everywhere, cross-room context is disabled, and History review is seven days.
+# Declan NOW status
 
-## Final owner-approved decisions (15 November 2026)
+[Issue #12](https://github.com/NeoWeb-JP/Declan-2.0/issues/12) is the authoritative requirements and acceptance register. This file is a status summary, not a second requirements source.
 
-These decisions supersede older requirements and the previous 11 November status notes.
+## Reviewed 16 November 2026
 
-### Quiet hours and announcements
-- Quiet hours: **23:00–07:00 local time**.
-- Speech replies during quiet hours: **20% of normal volume**; restore the previous speech volume after quiet hours, not a fixed default.
-- Only **urgent unsolicited announcements** overnight.
-- Music and Sexy Time are exempt from quiet-hour restrictions; ordinary spoken responses remain quiet.
-- Announcement speakers are selected from approved outputs in **native Declan Settings**, not always Everywhere.
+- **58 of 61 NOW criteria implemented** under the latest owner decisions.
+- Source: main `06131cbcfea1467548b8e233d16b7897735ead92`, merged through #172.
+- Published stable release: [2.10.1](https://github.com/NeoWeb-JP/Declan-2.0/releases/tag/2.10.1).
+- [Main CI #715](https://github.com/NeoWeb-JP/Declan-2.0/actions/runs/43909972466) passes Ubuntu, Windows and browser regression/coverage jobs.
+- Jaco confirms all implemented work has already been tested. This is owner-confirmed household acceptance. This review did not install anything or independently query the installed version.
 
-### Speaker context
-- Conversation context expires **5 minutes after the last interaction**.
-- Unknown-speaker context is isolated to the originating satellite.
-- At least **85% recognition confidence** is required before treating a speaker as recognized for context.
-- **No cross-room conversational follow-ups**, including for recognized speakers. Earlier cross-room sharing work in PR #81 must be disabled/removed; do not interpret it as accepted functionality.
+## Current decisions
 
-### Routines
-- Map scripts with **native Declan Settings dropdowns**. Actual scripts/automations remain in Home Assistant.
-- Support **custom named routines** with voice phrase mappings to HA scripts.
-- Claim success only after Home Assistant **verifies required actions**.
-- For partial failure, speak a brief warning; record detailed step outcomes in History.
-- If a script is missing, explain configuration is needed; **do not run fallback routines**.
+- Native Home Assistant panel is the management interface. HA owns scripts/automations; Declan owns routing, guarded AI and personality; VoicePipeline owns speaker identity; Music Assistant owns Spotify playback.
+- Discovered HA scripts are callable without per-script approval or manual mapping UI (#137). Existing configured aliases/fields remain compatible. The old fail-closed classification/approval requirement in #131 is superseded, not fully implemented.
+- Explicit Teach Declan remains available. A sufficiently similar successful retry after a rephrasing prompt can also teach the original phrase (#171), scoped to conversation/device. Changed targets/directions/numbers, ambiguous compounds, cancelled and expired retries do not train; explicit corrections win.
+- Recording review covers seven days regardless of status, separate from configurable retention. Other saved interactions appear in a separate collapsed section (#171). Verified IDs attach saved replies; unlinked recordings can be taught from their own VoicePipeline transcript. Missing/loading errors are explicit (#172).
+- Five-minute context, 85% recognition threshold, unknown origin isolation and no cross-room followups. First accepted duplicate capture wins.
+- Bare Stop stops Music Assistant playback Everywhere. Explicit Stop Routine requests best-effort cancellation and never promises rollback.
+- Routine acknowledgements can be immediate while completion/partial/failure verification runs in the background. Saved response pools support Home/Guest/failure editing and bulk JSON input (#169/#170).
+- Quiet hours are 23:00–07:00 in HA's timezone. PCM speech is 20% of normal, without changing player volume; music/Sexy Time playback stays exempt. Guarded unsolicited overnight speech allows only safety categories, with approved outputs in HA integration Options. #123 is accepted on the owner's testing confirmation; this review did not independently audit installed direct-TTS callers.
+- Spotify categories use a **25-playlist** limit, preserve favourites/exclusions and use approved Music Assistant outputs.
 
-### Music and voice
-- Music without an explicit destination plays on the **approved Music Assistant player mapped to the originating room**. Explicit room/Everywhere requests override.
-- Microphone support must include **both iPhone Home Assistant app and desktop browser**.
-- When two satellites capture the same command, **first accepted capture wins**; suppress duplicate execution.
-- **Stop means stop playback Everywhere**, replacing the earlier origin-scoped Stop requirement.
+## Remaining NOW implementation
 
-### Acceptance
-- **Automated CI passing is the owner's required release acceptance gate.** Live household tests are optional post-release validation and must not be represented as completed.
-- Keep issue #12 open until the final decisions are implemented, tests cover them, and CI is green. Do not close based on these decisions alone.
+| Criterion | Remaining work |
+| --- | --- |
+| HIS-11 | Aggregate per-speaker match-rate percentage. Average confidence, counts and per-recording confidence already exist. |
+| REL-01 | Automatic local TTS fallback after primary/cached alternatives fail. Persistent cache, identity isolation and concurrent synthesis coalescing already exist. |
+| REL-08 | Voice-sample encryption, explicit per-person consent and deletion from retained snapshots; tracked with other security/engineering gaps in #17. |
 
-### Implementation and verification status
-- Native learned-intent editing, music mappings, and several routine outcome mechanisms exist, but this does not prove every agreed behavior is implemented.
-- Quiet-hour scheduling, 20% speech-volume handling and restoration, urgent-only announcements, approved announcement output selectors, native arbitrary routine selectors/custom routines, 85% speaker threshold with cross-room sharing disabled, and house-wide Stop require code inspection/implementation and automated tests.
-- iPhone/desktop microphone, first-capture arbitration, music playback, and voice recognition need CI coverage; real-device behavior is **not live-verified**.
-- PR #81 is the consolidated implementation branch; do not merge/deploy/retire the legacy UI without a passing final CI run.
+#12 remains open for these partial criteria. #17 remains open for security/privacy and engineering work. #98 is the deferred all-time trained-phrase manager, distinct from History teaching. #97 is complete through #171/#172. #131 is closed as superseded by the owner's #137 policy. Declan Local #12 remains a separate installed wake-word model/hardware inventory item.
 
----
-
-## Historical work log (superseded where decisions differ)
-
-# Current work and live testing
-
-The core voice migration is working, but the original NOW requirements are not all complete. On 11 November 2026 Jaco agreed to bring four focused additions into NOW. This list separates code from live household tests.
-
-Original scope: [NOW baseline](https://github.com/NeoWeb-JP/Declan-Local/blob/18f02af9eb6824c1f44163201b529b75f21bf65e/docs/functional-now.md). The archived FUTURE list remains a historical record; this document records the new scope decision for Declan 2.0.
-
-| Item | GitHub issue | Implementation in this branch | Live acceptance |
-| --- | --- | --- | --- |
-| See why voice or music failed | [#8](https://github.com/NeoWeb-JP/Declan-2.0/issues/8) | Local timings, outcomes and history request references. Spotify search and HA stop/play dispatch are separate stages. | Pending |
-| Review and edit learned intentions | [#9](https://github.com/NeoWeb-JP/Declan-2.0/issues/9) | Free-text edits with stale-tab protection; confirmed deletion. Saving never runs a command. | Pending |
-| Back up settings and check upgrades | [#10](https://github.com/NeoWeb-JP/Declan-2.0/issues/10) | Versioned export, preview, confirmed import and recovery export; local pre-update SQLite snapshots and integrity checks. | Pending |
-| Manage voice profiles and samples | [#11](https://github.com/NeoWeb-JP/Declan-2.0/issues/11) | Shared VoicePipeline profiles, pending review, explicit enrolment/assignment, history corrections and reference/profile removal. | Pending; management contract verified from deployed source, live recognition not yet checked |
-| Finish the remaining NOW gaps | [#12](https://github.com/NeoWeb-JP/Declan-2.0/issues/12) | Existing migration work plus remaining implementation below. | Owner testing in progress |
-
-## Where to find the new controls
-
-Open the settings menu in Declan. Request diagnostics, Back up settings and Voice profiles each have their own panel. Learned intention editing stays in Conversation history. These routes use the existing local-browser or authenticated HA admin ingress boundary; the Assist bridge token does not grant access to management routes.
-
-## What to test
-
-- Diagnostics: make an ordinary request and a music request. Find the request reference from history, the Spotify search, stop/play dispatch and playback verification. A state of `playing` does not prove sound was audible. Provider exception messages, credentials, raw audio and transcripts must not appear in diagnostics.
-- Learning: edit a correction using free text. It must not run at save time. Say it again to verify normal command handling. Edit the same correction in two tabs: a stale edit must be rejected. Confirm before forgetting it.
-- Settings: export, preview and import the same settings. Check all entity IDs. Confirm nothing executes. Confirm credentials stay excluded. Try an unsupported schema. Include learned intentions only when explicitly selected; importing that list replaces the existing list. Download the recovery file to reverse the previous import, selecting learned intentions if those also need restoring.
-- Voice profiles: set `DECLAN_VOICEPIPELINE_URL` on the server and update the sidebar app to 1.0.3. Check existing Jaco/Ed profiles appear without recreating them. Speak through Wyoming 10300, refresh pending, listen, and assign with consent. Check reference count and recognition on a separate utterance. Verify enrolment, stale history correction rejection, return to pending, clearing references and profile deletion on a disposable test speaker. Confirm a lost response does not retry a write. Audio must not persist in Declan. Model settings, webhooks and household actions must remain untouched.
-- Updates: on a test deployment, check a normal update makes a private snapshot before activation. A corrupt persistent database must stop activation, leave the old release selected and report failure. A snapshot failure must not leave the update permanently marked as installing.
-
-## Backup boundaries
-
-A settings download includes only supported non-secret server mappings and optionally learned phrases. It excludes Spotify/HA/OpenAI credentials, history, caches and biometric data. Non-empty imported mappings override server environment defaults; empty values use those defaults. Entity IDs must be reviewed for the destination home. This is not a full Home Assistant restore or a replacement for native HA configuration selectors.
-
-Before an update through Declan's updater, each local SQLite database is backed up using SQLite's online backup API, including committed WAL data. Saved Spotify credentials are copied only to that private server-side snapshot. Snapshots live in `.data/upgrade-backups/`, with restrictive directory/file permissions on Linux. They are not downloadable through the settings API and are not automatically deleted. Monitor disk space and keep these files private.
-
-The shared `.data` directory, including caches, remains linked across releases. Speech caches and integration settings stored inside Home Assistant require a separate HA backup. Direct terminal Git updates bypass the web updater's automatic snapshot. For full recovery or a destructive schema downgrade, stop Declan and restore an appropriate local snapshot or container backup; selecting an old code release alone does not roll back data.
-
-## Shared VoicePipeline recognition
-
-The owner supplied the deployed OpenAPI schema and transitive resolution helpers on 11 November 2026. Existing speaker assignments use exact names; speaker deletion and clearing references use IDs. Assign/confirm/enrol update recognition references and request a cache refresh. History corrections remove wrong references without adding new ones and use `expected_resolution_id` for stale-edit rejection. No model training/reload is needed for these profile operations.
-
-The Voice profiles screen now uses that API as its single source. New collection into the old Declan-only sample store is disabled; retained legacy samples are not migrated or deleted automatically. Export/deletion APIs for those retained samples remain available. VoicePipeline has no verified upload endpoint. See README for setup and the pending-resolution concurrency limitation.
-
-Satellite recognition already consumes the Wyoming `jarvis-speaker` event alongside the transcript; the manager does not identify or transcribe audio again. The browser STT path still loses speaker metadata and requires separate work. Separate-recording accuracy, cache refresh behaviour, cross-room context, retention policy and live acceptance remain open in #11 and [speaker work #1](https://github.com/NeoWeb-JP/Declan-2.0/issues/1).
-
-## Existing NOW work still open
-
-- Live verification of dinner music, the new bedroom output, iPhone/desktop capture, silent Stop and duplicate satellite arbitration.
-- Quiet-hours schedule, temporary volume changes and safe restoration, and selected announcement destinations.
-- Recognised-speaker context across rooms, with separate unknown-speaker sessions.
-- Native HA selectors for arbitrary routines and a consistent versioned completion result across Dinner, Sexy Time and the other migrated routines.
-- Record the owner-approved differences: no separate Assist exposure filter for this household, and mood-preserving Sexy Time speech with technical failures in history.
-
-Homelab operations, predictive heating/EV optimisation, complex scheduling and autonomous learning remain deferred.
+Historical implementation notes and earlier product decisions are available in Git history. They must not override the current issue register. Homelab operations, predictive heating/EV optimisation and the all-time phrase manager remain deferred.
