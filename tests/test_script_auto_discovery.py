@@ -44,6 +44,12 @@ class ScriptSafetyTests(unittest.TestCase):
         self.assertEqual(script_discovery.match("house status", [safe, dict(safe, entity_id="script.other")])[0], "ambiguous")
         self.assertIsNone(script_discovery.match("unlock the front door", [safe]))
 
+    def test_declan_prefixed_ha_script_does_not_need_mapping(self):
+        script = {"entity_id": "script.declan_good_night",
+                  "name": "Declan - Good Night", "safe": False}
+        self.assertEqual(script_discovery.match("good night", [script]), ("matched", script))
+        self.assertEqual(script_discovery.match("run good night", [script]), ("matched", script))
+
     def test_all_discovered_scripts_can_be_selected(self):
         protected = {"entity_id": "script.garage", "name": "Garage", "safe": False}
         self.assertEqual(script_discovery.match("garage", [protected]), ("matched", protected))
