@@ -98,6 +98,8 @@ class DeclanScriptDiscoveryView(HomeAssistantView):
                 "entity_id": entity.entity_id,
                 "name": entity.attributes.get("friendly_name") or key.replace("_", " ").title(),
                 "area": area.name if area else "",
+                "fields": sorted((entity.attributes.get("fields") or {}).keys())
+                          if isinstance(entity.attributes.get("fields"), dict) else [],
                 "safe": True,
                 "reason": "available_in_home_assistant",
             })
