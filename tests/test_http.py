@@ -149,6 +149,33 @@ class APITests(TestCase):
                     self.assertEqual(reply["outcome"], outcome)
                     self.assertEqual(reply["reply"], "Request not accepted.")
 
+    def test_sexy_receipt_returns_directional_sass_without_waiting_for_music(self):
+        with patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
+             patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking music call")), \
+             patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
+            for action, prefix in (("start", "Bedroom mood requested. "), ("end", "Bedroom reset requested. ")):
+                selection = (("auto:script.sexy_time", {"operation": action, "_declan_background": True,
+                              "_declan_reply_category": "sexy"}), None)
+                with patch.object(server, "select_routine_turn", return_value=selection):
+                    for path in ("/api/chat", "/api/assist"):
+                        reply = self.ask(action + " bedroom mood", path=path)
+                        self.assertEqual(reply["outcome"], "started")
+                        self.assertTrue(reply["reply"].startswith(prefix))
+                        self.assertIn(reply["reply"].removeprefix(prefix), server.personality_policy._SEXY_HOME[action])
+                        self.assertEqual(reply["routine_status"], "Background job j")
+        self.assertEqual(enqueue.call_count, 4)
+
+    def test_sexy_receipt_failure_does_not_get_an_optimistic_reply(self):
+        selection = (("auto:script.sexy_time", {"operation": "start", "_declan_background": True,
+                      "_declan_reply_category": "sexy"}), None)
+        with patch.object(server, "select_routine_turn", return_value=selection), \
+             patch.object(server.personality_policy, "sexy_request_reply", side_effect=AssertionError("false acknowledgement")):
+            for outcome in ("busy", "unverified", "not_configured", "failed"):
+                with patch.object(server.script_discovery, "enqueue", return_value=("Request not accepted.", outcome, None)):
+                    reply = self.ask("bedroom mood")
+                    self.assertEqual(reply["outcome"], outcome)
+                    self.assertEqual(reply["reply"], "Request not accepted.")
+
     def test_home_assistant_ingress_enforces_both_boundaries(self):
         token = "x" * 64
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_INGRESS_TOKEN": token}))
@@ -296,13 +323,14 @@ class APITests(TestCase):
         connection = ("http://ha.invalid", {}, Mock())
         with patch.object(server, "ha_device_connection", return_value=connection), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "execute",
-                          return_value=("Started Sexy Time.", "requested", None)) as execute:
+             patch.object(server.script_discovery, "enqueue",
+                          return_value=("Routine requested.", "started", "Background job j")) as enqueue:
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
                 result = self.ask(phrase, path="/api/assist")
-                self.assertEqual(result["outcome"], "requested")
-                self.assertEqual(result["reply"], "Started Sexy Time.")
-                self.assertEqual(execute.call_args.kwargs["parameters"]["operation"], operation)
+                self.assertEqual(result["outcome"], "started")
+                prefix = "Bedroom reset requested." if operation == "end" else "Bedroom mood requested."
+                self.assertTrue(result["reply"].startswith(prefix))
+                self.assertEqual(enqueue.call_args.args[2]["operation"], operation)
                 self.assertEqual(server.history.recent(limit=1)[0]["reply"], result["reply"])
 
     def test_dinner_phrases_use_ha_discovery_and_record_spoken_reply(self):
@@ -342,8 +370,8 @@ class APITests(TestCase):
                   "fields": ["operation"]}
         with patch.object(server, "ha_device_connection", return_value=("http://ha.invalid", {}, Mock())), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "execute",
-                          return_value=("End routine.", "requested", None)) as routine:
+             patch.object(server.script_discovery, "enqueue",
+                          return_value=("Routine requested.", "started", "Background job j")) as routine:
             self.assertEqual(self.ask("Finish bedroom session.", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             turn = json.loads(self.request("/api/history")[1])["turns"][0]
             self.assertTrue(turn["teachable"])
@@ -352,8 +380,10 @@ class APITests(TestCase):
             self.assertEqual(self.request(path, body={**correction, "target": ""}, headers=headers)[0], 400)
             self.assertEqual(self.request(path, body=correction, headers=headers)[0], 200)
             routine.assert_not_called()
-            self.assertEqual(self.ask("FINISH BEDROOM SESSION!", path="/api/assist")["reply"], "End routine.")
-            self.assertEqual(routine.call_args.kwargs["parameters"]["operation"], "end")
+            accepted = self.ask("FINISH BEDROOM SESSION!", path="/api/assist")
+            self.assertEqual(accepted["outcome"], "started")
+            self.assertTrue(accepted["reply"].startswith("Bedroom reset requested."))
+            self.assertEqual(routine.call_args.args[2]["operation"], "end")
             self.assertEqual(server.history.recent(limit=1)[0]["message"], "FINISH BEDROOM SESSION!")
             self.assertEqual(self.request(path, body={"forget": "finish bedroom session"}, headers=headers)[0], 200)
             self.assertEqual(self.ask("finish bedroom session", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
