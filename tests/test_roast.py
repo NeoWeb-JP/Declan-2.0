@@ -15,9 +15,7 @@ class RoastTests(unittest.TestCase):
         self.assertEqual(roast.target("roast Kathy"), "Kathy")
 
     def test_other_commands_are_not_intercepted(self):
-        for phrase in ("roast dinner", "who is in charge", "roast", "roast 123", "roast <script>"):
-            if phrase == "roast dinner":
-                continue  # A valid person's name cannot be inferred from text alone.
+        for phrase in ("who is in charge", "roast", "roast 123", "roast <script>"):
             self.assertIsNone(roast.target(phrase))
 
     def test_guest_mode_uses_only_guest_lines(self):
