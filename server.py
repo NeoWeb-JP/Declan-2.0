@@ -2550,6 +2550,7 @@ class Handler(BaseHTTPRequestHandler):
             satellite=satellite if isinstance(satellite, str) and len(satellite) <= 128 else None,
             device=origin_device, browser=source != "assist",
         )
+        routine_turn = None
         if routine_preview:
             routine_reply, outcome = routine_preview
         elif timer_result:
