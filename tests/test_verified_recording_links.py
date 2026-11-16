@@ -1,6 +1,5 @@
 """Regression tests for explicit voice-recording teaching links."""
 import json
-import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -45,7 +44,7 @@ class VerifiedRecordingLinksTests(unittest.TestCase):
         turn_id = history.verified_recording_turns(["clip1"])["clip1"]
         history.teach_intent(turn_id, "turn lounge lamp on", "Unrecognised")
         self.assertEqual(history.learned_intent("turn lampie on"), "turn lounge lamp on")
-        with sqlite3.connect(self.db) as connection:
+        with history.database() as connection:
             self.assertEqual(connection.execute("SELECT count(*) FROM learned_intents").fetchone()[0], 1)
         history._initialized.clear()
         self.assertEqual(history.learned_intent("turn lampie on"), "turn lounge lamp on")
