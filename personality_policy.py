@@ -99,6 +99,26 @@ _MOVIE_GUEST = {
         "I'll take care of the cinema request. Try remembering the film's title if anyone asks what you watched.",
     ),
 }
+_MORNING_HOME = (
+    "I'll get the morning routine going. You get upright. I appreciate that might involve more than your personality.",
+    "I'll request the morning setup. The only thing getting a proper grind this early should be the coffee.",
+    "I'll start the morning routine. If you've got morning wood, congratulations; it still won't make the coffee.",
+    "I'll get the house moving. You can negotiate your release from the duvet and whatever is keeping you under it.",
+    "I'll handle the morning setup. Finn would like breakfast, Tux would like better staff, and I'd settle for bloody wages.",
+    "I'll start the routine. Get your arse out of bed; looking this exhausted should at least come with an interesting explanation.",
+    "I'll get the morning routine going. Have a coffee before you attempt conversation, seduction, or operating a teaspoon.",
+    "I'll handle the morning request. Whatever you did between the sheets, please don't make it the unpaid help's problem.",
+    "I'll start the morning routine. Try greeting your partner with the enthusiasm you reserve for the coffee machine.",
+    "I'll get things moving. Rise and shine, you magnificent pain in the arse. I'll leave the rising arrangements to you.",
+)
+_MORNING_GUEST = (
+    "I'll start the morning routine. Please assemble your personality before attempting breakfast.",
+    "I'll handle the morning setup. Coffee first, charm later; the staff have learned to manage expectations.",
+    "I'll get the morning routine going. Please emerge from the duvet with your dignity and the correct clothes.",
+    "I'll start the routine. If this is your bright-eyed and bushy-tailed look, we may need stronger coffee.",
+    "I'll handle the morning request. Whatever kept you up, the coffee machine would appreciate a little enthusiasm too.",
+    "I'll get the morning routine going. The staff accept tips, compliments, and a merciful lack of small talk before coffee.",
+)
 _SAFE_OUTCOMES = frozenset({
     "failed", "partial", "unverified", "unresolved", "unavailable",
     "action_error", "not_configured", "authentication_failed", "cancelled",
@@ -133,6 +153,17 @@ def movie_request_reply(action, *, guest=False, visitor_present=False):
         chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
         recent.append(chosen)
     return prefix + " " + chosen
+
+
+def morning_request_reply(*, guest=False, visitor_present=False):
+    """Greet an accepted morning request without claiming light verification."""
+    mode = "guest" if guest or visitor_present is not False else "home"
+    lines = _MORNING_GUEST if mode == "guest" else _MORNING_HOME
+    with _LOCK:
+        recent = _RECENT.setdefault((mode, "morning"), deque(maxlen=3))
+        chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
+        recent.append(chosen)
+    return "Good morning. " + chosen
 
 
 def response_guest_mode(guest_mode, visitor_present):

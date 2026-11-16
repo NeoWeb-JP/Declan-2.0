@@ -21,6 +21,19 @@ review_spec.loader.exec_module(reviews)
 
 
 class AuditTests(unittest.TestCase):
+    def test_returned_step_action_labels_are_data_not_executable_services(self):
+        report = self.report({"sequence": [
+            {"action": "light.turn_on", "target": {"entity_id": "light.ok"}},
+            {"variables": {"declan_local_result": {"steps": [
+                {"action": "turn_on", "status": "{{ wall_lights_confirmed }}"},
+                {"action": "not_a_service", "entity_id": "light.result_metadata"}]}}}]})
+        codes = self.codes(report)
+        self.assertNotIn("dynamic_service", codes)
+        self.assertNotIn("missing_entity", codes)
+        self.assertIn("template_not_evaluated", codes)
+        self.assertEqual(report["routines"][0]["dependencies"], [
+            {"kind": "entity", "id": "light.ok"}, {"kind": "service", "id": "light.turn_on"}])
+
     def report(self, config=None, traces=None, **overrides):
         data = dict(states={"light.ok": {"state": "on"}, "light.offline": {"state": "unavailable"}},
                     registry={"light.disabled": {"disabled": True}}, devices={"device1"}, areas={"kitchen"},

@@ -89,20 +89,20 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                         finding("warning", "unavailable_entity", path,
                                 f"Check the integration and availability of {target}.")
 
-        def walk(value, path="config", depth=0):
+        def walk(value, path="config", depth=0, inspect_dependencies=True):
             if depth > 40:
                 finding("unverified", "inspection_depth", path,
                         "Inspect deeply nested configuration in Home Assistant.")
                 return
             if isinstance(value, Mapping):
-                if value.get("enabled") is False:
+                if inspect_dependencies and value.get("enabled") is False:
                     return
                 for key, child in value.items():
                     child_path = path + "." + str(key)
-                    if key in SELECTORS:
+                    if inspect_dependencies and key in SELECTORS:
                         for target in child if isinstance(child, (list, tuple)) else [child]:
                             reference(SELECTORS[key], target, child_path)
-                    elif key in {"service", "action"} and isinstance(child, str):
+                    elif inspect_dependencies and key in {"service", "action"} and isinstance(child, str):
                         if IDENTIFIER.fullmatch(child):
                             dependencies.add(("service", child))
                             if child not in services:
@@ -117,10 +117,13 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                         finding("unverified", "template_not_evaluated", child_path,
                                 "Review template dependencies and execution traces in Home Assistant.")
                     else:
-                        walk(child, child_path, depth + 1)
+                        # Variable payloads describe data, including returned step
+                        # labels named "action". They are not executable services.
+                        walk(child, child_path, depth + 1,
+                             inspect_dependencies and key not in {"variables", "fields", "metadata"})
             elif isinstance(value, (list, tuple)):
                 for index, child in enumerate(value):
-                    walk(child, f"{path}[{index}]", depth + 1)
+                    walk(child, f"{path}[{index}]", depth + 1, inspect_dependencies)
 
         config = routine.get("config")
         if isinstance(config, Mapping):

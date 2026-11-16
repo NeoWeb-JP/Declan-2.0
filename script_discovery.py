@@ -175,7 +175,7 @@ def enqueue(connection, entity_id, parameters):
         return "Home Assistant rejected the routine request.", "failed", None
     except (OSError, ValueError, TypeError):
         return "I couldn't confirm the routine request. It may still start; check the audit before retrying.", "unverified", None
-    return "Movie Time requested.", "started", "Background job " + job_id
+    return "Routine requested.", "started", "Background job " + job_id
 
 
 def execute(connection, item, *, parameters=None, expect_response=False, action_results=None):
