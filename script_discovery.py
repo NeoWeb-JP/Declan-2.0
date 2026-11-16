@@ -128,8 +128,48 @@ def execute(connection, item, *, parameters=None, expect_response=False):
             result = json.loads(response.read(65536))
     except HTTPError as error:
         code = error.code
-        error.close()
-        return f"Home Assistant rejected the script (HTTP {code}).", "failed", None
+        # Preserve HA's useful validation reason. Never log tokens or headers.
+        try:
+            body = error.read(4096).decode("utf-8", errors="replace")
+        except (OSError, ValueError):
+            body = ""
+        finally:
+            error.close()
+        try:
+            parsed = json.loads(body)
+            reason = parsed.get("message", "") if isinstance(parsed, dict) else ""
+        except ValueError:
+            reason = body
+        reason = re.sub(r"[\\r\\n\\t]+", " ", str(reason)).strip()[:240]
+        # Some HA versions reject return_response for a script service that
+        # does not advertise response support. Retry ONLY when HA explicitly
+        # states this, never for an arbitrary 400 (which could be bad data).
+        unsupported_response = (
+            code == 400 and "response" in reason.casefold()
+            and any(term in reason.casefold() for term in
+                    ("does not support", "doesn't support", "not supported", "unsupported"))
+        )
+        if unsupported_response:
+            plain_request = Request(url + "/api/services/script/" + service,
+                                    headers=headers, method="POST",
+                                    data=json.dumps(supplied).encode())
+            try:
+                with opener.open(plain_request, timeout=55) as response:
+                    if response.status not in (200, 201):
+                        return "Home Assistant did not confirm script dispatch.", "unverified", None
+                    response.read(8192)
+            except HTTPError as retry_error:
+                retry_code = retry_error.code
+                retry_error.close()
+                return f"Home Assistant rejected script execution (HTTP {retry_code}).", "failed", None
+            except OSError:
+                return "Home Assistant could not confirm script execution.", "unverified", None
+            return (current["name"] + " was sent to Home Assistant, but this script service "
+                    "does not support returning a completion result. Check the script trace.",
+                    "unverified", None)
+        return (f"Home Assistant rejected the script (HTTP {code})"
+                + (f": {reason}" if reason else "."),
+                "failed", None)
     except (OSError, ValueError, TypeError):
         return "Home Assistant did not return a valid script result. Check its trace.", "unverified", None
     data = result.get("service_response") if isinstance(result, dict) else None
