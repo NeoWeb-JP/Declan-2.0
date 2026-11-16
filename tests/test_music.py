@@ -457,6 +457,67 @@ class MusicTests(unittest.TestCase):
         self.assertIn("rate limited", self.play("play islands in the stream in the kitchen")[0])
         self.assertEqual([action for action, _ in self.calls], ["media_stop", "play_media"])
 
+    def test_approved_unavailable_player_is_traced_without_dispatch_and_recovers(self):
+        mapping = {"bedroom": self.bedroom, "kitchen": self.kitchen}
+        self.players[self.bedroom]["state"] = "unavailable"
+        with patch.object(music.approved_media_players, "load", return_value=mapping), \
+             patch.object(music.diagnostics, "persist"):
+            with music.diagnostics.request("/api/assist") as trace:
+                reply, outcome = self.play("play islands in the stream in the bedroom")
+                self.assertEqual(music.diagnostics.current_id(), trace["id"])
+            self.assertEqual(outcome, "unavailable", reply)
+            self.assertIn("unavailable", reply)
+            self.assertEqual(self.calls, [])
+            self.assertEqual(self.searches, [])
+            stage = next(step for step in trace["stages"] if step["stage"] == "music_player")
+            self.assertEqual(stage["player_entity_id"], self.bedroom)
+            self.assertEqual(stage["outcome"], "unavailable")
+            # A later explicit request rechecks the provider; no stale failure latch.
+            self.players[self.bedroom]["state"] = "idle"
+            reply, outcome = self.play("play islands in the stream in the bedroom")
+            self.assertEqual(outcome, "confirmed", reply)
+            self.assertEqual([action for action, _ in self.calls], ["play_media"])
+            self.assertEqual(self.calls[0][1]["entity_id"], self.bedroom)
+
+    def test_playback_and_controls_report_http_faults_without_retry_and_recover(self):
+        original_open = self.open
+        for operation in ("play", "control"):
+            for status in (429, 502, 503, 504):
+                with self.subTest(operation=operation, status=status):
+                    self.calls.clear()
+                    self.players[self.kitchen]["state"] = "idle"
+                    self.players[self.bedroom].update(
+                        state="idle" if operation == "play" else "playing", attributes=dict(self.track))
+                    attempts = []
+                    action = "play_media" if operation == "play" else "media_pause"
+
+                    def unavailable(request, timeout):
+                        if request.full_url.endswith("/" + action):
+                            attempts.append(request)
+                            raise HTTPError("http://ha/private?token=secret", status,
+                                            "private provider response", {}, io.BytesIO(b"private audio details"))
+                        return original_open(request, timeout)
+
+                    invoke = (lambda: self.play("play islands in the stream in the bedroom")) if operation == "play" else (
+                        lambda: self.control("pause music in the bedroom"))
+                    with patch.object(self, "open", side_effect=unavailable), patch.object(music.diagnostics, "persist"):
+                        with music.diagnostics.request("/api/assist") as trace:
+                            reply, outcome = invoke()
+                    self.assertEqual(outcome, "unverified", reply)
+                    self.assertEqual(len(attempts), 1)
+                    self.assertEqual(self.calls, [])
+                    self.assertIn("rate limited" if status == 429 else "temporarily unavailable", reply)
+                    failure = next(step for step in trace["stages"] if step.get("http_status") == status)
+                    self.assertEqual(failure["player_entity_id"], self.bedroom)
+                    self.assertEqual(failure["outcome"], "failed")
+                    self.assertEqual(failure["failure_kind"], "rate_limited" if status == 429 else "service_unavailable")
+                    self.assertTrue(trace["id"])
+                    for secret in ("token=", "private", "islands", "test-secret"):
+                        self.assertNotIn(secret, json.dumps(trace))
+                    reply, outcome = invoke()
+                    self.assertEqual(outcome, "confirmed", reply)
+                    self.assertEqual([called for called, _ in self.calls], [action])
+
     def test_radio_is_left_alone_and_group_is_a_single_queue(self):
         self.players[self.bedroom]["attributes"] = {"media_content_id": "tunein://station/example"}
         self.assertEqual(self.play("play islands in the stream in the kitchen")[1], "confirmed")
