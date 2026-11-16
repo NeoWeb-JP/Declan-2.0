@@ -81,6 +81,14 @@ def manage(body):
     if not isinstance(body, dict) or set(body) != {"category", "playlist", "operation"}:
         raise ValueError("Invalid playlist change")
     category, operation = body["category"], body["operation"]
+    if category == "disliked_songs" and operation == "restore":
+        import music
+        value = body["playlist"]
+        if not isinstance(value, str) or not re.fullmatch(r"spotify://track/[A-Za-z0-9]{22}", value):
+            raise ValueError("Invalid disliked song")
+        with music.preference_db() as db:
+            db.execute("DELETE FROM preferences WHERE uri = ? AND weight = 0", (value,))
+        return listing()
     selected = canonical(body["playlist"])
     if category not in CATEGORIES or operation not in ("add", "remove", "delete", "favourite", "unfavourite", "dislike", "restore") or not selected:
         raise ValueError("Invalid playlist change")
@@ -134,6 +142,7 @@ def listing():
         return {"categories": load(), "max_playlists": CAPACITY, "refresh": dict(_REFRESH),
                 "preferences": {"favourites": [uri for uri, weight in weights.items() if weight > 1],
                                 "disliked_playlists": [uri for uri, weight in weights.items() if weight == 0],
+                                "disliked_songs": [uri for uri, weight in dict(db.execute("SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://track/%'")).items() if weight == 0],
                                 "play_counts": plays}}
 
 
