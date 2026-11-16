@@ -1117,6 +1117,28 @@ class DeclanTwoNativePanel extends HTMLElement {
       details.append(form);
       list.append(details);
     }
+    const dislikedSongs = this._playlistPreferences?.disliked_songs || [];
+    const songs = document.createElement('details');
+    songs.className = 'settings-subsection playlist-category-accordion';
+    songs.dataset.playlistCategory = 'disliked_songs';
+    songs.open = previouslyOpen.has('disliked_songs') || openCategory === 'disliked_songs';
+    const heading = document.createElement('summary');
+    heading.textContent = 'Disliked songs (' + dislikedSongs.length + ')';
+    songs.append(heading);
+    for (const uri of dislikedSongs) {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      const label = document.createElement('span');
+      label.textContent = uri;
+      const restore = document.createElement('button');
+      restore.type = 'button';
+      restore.textContent = 'Restore song';
+      restore.dataset.playlistOperation = 'restore';
+      restore.dataset.playlistUri = uri;
+      row.append(label, restore);
+      songs.append(row);
+    }
+    list.append(songs);
     status.textContent = Object.keys(catalogue).length + ' Spotify categories loaded. Expand a genre to manage its playlists.';
   }
 
