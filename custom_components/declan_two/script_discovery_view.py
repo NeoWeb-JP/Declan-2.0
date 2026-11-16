@@ -87,6 +87,11 @@ class DeclanScriptDiscoveryView(HomeAssistantView):
             if not ENTITY.fullmatch(entity.entity_id):
                 continue
             key = entity.entity_id[7:]
+            # An entity in the state machine is not proof that its script
+            # action exists. Only expose services registered by Home Assistant.
+            # Stale/restored entities must never be offered for execution.
+            if not hass.services.has_service("script", key):
+                continue
             entry = entities.async_get(entity.entity_id)
             area_id = entry.area_id if entry else None
             if not area_id and entry and entry.device_id:
