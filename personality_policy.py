@@ -53,6 +53,52 @@ _DINNER_GUEST = (
     "Dinner time. The humans get the meal, the pets get hopeful, and the help gets another job well done.",
     "Your dinner awaits. The invisible staff will be dining on appreciation again, apparently.",
 )
+_MOVIE_HOME = {
+    "start": (
+        "I'll get the big screen ready. For once, something in this house will stay up for the whole performance.",
+        "I'll handle the equipment. You keep your hands on the popcorn until the opening credits, you filthy optimist.",
+        "I'll dim the lights and set the mood. Whether anyone gets lucky is well outside my bloody job description.",
+        "I'll warm up the hardware. Try showing your partner the same enthusiasm you show a large screen.",
+        "I'll get the cinema going. If this becomes Netflix and chill, I expect overtime and absolutely no details.",
+        "I'll lower the screen. You lower your expectations. It's movie night, not a casting couch audition.",
+    ),
+    "end": (
+        "I'll put the equipment away. You two can work out what to do with the remaining tension.",
+        "I'll bring the cinema down. If you're moving on to the bedroom, this is where my shift ends.",
+        "I'll close up the cinema. Any disappointing performances from here are your own responsibility.",
+        "I'll handle the shutdown. Kindly check whose hand is in whose popcorn before you stand up.",
+        "I'll pack away the big screen. Try not to look so disappointed by the smaller attractions.",
+        "I'll switch the cinema off. The unpaid help does not supervise the after-party, you cheeky bastards.",
+    ),
+    "toggle": (
+        "I'll handle the equipment. You handle the heavy breathing; preferably after the dialogue.",
+        "I'll deal with the big screen. Keep the plot twists on the screen and your hands out of the staff contract.",
+        "I'll sort the cinema. If someone says just the tip, they'd better be discussing the popcorn budget.",
+        "I'll handle the hardware. You can negotiate the soft furnishings and questionable intentions yourselves.",
+        "I'll handle the cinema request. Try not to turn a perfectly respectable film into an excuse to grope the furniture.",
+        "I'll deal with the screen. You deal with the sexual tension. I'm underpaid enough already.",
+    ),
+}
+_MOVIE_GUEST = {
+    "start": (
+        "I'll get the cinema ready. Try choosing a film before the actors retire.",
+        "I'll handle the big screen. You handle the small matter of agreeing on a film this century.",
+        "I'll set the mood. The popcorn is complimentary; chemistry between the audience is your department.",
+        "I'll prepare the cinema. Keep the drama on the screen; the unpaid staff have seen quite enough.",
+    ),
+    "end": (
+        "I'll close up the cinema. Any further dramatic performances are entirely your responsibility.",
+        "I'll put the equipment away. The staff are deliberately declining an invitation to the after-party.",
+        "I'll handle the shutdown. Please collect your popcorn, your dignity, and the correct partner.",
+        "I'll close the cinema. If you missed the plot while making eyes at each other, that is hardly my fault.",
+    ),
+    "toggle": (
+        "I'll handle the cinema. You handle the chemistry; it wasn't included in the installation.",
+        "I'll deal with the screen. Please keep the dramatic tension where the director intended it.",
+        "I'll handle the equipment. Anything happening under the blanket remains outside my service contract.",
+        "I'll take care of the cinema request. Try remembering the film's title if anyone asks what you watched.",
+    ),
+}
 _SAFE_OUTCOMES = frozenset({
     "failed", "partial", "unverified", "unresolved", "unavailable",
     "action_error", "not_configured", "authentication_failed", "cancelled",
@@ -77,10 +123,16 @@ def dinner_music_feedback(steps, *, guest=False, visitor_present=False):
 
 
 def movie_request_reply(action, *, guest=False, visitor_present=False):
-    prefix = {"start": "Movie setup requested.", "end": "Movie shutdown requested.", "toggle": "Movie Time requested."}.get(action, "Movie Time requested.")
-    if guest or visitor_present is not False:
-        return prefix + " I'll handle the equipment and record the result in the audit."
-    return prefix + " I'll handle the equipment. You handle choosing something before the sequel comes out."
+    """Add cinema sass to an accepted request, without claiming completion."""
+    action = action if action in _MOVIE_HOME else "toggle"
+    prefix = {"start": "Movie setup requested.", "end": "Movie shutdown requested.", "toggle": "Movie Time requested."}[action]
+    mode = "guest" if guest or visitor_present is not False else "home"
+    lines = (_MOVIE_GUEST if mode == "guest" else _MOVIE_HOME)[action]
+    with _LOCK:
+        recent = _RECENT.setdefault((mode, "movie", action), deque(maxlen=3))
+        chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
+        recent.append(chosen)
+    return prefix + " " + chosen
 
 
 def response_guest_mode(guest_mode, visitor_present):
@@ -145,3 +197,4 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
         chosen = _RANDOM.choice(options or lines)
         recent.append(chosen)
     return (reply.rstrip() + " " if reply.strip() else "") + chosen
+
