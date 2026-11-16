@@ -42,6 +42,28 @@ class SensitiveConfirmationTests(unittest.TestCase):
             self.assertEqual(sc.sensitive_group("bedroom mood",None,{},{"bedroom mood":"start"}),"sexy")
             self.assertEqual(sc.sensitive_group("guests have left",None,{"guests have left":"clear"}),"guest")
             self.assertEqual(sc.sensitive_group("dinner time",None,{},None,{"dinner time"}),"dinner")
+    def test_good_night_respects_unchecked_confirmation_setting(self):
+        routine = (("night", {}), None)
+        mapping = {"night": {"script": "script.good_night", "phrases": ["good night"],
+                             "fields": {}, "sensitive": False}}
+        with patch("routine_registry.load", return_value=mapping):
+            self.assertIsNone(sc.sensitive_group("good night", routine, {}))
+            self.assertIsNone(sc.sensitive_group("time for bed", None, {}))
+        self.assertEqual(self.gate.evaluate(session="s1", origin="kitchen", phrase="good night",
+                                            group=None, speaker=None)[0], "allow")
+
+    def test_good_night_respects_checked_confirmation_setting(self):
+        routine = (("night", {}), None)
+        mapping = {"night": {"script": "script.good_night", "phrases": ["good night"],
+                             "fields": {}, "sensitive": True}}
+        with patch("routine_registry.load", return_value=mapping):
+            self.assertEqual(sc.sensitive_group("good night", routine, {}), "custom:night")
+            self.assertEqual(sc.sensitive_group("time for bed", None, {}), "custom:night")
+
+    def test_legacy_night_default_when_no_saved_mapping(self):
+        with patch("routine_registry.load", return_value={}):
+            self.assertEqual(sc.sensitive_group("good night", (("night", {}), None), {}), "night")
+
     def test_prompt_never_executes_command(self):
         from pathlib import Path
         server=Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
