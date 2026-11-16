@@ -37,6 +37,8 @@ class RoutineResultTests(unittest.TestCase):
         self.assertIn('outcome == "reported_success"', source)
         self.assertIn('verified_routine or light_result is not None', source)
         self.assertIn('outcome="confirmed" if verified_routine else outcome', source)
+        self.assertIn('spoken_reply = ("Sorted." if verified_routine else reply["reply"])', source)
+        self.assertIn('personality_policy.decorate(\n                    spoken_reply,', source)
         import personality_policy
         with patch.object(personality_policy._RANDOM, "choice", side_effect=lambda lines: lines[0]):
             success = personality_policy.decorate(
