@@ -1,4 +1,4 @@
-"""Discover and execute only independently verified, low-risk HA scripts."""
+"""Discover and run Home Assistant scripts without per-script approval."""
 import json
 import re
 from threading import Lock
@@ -71,14 +71,14 @@ def match(phrase, scripts):
     if len(matches) != 1:
         return "ambiguous", matches
     item = matches[0]
-    return ("safe" if item["safe"] else "protected"), item
+    return "matched", item
 
 
 def execute(connection, item):
-    """Inspect again at execution time; never trust a prior UI classification."""
+    """Verify the entity still exists in HA before dispatching its script."""
     scripts, error = discover(connection, fresh=True)
     if error:
-        return "I couldn't verify the script's safety. Nothing was run.", "unverified", None
+        return "I couldn't verify that script exists in Home Assistant. Nothing was run.", "unverified", None
     current = next((row for row in scripts if row["entity_id"] == item["entity_id"]), None)
     if not current or not current["safe"]:
         return "That script needs explicit approval before voice execution.", "unresolved", None
