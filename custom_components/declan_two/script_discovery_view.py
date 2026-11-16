@@ -84,18 +84,29 @@ class DeclanScriptDiscoveryView(HomeAssistantView):
         except (OSError, ValueError, TypeError, KeyError):
             return web.json_response({"scripts": [], "inspection": "unavailable"},
                                      headers={"Cache-Control": "no-store"})
+        from homeassistant.helpers import area_registry, entity_registry
+        areas = area_registry.async_get(hass)
+        entities = entity_registry.async_get(hass)
         scripts = []
         for entity in hass.states.async_all("script"):
             if not ENTITY.fullmatch(entity.entity_id):
                 continue
             key = entity.entity_id[7:]
             definition = definitions.get(key)
+            entry = entities.async_get(entity.entity_id)
+            area_id = entry.area_id if entry else None
+            if not area_id and entry and entry.device_id:
+                from homeassistant.helpers import device_registry
+                device = device_registry.async_get(hass).async_get(entry.device_id)
+                area_id = device.area_id if device else None
+            area = areas.async_get_area(area_id) if area_id else None
+            verified_safe = inspect_script(definition)
             scripts.append({
                 "entity_id": entity.entity_id,
                 "name": entity.attributes.get("friendly_name") or key.replace("_", " ").title(),
-                "area": "",  # Filled by the frontend's HA area metadata where available.
-                "safe": inspect_script(definition),
-                "reason": "verified_light_actions" if inspect_script(definition) else "approval_required",
+                "area": area.name if area else "",
+                "safe": verified_safe,
+                "reason": "verified_light_actions" if verified_safe else "approval_required",
             })
         return web.json_response({"scripts": scripts, "inspection": "complete"},
                                  headers={"Cache-Control": "no-store"})
