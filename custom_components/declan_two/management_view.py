@@ -11,6 +11,7 @@ GET_PATHS = {
     "logs": "/api/native/logs",
     "intents": "/api/native/intents",
     "routines": "/api/native/routines",
+    "routine-responses": "/api/native/routine-responses",
 }
 
 class DeclanManagementView(HomeAssistantView):
@@ -26,7 +27,7 @@ class DeclanManagementView(HomeAssistantView):
         if len(entries) != 1:
             return web.json_response({"status": "not_configured"}, status=503)
         entry = entries[0]
-        path = ({"import": "/api/native/settings-import", "intents": "/api/native/intents", "routines": "/api/native/routines", "spotify": "/api/native/spotify-credentials"}[operation] if body is not None else GET_PATHS[operation])
+        path = ({"import": "/api/native/settings-import", "intents": "/api/native/intents", "routines": "/api/native/routines", "spotify": "/api/native/spotify-credentials", "routine-responses": "/api/native/routine-responses"}[operation] if body is not None else GET_PATHS[operation])
         try:
             session = async_get_clientsession(request.app["hass"])
             kwargs = dict(headers={"Authorization": f"Bearer {entry.data['token']}"},
@@ -35,7 +36,7 @@ class DeclanManagementView(HomeAssistantView):
             async with (session.post(url, json=body, **kwargs) if body is not None
                         else session.get(url, **kwargs)) as response:
                 if response.status != 200:
-                    if operation == "routines" and response.status in (400, 503):
+                    if operation in {"routines", "routine-responses"} and response.status in (400, 503):
                         try:
                             detail = await response.json(content_type="application/json")
                         except (ValueError, TypeError, aiohttp.ContentTypeError):
@@ -47,6 +48,8 @@ class DeclanManagementView(HomeAssistantView):
                 payload = await response.json(content_type="application/json")
                 if not isinstance(payload, dict):
                     raise ValueError("Invalid response")
+                if operation == "routine-responses":
+                    return web.json_response(payload, headers={"Cache-Control": "no-store"})
                 if operation == "routines":
                     if body is not None:
                         return web.json_response({"saved": payload.get("saved") is True}, headers={"Cache-Control": "no-store"})
@@ -114,14 +117,18 @@ class DeclanManagementView(HomeAssistantView):
         return await self._relay(request, operation)
 
     async def post(self, request, operation):
-        if operation not in {"spotify", "import", "intents", "routines"}:
+        if operation not in {"spotify", "import", "intents", "routines", "routine-responses"}:
             return web.json_response({"status": "invalid_operation"}, status=404)
-        if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= (131072 if operation == "import" else 32768 if operation == "routines" else 2048):
+        if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= (131072 if operation in {"import", "routine-responses"} else 32768 if operation == "routines" else 2048):
             return web.json_response({"status": "invalid_request"}, status=400)
         try:
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"status": "invalid_json"}, status=400)
+        if operation == "routine-responses":
+            if not isinstance(body, dict) or set(body) not in ({"entity_id"}, {"entity_id", "profile", "expected"}):
+                return web.json_response({"status": "invalid_request"}, status=400)
+            return await self._relay(request, operation, body)
         if operation == "routines":
             if not isinstance(body, dict) or set(body) != {"routines"} or not isinstance(body["routines"], dict):
                 return web.json_response({"status": "invalid_request"}, status=400)
@@ -150,3 +157,4 @@ class DeclanManagementView(HomeAssistantView):
         if not all(isinstance(body[key], str) and 0 < len(body[key]) <= 256 for key in ("client_id", "client_secret")):
             return web.json_response({"status": "invalid_credentials"}, status=400)
         return await self._relay(request, "spotify", body)
+
