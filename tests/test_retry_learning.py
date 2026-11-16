@@ -124,3 +124,5 @@ class RetryLearningTests(unittest.TestCase):
                             ('set heating to 20','set heating to 21'), ('play rock','play country'),
                             ('open garage','open gate'), ('office light on','study light on')]:
             self.assertFalse(retry_learning.similar(left,right), (left,right))
+        self.assertFalse(retry_learning.similar('office on kitchen off', 'office off kitchen on'))
+        self.assertFalse(retry_learning.similar('play music then turn light on', 'turn light on then play music'))

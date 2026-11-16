@@ -17,6 +17,10 @@ def similar(first, second):
     if not left or not right or left == right:
         return bool(left and right)
     protected = {"on", "off", "open", "close", "up", "down", "start", "stop", "pause", "resume", "lock", "unlock"}
+    if any(w in {"and", "then", "also", "except", "but"} for w in left + right):
+        return False
+    if any(len({w for w in phrase if w in protected}) > 1 for phrase in (left, right)):
+        return False
     if ({w for w in left if w in protected or any(c.isdigit() for c in w)} !=
             {w for w in right if w in protected or any(c.isdigit() for c in w)}):
         return False

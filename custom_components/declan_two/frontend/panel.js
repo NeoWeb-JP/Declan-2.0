@@ -2420,6 +2420,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       const trainStatus = document.createElement('p');
       trainStatus.className = 'muted';
       const turnId = item.turn_id || this._recordingTurnLinks?.[String(item.id)];
+      const trainingPhrase = this._recordingReplies?.[String(turnId)]?.message || item.transcript;
       const verified = !rejected && !!item.transcript && (Number.isSafeInteger(turnId) && turnId > 0 || !!item.id);
       trainStatus.textContent = verified
         ? 'Enter a command Declan understands. Saving teaches this phrase without running the command.'
@@ -2458,7 +2459,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       label.textContent = 'The command you meant';
       label.append(target);
       form.append(label, train);
-      training.append(trainStatus, form);
+      const phrase = document.createElement('p');
+      phrase.className = 'muted';
+      phrase.textContent = 'Training phrase: ' + (trainingPhrase || '(No transcript)');
+      training.append(phrase, trainStatus, form);
       const response = subsection(card, "Declan's response");
       const reply = document.createElement('p');
       reply.textContent = item.reply || this._recordingReplies?.[String(turnId)]?.reply || 'No response was saved for this recording.';

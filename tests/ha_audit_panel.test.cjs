@@ -40,7 +40,7 @@ test('training loads actual linked replies and permits explicit teaching of olde
   element._hass.callApi = async (...args) => {
     calls.push(args);
     if (args[0] === 'POST') return {saved:true};
-    if (args[1].includes('recording_ids=')) return {links:{linked:77}, turns:{77:{reply:'Could you say it another way?'}}};
+    if (args[1].includes('recording_ids=')) return {links:{linked:77}, turns:{77:{message:'study light on it', reply:'Could you say it another way?'}}};
     if (args[1] === 'declan_two/history') return {turns:[{id:77, recording_id:'linked', created_at:now,
       message:'office light on it', reply:'Could you say it another way?'},
       {id:78, recording_id:'', created_at:now, message:'typed request', reply:'A saved reply'}], next:null};
@@ -52,6 +52,7 @@ test('training loads actual linked replies and permits explicit teaching of olde
   assert.equal(root.querySelectorAll('.timeline-entry').length, 3);
   const cards = [...root.querySelectorAll('.timeline-row')];
   assert.match(cards[0].textContent, /Could you say it another way/);
+  assert.match(cards[0].textContent, /Training phrase: study light on it/);
   assert.match(cards[1].textContent, /No response was saved/);
   const form = cards[1].querySelector('.training-form');
   const input = form.querySelector('input');
