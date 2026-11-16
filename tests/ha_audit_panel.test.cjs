@@ -81,6 +81,29 @@ test('conversation teaching remains available when both voice review sources fai
   assert.match(root.querySelector('.timeline-status').textContent,/2 source/);
 });
 
+test('a response-link loading failure is visible and a successful refresh populates the saved reply', async t => {
+  const {element, root} = panel(t, {});
+  let failed=true;
+  const recorded_at=new Date().toISOString();
+  element._hass.callApi=async (method,path) => {
+    if (path.includes('recording_ids=')) {
+      if (failed) throw new Error('Backend rejected authentication');
+      return {links:{clip:77},turns:{77:{message:'office light on',reply:'The actual saved reply.'}}};
+    }
+    if (path==='declan_two/history') return {turns:[],next:null};
+    if (path.includes('history=1')) return {interactions:[]};
+    return {profiles:[],interactions:[{id:'clip',transcript:'office light on',recorded_at}]};
+  };
+  await element.loadTimeline();
+  assert.match(root.querySelector('.timeline-row').textContent,/Could not load saved responses/);
+  assert.doesNotMatch(root.querySelector('.timeline-row').textContent,/No response was saved/);
+  assert.match(root.querySelector('.timeline-status').textContent,/1 source/);
+  failed=false;
+  await element.loadTimeline();
+  assert.match(root.querySelector('.timeline-row').textContent,/The actual saved reply/);
+  assert.doesNotMatch(root.querySelector('.timeline-status').textContent,/source.*unavailable/);
+});
+
 test('voice retry waits for the spoken prompt and cancellation prevents a late restart', async t => {
   const {element, root} = panel(t, {reply:'Could you say it another way?',session_id:'retry',continue_conversation:true});
   Object.defineProperty(element,'isConnected',{value:true});

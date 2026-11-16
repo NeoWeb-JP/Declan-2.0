@@ -2236,6 +2236,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       // Unique links attach saved replies. Older unlinked transcripts can be taught explicitly.
       this._recordingTurnLinks = {};
       this._recordingReplies = {};
+      this._recordingRepliesUnavailable = false;
       const ids = [...recordings.keys()].filter(id => /^[A-Za-z0-9_-]{1,80}$/.test(id));
       try {
         for (let offset = 0; offset < ids.length; offset += 100) {
@@ -2248,7 +2249,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         }
       } catch {
         // Explicit teaching can still use the recording's own transcript.
-        this._recordingTurnLinks = {};
+        this._recordingRepliesUnavailable = true;
       }
       const conversationRows = [];
       let historyUnavailable = false;
@@ -2269,7 +2270,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this._timelineRows = [...recordings.values(), ...conversationRows].sort((a,b) => Date.parse(b.item.recorded_at) - Date.parse(a.item.recorded_at));
       this._timelineLoaded = true;
       this.renderTimeline();
-      const missing = [pending, reviewed].filter(result => result.status !== 'fulfilled').length + Number(historyUnavailable);
+      const missing = [pending, reviewed].filter(result => result.status !== 'fulfilled').length + Number(historyUnavailable) + Number(this._recordingRepliesUnavailable);
       status.textContent = this._timelineRows.length + ' interactions from the last 7 days' +
         (missing ? ' · ' + missing + ' source(s) unavailable; some recordings may be missing.' : '');
     } catch (error) {
@@ -2465,7 +2466,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       training.append(phrase, trainStatus, form);
       const response = subsection(card, "Declan's response");
       const reply = document.createElement('p');
-      reply.textContent = item.reply || this._recordingReplies?.[String(turnId)]?.reply || 'No response was saved for this recording.';
+      reply.textContent = item.reply || this._recordingReplies?.[String(turnId)]?.reply ||
+        (this._recordingRepliesUnavailable ? 'Could not load saved responses. Refresh to try again.' : 'No response was saved for this recording.');
       response.append(reply);
       const diagnostics = subsection(card, 'Diagnostics');
       const diagnosticText = document.createElement('p');
