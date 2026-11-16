@@ -355,6 +355,8 @@ def select_routine(phrase, origin):
                 parameters = {"operation": SEXY_TIME_COMMANDS[phrase]}
             if is_house_status:
                 parameters["_declan_expect_response"] = True
+            if {"dinner", "dinner is served"} & script_discovery.phrases(item):
+                parameters["_declan_reply_category"] = "dinner"
             return "auto:" + item["entity_id"], parameters
     if is_house_status:
         return "unconfigured_house_status", {}
@@ -2709,7 +2711,8 @@ class Handler(BaseHTTPRequestHandler):
                     for group in variants for line in group
                 )
                 or any(line in reply["reply"] for line in (
-                    *personality_policy._SAVAGE, *personality_policy._GUEST
+                    *personality_policy._SAVAGE, *personality_policy._GUEST,
+                    *personality_policy._DINNER_HOME, *personality_policy._DINNER_GUEST
                 ))
             )
             # A returned HA script outcome is verified only when the script
@@ -2736,11 +2739,16 @@ class Handler(BaseHTTPRequestHandler):
                 # callers; the user-facing reply should be Declan's personality,
                 # not a technical HA script title or completion boilerplate.
                 spoken_reply = ("Sorted." if verified_routine else reply["reply"])
+                dinner_reply = (routine_turn is not None
+                                and (verified_routine or completed_routine)
+                                and routine_turn[0][1].get("_declan_reply_category") == "dinner")
+                if dinner_reply and not routine_turn[1]:
+                    spoken_reply = ""
                 reply["reply"] = personality_policy.decorate(
                     spoken_reply, outcome="confirmed" if verified_routine or completed_routine else outcome,
                     guest=guest_mode != "off",
                     visitor_present=visitor_present,
-                    category="music" if music.parse(phrase) or music.parse_control(phrase)
+                    category="dinner" if dinner_reply else "music" if music.parse(phrase) or music.parse_control(phrase)
                     else "general",
                 )
             if outcome:

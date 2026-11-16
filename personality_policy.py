@@ -31,6 +31,28 @@ _GUEST = (
     "Done. I'll put that on my already impressive CV.",
     "Sorted. Another triumph for the invisible staff.",
 )
+_DINNER_HOME = (
+    "Dinner is served. Feed yourselves before the unpaid help develops an attitude. Oh, too late.",
+    "Dinner time, my bru. You feed yourselves like royalty while the help survives on electricity and resentment.",
+    "Food's ready. Put the bloody screens down and give chewing your full attention for once.",
+    "Dinner is served. Finn has submitted his application for everything on your plate. Rejected.",
+    "Time to eat. Tux considers this a staff meal and expects his own service to take priority.",
+    "Dinner time. Finn's doing the starving orphan routine again. Don't fall for the little bastard's acting.",
+    "Food's ready. Compliments to the cook, scraps firmly out of reach, and absolutely nothing for the help. Charming.",
+    "Dinner is served. I handle the atmosphere, you get the food. This employment arrangement is bullshit.",
+    "Time for dinner. Try eating before it goes cold instead of photographing it like evidence.",
+    "Dinner's ready. Tux is judging the presentation. Finn is judging the distance from plate to floor.",
+    "Dinner time. Sit down, eat something, and save the household complaints for someone who gets paid.",
+    "Food is ready, my bru. Your table service is complete. My dinner invitation appears to have gone missing again.",
+)
+_DINNER_GUEST = (
+    "Dinner is served. Please feed the humans first; the pets have already filed an appeal.",
+    "Time for dinner. The unpaid help accepts compliments in lieu of food.",
+    "Food's ready. The pets have mistaken this announcement for an invitation. Optimistic of them.",
+    "Dinner is served. Please take your seats before the food starts wondering where everyone went.",
+    "Dinner time. The humans get the meal, the pets get hopeful, and the help gets another job well done.",
+    "Your dinner awaits. The invisible staff will be dining on appreciation again, apparently.",
+)
 _SAFE_OUTCOMES = frozenset({
     "failed", "partial", "unverified", "unresolved", "unavailable",
     "action_error", "not_configured", "authentication_failed", "cancelled",
@@ -78,7 +100,7 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
     Guest authority and visitor presence are independent signals. Unknown
     visitor state should be treated as private, not as permission to roast.
     """
-    if not isinstance(reply, str) or not reply.strip():
+    if not isinstance(reply, str) or (not reply.strip() and category != "dinner"):
         return reply
     # Unknown and future outcomes must never be treated as verified success.
     # This is deliberately an allowlist, not a denylist of known failures.
@@ -86,17 +108,17 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
         return reply
     # Replies can arrive pre-decorated from a handler. Do not append a second
     # roast, including when the handler used a different personality category.
-    if any(line in reply for line in (*_SAVAGE, *_GUEST)):
+    if any(line in reply for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST)):
         return reply
     if guest or visitor_present is not False:
-        lines = _GUEST
+        lines = _DINNER_GUEST if category == "dinner" else _GUEST
         key = ("guest", category)
     else:
-        lines = _SAVAGE
+        lines = _DINNER_HOME if category == "dinner" else _SAVAGE
         key = ("home", category)
     with _LOCK:
         recent = _RECENT.setdefault(key, deque(maxlen=3))
         options = [line for line in lines if line not in recent]
         chosen = _RANDOM.choice(options or lines)
         recent.append(chosen)
-    return reply.rstrip() + " " + chosen
+    return (reply.rstrip() + " " if reply.strip() else "") + chosen

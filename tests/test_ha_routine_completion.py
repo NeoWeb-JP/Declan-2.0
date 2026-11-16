@@ -91,6 +91,16 @@ class RoutineResultTests(unittest.TestCase):
         self.assertEqual(outcome, "reported_success")
         self.assertIn("completed successfully", reply)
 
+    def test_live_dinner_selection_carries_reply_category_without_hardcoded_entity(self):
+        import server
+        item = {"entity_id": "script.whatever_ha_calls_it", "name": "Declan - Dinner Is Served", "fields": [], "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
+             patch.object(script_discovery, "discover", return_value=([item], None)):
+            for phrase in ("dinner time", "announce dinner", "run dinner is served"):
+                kind, parameters = server.select_routine(phrase, None)
+                self.assertEqual(kind, "auto:" + item["entity_id"])
+                self.assertEqual(parameters["_declan_reply_category"], "dinner")
+
     def test_trace_completion_preserves_chained_action_outcomes(self):
         import server
         self.assertEqual(server.chained_outcome("execution_completed", "confirmed"), "execution_completed")
