@@ -1,26 +1,14 @@
-"""Deterministic action executor for *already authorised* HA action plans.
-
-The caller must supply a trusted dispatcher that enforces HA permissions and
-returns a verified result. This module never makes HTTP requests itself.
-"""
-from dataclasses import dataclass
+"""Execute already-authorised plans; typed results never confuse receipt with success."""
 from action_plan import CandidateAction
-
-
-@dataclass(frozen=True)
-class ActionResult:
-    index: int
-    entity_id: str
-    service: str
-    status: str
-    detail: str = ""
+# Re-export ActionResult for existing Python callers.
+from execution_results import ActionResult, ActionStatus, DispatchResult, ExecutionResult, Outcome
 
 
 def execute_verified(plan, dispatcher):
-    """Execute in order, skip failed dependencies, continue independent steps.
+    """Run in order, skip failed dependencies, continue independent steps.
 
-    dispatcher(action) must return (status, detail) where status is one of
-    'confirmed', 'failed', 'unverified'. An HTTP 200 alone is not confirmation.
+    New dispatchers return DispatchResult. Existing (status, detail) dispatchers
+    are converted and validated at the boundary. HTTP 200 alone is not success.
     """
     if not isinstance(plan, tuple) or not all(isinstance(x, CandidateAction) for x in plan):
         raise ValueError("Plan has not been validated")
@@ -28,32 +16,41 @@ def execute_verified(plan, dispatcher):
         raise ValueError("Trusted dispatcher is required")
     results = []
     for index, action in enumerate(plan):
-        if any(results[dep].status != "confirmed" for dep in action.depends_on):
-            results.append(ActionResult(index, action.entity_id, action.service, "skipped_dependency"))
+        if any(not results[dep].confirmed for dep in action.depends_on):
+            results.append(ActionResult(index, action.entity_id, action.service,
+                                        ActionStatus.SKIPPED_DEPENDENCY))
             continue
         try:
-            status, detail = dispatcher(action)
-            if status not in {"confirmed", "failed", "unverified"}:
-                raise ValueError("Invalid dispatch status")
-            if not isinstance(detail, str):
-                raise ValueError("Invalid dispatch detail")
+            dispatch = DispatchResult.coerce(dispatcher(action))
         except Exception:
-            # Do not expose sensitive HA internals to voice responses.
-            status, detail = "failed", "Dispatch or verification failed"
-        results.append(ActionResult(index, action.entity_id, action.service, status, detail[:240]))
+            # Never expose provider exceptions or their secrets in voice/history.
+            dispatch = DispatchResult(ActionStatus.FAILED, "Dispatch or verification failed")
+        results.append(ActionResult(index, action.entity_id, action.service,
+                                    dispatch.status, dispatch.detail[:240]))
     return tuple(results)
 
 
-def summarise(results):
-    """Never claim success for unverified dispatches."""
-    counts = {key: sum(x.status == key for x in results)
-              for key in ("confirmed", "failed", "unverified", "skipped_dependency")}
+def summarise_result(results):
+    """Return an immutable typed summary with the original action evidence."""
+    results = tuple(results)
+    if any(not isinstance(result, ActionResult) for result in results):
+        raise ValueError("Action results are required")
+    counts = {status: sum(result.status is status for result in results) for status in ActionStatus}
     if not results:
-        return "No actions were performed.", "unresolved"
-    if counts["confirmed"] == len(results):
-        return "All requested actions were confirmed.", "confirmed"
-    if counts["confirmed"]:
-        return (f"{counts['confirmed']} confirmed, {counts['failed']} failed, "
-                f"{counts['unverified']} unverified and {counts['skipped_dependency']} skipped."), "partial"
-    return (f"No actions confirmed: {counts['failed']} failed, "
-            f"{counts['unverified']} unverified and {counts['skipped_dependency']} skipped."), "unverified"
+        return ExecutionResult("No actions were performed.", Outcome.UNRESOLVED)
+    if counts[ActionStatus.CONFIRMED] == len(results):
+        return ExecutionResult("All requested actions were confirmed.", Outcome.CONFIRMED, results)
+    if counts[ActionStatus.CONFIRMED]:
+        return ExecutionResult(
+            f"{counts[ActionStatus.CONFIRMED]} confirmed, {counts[ActionStatus.FAILED]} failed, "
+            f"{counts[ActionStatus.UNVERIFIED]} unverified and {counts[ActionStatus.SKIPPED_DEPENDENCY]} skipped.",
+            Outcome.PARTIAL, results)
+    return ExecutionResult(
+        f"No actions confirmed: {counts[ActionStatus.FAILED]} failed, "
+        f"{counts[ActionStatus.UNVERIFIED]} unverified and {counts[ActionStatus.SKIPPED_DEPENDENCY]} skipped.",
+        Outcome.UNVERIFIED, results)
+
+
+def summarise(results):
+    """Compatibility API: retain the existing (reply, outcome-string) tuple."""
+    return summarise_result(results).as_legacy_pair()

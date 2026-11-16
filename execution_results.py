@@ -1,0 +1,92 @@
+"""Typed results for verified actions; legacy/wire adapters keep public strings stable."""
+from dataclasses import dataclass
+from enum import StrEnum
+
+
+class Outcome(StrEnum):
+    CONFIRMED = "confirmed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    UNVERIFIED = "unverified"
+    UNRESOLVED = "unresolved"
+
+
+class ActionStatus(StrEnum):
+    CONFIRMED = "confirmed"
+    FAILED = "failed"
+    UNVERIFIED = "unverified"
+    SKIPPED_DEPENDENCY = "skipped_dependency"
+
+
+DISPATCH_STATUSES = frozenset({
+    ActionStatus.CONFIRMED, ActionStatus.FAILED, ActionStatus.UNVERIFIED,
+})
+
+
+@dataclass(frozen=True)
+class DispatchResult:
+    status: ActionStatus
+    detail: str = ""
+
+    def __post_init__(self):
+        object.__setattr__(self, "status", ActionStatus(self.status))
+        if self.status not in DISPATCH_STATUSES or not isinstance(self.detail, str):
+            raise ValueError("Invalid dispatch result")
+
+    @classmethod
+    def coerce(cls, value):
+        """Accept existing dispatcher tuples only at this compatibility boundary."""
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, (tuple, list)) or len(value) != 2:
+            raise ValueError("Invalid dispatch result")
+        return cls(*value)
+
+    def as_legacy_pair(self):
+        return self.status.value, self.detail
+
+
+@dataclass(frozen=True)
+class ActionResult:
+    index: int
+    entity_id: str
+    service: str
+    status: ActionStatus
+    detail: str = ""
+
+    def __post_init__(self):
+        object.__setattr__(self, "status", ActionStatus(self.status))
+        if not isinstance(self.detail, str):
+            raise ValueError("Invalid action detail")
+
+    @property
+    def confirmed(self):
+        return self.status is ActionStatus.CONFIRMED
+
+    def to_wire(self):
+        return {"index": self.index, "entity_id": self.entity_id, "service": self.service,
+                "status": self.status.value, "detail": self.detail}
+
+
+@dataclass(frozen=True)
+class ExecutionResult:
+    reply: str
+    outcome: Outcome
+    actions: tuple[ActionResult, ...] = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, "outcome", Outcome(self.outcome))
+        if not isinstance(self.reply, str) or not isinstance(self.actions, tuple) or any(
+                not isinstance(action, ActionResult) for action in self.actions):
+            raise ValueError("Invalid execution result")
+
+    def as_legacy_pair(self):
+        return self.reply, self.outcome.value
+
+    def as_legacy_mapping(self):
+        # Existing Python callers consume ActionResult objects in this field.
+        return {"reply": self.reply, "outcome": self.outcome.value, "actions": self.actions}
+
+    def to_wire(self):
+        return {"reply": self.reply, "outcome": self.outcome.value,
+                "actions": [action.to_wire() for action in self.actions]}

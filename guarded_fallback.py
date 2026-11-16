@@ -4,13 +4,14 @@ The caller supplies the trusted inventory, a configured planner, an authorised
 dispatcher, and a persistent budget database. No live server route invokes this
 module until those dependencies and owner controls are connected.
 """
-from action_executor import execute_verified, summarise
+from action_executor import execute_verified, summarise_result
+from execution_results import ExecutionResult, Outcome
 from action_plan import validate_plan
 from ai_budget import reserve, settle
 from ha_action_preflight import preflight
 
 
-def run_guarded_fallback(
+def run_guarded_result(
     utterance, inventory, *, planner, dispatcher, budget_db,
     monthly_limit_micro_usd, request_ceiling_micro_usd,
     charge_micro_usd=None, sensitive_confirmed=False,
@@ -47,8 +48,8 @@ def run_guarded_fallback(
         actual = charge_micro_usd()
         settle(budget_db, reservation, actual)
     if not plan:
-        return {"reply": "I couldn't safely identify an action. Please be more specific.",
-                "outcome": "unresolved", "actions": ()}
+        return ExecutionResult("I couldn't safely identify an action. Please be more specific.",
+                               Outcome.UNRESOLVED)
     # Never trust a planner's claim that its candidates were validated.
     try:
         raw = {"actions": [{"entity_id": action.entity_id, "service": action.service,
@@ -58,5 +59,18 @@ def run_guarded_fallback(
     validated = validate_plan(raw, exposed)
     checked = preflight(validated, inventory, confirmed_sensitive=sensitive_confirmed)
     results = execute_verified(checked, dispatcher)
-    reply, outcome = summarise(results)
-    return {"reply": reply, "outcome": outcome, "actions": results}
+    return summarise_result(results)
+
+
+def run_guarded_fallback(
+    utterance, inventory, *, planner, dispatcher, budget_db,
+    monthly_limit_micro_usd, request_ceiling_micro_usd,
+    charge_micro_usd=None, sensitive_confirmed=False,
+):
+    """Compatibility API for callers using the original Python mapping."""
+    return run_guarded_result(
+        utterance, inventory, planner=planner, dispatcher=dispatcher, budget_db=budget_db,
+        monthly_limit_micro_usd=monthly_limit_micro_usd,
+        request_ceiling_micro_usd=request_ceiling_micro_usd,
+        charge_micro_usd=charge_micro_usd, sensitive_confirmed=sensitive_confirmed,
+    ).as_legacy_mapping()
