@@ -25,6 +25,18 @@ class PlaylistPreferenceTests(unittest.TestCase):
         self.environment.stop()
         self.temp.cleanup()
 
+    def test_discovery_requires_explicit_category(self):
+        with self.assertRaises(ValueError):
+            spotify_playlists.discover(None, None)
+        with self.assertRaises(ValueError):
+            spotify_playlists.discover(None, "all")
+
+    def test_refresh_only_changes_selected_category(self):
+        spotify_playlists.refresh({"country": [A], "rock": [B]})
+        spotify_playlists.refresh({"country": [B]})
+        self.assertIn(B, spotify_playlists.load()["rock"]["playlists"])
+        self.assertIn(B, spotify_playlists.load()["country"]["playlists"])
+
     def test_manual_playlist_survives_multiple_refreshes(self):
         spotify_playlists.manage({"category": "country", "playlist": A, "operation": "add"})
         spotify_playlists.refresh({"country": [B]})
