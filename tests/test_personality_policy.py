@@ -11,6 +11,24 @@ class PersonalityPolicyTests(unittest.TestCase):
         self.assertEqual(len(set(replies)), 4)
         self.assertTrue(all(x.startswith("Kitchen lights are on.") for x in replies))
 
+    def test_dinner_is_its_own_varied_reply_without_generic_completion_prefix(self):
+        replies = [p.decorate("", category="dinner", visitor_present=False) for _ in range(4)]
+        self.assertEqual(len(set(replies)), 4)
+        self.assertTrue(all(reply in p._DINNER_HOME for reply in replies))
+        self.assertTrue(all("Routine finished" not in reply and "Sorted." not in reply for reply in replies))
+        self.assertEqual(p.decorate(replies[0], category="general", visitor_present=False), replies[0])
+
+    def test_dinner_guest_lines_are_still_food_specific_and_privacy_safe(self):
+        for options in ({"guest": True}, {"visitor_present": True}, {"visitor_present": None}):
+            reply = p.decorate("", category="dinner", **options)
+            self.assertIn(reply, p._DINNER_GUEST)
+            self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
+
+    def test_dinner_sass_never_masks_failed_or_unverified_actions(self):
+        for outcome in ("failed", "partial", "unverified", "started", "cancelled"):
+            self.assertEqual(p.decorate("Dinner could not be confirmed.", category="dinner", outcome=outcome),
+                             "Dinner could not be confirmed.")
+
     def test_decoration_is_idempotent_across_categories_and_modes(self):
         home = p.decorate("Lights on.", visitor_present=False)
         self.assertEqual(p.decorate(home, visitor_present=False, category="music"), home)
