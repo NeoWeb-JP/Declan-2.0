@@ -399,6 +399,63 @@ def select_routine_turn(phrase, origin):
     return (routine, None) if routine else None
 
 
+def preview_routine(phrase, origin=None):
+    """Describe a routine without dispatching any Home Assistant actions.
+
+    A preview cannot know a script's runtime service response. The simulated
+    spoken line is explicitly labelled, never reported as an actual outcome.
+    """
+    selection = select_routine_turn(phrase, origin)
+    if not selection:
+        return ("I couldn't find a configured routine for that phrase. "
+                "Nothing has been run.", "unresolved")
+    (kind, options), follow_on = selection
+    if follow_on:
+        return ("Preview of chained routines isn't supported yet. "
+                "Nothing has been run.", "unresolved")
+    if kind == "auto_ambiguous":
+        return ("Several scripts match. Please use a more specific routine name. "
+                "Nothing has been run.", "unresolved")
+    if kind == "unconfigured_house_status":
+        return ("House Status isn't configured. Map its script in Declan Settings. "
+                "Nothing has been run.", "not_configured")
+    try:
+        mappings = routine_registry.load()
+    except (OSError, ValueError, sqlite3.Error):
+        return ("Routine configuration is unavailable. Nothing has been run.", "unverified")
+    if kind.startswith("custom:"):
+        key = kind[7:]
+    elif kind in {"morning", "night"}:
+        key = kind
+    elif kind == "movie":
+        key = "movie_bedroom" if options.get("movie_room") == "bedroom" else "movie"
+    elif kind.startswith("auto:"):
+        return (f"Preview: I would request Home Assistant script {kind[5:]}. "
+                "I cannot predict its internal actions or actual response without running it. "
+                "Nothing has been run.", "preview")
+    else:
+        return ("I can't safely preview that routine. Nothing has been run.", "unresolved")
+    mapping = mappings.get(key)
+    if not mapping:
+        return (f"The {key.replace('_', ' ')} routine is not mapped. "
+                "Nothing has been run.", "not_configured")
+    script = mapping["script"]
+    label = key.replace("_", " ")
+    details = [f"request the Home Assistant script {script}"]
+    if options.get("movie_action"):
+        details.append(f"set Movie Time to {options['movie_action']}")
+    if mapping.get("fields"):
+        details.append("pass the configured script fields")
+    if mapping.get("sensitive"):
+        details.append("require confirmation before actual execution")
+    plan = "; ".join(details)
+    # This is the *simulated* response, not an assertion of success.
+    spoken = f"Starting {label}." if key not in {"night", "morning"} else f"Good {key}."
+    return (f"Preview for {label}: I would {plan}. "
+            f"I cannot verify the script's internal actions or final result without running it. "
+            f"Simulated spoken response: {spoken} Nothing has been run.", "preview")
+
+
 def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
     if period == "auto_ambiguous":
@@ -2558,12 +2615,23 @@ class Handler(BaseHTTPRequestHandler):
                 routine_approved = True
                 phrase = approved_phrase
                 effective_message = approved_phrase
-        timer_result = timers.handle(
+        preview_request = re.match(r"^(?:preview|dry[ -]run)\\b[ ,:]*", phrase)
+        preview_phrase = phrase[preview_request.end():] if preview_request else None
+        # Preview must never reach the normal routine, media, or timer dispatch.
+        # Lighting preview retains its existing dedicated safe implementation.
+        routine_preview = None
+        if preview_phrase and not re.search(
+            r"\\b(?:light|lights|lamp|spotlight|brightness|dim|switch)\\b", preview_phrase
+        ):
+            routine_preview = preview_routine(preview_phrase, origin_device or satellite)
+        timer_result = None if routine_preview else timers.handle(
             phrase, opener,
             satellite=satellite if isinstance(satellite, str) and len(satellite) <= 128 else None,
             device=origin_device, browser=source != "assist",
         )
-        if timer_result:
+        if routine_preview:
+            routine_reply, outcome = routine_preview
+        elif timer_result:
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())

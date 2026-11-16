@@ -67,7 +67,7 @@ class SensitiveConfirmationTests(unittest.TestCase):
     def test_prompt_never_executes_command(self):
         from pathlib import Path
         server=Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
-        self.assertLess(server.index('decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate'),server.index('timer_result = timers.handle('))
+        self.assertLess(server.index('decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate'),server.index('timers.handle('))
         self.assertLess(server.index('decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate'),server.index('elif phrase in GUEST_COMMANDS:'))
         self.assertIn('if decision in {"prompt", "cancelled", "denied"}:',server)
 
