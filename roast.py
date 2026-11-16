@@ -40,5 +40,5 @@ def respond(name, *, guest):
     """Guest Mode keeps the roast playful; Home Mode is cheekier."""
     line = _RANDOM.choice(GUEST if guest else HOME)
     if name == "you":
-        line = line.replace("{name},", "You,")
+        return line.format(name="My bru")
     return line.format(name=name)
