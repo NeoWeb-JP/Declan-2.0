@@ -1944,17 +1944,7 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings document unavailable."})
         elif self.path == "/api/native/routines":
-            try:
-                connection = ha_device_connection()
-                if connection:
-                    inventory, inventory_error = read_ha_inventory(connection)
-                    if not inventory_error:
-                        available = {item.get("entity_id") for item in inventory if isinstance(item, dict)}
-                        if any(isinstance(entity, str) and entity.startswith("script.") for entity in available):
-                            routine_registry.bootstrap(available)
-                self.send_json(200, {"routines": routine_registry.load()})
-            except (ValueError, OSError, sqlite3.Error):
-                self.send_json(503, {"error": "Routine settings unavailable."})
+            self.send_json(410, {"error": "Routine mappings are retired. Home Assistant scripts are the source of truth."})
         elif self.path == "/api/native/intents":
             try:
                 self.send_json(200, {"intents": history.learned_intents()})
@@ -2297,15 +2287,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(503, {'error': 'Settings could not be imported.'})
                 return
             if self.path == "/api/native/routines":
-                try:
-                    if not isinstance(body, dict) or set(body) != {"routines"}:
-                        raise ValueError("Invalid routine request")
-                    routine_registry.save(body["routines"])
-                    self.send_json(200, {"saved": True})
-                except ValueError as error:
-                    self.send_json(400, {"error": str(error)})
-                except (OSError, sqlite3.Error):
-                    self.send_json(503, {"error": "Routine settings unavailable."})
+                self.send_json(410, {"error": "Routine mappings are retired. Manage scripts in Home Assistant."})
                 return
             if self.path == "/api/native/intents":
                 try:
