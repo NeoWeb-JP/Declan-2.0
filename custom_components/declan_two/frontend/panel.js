@@ -322,18 +322,16 @@ class DeclanTwoNativePanel extends HTMLElement {
           </details>
 
             <details class="settings-section settings-section--routines">
-              <summary><span class="settings-section-icon" aria-hidden="true">⌘</span><span class="settings-section-title">Home Assistant routines<small>Script mappings, phrases and parameters</small></span></summary>
+              <summary><span class="settings-section-icon" aria-hidden="true">⌘</span><span class="settings-section-title">Home Assistant routines<small>Automatically available scripts</small></span></summary>
               <div class="settings-section-content">
-                <p class="muted">Scripts are discovered from Home Assistant. Search by name, area or entity ID. Only scripts with custom settings need a saved override. Existing mappings are preserved.</p>
+                <p class="muted">Every Home Assistant script is available to Declan automatically. No mapping or approval required. Search by name, area or entity ID.</p>
                 <label class="settings-subsection" style="display:grid;gap:8px">Find a Home Assistant script
                   <input class="routine-search" type="search" placeholder="Search scripts, areas or entity IDs" style="width:100%;background:#091923;color:#e7f7ff;border:1px solid #315568;border-radius:8px;padding:12px"/>
                 </label>
                 <p class="routines-discovery-count muted" aria-live="polite"></p>
                 <div class="routine-discovery" style="max-height:380px;overflow-y:auto"></div>
-                <details class="settings-subsection routine-overrides"><summary>Advanced: existing custom mappings and overrides</summary>
-                  <div class="routine-entries"></div>
-                </details>
-                <div class="history-actions"><button class="routines-add" type="button">Add routine</button><button class="routines-save" type="button">Save routines</button><button class="routines-refresh" type="button">Reload</button></div>
+                <div class="routine-entries" hidden></div>
+                <div class="history-actions"><button class="routines-add" type="button" hidden>Add routine</button><button class="routines-save" type="button" hidden>Save routines</button><button class="routines-refresh" type="button">Reload scripts</button></div>
                 <p class="routines-status muted" role="status" aria-live="polite"></p>
               </div>
             </details>
@@ -583,22 +581,11 @@ class DeclanTwoNativePanel extends HTMLElement {
       const id = document.createElement('div');
       id.className = 'muted';
       id.textContent = entity.entity_id;
-      const safety = document.createElement('div');
-      safety.className = 'muted';
-      safety.textContent = entity.declanSafe ? 'Voice enabled · inspected safe actions' : 'Protected · approval required';
-      label.append(title, id, safety);
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = entity.declanSafe ? 'Customise' : 'Review / enable';
-      button.addEventListener('click', () => {
-        const key = entity.entity_id.slice(7);
-        const existing = [...this.shadowRoot.querySelectorAll('.routine-entry')]
-          .find(row => row.querySelector('[data-field="script"]')?.value === entity.entity_id);
-        this.shadowRoot.querySelector('.routine-overrides').open = true;
-        if (!existing) this.addRoutineRow(key, {script: entity.entity_id, phrases: [key.replaceAll('_', ' ')], fields: {}, sensitive: true});
-        this.shadowRoot.querySelector('.routine-overrides').scrollIntoView({block: 'nearest'});
-      });
-      row.append(label, button);
+      const availability = document.createElement('div');
+      availability.className = 'muted';
+      availability.textContent = 'Available to Declan automatically';
+      label.append(title, id, availability);
+      row.append(label);
       root.append(row);
     }
   }
@@ -670,8 +657,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       }
       this.renderScriptDiscovery();
       status.textContent = this._scriptDiscovery.length
-        ? 'Discovered ' + this._scriptDiscovery.length + ' scripts. Existing overrides preserved.'
-        : 'Script safety inspection unavailable. Automatic voice execution is disabled.';
+        ? 'Discovered ' + this._scriptDiscovery.length + ' scripts. No approval or mapping required.'
+        : 'Home Assistant script discovery unavailable. Check the Declan connection.';
     } catch (error) {
       status.textContent = 'Could not load routine mappings: ' + (error?.body?.error || error?.body?.status || error?.message || 'Unknown error');
     }
