@@ -39,7 +39,9 @@ class RoutineDispatchTests(unittest.TestCase):
              patch.object(server.script_discovery, "discover", return_value=([script], None)):
             self.assertIsNone(server.select_routine("end movie time", None))
             self.assertEqual(server.select_routine("movie time", None),
-                             ("auto:script.movie_time", {"operation": "toggle", "room": "lounge"}))
+                             ("auto:script.movie_time", {"operation": "toggle", "movie_action": "toggle",
+                                                           "action": "toggle", "room": "lounge",
+                                                           "movie_room": "lounge"}))
 
     def test_guest_read_phrases_exist(self):
         self.assertEqual(server.GUEST_COMMANDS["who's in charge"], "check")
