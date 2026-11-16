@@ -668,6 +668,28 @@ class DeclanTwoNativePanel extends HTMLElement {
     } finally { this.responseBusy(false); }
   }
 
+  parseResponseBatch(text, existing) {
+    if (text.length > 120000) throw new Error('The pasted list is too large.');
+    let source = text.trim();
+    // Also accept the quoted, comma-separated brace list used in the UI example.
+    if (source.startsWith('{') && source.endsWith('}')) source = '[' + source.slice(1, -1) + ']';
+    let values;
+    try { values = JSON.parse(source); }
+    catch { throw new Error('Paste a JSON list such as ["Response one", "Response two"].'); }
+    if (!Array.isArray(values) || !values.length || values.length > 100) throw new Error('Paste a list of 1 to 100 responses.');
+    if (values.some(line => typeof line !== 'string' || !line.trim() || line.trim().length > 1000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(line))) {
+      throw new Error('Each response must be text containing 1 to 1000 characters.');
+    }
+    const seen = new Set(existing.map(line => line.trim()));
+    const added = [];
+    for (const value of values) {
+      const line = value.trim();
+      if (!seen.has(line)) { added.push(line); seen.add(line); }
+    }
+    if (existing.length + added.length > 100) throw new Error('This list can hold at most 100 responses. Nothing was added.');
+    return {added, skipped: values.length - added.length};
+  }
+
   renderResponseEditor() {
     const host = this.shadowRoot.querySelector('.responses-editor');
     host.replaceChildren();
@@ -710,7 +732,27 @@ class DeclanTwoNativePanel extends HTMLElement {
           add.addEventListener('click', () => { lines.push(''); this.responseChanged(); render(); [...rows.querySelectorAll('textarea')].at(-1)?.focus(); });
           rows.append(add);
         };
-        filter.addEventListener('change', render); render(); section.append(tone);
+        const bulk = document.createElement('details'); bulk.className = 'card';
+        const bulkHeading = document.createElement('summary'); bulkHeading.textContent = 'Add responses in bulk'; bulk.append(bulkHeading);
+        const bulkHelp = document.createElement('p'); bulkHelp.className = 'muted';
+        bulkHelp.textContent = 'Paste a JSON list to add responses to the action selected above. Existing responses stay in place and duplicates are skipped. Review the individual responses, then save.'; bulk.append(bulkHelp);
+        const bulkInput = document.createElement('textarea'); bulkInput.className = 'responses-bulk-input'; bulkInput.rows = 6; bulkInput.maxLength = 120000;
+        bulkInput.placeholder = '["Response one", "Response two"]';
+        bulkInput.setAttribute('aria-label', `${title}, ${label} bulk responses`);
+        bulkInput.style.cssText = 'width:100%;padding:10px;background:#102635;color:#e7f7ff;border:1px solid #315568;border-radius:9px;font:inherit;resize:vertical';
+        const importButton = document.createElement('button'); importButton.type = 'button'; importButton.className = 'responses-import'; importButton.textContent = 'Add pasted responses';
+        const bulkStatus = document.createElement('p'); bulkStatus.className = 'responses-import-status muted'; bulkStatus.setAttribute('role', 'status'); bulkStatus.setAttribute('aria-live', 'polite');
+        importButton.addEventListener('click', () => {
+          try {
+            const lines = profile[phase][mode][filter.value];
+            const {added, skipped} = this.parseResponseBatch(bulkInput.value, lines);
+            if (added.length) { lines.push(...added); this.responseChanged(); render(); }
+            bulkInput.value = '';
+            bulkStatus.textContent = `${added.length} responses added to ${filter.value}. ${skipped} duplicates skipped. Review the list, then save responses.`;
+          } catch (error) { bulkStatus.textContent = error.message; }
+        });
+        bulk.append(bulkInput, importButton, bulkStatus); tone.append(bulk);
+        filter.addEventListener('change', () => { bulkStatus.textContent = ''; render(); }); render(); section.append(tone);
       }
       host.append(section);
     }
@@ -2023,7 +2065,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       this._micHeardSpeech = false;
       let lastSpeech = performance.now();
       const context = new (window.AudioContext || window.webkitAudioContext)();
+      this._micStream = stream;
+      this._micContext = context;
       await context.resume();
+      if ((this._voiceEpoch || 0) !== epoch) return;
       const source = context.createMediaStreamSource(stream);
       const processor = context.createScriptProcessor(4096, 1, 1);
       const samples = [];
@@ -2067,6 +2112,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     const rate = this._micContext.sampleRate;
     const chunks = this._micSamples;
     this.cancelMicrophone();
+    const transcriptionEpoch = this._voiceEpoch;
     status.textContent = 'Transcribing…';
     const count = chunks.reduce((n, chunk) => n + chunk.length, 0);
     if (!count) { status.textContent = 'No audio captured.'; return; }
@@ -2086,6 +2132,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
       }
       const result = await this._hass.callApi('POST', 'declan_two/microphone', {audio: btoa(binary)});
+      if (followUp && (this._voiceEpoch !== transcriptionEpoch || !this.isConnected)) return;
       if (typeof result.text !== 'string' || !result.text.trim()) throw new Error('No speech recognized');
       this.shadowRoot.querySelector('#native-chat-input').value = result.text.trim();
       this._voiceTranscript = result.text.trim();
@@ -2103,6 +2150,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     const send = this.shadowRoot.querySelector('.chat-send');
     const message = input.value.trim();
     if (!message || message.length > 1000) return;
+    const requestEpoch = this._voiceEpoch || 0;
     this._chatPending = true;
     send.disabled = true;
     status.textContent = 'Waiting for Declan…';
@@ -2138,7 +2186,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       input.value = '';
       status.textContent = 'Reply received.';
       this._voiceTranscript = null;
-      if (voice && result.continue_conversation === true) {
+      if (voice && result.continue_conversation === true && (this._voiceEpoch || 0) === requestEpoch) {
         const epoch = this._voiceEpoch || 0;
         const listen = () => {
           this._followUpSpeech = false;
@@ -2185,7 +2233,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       for (const item of pendingRows) if (item.id && recent(item)) recordings.set(String(item.id), {kind:'pending', item});
       for (const item of reviewedRows) if (item.id && recent(item) && !recordings.has(String(item.id))) recordings.set(String(item.id), {kind:'reviewed', item});
       // Never infer a conversation turn from transcript text or timestamps.
-      // A recording is teachable only when the backend confirms one unique link.
+      // Unique links attach saved replies. Older unlinked transcripts can be taught explicitly.
       this._recordingTurnLinks = {};
       this._recordingReplies = {};
       const ids = [...recordings.keys()].filter(id => /^[A-Za-z0-9_-]{1,80}$/.test(id));
@@ -2199,7 +2247,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           }
         }
       } catch {
-        // Voice review remains available, but teaching must stay disabled.
+        // Explicit teaching can still use the recording's own transcript.
         this._recordingTurnLinks = {};
       }
       const conversationRows = [];
@@ -2276,7 +2324,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       entry.open = pending;
       const summary = document.createElement('summary');
       summary.textContent = (item.transcript || '(No transcript)') + ' · ' +
-        (pending ? 'Needs review' : rejected ? 'Rejected' : speaker || 'Confirmed');
+        (kind === 'conversation' ? 'Recorded' : pending ? 'Needs review' : rejected ? 'Rejected' : speaker || 'Confirmed');
       entry.append(summary);
       const card = document.createElement('article');
       card.className = 'timeline-row timeline-row--' + (pending ? 'pending' : rejected ? 'rejected' : 'confirmed');
@@ -2284,7 +2332,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       heading.className = 'timeline-heading';
       const state = document.createElement('span');
       state.className = 'timeline-status-label timeline-status-label--' + (pending ? 'pending' : rejected ? 'rejected' : 'confirmed');
-      state.textContent = pending ? 'Needs review' : rejected ? 'Rejected' : 'Confirmed';
+      state.textContent = kind === 'conversation' ? 'Recorded' : pending ? 'Needs review' : rejected ? 'Rejected' : 'Confirmed';
       heading.append(state);
       const recorded = document.createElement('span');
       recorded.className = 'muted';

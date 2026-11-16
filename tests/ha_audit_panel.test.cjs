@@ -101,6 +101,31 @@ test('voice retry waits for the spoken prompt and cancellation prevents a late r
   assert.equal(restarts,1);
 });
 
+test('a silent follow-up closes the microphone after ten seconds without sending a command', async t => {
+  const {element, root, calls} = panel(t, {});
+  Object.defineProperty(element,'isConnected',{value:true});
+  const win = element.ownerDocument.defaultView;
+  let stopped=0, closed=0, expiry;
+  win.setTimeout = (callback, milliseconds) => {assert.equal(milliseconds,10000); expiry=callback; return 1;};
+  win.clearTimeout = () => {};
+  Object.defineProperty(win.navigator,'mediaDevices',{value:{getUserMedia:async () => ({getTracks:() => [{stop(){stopped++;}}]})}});
+  win.AudioContext = class {
+    destination = {};
+    resume = async () => {};
+    close = async () => {closed++;};
+    createMediaStreamSource = () => ({connect(){},disconnect(){}});
+    createScriptProcessor = () => ({connect(){},disconnect(){}});
+  };
+  await element.startMicrophone({followUp:true});
+  assert.equal(root.querySelector('.mic-stop').textContent,'Stop listening');
+  expiry();
+  assert.equal(stopped,1);
+  assert.equal(closed,1);
+  assert.equal(element._micStream,null);
+  assert.equal(calls.length,0);
+  assert.match(root.querySelector('.mic-status').textContent,/No response received/);
+});
+
 test('routine response editor safely edits adds deletes and saves only the selected routine', async t => {
   const {element, root, calls} = panel(t, {});
   const data = responseProfile();
@@ -118,7 +143,7 @@ test('routine response editor safely edits adds deletes and saves only the selec
   input.value = 'Edited sass'; input.dispatchEvent(new input.ownerDocument.defaultView.Event('input'));
   const tone = input.closest('details');
   [...tone.querySelectorAll('button')].find(button => button.textContent === 'Add response').click();
-  const added = [...tone.querySelectorAll('textarea')].at(-1);
+  const added = [...tone.querySelectorAll('textarea:not(.responses-bulk-input)')].at(-1);
   added.value = 'Added sass'; added.dispatchEvent(new added.ownerDocument.defaultView.Event('input'));
   tone.querySelector('button').click();
   await element.saveResponses();
@@ -133,6 +158,52 @@ test('routine response editor safely edits adds deletes and saves only the selec
   secondEdit.dispatchEvent(new secondEdit.ownerDocument.defaultView.Event('input'));
   await element.saveResponses();
   assert.equal(calls.at(-1)[2].profile.requested.sass.default[0], 'Second edit after saving');
+});
+
+test('bulk response paste appends individual editable lines only to the selected tone and action', async t => {
+  const {element, root, calls} = panel(t, {saved:true, expected:'b'.repeat(64)});
+  element._responseProfile = responseProfile(); element._responseEntity = 'script.morning'; element._responseExpected = 'a'.repeat(64);
+  element.renderResponseEditor();
+  const bulk = root.querySelector('.responses-bulk-input'); const tone = bulk.closest('details').parentElement;
+  tone.querySelector('select').value = 'end';
+  bulk.value = JSON.stringify(['First line, with a comma.', 'A "quoted" response', ' First line, with a comma. ', '<img src=x>']);
+  tone.querySelector('.responses-import').click();
+  assert.deepEqual([...element._responseProfile.requested.sass.end], ['First line, with a comma.', 'A "quoted" response', '<img src=x>']);
+  assert.equal(element._responseProfile.requested.sass.default.length, 1);
+  assert.equal(element._responseProfile.requested.guest.end.length, 0);
+  assert.equal(tone.querySelectorAll('textarea:not(.responses-bulk-input)').length, 3);
+  assert.equal(root.querySelector('.responses-editor img'), null);
+  assert.match(tone.querySelector('.responses-import-status').textContent, /3 responses added to end. 1 duplicates skipped/);
+  assert.equal(calls.length, 0);
+  await element.saveResponses();
+  assert.equal(calls.at(-1)[2].profile.requested.sass.end.length, 3);
+});
+
+test('bulk paste accepts brace lists and skips existing responses without losing edits', async t => {
+  const {element, root} = panel(t, {});
+  element._responseProfile = responseProfile(); element.renderResponseEditor();
+  const bulk = root.querySelector('.responses-bulk-input'); const tone = bulk.closest('details').parentElement;
+  bulk.value = '{"sass response <img src=x>", "New response", "New response"}';
+  tone.querySelector('.responses-import').click();
+  assert.deepEqual([...element._responseProfile.requested.sass.default], ['sass response <img src=x>', 'New response']);
+  assert.match(tone.querySelector('.responses-import-status').textContent, /1 responses added.*2 duplicates skipped/);
+  assert.equal(element._responsesDirty, true);
+  assert.equal(bulk.value, '');
+});
+
+test('invalid bulk imports are atomic, preserve pasted text and make no server calls', async t => {
+  const {element, root, calls} = panel(t, {});
+  element._responseProfile = responseProfile(); element.renderResponseEditor();
+  const before = JSON.stringify(element._responseProfile);
+  const bulk = root.querySelector('.responses-bulk-input'); const tone = bulk.closest('details').parentElement;
+  for (const source of ['not json', '{"key":"value"}', '[]', '[1]', '["valid", " "]', '["x", null]', JSON.stringify(['x'.repeat(1001)]), JSON.stringify(['bad\u0000text']), JSON.stringify(Array.from({length:100}, (_, i) => `new ${i}`))]) {
+    bulk.value = source; tone.querySelector('.responses-import').click();
+    assert.equal(JSON.stringify(element._responseProfile), before);
+    assert.equal(bulk.value, source);
+    assert.equal(Boolean(element._responsesDirty), false);
+    assert.ok(tone.querySelector('.responses-import-status').textContent.length);
+  }
+  assert.equal(calls.length, 0);
 });
 
 test('response save failure retains edits and permits retry; blank lists are valid', async t => {

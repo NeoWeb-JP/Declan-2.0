@@ -2591,8 +2591,12 @@ class Handler(BaseHTTPRequestHandler):
             with SESSION_LOCK:
                 reply = converse(message, session_id, "", scope=scope)
                 reply.update(outcome="cancelled", continue_conversation=False)
-                history.record(reply["session_id"], source, message, "", "cancelled",
-                               speaker=body.get("speaker") if source == "assist" else None)
+                try:
+                    history.record(reply["session_id"], source, message, "", "cancelled",
+                                   speaker=body.get("speaker") if source == "assist" else None)
+                except (OSError, sqlite3.Error):
+                    reply["history_saved"] = False
+                    self.log_error("Could not save conversation history.")
             self.send_json(200, reply)
             return
         opener = build_opener(ProxyHandler({}), NoRedirect())
@@ -2615,8 +2619,16 @@ class Handler(BaseHTTPRequestHandler):
                     "cancelled": "Cancelled. Nothing has been run.",
                     "denied": "I can't identify the originating satellite for that action.",
                 }[decision]
-                self.send_json(200, {"reply": response, "session_id": session_id,
-                                     "outcome": "confirmation_" + decision})
+                result = {"reply": response, "session_id": session_id,
+                          "outcome": "confirmation_" + decision,
+                          "continue_conversation": decision == "prompt"}
+                try:
+                    history.record(session_id, source, message, response, result["outcome"],
+                                   speaker=body.get("speaker"), diagnostic_id=diagnostics.current_id())
+                except (OSError, sqlite3.Error):
+                    result["history_saved"] = False
+                    self.log_error("Could not save conversation history.")
+                self.send_json(200, result)
                 return
             if decision == "confirmed":
                 phrase = approved_phrase

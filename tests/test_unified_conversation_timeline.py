@@ -16,7 +16,7 @@ class UnifiedTimelineTests(unittest.TestCase):
     def test_one_history_page_with_three_voice_review_categories(self):
         for label in ("Unconfirmed", "Confirmed", "Rejected"):
             self.assertIn("sectionFor('" + label + "'", TIMELINE)
-        self.assertNotIn("Conversation history", TIMELINE)
+        self.assertIn("sectionFor('Other interactions');", TIMELINE)
         self.assertNotIn("Saved phrase corrections", HISTORY)
         self.assertNotIn('class="timeline-filter"', HISTORY)
         self.assertIn("declan_two/history?recording_ids=", TIMELINE)

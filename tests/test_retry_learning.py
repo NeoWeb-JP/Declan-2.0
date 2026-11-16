@@ -119,6 +119,7 @@ class RetryLearningTests(unittest.TestCase):
     def test_similarity_rejects_target_direction_and_number_changes(self):
         self.assertTrue(retry_learning.similar('please switch the lights on it', 'turn light on'))
         self.assertTrue(retry_learning.similar('movie timme', 'movie time'))
+        self.assertTrue(retry_learning.similar('office light on it', 'turn on the office light'))
         for left, right in [('office light on','kitchen light on'), ('office light on','office light off'),
                             ('set heating to 20','set heating to 21'), ('play rock','play country'),
                             ('open garage','open gate'), ('office light on','study light on')]:
