@@ -1,8 +1,14 @@
 """Discover and execute only independently verified, low-risk HA scripts."""
 import json
 import re
+from threading import Lock
+from time import monotonic
 from urllib.error import HTTPError
 from urllib.request import Request
+
+_CACHE = {}
+_CACHE_LOCK = Lock()
+CACHE_SECONDS = 30
 
 
 def normalise(value):
@@ -19,10 +25,15 @@ def phrases(item):
     return result
 
 
-def discover(connection):
+def discover(connection, *, fresh=False):
     if connection is None:
         return [], "not_connected"
     url, headers, opener = connection
+    if not fresh:
+        with _CACHE_LOCK:
+            cached = _CACHE.get(url)
+            if cached and monotonic() - cached[0] < CACHE_SECONDS:
+                return cached[1], None
     try:
         with opener.open(Request(url + "/api/declan_two/script-discovery", headers=headers), timeout=5) as response:
             payload = json.loads(response.read(512 * 1024))
@@ -41,6 +52,8 @@ def discover(connection):
                 valid.append(item)
         if len(valid) != len(rows):
             return [], "invalid"
+        with _CACHE_LOCK:
+            _CACHE[url] = (monotonic(), valid)
         return valid, None
     except (OSError, ValueError, TypeError, HTTPError):
         return [], "inspection_unavailable"
@@ -61,7 +74,7 @@ def match(phrase, scripts):
 
 def execute(connection, item):
     """Inspect again at execution time; never trust a prior UI classification."""
-    scripts, error = discover(connection)
+    scripts, error = discover(connection, fresh=True)
     if error:
         return "I couldn't verify the script's safety. Nothing was run.", "unverified", None
     current = next((row for row in scripts if row["entity_id"] == item["entity_id"]), None)
