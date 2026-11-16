@@ -118,7 +118,13 @@ def manage(body):
             if operation == "dislike":
                 item["excluded"].append(selected)
             elif operation == "restore":
-                item["excluded"] = [uri for uri in item["excluded"] if uri != selected]
+                # A global dislike was propagated into every genre during
+                # normalization. Restoring must remove those exclusions from
+                # every category, not only the category where it was clicked.
+                for category_item in data.values():
+                    category_item["excluded"] = [
+                        uri for uri in category_item["excluded"] if uri != selected
+                    ]
             elif operation == "favourite":
                 if selected not in item["playlists"] and len(item["playlists"]) >= CAPACITY:
                     raise ValueError("Category has 25 playlists; remove one first")
