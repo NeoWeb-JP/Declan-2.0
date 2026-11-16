@@ -51,6 +51,7 @@ import ha_dispatcher
 import routine_registry
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
+import roast
 import personality_policy
 
 
@@ -2541,6 +2542,13 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
         elif phrase.replace("’", "'") in DINNER_PHRASES:
             routine_reply, outcome = start_dinner(ha_device_connection(), approved=routine_approved)
+        elif (roast_target := roast.target(phrase)) is not None:
+            roast_guest_mode = personality_policy.response_guest_mode(
+                read_guest_mode(), read_visitors_present()
+            )
+            routine_reply, outcome = roast.respond(
+                roast_target, guest=roast_guest_mode != "off"
+            ), "confirmed"
         elif phrase in SEXY_TIME_COMMANDS:
             routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection(), approved=routine_approved)
         elif phrase in GUEST_COMMANDS:
