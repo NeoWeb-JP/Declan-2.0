@@ -32,6 +32,19 @@ class DeclanLogTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             declan_logs.recent(limit=1000)
 
+    def test_server_emits_operational_events_without_sensitive_request_data(self):
+        from pathlib import Path
+        server_source = (Path(__file__).resolve().parents[1] / "server.py").read_text()
+        self.assertIn('logging.getLogger("declan.server")', server_source)
+        self.assertIn('DECLAN_EVENT_LOG.setLevel(logging.INFO)', server_source)
+        self.assertIn('Declan backend started and health check passed', server_source)
+        self.assertIn('DECLAN_EVENT_LOG.info("HTTP %d POST %s"', server_source)
+        self.assertIn('DECLAN_EVENT_LOG.warning("HTTP %d %s %s"', server_source)
+        self.assertIn('route = urlsplit(self.path).path', server_source)
+        logging.getLogger("declan.server").info("HTTP 200 POST /api/assist")
+        self.assertEqual(declan_logs.recent("INFO")[0]["message"],
+                         "HTTP 200 POST /api/assist")
+
     def test_install_is_idempotent(self):
         declan_logs.install()
         declan_logs.install()
