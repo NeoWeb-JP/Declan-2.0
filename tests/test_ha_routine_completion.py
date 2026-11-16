@@ -29,6 +29,23 @@ class RoutineResultTests(unittest.TestCase):
         with patch.object(script_discovery, "discover", return_value=([item], None)):
             return script_discovery.execute(("http://ha", {}, opener), item)
 
+    def test_personality_only_after_verified_completion(self):
+        from pathlib import Path
+        source = (Path(__file__).resolve().parents[1] / "server.py").read_text()
+        self.assertIn('outcome == "reported_success"', source)
+        self.assertIn('verified_routine or light_result is not None', source)
+        self.assertIn('outcome="confirmed" if verified_routine else outcome', source)
+        import personality_policy
+        with patch.object(personality_policy._RANDOM, "choice", side_effect=lambda lines: lines[0]):
+            success = personality_policy.decorate(
+                "Good Morning completed successfully.", outcome="confirmed",
+                guest=False, visitor_present=False)
+            failed = personality_policy.decorate(
+                "Good Morning could not be verified.", outcome="unverified",
+                guest=False, visitor_present=False)
+        self.assertNotEqual(success, "Good Morning completed successfully.")
+        self.assertEqual(failed, "Good Morning could not be verified.")
+
     def test_completed_steps(self):
         reply, outcome, _ = self.run_script("success", [
             {"required": True, "status": "confirmed"}])
