@@ -86,8 +86,8 @@ def match(phrase, scripts):
     return "matched", item
 
 
-def execute(connection, item):
-    """Verify the entity still exists in HA before dispatching its script."""
+def execute(connection, item, *, parameters=None):
+    """Verify the live HA script and send only parameters it declares."""
     scripts, error = discover(connection, fresh=True)
     if error:
         return "I couldn't verify that script exists in Home Assistant. Nothing was run.", "unverified", None
@@ -95,9 +95,17 @@ def execute(connection, item):
     if not current:
         return "That script is no longer available in Home Assistant.", "unresolved", None
     url, headers, opener = connection
+    allowed_fields = current.get("fields", [])
+    if not isinstance(allowed_fields, list):
+        allowed_fields = []
+    supplied = {key: value for key, value in (parameters or {}).items()
+                if key in allowed_fields and isinstance(value, (str, int, float, bool))}
+    payload = {"entity_id": current["entity_id"]}
+    if supplied:
+        payload["variables"] = supplied
     request = Request(url + "/api/services/script/turn_on",
                       headers=headers, method="POST",
-                      data=json.dumps({"entity_id": current["entity_id"]}).encode())
+                      data=json.dumps(payload).encode())
     try:
         with opener.open(request, timeout=15) as response:
             if response.status not in (200, 201):
