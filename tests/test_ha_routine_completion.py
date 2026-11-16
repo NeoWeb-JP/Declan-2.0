@@ -1,7 +1,7 @@
 """Verify that HA routine acknowledgements are not confused with execution."""
 import json
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 import script_discovery
 
 
@@ -18,7 +18,7 @@ class RoutineResultTests(unittest.TestCase):
             result = {"service_response": {
                 "outcome": outcome, "request_id": payload["request_id"],
                 "routine_id": payload["routine_id"], "steps": steps or []}}
-            response = Mock()
+            response = MagicMock()
             response.status = 200
             response.read.return_value = json.dumps(result).encode()
             response.__enter__ = Mock(return_value=response)
