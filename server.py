@@ -353,6 +353,8 @@ def select_routine(phrase, origin):
                               "movie_room": movie[1] or "lounge"}
             elif phrase in SEXY_TIME_COMMANDS:
                 parameters = {"operation": SEXY_TIME_COMMANDS[phrase]}
+            if is_house_status:
+                parameters["_declan_expect_response"] = True
             return "auto:" + item["entity_id"], parameters
     if is_house_status:
         return "unconfigured_house_status", {}
@@ -398,8 +400,10 @@ def execute_routine(selection, action_results, *, approved=False):
     if period == "auto_ambiguous":
         return "Several Home Assistant scripts match that name. Please use a more specific name.", "unresolved", None
     if period.startswith("auto:"):
-        return script_discovery.execute(ha_device_connection(), {"entity_id": period[5:]},
-                                        parameters=options)
+        return script_discovery.execute(
+            ha_device_connection(), {"entity_id": period[5:]},
+            parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
+            expect_response=options.get("_declan_expect_response", False))
     if period == "unconfigured_house_status":
         return "I could not find a House Status script in Home Assistant.", "not_configured", None
     return "I couldn't find that routine in Home Assistant.", "not_configured", None
