@@ -886,9 +886,8 @@ class DeclanTwoNativePanel extends HTMLElement {
 
 
   async resolveVoice(interactionId, action, assignedTo) {
-    if (this._voicesPending || !this._hass || !window.confirm(
-      action === 'dismiss' ? 'Reject this recording?' : 'Apply this speaker match to VoicePipeline?'
-    )) return;
+    if (this._voicesPending || !this._hass) return;
+    if (action === 'dismiss' && !window.confirm('Reject this recording?')) return;
     this._voicesPending = true;
     const status = this.shadowRoot.querySelector('.voices-status');
     status.textContent = 'Submitting voice review…';
