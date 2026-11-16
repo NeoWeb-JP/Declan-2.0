@@ -16,12 +16,13 @@ import timers
 
 class CoreTests(TestCase):
     def test_room_selection_prefers_explicit_room(self):
-        with patch.object(server, "ha_device_connection", return_value=("url", {}, None)), patch.object(
-            server, "read_ha_areas", return_value={"master bedroom": set()}
-        ):
-            self.assertEqual(server.select_routine("movie time", "satellite")[1]["movie_room"], "bedroom")
+        script = {"entity_id": "script.movie_time", "name": "Movie Time",
+                  "fields": ["operation", "room"], "safe": True}
+        with patch.object(server, "ha_device_connection", return_value=("url", {}, None)), \
+             patch.object(server.script_discovery, "discover", return_value=([script], None)):
+            self.assertEqual(server.select_routine("movie time", "satellite")[1]["room"], "lounge")
             selection = server.select_routine("movie time in the lounge", "satellite")
-            self.assertEqual(selection[1]["movie_room"], "lounge")
+            self.assertEqual(selection[1]["room"], "lounge")
 
     def test_routine_success_requires_confirmed_steps(self):
         result = {
