@@ -11,6 +11,17 @@ IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]*\.[a-z0-9_]+\Z")
 SELECTORS = {"entity_id": "entity", "device_id": "device", "area_id": "area"}
 
 
+def trace_steps(trace):
+    """Keep only action paths and error presence, never values or error text."""
+    steps = []
+    for path, entries in (trace.get("trace") or {}).items():
+        if not isinstance(entries, list):
+            continue
+        failed = any(isinstance(entry, Mapping) and entry.get("error") for entry in entries)
+        steps.append({"path": str(path), "status": "failed" if failed else "observed"})
+    return steps
+
+
 def build_report(states, registry, devices, areas, services, routines, traces, gaps=()):
     """Analyze a fresh snapshot; inputs are not modified or persisted."""
     known = set(states) | set(registry)
@@ -103,6 +114,8 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
         for trace in traces.get(entity_id, []):
             if trace.get("error") or trace.get("script_execution") == "error":
                 status = "failed"
+            elif any(step["status"] == "failed" for step in trace.get("audit_steps", [])):
+                status = "partial"
             elif trace.get("not_triggered") or trace.get("script_execution") == "failed_conditions":
                 status = "skipped"
             elif trace.get("state") == "running":
@@ -118,13 +131,15 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                 return value.isoformat() if isinstance(value, datetime) else value if isinstance(value, str) else None
             execution.append({"run_id": trace.get("run_id"), "status": status,
                               "start": stamp(timestamp.get("start")), "finish": stamp(timestamp.get("finish")),
-                              "last_step": trace.get("last_step")})
+                              "last_step": trace.get("last_step"),
+                              "steps": trace.get("audit_steps", [])[:100],
+                              "steps_truncated": len(trace.get("audit_steps", [])) > 100})
         execution.sort(key=lambda row: row.get("start") or "", reverse=True)
         execution = execution[:5]
         if not execution:
             finding("unverified", "no_trace", "execution",
                     "No retained trace is available. Review a future normal run in Home Assistant.")
-        elif any(row["status"] == "failed" for row in execution):
+        elif any(row["status"] in {"failed", "partial"} for row in execution):
             finding("error", "execution_failed", "execution",
                     "Open the corresponding run in Home Assistant Traces to inspect the failing action.")
         items.append({"entity_id": entity_id, "name": routine.get("name") or entity_id,
@@ -135,7 +150,9 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                  "state": states.get(key, {}).get("state"),
                  "disabled": bool(registry.get(key, {}).get("disabled"))} for key in sorted(known)]
     return {"generated_at": datetime.now(timezone.utc).isoformat(), "read_only": True,
-            "coverage": "partial" if gaps else "available_loaded_sources",
+            "coverage": "partial" if gaps or any(
+                f["code"] == "configuration_unavailable" for row in items for f in row["findings"]
+            ) else "available_loaded_sources",
             "gaps": list(gaps), "routines": items, "entities": entities,
             "summary": {"scripts": sum(r["entity_id"].startswith("script.") for r in items),
                         "automations": sum(r["entity_id"].startswith("automation.") for r in items),

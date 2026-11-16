@@ -12,6 +12,9 @@ the repository examples and files on disk are not the audit's source of truth.
 
 Recent retained trace summaries are linked by HA's persistent automation ID or script
 ID. Up to five recent runs per routine show run ID, timestamps, status and last step.
+Action paths record observed steps and failures, including errors suppressed by
+`continue_on_error` (reported as partial). At most 100 paths per run are displayed;
+truncation is explicit and all observed paths are checked for errors before truncation.
 Use that run ID in Home Assistant Traces to inspect the detailed failure. Raw trace
 errors, variables, configuration, messages and state attributes are not returned.
 

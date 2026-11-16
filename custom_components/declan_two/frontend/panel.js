@@ -573,7 +573,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (report.read_only !== true || !Array.isArray(report.routines) || !Array.isArray(report.entities)) throw new Error('Invalid audit response');
       this._auditReport = report;
       const counts = report.summary || {};
-      status.textContent = `Snapshot ${report.generated_at}: ${counts.scripts} scripts, ${counts.automations} automations, ${counts.entities} entities. ${counts.error} errors, ${counts.warning} warnings, ${counts.unverified} unverified findings. ` + (report.gaps || []).join('; ');
+      status.textContent = `Snapshot ${report.generated_at} (${report.coverage || 'coverage unknown'}): ${counts.scripts} scripts, ${counts.automations} automations, ${counts.entities} entities. ${counts.error} errors, ${counts.warning} warnings, ${counts.unverified} unverified findings. ` + (report.gaps || []).join('; ');
       this.renderHAAudit();
     } catch {
       status.textContent = 'Audit unavailable. Check your administrator access and the installed Declan integration. No current findings are available.';
@@ -610,7 +610,11 @@ class DeclanTwoNativePanel extends HTMLElement {
         addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}`);
         for (const finding of findings) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
         for (const dependency of item.dependencies || []) addText(details, 'p', `${dependency.kind}: ${dependency.id}`);
-        for (const run of item.executions || []) addText(details, 'p', `Run ${run.run_id}: ${run.status} · ${run.start || 'unknown time'} · Last step: ${run.last_step || 'unknown'}`);
+        for (const run of item.executions || []) {
+          addText(details, 'p', `Run ${run.run_id}: ${run.status} · ${run.start || 'unknown time'} · Last step: ${run.last_step || 'unknown'}`);
+          for (const step of run.steps || []) addText(details, 'p', `${step.path}: ${step.status}`);
+          if (run.steps_truncated) addText(details, 'p', 'Showing first 100 observed action paths. Review the full trace in Home Assistant.');
+        }
         group.append(details);
       }
       root.append(group);

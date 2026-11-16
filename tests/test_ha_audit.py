@@ -85,6 +85,17 @@ class AuditTests(unittest.TestCase):
         self.assertTrue(report["read_only"])
         self.assertIn("no_trace", self.codes(report))
 
+    def test_continue_on_error_is_partial_and_step_values_are_redacted(self):
+        steps = audit.trace_steps({"trace": {"sequence/0": [{"error": "secret-token", "changed_variables": {"secret": "hidden"}}],
+                                             "sequence/1": [{"result": {"success": True}}]}})
+        report = self.report({}, [{"script_execution": "finished", "audit_steps": steps}])
+        execution = report["routines"][0]["executions"][0]
+        self.assertEqual(execution["status"], "partial")
+        self.assertEqual(execution["steps"][0], {"path": "sequence/0", "status": "failed"})
+        self.assertIn("execution_failed", self.codes(report))
+        self.assertNotIn("secret-token", str(report))
+        self.assertNotIn("hidden", str(report))
+
 
 class AuditViewTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -99,11 +110,13 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.trace_rows = []
         async def trace_list(*args):
             return self.trace_rows
+        async def trace_get(*args):
+            return {"trace": {"action/0": [{"error": "secret-token"}]}}
         modules = {"aiohttp": module("aiohttp", web=self.web),
                    "homeassistant": module("homeassistant"),
                    "homeassistant.components": module("components"),
                    "homeassistant.components.http": module("http", HomeAssistantView=object),
-                   "homeassistant.components.trace.util": module("trace", async_list_traces=trace_list),
+                   "homeassistant.components.trace.util": module("trace", async_list_traces=trace_list, async_get_trace=trace_get),
                    "homeassistant.helpers": module("helpers",
                        area_registry=SimpleNamespace(async_get=lambda hass: self.areas),
                        device_registry=SimpleNamespace(async_get=lambda hass: self.devices),
@@ -130,6 +143,7 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         report = await self.view.collect_report(self.hass)
         row = next(r for r in report["routines"] if r["entity_id"] == "automation.actual_entity")
         self.assertEqual(row["executions"][0]["run_id"], "run1")
+        self.assertEqual(row["executions"][0]["status"], "partial")
         self.assertIn("missing_entity", {f["code"] for f in row["findings"]})
         disabled = next(r for r in report["routines"] if r["entity_id"] == "automation.disabled")
         self.assertTrue(disabled["disabled"])

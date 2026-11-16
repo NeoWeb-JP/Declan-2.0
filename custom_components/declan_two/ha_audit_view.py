@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 
-from .ha_audit import build_report
+from .ha_audit import build_report, trace_steps
 
 
 async def collect_report(hass):
@@ -59,10 +59,27 @@ async def collect_report(hass):
             for row in rows:
                 entity_id = trace_ids.get(str(row.get("item_id")))
                 if entity_id:
-                    traces.setdefault(entity_id, []).append(row)
+                    traces.setdefault(entity_id, []).append(dict(row))
         except Exception:
             # HA internal interfaces vary. Never replace missing evidence with a pass.
             gaps.append(f"{domain}: retained traces unavailable")
+    # Inspect only the five newest retained runs per routine. This catches
+    # continue_on_error failures hidden by a normally finished trace summary.
+    try:
+        from homeassistant.components.trace.util import async_get_trace
+        async with asyncio.timeout(10):
+            for entity_id, rows in traces.items():
+                rows.sort(key=lambda row: str((row.get("timestamp") or {}).get("start") or ""), reverse=True)
+                del rows[5:]
+                for row in rows:
+                    key = f"{entity_id.split('.', 1)[0]}.{row['item_id']}"
+                    try:
+                        detail = await async_get_trace(hass, key, row["run_id"])
+                        row["audit_steps"] = trace_steps(detail)
+                    except (KeyError, TypeError, AttributeError):
+                        gaps.append(f"{entity_id}: action trace details unavailable")
+    except Exception:
+        gaps.append("Action trace details unavailable; run summaries only")
     return build_report(states, registered, set(devices.devices), set(areas.areas),
                         services, routines, traces, gaps)
 
