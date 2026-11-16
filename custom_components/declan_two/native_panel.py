@@ -20,7 +20,7 @@ async def async_register_native_panel(hass):
         hass,
         webcomponent_name="declan-two-native-panel",
         frontend_url_path=PANEL_PATH,
-        sidebar_title="Declan 2.0 (Preview)",
+        sidebar_title="Declan 2.0",
         sidebar_icon="mdi:robot-outline",
         module_url=f"{ASSET_PATH}/panel.js",
         require_admin=True,
