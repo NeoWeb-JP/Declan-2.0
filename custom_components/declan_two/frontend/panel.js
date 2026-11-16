@@ -645,10 +645,6 @@ class DeclanTwoNativePanel extends HTMLElement {
   async loadRoutines() {
     const status = this.shadowRoot.querySelector('.routines-status');
     try {
-      const result = await this._hass.callApi('GET', 'declan_two/management/routines');
-      const root = this.shadowRoot.querySelector('.routine-entries');
-      root.replaceChildren();
-      for (const [name, item] of Object.entries(result.routines || {})) this.addRoutineRow(name, item);
       try {
         const discovered = await this._hass.callApi('GET', 'declan_two/script-discovery');
         this._scriptDiscovery = discovered.inspection === 'complete' ? discovered.scripts : [];
@@ -660,7 +656,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         ? 'Discovered ' + this._scriptDiscovery.length + ' scripts. No approval or mapping required.'
         : 'Home Assistant script discovery unavailable. Check the Declan connection.';
     } catch (error) {
-      status.textContent = 'Could not load routine mappings: ' + (error?.body?.error || error?.body?.status || error?.message || 'Unknown error');
+      status.textContent = 'Could not load Home Assistant scripts: ' + (error?.body?.error || error?.body?.status || error?.message || 'Unknown error');
     }
   }
 
