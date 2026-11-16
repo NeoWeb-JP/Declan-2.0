@@ -723,6 +723,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       });
       if (result.saved !== true || typeof result.expected !== 'string') throw new Error('Save not confirmed');
       this._responseProfile = profile; this._responseExpected = result.expected; this._responsesDirty = false;
+      this.renderResponseEditor();
       status.textContent = 'Responses saved. Declan will use these lists on the next request.';
     } catch (error) {
       const detail = error?.body?.error;

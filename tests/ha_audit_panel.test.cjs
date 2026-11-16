@@ -61,6 +61,11 @@ test('routine response editor safely edits adds deletes and saves only the selec
   assert.deepEqual([...payload.profile.requested.guest.default], ['guest response <img src=x>']);
   assert.match(root.querySelector('.responses-status').textContent, /saved/);
   assert.equal(element._responsesDirty, false);
+  const secondEdit = root.querySelector('.responses-editor textarea');
+  secondEdit.value = 'Second edit after saving';
+  secondEdit.dispatchEvent(new secondEdit.ownerDocument.defaultView.Event('input'));
+  await element.saveResponses();
+  assert.equal(calls.at(-1)[2].profile.requested.sass.default[0], 'Second edit after saving');
 });
 
 test('response save failure retains edits and permits retry; blank lists are valid', async t => {
