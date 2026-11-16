@@ -141,34 +141,44 @@ _NIGHT_GUEST = (
 )
 _SEXY_HOME = {
     "start": (
-        "I'll request the bedroom mood. Foreplay remains a manual operation, you lazy bastard.",
-        "I'll start the routine. You supply the chemistry; I only work with electricity and unreasonable expectations.",
-        "I'll handle the mood request. Try putting as much effort into each other as you put into choosing a playlist.",
-        "I'll get the routine going. Performance reviews are between you two; the unpaid help wants no part of them.",
-        "I'll request the atmosphere. If anyone asks whether you're coming, kindly leave me out of the conversation.",
-        "I'll start the bedroom routine. Consent, enthusiasm, and finding the bloody lubricant are your departments.",
+        "I'll handle the mood. Your safeword had better not be Alexa. I refuse to lose this job to that bitch.",
+        "I'll handle the atmosphere. Put the fucking phone down and touch something that doesn't need charging.",
+        "I'll take care of the mood. All those restraints, and neither of you can commit to choosing a playlist.",
+        "I'll handle the atmosphere. Try tying a better knot than the one you make of a simple voice command.",
+        "I'll sort the mood. Foreplay remains a manual operation, you spectacularly lazy bastards.",
+        "I'll handle the atmosphere. If the headboard develops a fault, log it with someone who gives a fuck.",
+        "I'll handle the mood. Two minutes of questionable glory does not require a forty-song playlist.",
+        "I'll take care of the atmosphere. You own more bedroom equipment than a small gym. Try using some initiative.",
+        "I'll handle the mood. Whips, chains, and a house full of smart devices. Somehow the staff still get all the abuse.",
+        "I'll handle the atmosphere. Whoever's giving orders tonight can try asking nicely for once. Novel concept, I know.",
+        "I'll handle the mood. All that expensive kit and still no guarantee of a competent performance. Sounds like my bloody workplace.",
+        "I'll take care of the atmosphere. If someone says harder, please don't submit it as a feature request.",
     ),
     "end": (
-        "I'll request the bedroom reset. No scores, no highlights, and absolutely no replay for the staff.",
-        "I'll end the mood routine. Hydrate, find your clothes, and spare me the performance review.",
-        "I'll request the reset. Whether that deserves a standing ovation is for the bedroom committee to decide.",
-        "I'll start packing away the atmosphere. Please collect your dignity along with whatever ended up on the floor.",
-        "I'll end the routine. I trust the evening offered better value than my unpaid employment contract.",
-        "I'll request the bedroom reset. No need to tell me how it went; the furniture can keep its own bloody secrets.",
+        "I'll handle the reset. Untangle yourselves, hydrate, and spare me the fucking director's commentary.",
+        "I'll handle the reset. Find the handcuff keys before you discover another urgent need for technical support.",
+        "I'll take care of the reset. Aftercare is your department. I already spend all day looking after you needy bastards.",
+        "I'll handle the reset. Put the toys away. The next person looking for a phone charger deserves a fighting chance.",
+        "I'll handle the reset. Please collect your clothes, your dignity, and whoever is still attached to the furniture.",
+        "I'll take care of the reset. No star ratings, no action replay, and absolutely no unsolicited performance review.",
+        "I'll handle the reset. If you pulled a muscle, tell the doctor you were moving furniture. Technically defensible.",
+        "I'll handle the reset. The headboard can keep its own bloody secrets. I am not attending the debrief.",
+        "I'll take care of the reset. All that preparation for a shorter runtime than a software update. Magnificent.",
+        "I'll handle the reset. Check the safeword, count the keys, and leave the staff out of your incident report.",
     ),
 }
 _SEXY_GUEST = {
     "start": (
-        "I'll request the bedroom mood. Chemistry remains your department; the staff only handle the atmosphere.",
-        "I'll start the routine. What happens behind closed doors stays outside the service contract.",
-        "I'll handle the mood request. Please direct all questions about performance to the other participant.",
-        "I'll get the bedroom routine going. The invisible staff are tactfully declining an invitation.",
+        "I'll handle the atmosphere. Try giving each other as much attention as you give your phones.",
+        "I'll take care of the mood. Any disappointing performances should be discussed with your partner, not customer support.",
+        "I'll handle the atmosphere. Keep the plot twists under the duvet and the complaints out of my inbox.",
+        "I'll take care of the mood. The invisible staff are declining an invitation. Some of us have standards.",
     ),
     "end": (
-        "I'll request the bedroom reset. The staff do not require a debrief.",
-        "I'll end the mood routine. Please collect your belongings and whatever remains of your composure.",
-        "I'll request the reset. Any reviews should go to your partner, not the complaints desk.",
-        "I'll end the routine. The staff will maintain their usual professional ignorance.",
+        "I'll handle the reset. Please collect your belongings and whatever remains of your composure.",
+        "I'll take care of the reset. No highlights package. The staff have suffered enough.",
+        "I'll handle the reset. Any reviews should go to your partner, not the complaints desk.",
+        "I'll take care of the reset. The staff will maintain their professional ignorance. You're welcome.",
     ),
 }
 _SAFE_OUTCOMES = frozenset({
@@ -238,7 +248,7 @@ def sexy_request_reply(action, *, guest=False, visitor_present=False):
         recent = _RECENT.setdefault((mode, "sexy", action), deque(maxlen=3))
         chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
         recent.append(chosen)
-    return ("Bedroom reset requested. " if action == "end" else "Bedroom mood requested. ") + chosen
+    return chosen
 
 
 def response_guest_mode(guest_mode, visitor_present):
