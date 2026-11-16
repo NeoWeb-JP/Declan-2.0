@@ -123,6 +123,9 @@ GUEST_MODE_ENTITY = "input_boolean.guest_mode"
 GUEST_REGISTER_ENTITY = "input_text.guests_in_charge"
 VISITORS_PRESENT_ENTITY = "input_boolean.visitors_present"  # fallback when no explicit mapping exists
 GUEST_COMMANDS = {
+    "who's in charge": "check",
+    "who is in charge of the house": "check",
+    "who is looking after the house tonight": "check",
     "who is in charge": "check",
     "who is looking after the house": "check",
     "the guests have left": "clear",
@@ -288,6 +291,11 @@ def select_routine(phrase, origin):
     try:
         mapped_phrase = routine_registry.match(phrase)
     except (OSError, ValueError, sqlite3.Error):
+        mapped_phrase = None
+    # Movie direction must be parsed before a saved generic "movie time"
+    # mapping can swallow "end movie time" or "stop cinema time".
+    movie_request = parse_movie_request(phrase)
+    if movie_request and movie_request[0] == "end":
         mapped_phrase = None
     if mapped_phrase:
         key = mapped_phrase[0]
@@ -965,6 +973,18 @@ def guest_assignment(operation, connection):
         if not isinstance(state, str) or state.strip().casefold() in {"unknown", "unavailable"}:
             return None
         return state.strip()
+
+    if operation.startswith("assign:"):
+        names = operation.partition(":")[2].strip()
+        if not re.fullmatch(r"[A-Za-z][A-Za-z '\\-]{0,119}", names):
+            return "Tell me who is in charge.", "unresolved"
+        request("/api/services/input_text/set_value", {"entity_id": GUEST_REGISTER_ENTITY, "value": names})
+        if read_state(GUEST_REGISTER_ENTITY) != names:
+            return "I couldn't verify the guest register was updated, so Guest Mode was left unchanged.", "unverified"
+        request("/api/services/input_boolean/turn_on", {"entity_id": GUEST_MODE_ENTITY})
+        if read_state(GUEST_MODE_ENTITY) != "on":
+            return "I updated the guest register, but couldn't verify Guest Mode is on.", "partial"
+        return f"{names} are in charge. Guest Mode is on.", "confirmed"
 
     if operation == "clear":
         request("/api/services/input_text/set_value", {"entity_id": GUEST_REGISTER_ENTITY, "value": ""})
@@ -2480,6 +2500,12 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome, routine_status = run_sexy_time(SEXY_TIME_COMMANDS[phrase], ha_device_connection(), approved=routine_approved)
         elif phrase in GUEST_COMMANDS:
             routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
+        elif guest_names := re.fullmatch(
+            r"(?:we are going out and |we're going out and |set |make |put )?"
+            r"([a-z][a-z '\\-]{0,119}?) (?:are|is) in charge"
+            r"(?: of the house)?", phrase
+        ):
+            routine_reply, outcome = guest_assignment("assign:" + guest_names[1].strip(), ha_device_connection())
         elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
             lighting_context = ()
             routine, follow_on = routine_turn
