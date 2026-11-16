@@ -589,7 +589,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       label.append(title, id, safety);
       const button = document.createElement('button');
       button.type = 'button';
-      button.textContent = 'Customise';
+      button.textContent = entity.declanSafe ? 'Customise' : 'Review / enable';
       button.addEventListener('click', () => {
         const key = entity.entity_id.slice(7);
         const existing = [...this.shadowRoot.querySelectorAll('.routine-entry')]
