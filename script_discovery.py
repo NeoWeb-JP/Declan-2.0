@@ -93,8 +93,18 @@ def match(phrase, scripts):
     matches = [item for item in scripts if phrase in phrases(item)]
     if not matches:
         return None
-    # Never guess between multiple scripts with the same spoken name.
-    if len(matches) != 1:
+    # Prefer the one HA script explicitly designed to return Declan's
+    # correlated completion result. Other similarly named scripts may be
+    # legacy wrappers or duplicates. This is capability-based, not a
+    # hardcoded script entity ID. Never guess when multiple candidates qualify.
+    if len(matches) > 1:
+        response_capable = [
+            item for item in matches
+            if isinstance(item.get("fields"), list)
+            and {"request_id", "routine_id"}.issubset(item["fields"])
+        ]
+        if len(response_capable) == 1:
+            return "matched", response_capable[0]
         return "ambiguous", matches
     item = matches[0]
     return "matched", item
