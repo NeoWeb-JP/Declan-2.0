@@ -80,8 +80,8 @@ def execute(connection, item):
     if error:
         return "I couldn't verify that script exists in Home Assistant. Nothing was run.", "unverified", None
     current = next((row for row in scripts if row["entity_id"] == item["entity_id"]), None)
-    if not current or not current["safe"]:
-        return "That script needs explicit approval before voice execution.", "unresolved", None
+    if not current:
+        return "That script is no longer available in Home Assistant.", "unresolved", None
     url, headers, opener = connection
     request = Request(url + "/api/services/script/turn_on",
                       headers=headers, method="POST",
