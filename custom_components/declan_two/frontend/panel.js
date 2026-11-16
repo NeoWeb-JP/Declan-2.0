@@ -253,6 +253,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button type="button" class="page-choice" data-page="overview">Overview</button>
           <button type="button" class="page-choice" data-page="conversations">History &amp; Voice Recognition</button>
           <button type="button" class="page-choice" data-page="players">Media players</button>
+          <button type="button" class="page-choice" data-page="audit">Home Assistant Audit</button>
           <button type="button" class="page-choice" data-page="settings">Settings</button>
           <button type="button" class="page-choice" data-page="updates">Updates</button>
         </nav>
@@ -279,6 +280,14 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh recordings</button></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load the last seven days of recordings.</p>
           <div class="timeline-list" aria-label="Voice recording review"></div>
+        </section>
+        <section class="card panel" id="panel-audit" role="region" aria-label="Home Assistant Audit" hidden>
+          <h2>Home Assistant Audit</h2>
+          <p class="muted">Read-only snapshot of loaded scripts, automations and entities. No routines are run or changed. Finished traces do not verify device success. Retained traces may describe older configuration.</p>
+          <button type="button" class="audit-refresh">Refresh audit</button>
+          <p class="audit-status" role="status" aria-live="polite">Open this page to inspect Home Assistant.</p>
+          <label>Search names, entities or findings <input class="audit-search" type="search" style="width:100%;padding:10px;margin:10px 0;background:#102635;color:#e7f7ff;border:1px solid #315568;border-radius:9px"></label>
+          <div class="audit-results"></div>
         </section>
         <section class="card panel" id="panel-players" role="region" aria-label="Declan page" hidden>
           <h2>Approved media players</h2>
@@ -475,6 +484,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       });
 
       this.bindPanelEvent('.history-refresh', 'click', () => this.loadHistory());
+      this.bindPanelEvent('.audit-refresh', 'click', () => this.loadHAAudit());
+      this.bindPanelEvent('.audit-search', 'input', () => this.renderHAAudit());
       this.bindPanelEvent('.history-more', 'click', () => this.loadHistory(this._historyCursor));
       this.bindPanelEvent('.page-menu-toggle', 'click', () => {
         const nav = this.shadowRoot.querySelector('.page-navigation');
@@ -541,10 +552,69 @@ class DeclanTwoNativePanel extends HTMLElement {
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
+    if (name === 'audit') void this.loadHAAudit();
     if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
+  }
+
+  async loadHAAudit() {
+    if (!this._hass || this._auditPending) return;
+    const button = this.shadowRoot.querySelector('.audit-refresh');
+    const status = this.shadowRoot.querySelector('.audit-status');
+    this._auditPending = true;
+    button.disabled = true;
+    this._auditReport = null;
+    this.shadowRoot.querySelector('.audit-results').replaceChildren();
+    status.textContent = 'Inspecting current Home Assistant sources…';
+    try {
+      const report = await this._hass.callApi('GET', 'declan_two/ha-audit');
+      if (report.read_only !== true || !Array.isArray(report.routines) || !Array.isArray(report.entities)) throw new Error('Invalid audit response');
+      this._auditReport = report;
+      const counts = report.summary || {};
+      status.textContent = `Snapshot ${report.generated_at}: ${counts.scripts} scripts, ${counts.automations} automations, ${counts.entities} entities. ${counts.error} errors, ${counts.warning} warnings, ${counts.unverified} unverified findings. ` + (report.gaps || []).join('; ');
+      this.renderHAAudit();
+    } catch {
+      status.textContent = 'Audit unavailable. Check your administrator access and the installed Declan integration. No current findings are available.';
+    } finally {
+      this._auditPending = false;
+      button.disabled = false;
+    }
+  }
+
+  renderHAAudit() {
+    const root = this.shadowRoot.querySelector('.audit-results');
+    root.replaceChildren();
+    const report = this._auditReport;
+    if (!report) return;
+    const query = this.shadowRoot.querySelector('.audit-search').value.trim().toLowerCase();
+    const matches = item => JSON.stringify(item).toLowerCase().includes(query);
+    const addText = (parent, tag, text) => {
+      const element = document.createElement(tag);
+      element.textContent = text;
+      parent.append(element);
+      return element;
+    };
+    for (const [title, rows] of [['Scripts & automations', report.routines], ['Entities', report.entities]]) {
+      const matching = rows.filter(matches);
+      const group = document.createElement('details');
+      group.className = 'settings-spotify';
+      addText(group, 'summary', `${title} (${matching.length})`);
+      addText(group, 'p', 'Showing up to 50 matches. Use search to narrow the list.');
+      for (const item of matching.slice(0, 50)) {
+        const details = document.createElement('details');
+        details.className = 'timeline-subsection';
+        const findings = item.findings || [];
+        const count = findings.length ? ` · ${findings.length} findings` : item.findings ? ' · No static issues found; device success unverified' : '';
+        addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}`);
+        for (const finding of findings) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
+        for (const dependency of item.dependencies || []) addText(details, 'p', `${dependency.kind}: ${dependency.id}`);
+        for (const run of item.executions || []) addText(details, 'p', `Run ${run.run_id}: ${run.status} · ${run.start || 'unknown time'} · Last step: ${run.last_step || 'unknown'}`);
+        group.append(details);
+      }
+      root.append(group);
+    }
   }
 
   renderScriptDiscovery() {

@@ -20,6 +20,7 @@ from .microphone_view import DeclanMicrophoneView
 from .settings_status_view import DeclanSettingsStatusView
 from .management_view import DeclanManagementView
 from .script_discovery_view import DeclanScriptDiscoveryView
+from .ha_audit_view import DeclanHAAuditView
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["conversation", "stt", "tts"]
@@ -39,6 +40,7 @@ async def async_setup(hass, config):
     hass.http.register_view(DeclanSettingsStatusView())
     hass.http.register_view(DeclanManagementView())
     hass.http.register_view(DeclanScriptDiscoveryView())
+    hass.http.register_view(DeclanHAAuditView())
     from .native_panel import async_register_native_panel
     await async_register_native_panel(hass)
     return True
@@ -161,3 +163,4 @@ async def async_setup_entry(hass, entry):
 
 async def async_unload_entry(hass, entry):
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
