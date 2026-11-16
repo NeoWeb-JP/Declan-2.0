@@ -140,7 +140,7 @@ def execute(connection, item, *, parameters=None, expect_response=False):
             reason = parsed.get("message", "") if isinstance(parsed, dict) else ""
         except ValueError:
             reason = body
-        reason = re.sub(r"[\\r\\n\\t]+", " ", str(reason)).strip()[:240]
+        reason = re.sub(r"[\r\n\t]+", " ", str(reason)).strip()[:240]
         # Some HA versions reject return_response for a script service that
         # does not advertise response support. Retry ONLY when HA explicitly
         # states this, never for an arbitrary 400 (which could be bad data).
