@@ -330,8 +330,7 @@ def select_routine(phrase, origin):
     if movie:
         direction, room, app = movie
         candidates.extend((f"{direction} movie time",))
-        if direction == "toggle":
-            candidates.append("movie time")
+        candidates.append("movie time")
         if room:
             candidates.insert(1, f"{direction} movie time {room}")
     for candidate in dict.fromkeys(candidates):
@@ -340,9 +339,16 @@ def select_routine(phrase, origin):
             kind, item = found
             if kind == "ambiguous":
                 return "auto_ambiguous", {}
+            # Generic Movie Time is valid for start/end only if HA declares
+            # an operation/action field that can distinguish the direction.
+            if movie and movie[0] != "toggle" and candidate == "movie time":
+                if not set(item.get("fields", [])) & {"operation", "movie_action", "action"}:
+                    continue
             parameters = {}
             if movie:
-                parameters = {"operation": movie[0], "room": movie[1] or "lounge"}
+                parameters = {"operation": movie[0], "movie_action": movie[0],
+                              "action": movie[0], "room": movie[1] or "lounge",
+                              "movie_room": movie[1] or "lounge"}
             elif phrase in SEXY_TIME_COMMANDS:
                 parameters = {"operation": SEXY_TIME_COMMANDS[phrase]}
             return "auto:" + item["entity_id"], parameters
