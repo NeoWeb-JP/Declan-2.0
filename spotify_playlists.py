@@ -31,11 +31,22 @@ def catalogue_path():
 
 
 def normalize(raw):
+    # Dislikes are global, not category-specific: a playlist must not
+    # reappear via another genre's discovery refresh.
+    try:
+        import music
+        with music.preference_db() as db:
+            globally_disliked = {uri for (uri,) in db.execute(
+                "SELECT uri FROM preferences WHERE weight = 0 AND uri LIKE 'spotify://playlist/%'"
+            )}
+    except (OSError, ValueError):
+        globally_disliked = set()
     result = {}
     for category in CATEGORIES:
         item = raw.get(category, {}) if isinstance(raw, dict) else {}
         item = item if isinstance(item, dict) else {}
         excluded = unique(item.get("excluded") or [])
+        excluded = list(dict.fromkeys(excluded + sorted(globally_disliked)))
         favourites = [x for x in unique(item.get("favourites") or []) if x not in excluded][:CAPACITY]
         discovered = [x for x in unique(item.get("discovered") or []) if x not in excluded and x not in favourites]
         discovered = discovered[:CAPACITY - len(favourites)]
@@ -71,11 +82,36 @@ def manage(body):
         raise ValueError("Invalid playlist change")
     category, operation = body["category"], body["operation"]
     selected = canonical(body["playlist"])
-    if category not in CATEGORIES or operation not in ("add", "remove", "delete") or not selected:
+    if category not in CATEGORIES or operation not in ("add", "remove", "delete", "favourite", "unfavourite", "dislike", "restore") or not selected:
         raise ValueError("Invalid playlist change")
     with LOCK:
         data = load()
         item = data[category]
+        if operation in {"favourite", "unfavourite", "dislike", "restore"}:
+            import music
+            with music.preference_db() as db:
+                if operation == "dislike":
+                    db.execute("INSERT INTO preferences(uri, weight) VALUES (?, 0) ON CONFLICT(uri) DO UPDATE SET weight = 0", (selected,))
+                elif operation == "restore":
+                    db.execute("DELETE FROM preferences WHERE uri = ? AND weight = 0", (selected,))
+                elif operation == "favourite":
+                    if db.execute("SELECT weight FROM preferences WHERE uri = ?", (selected,)).fetchone() == (0,):
+                        raise ValueError("Restore disliked playlist before favouriting")
+                    db.execute("INSERT INTO preferences(uri, weight) VALUES (?, 3) ON CONFLICT(uri) DO UPDATE SET weight = max(3, weight)", (selected,))
+                else:
+                    db.execute("UPDATE preferences SET weight = 1 WHERE uri = ? AND weight > 0", (selected,))
+            if operation == "dislike":
+                item["excluded"].append(selected)
+            elif operation == "restore":
+                item["excluded"] = [uri for uri in item["excluded"] if uri != selected]
+            elif operation == "favourite":
+                if selected not in item["playlists"]:
+                    if len(item["playlists"]) >= CAPACITY:
+                        raise ValueError("Category has 25 playlists; remove one first")
+                    item["discovered"].append(selected)
+            data = normalize(data)
+            save(data)
+            return {"categories": data, "max_playlists": CAPACITY}
         for key in ("favourites", "discovered", "excluded"):
             item[key] = [x for x in item[key] if x != selected]
         if operation == "add":
@@ -91,7 +127,14 @@ def manage(body):
 
 def listing():
     with LOCK:
-        return {"categories": load(), "max_playlists": CAPACITY, "refresh": dict(_REFRESH)}
+        import music
+        with music.preference_db() as db:
+            weights = dict(db.execute("SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://playlist/%'"))
+            plays = dict(db.execute("SELECT uri, plays FROM playlist_play_counts"))
+        return {"categories": load(), "max_playlists": CAPACITY, "refresh": dict(_REFRESH),
+                "preferences": {"favourites": [uri for uri, weight in weights.items() if weight > 1],
+                                "disliked_playlists": [uri for uri, weight in weights.items() if weight == 0],
+                                "play_counts": plays}}
 
 
 def refresh(discovered, titles=None):
