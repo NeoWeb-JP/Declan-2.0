@@ -81,3 +81,30 @@ spoken summary, and explicit script failures or mismatched response IDs are pres
 
 HA's internal loaded-entity and trace interfaces can vary by release. Missing evidence
 is reported rather than replaced by example YAML or an assumed successful result.
+
+## Movie Time background execution
+
+Movie Time now posts to the admin-only `POST /api/declan_two/routine-jobs` endpoint.
+HA persists the request and schedules a background task before returning HTTP 202.
+Declan acknowledges that receipt immediately with a request-specific line of sass;
+it does not wait for projector startup, screen movement, or final state checks and
+does not claim completion. The existing Movie Time YAML needs no changes.
+Other routines and status summaries retain their existing execution behavior.
+
+Update both the backend and HA integration, then restart HA to register the endpoint.
+An older integration produces an update instruction instead of falling back to a
+blocking execution. The receipt request times out after two seconds. An ambiguous
+timeout is reported as unverified and never retried automatically.
+
+The background task runs the loaded script once, with only its declared fields,
+and supplies correlated request/routine IDs when supported. Its structured outcome,
+bounded step results and diagnostic code are persisted in HA storage; raw inputs,
+responses and exception text are excluded. The audit displays the latest background
+request beneath its routine. Partial/failed results are also logged and reopen a
+previous review. Refresh the audit after the routine has had time to finish.
+
+Receipts are idempotent by job ID, and a second request for an active routine is
+rejected as busy. At most four jobs may be active, and the latest 100 completed
+requests are retained. HA shutdown cancels background tasks; unfinished records
+become unverified/interrupted after restart and are never replayed. Finishing a
+background job never creates a second spoken response.

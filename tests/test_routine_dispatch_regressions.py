@@ -52,7 +52,7 @@ class RoutineDispatchTests(unittest.TestCase):
             self.assertEqual(server.select_routine("movie time", None),
                              ("auto:script.movie_time", {"operation": "toggle", "movie_action": "toggle",
                                                            "action": "toggle", "room": "lounge",
-                                                           "movie_room": "lounge"}))
+                                                           "movie_room": "lounge", "_declan_background": True}))
 
     def test_house_status_requests_script_response(self):
         script = {"entity_id": "script.declan_home_health_summary",

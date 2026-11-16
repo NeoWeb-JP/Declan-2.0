@@ -28,6 +28,20 @@ function report() {
     entities:[{entity_id:'light.dining',name:'Dining',state:'unavailable'}]};
 }
 
+test('background partial outcomes and steps remain inspectable without speaking', async t => {
+  const data = report();
+  data.routines[0].background_result = {job_id:'declan-job1',outcome:'partial',updated_at:'2026-11-16',
+    reason:'projector_unavailable',steps:[{target:'<img src=x>',status:'unavailable'}]};
+  const {element,root,calls} = panel(t, data);
+  await element.loadHAAudit();
+  const text = root.querySelector('.audit-results').textContent;
+  assert.match(text,/Background request declan-job1: partial/);
+  assert.match(text,/projector_unavailable/);
+  assert.match(text,/<img src=x>: unavailable/);
+  assert.equal(root.querySelector('.audit-results img'),null);
+  assert.equal(calls.length,1);
+});
+
 test('native audit loads only through authenticated GET and renders safe collapsed findings', async t => {
   const {element,root,calls} = panel(t, report());
   await element.loadHAAudit();

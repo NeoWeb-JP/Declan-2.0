@@ -76,6 +76,13 @@ def dinner_music_feedback(steps, *, guest=False, visitor_present=False):
     return "The lights are set, but I couldn't confirm the music request."
 
 
+def movie_request_reply(action, *, guest=False, visitor_present=False):
+    prefix = {"start": "Movie setup requested.", "end": "Movie shutdown requested.", "toggle": "Movie Time requested."}.get(action, "Movie Time requested.")
+    if guest or visitor_present is not False:
+        return prefix + " I'll handle the equipment and record the result in the audit."
+    return prefix + " I'll handle the equipment. You handle choosing something before the sequel comes out."
+
+
 def response_guest_mode(guest_mode, visitor_present):
     """Keep Guest Mode authority independent of the privacy-preserving persona."""
     return "on" if guest_mode != "off" or visitor_present is not False else "off"

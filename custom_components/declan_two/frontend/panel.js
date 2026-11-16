@@ -660,6 +660,12 @@ class DeclanTwoNativePanel extends HTMLElement {
           if (item.reviewed) addText(details, 'p', `Reviewed and fixed · ${item.reviewed_at || ''}`);
         }
         for (const finding of findings) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
+        if (item.background_result) {
+          const job = item.background_result;
+          addText(details, 'p', `Background request ${job.job_id}: ${job.outcome} · ${job.updated_at}`);
+          for (const step of job.steps || []) addText(details, 'p', `${step.target || step.path || step.entity_id || 'Step'}: ${step.status}`);
+          if (job.reason) addText(details, 'p', `Background result: ${job.reason}`);
+        }
         for (const dependency of item.dependencies || []) addText(details, 'p', `${dependency.kind}: ${dependency.id}`);
         for (const run of item.executions || []) {
           addText(details, 'p', `Run ${run.run_id}: ${run.status} · ${run.start || 'unknown time'} · Last step: ${run.last_step || 'unknown'}`);

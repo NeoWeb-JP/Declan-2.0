@@ -129,11 +129,10 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
                                    json_response=lambda report, **kwargs: (report, kwargs))
         saved_reviews = {}
         class FakeStore:
-            def __init__(self, *args): pass
-            async def async_load(self): return dict(saved_reviews)
+            def __init__(self, hass, version, key): self.key = key
+            async def async_load(self): return copy.deepcopy(saved_reviews.get(self.key))
             async def async_save(self, records):
-                saved_reviews.clear()
-                saved_reviews.update(records)
+                saved_reviews[self.key] = copy.deepcopy(records)
         self.reg = SimpleNamespace(entities={"automation.disabled": SimpleNamespace(disabled_by="user")})
         # HA 2026.11 devices is a collection of entries, not an ID-keyed map.
         # SimpleNamespace is deliberately unhashable, like HA DeviceEntry.
@@ -172,6 +171,12 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         result_spec = importlib.util.spec_from_file_location("audit_fixture.script_result_view", INTEGRATION / "script_result_view.py")
         self.result_view = importlib.util.module_from_spec(result_spec)
         result_spec.loader.exec_module(self.result_view)
+        sys.modules["audit_fixture.script_discovery_view"] = self.discovery_view
+        sys.modules["audit_fixture.script_result_view"] = self.result_view
+        job_spec = importlib.util.spec_from_file_location("audit_fixture.routine_jobs", INTEGRATION / "routine_jobs.py")
+        self.jobs_view = importlib.util.module_from_spec(job_spec)
+        job_spec.loader.exec_module(self.jobs_view)
+        sys.modules["audit_fixture.routine_jobs"] = self.jobs_view
         entity = SimpleNamespace(entity_id="automation.actual_entity", raw_config={"id": "persistent-id", "actions": []},
                                  action_script=SimpleNamespace(sequence=[{"action": "light.turn_on", "entity_id": "light.missing"}]),
                                  referenced_entities={"light.missing"})
