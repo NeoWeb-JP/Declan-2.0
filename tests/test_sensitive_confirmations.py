@@ -67,7 +67,8 @@ class SensitiveConfirmationTests(unittest.TestCase):
     def test_ha_scripts_do_not_use_declan_confirmation_gate(self):
         from pathlib import Path
         server = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
-        self.assertNotIn("SENSITIVE_CONFIRMATIONS.evaluate(", server)
+        self.assertIn("SENSITIVE_CONFIRMATIONS.evaluate(", server)
+        self.assertIn("candidate, None, GUEST_COMMANDS, {}, set()", server)
         self.assertIn("script_discovery.execute(", server)
 
 
