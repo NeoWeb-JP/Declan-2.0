@@ -82,6 +82,24 @@ class SpotifyPlaylists(unittest.TestCase):
                          [self.a, "spotify://playlist/" + "C" * 22])
         self.assertEqual(data["braai"]["excluded"], [self.b])
 
+    def test_custom_genre_persists_and_refreshes_without_replacing_other_genres(self):
+        import music
+        result = playlists.manage({"operation": "add_genre", "genre": "Blues & Soul"})
+        self.assertIn("blues_soul", result["categories"])
+        playlists.manage({"category": "blues_soul", "playlist": self.a, "operation": "add"})
+        playlists.refresh({"country": [self.b]})
+        self.assertEqual(playlists.load()["blues_soul"]["playlists"], [self.a])
+        with patch.object(music, "spotify_search", return_value=[
+            ("https://open.spotify.com/playlist/" + "C" * 22, "playlist", "Blues Playlist")
+        ]) as search:
+            playlists.discover(object(), "blues_soul")
+        self.assertEqual(search.call_count, 2)
+        self.assertEqual(playlists.load()["blues_soul"]["playlists"],
+                         [self.a, "spotify://playlist/" + "C" * 22])
+        self.assertEqual(playlists.load()["country"]["playlists"], [self.b])
+        with self.assertRaises(ValueError):
+            playlists.manage({"operation": "add_genre", "genre": "Blues & Soul"})
+
     def test_invalid_links_and_categories_rejected(self):
         for body in (
             {"category": "country", "playlist": "https://evil.test/playlist/" + "A" * 22, "operation": "add"},

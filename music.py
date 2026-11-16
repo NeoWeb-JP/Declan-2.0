@@ -548,8 +548,9 @@ def search_media(connection, destination, title, artist, provider):
         category = "_".join(title.casefold().replace("-", " ").split())
         if category.endswith("_music"):
             category = category[:-6]
-        if not artist and category in spotify_playlists.CATEGORIES:
-            curated = spotify_playlists.listing()["categories"][category]["playlists"]
+        catalogue = spotify_playlists.listing()["categories"] if not artist else {}
+        if not artist and category in catalogue:
+            curated = catalogue[category]["playlists"]
             available = [uri for uri in curated if weights.get(media_key(uri), 1) > 0]
             if available:
                 for count in range(len(recent), -1, -1):
