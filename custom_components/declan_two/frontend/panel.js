@@ -321,20 +321,6 @@ class DeclanTwoNativePanel extends HTMLElement {
             </div>
           </details>
 
-            <details class="settings-section settings-section--routines">
-              <summary><span class="settings-section-icon" aria-hidden="true">⌘</span><span class="settings-section-title">Home Assistant routines<small>Automatically available scripts</small></span></summary>
-              <div class="settings-section-content">
-                <p class="muted">Every Home Assistant script is available to Declan automatically. No mapping or approval required. Search by name, area or entity ID.</p>
-                <label class="settings-subsection" style="display:grid;gap:8px">Find a Home Assistant script
-                  <input class="routine-search" type="search" placeholder="Search scripts, areas or entity IDs" style="width:100%;background:#091923;color:#e7f7ff;border:1px solid #315568;border-radius:8px;padding:12px"/>
-                </label>
-                <p class="routines-discovery-count muted" aria-live="polite"></p>
-                <div class="routine-discovery" style="max-height:380px;overflow-y:auto"></div>
-                <div class="routine-entries" hidden></div>
-                <div class="history-actions"><button class="routines-add" type="button" hidden>Add routine</button><button class="routines-save" type="button" hidden>Save routines</button><button class="routines-refresh" type="button">Reload scripts</button></div>
-                <p class="routines-status muted" role="status" aria-live="polite"></p>
-              </div>
-            </details>
             <details class="settings-section settings-section--voice">
               <summary><span class="settings-section-icon" aria-hidden="true">◉</span><span class="settings-section-title">Voice &amp; learning<small>Profiles, reviewed recordings and learned commands</small></span></summary>
               <div class="settings-section-content">
@@ -426,9 +412,6 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
       this.bindPanelEvent('.mic-stop', 'click', () => this.stopMicrophone());
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
-      this.bindPanelEvent('.routines-add', 'click', () => this.addRoutineRow());
-      this.bindPanelEvent('.routines-save', 'click', () => this.saveRoutines());
-      this.bindPanelEvent('.routines-refresh', 'click', () => this.loadRoutines());
       this.bindPanelEvent('.ai-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveAISettings();
       });
@@ -558,7 +541,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
-    if (name === 'settings') { void this.loadRoutines(); void this.loadSettingsStatus(); void this.loadAISettings(); if (!this._voicesLoaded) void this.loadVoices(); }
+    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
