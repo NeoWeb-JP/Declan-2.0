@@ -1574,7 +1574,12 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (this._micStream) return;
     const status = this.shadowRoot.querySelector('.mic-status');
     if (!navigator.mediaDevices?.getUserMedia) {
-      status.textContent = 'Microphone access is unavailable in this browser or app.';
+      // iOS HA companion WebViews and insecure HTTP origins may not expose
+      // getUserMedia at all. This is not a Declan STT or API failure.
+      const insecure = window.isSecureContext === false;
+      status.textContent = insecure
+        ? 'Microphone blocked: this Home Assistant connection is not a secure context. Open Home Assistant over HTTPS in Safari, then try Speak to Declan.'
+        : 'This Home Assistant app/browser view does not provide microphone recording. Open the same Home Assistant URL in Safari over HTTPS to use Speak to Declan. You can still type requests here.';
       return;
     }
     try {
