@@ -152,7 +152,7 @@ def feedback(command, connection, read_inventory):
             return "Tell me which active music player you mean.", "unresolved"
         entity, player = next(iter(active.items()))
         attrs = player.get("attributes") or {}
-        playlist = phrase.endswith("playlist")
+        playlist = "playlist" in phrase
         kind = "playlist" if playlist else "track"
         uri = next((media_key(value) for value in (attrs.get("media_playlist_id"), attrs.get("media_content_id"))
                     if isinstance(value, str) and media_key(value).startswith(f"spotify://{kind}/")
