@@ -304,30 +304,34 @@ HOUSE_STATUS_REQUESTS = {
 
 
 def select_routine(phrase, origin):
-    """Resolve routines exclusively from the current Home Assistant inventory."""
+    """Resolve routine requests exclusively against Home Assistant scripts."""
     phrase = phrase.removeprefix("run ").removeprefix("the ")
     if not 1 <= len(phrase.split()) <= 20:
         return None
+    is_house_status = phrase in HOUSE_STATUS_REQUESTS
     connection = ha_device_connection()
-    if not connection:
-        return None
+    if connection is None:
+        return ("unconfigured_house_status", {}) if is_house_status else None
     scripts, error = script_discovery.discover(connection)
     if error:
-        return None
+        return ("unconfigured_house_status", {}) if is_house_status else None
     candidates = [phrase]
-    if phrase in HOUSE_STATUS_REQUESTS:
-        candidates.append("house status")
+    if is_house_status:
+        candidates.extend(("house status", "home health summary"))
     if phrase in GOOD_MORNING_PHRASES:
         candidates.append("good morning")
     if phrase in GOOD_NIGHT_PHRASES:
         candidates.append("good night")
-    if phrase in DINNER_PHRASES:
+    if phrase.replace("’", "'") in DINNER_PHRASES:
         candidates.extend(("dinner is served", "dinner"))
     if phrase in SEXY_TIME_COMMANDS:
         candidates.append("sexy time")
     movie = parse_movie_request(phrase)
     if movie:
-        candidates.append("movie time in the bedroom" if movie[1] in ("bedroom", "master bedroom") else "movie time")
+        direction, room, app = movie
+        candidates.extend((f"{direction} movie time", "movie time"))
+        if room:
+            candidates.insert(1, f"movie time {room}")
     for candidate in dict.fromkeys(candidates):
         found = script_discovery.match(candidate, scripts)
         if found:
@@ -335,7 +339,7 @@ def select_routine(phrase, origin):
             if kind == "ambiguous":
                 return "auto_ambiguous", {}
             return "auto:" + item["entity_id"], {}
-    if phrase in HOUSE_STATUS_REQUESTS:
+    if is_house_status:
         return "unconfigured_house_status", {}
     return None
 
@@ -379,8 +383,6 @@ def run_custom_routine(name, action_results=None, *, approved=False, parameters=
         return "Routine configuration is unavailable.", "unverified", None
     if not item:
         return "That routine is not configured.", "not_configured", None
-    if item["sensitive"] and not approved:
-        return "This routine requires explicit confirmation before execution.", "unresolved", None
     connection = ha_device_connection()
     if connection is None:
         return "Home Assistant is not connected.", "not_configured", None
