@@ -11,7 +11,8 @@ class ScriptDiscoveryUITests(unittest.TestCase):
         self.assertIn('class="routine-search"', PANEL)
         self.assertIn("renderScriptDiscovery()", PANEL)
         self.assertIn("matches.slice(0, 40)", PANEL)
-        self.assertIn("entity.entity_id?.startsWith('script.')", PANEL)
+        self.assertIn("this._scriptDiscovery || []", PANEL)
+        self.assertIn("declan_two/script-discovery", PANEL)
         self.assertIn("refine your search", PANEL)
 
     def test_existing_mappings_remain_editable(self):

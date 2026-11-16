@@ -559,12 +559,15 @@ class DeclanTwoNativePanel extends HTMLElement {
     const root = this.shadowRoot.querySelector('.routine-discovery');
     const count = this.shadowRoot.querySelector('.routines-discovery-count');
     if (!root || !count) return;
-    const scripts = Object.values(this._hass?.states || {})
-      .filter(entity => entity.entity_id?.startsWith('script.'))
-      .sort((a, b) => (a.attributes?.friendly_name || a.entity_id).localeCompare(b.attributes?.friendly_name || b.entity_id));
+    const scripts = (this._scriptDiscovery || []).map(item => ({
+      entity_id: item.entity_id,
+      attributes: {friendly_name: item.name, area_id: item.area},
+      declanSafe: item.safe,
+      declanReason: item.reason
+    })).sort((a, b) => (a.attributes?.friendly_name || a.entity_id).localeCompare(b.attributes?.friendly_name || b.entity_id));
     const query = (this.shadowRoot.querySelector('.routine-search')?.value || '').trim().toLowerCase();
     const matches = scripts.filter(entity => {
-      const area = this._hass?.areas?.[entity.attributes?.area_id]?.name || '';
+      const area = entity.attributes?.area_id || '';
       return [entity.entity_id, entity.attributes?.friendly_name || '', area].join(' ').toLowerCase().includes(query);
     });
     const visible = matches.slice(0, 40);
@@ -580,10 +583,13 @@ class DeclanTwoNativePanel extends HTMLElement {
       const id = document.createElement('div');
       id.className = 'muted';
       id.textContent = entity.entity_id;
-      label.append(title, id);
+      const safety = document.createElement('div');
+      safety.className = 'muted';
+      safety.textContent = entity.declanSafe ? 'Voice enabled · inspected safe actions' : 'Protected · approval required';
+      label.append(title, id, safety);
       const button = document.createElement('button');
       button.type = 'button';
-      button.textContent = 'Customise';
+      button.textContent = entity.declanSafe ? 'Customise' : 'Review / enable';
       button.addEventListener('click', () => {
         const key = entity.entity_id.slice(7);
         const existing = [...this.shadowRoot.querySelectorAll('.routine-entry')]
@@ -656,8 +662,16 @@ class DeclanTwoNativePanel extends HTMLElement {
       const root = this.shadowRoot.querySelector('.routine-entries');
       root.replaceChildren();
       for (const [name, item] of Object.entries(result.routines || {})) this.addRoutineRow(name, item);
+      try {
+        const discovered = await this._hass.callApi('GET', 'declan_two/script-discovery');
+        this._scriptDiscovery = discovered.inspection === 'complete' ? discovered.scripts : [];
+      } catch {
+        this._scriptDiscovery = [];
+      }
       this.renderScriptDiscovery();
-      status.textContent = 'Home Assistant scripts discovered. Existing custom mappings loaded.';
+      status.textContent = this._scriptDiscovery.length
+        ? 'Discovered ' + this._scriptDiscovery.length + ' scripts. Existing overrides preserved.'
+        : 'Script safety inspection unavailable. Automatic voice execution is disabled.';
     } catch (error) {
       status.textContent = 'Could not load routine mappings: ' + (error?.body?.error || error?.body?.status || error?.message || 'Unknown error');
     }
