@@ -71,7 +71,7 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
                     categories[name] = {
                         field: [uri for uri in (item.get(field) or [])[:250]
                                 if isinstance(uri, str) and uri.startswith("spotify://playlist/") and len(uri) == 41]
-                        for field in ("playlists", "favourites", "excluded", "discovered")
+                        for field in ("playlists", "manual", "favourites", "excluded", "discovered")
                     }
                     titles = item.get("titles") if isinstance(item.get("titles"), dict) else {}
                     categories[name]["titles"] = {
@@ -79,7 +79,8 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
                         if isinstance(uri, str) and uri in categories[name]["playlists"]
                         and isinstance(title, str)
                     }
-                return web.json_response({"categories": categories, "max_playlists": 25, "refresh": payload.get("refresh") if isinstance(payload.get("refresh"), dict) else {}},
+                return web.json_response({"categories": categories, "max_playlists": 25, "refresh": payload.get("refresh") if isinstance(payload.get("refresh"), dict) else {},
+                                          "preferences": payload.get("preferences") if isinstance(payload.get("preferences"), dict) else {}},
                                          headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
             return web.json_response({"status": "backend_unavailable"}, status=502)
