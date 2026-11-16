@@ -992,6 +992,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       const data = await this._hass.callApi('GET', 'declan_two/music-playlists');
       if (!data || !data.categories || typeof data.categories !== 'object') throw new Error('Invalid playlist response');
       this._playlistCatalogue = data.categories;
+      this._playlistPreferences = data.preferences || {};
       this.renderPlaylists();
     } catch {
       status.textContent = 'Could not load Spotify playlists. Check the Declan 2.0 connection and try again.';
@@ -1038,6 +1039,24 @@ class DeclanTwoNativePanel extends HTMLElement {
         const name = data.titles?.[uri];
         title.textContent = name || uri;
         row.append(title);
+        const plays = document.createElement('span');
+        plays.className = 'muted';
+        plays.textContent = 'Plays: ' + (this._playlistPreferences?.play_counts?.[uri] || 0);
+        row.append(plays);
+        const favourite = (this._playlistPreferences?.favourites || []).includes(uri);
+        const favouriteButton = document.createElement('button');
+        favouriteButton.type = 'button';
+        favouriteButton.dataset.playlistOperation = favourite ? 'unfavourite' : 'favourite';
+        favouriteButton.dataset.playlistUri = uri;
+        favouriteButton.textContent = favourite ? '★ Favourite' : '☆ Favourite';
+        favouriteButton.setAttribute('aria-pressed', String(favourite));
+        row.append(favouriteButton);
+        const dislikeButton = document.createElement('button');
+        dislikeButton.type = 'button';
+        dislikeButton.dataset.playlistOperation = 'dislike';
+        dislikeButton.dataset.playlistUri = uri;
+        dislikeButton.textContent = 'Dislike / never play';
+        row.append(dislikeButton);
         if (name) {
           const link = document.createElement('a');
           link.href = uri.replace('spotify://playlist/', 'https://open.spotify.com/playlist/');
@@ -1076,7 +1095,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           const button = document.createElement('button');
           button.type = 'button';
           button.textContent = 'Restore';
-          button.dataset.playlistOperation = 'remove';
+          button.dataset.playlistOperation = (this._playlistPreferences?.disliked_playlists || []).includes(uri) ? 'restore' : 'remove';
           button.dataset.playlistUri = uri;
           row.append(title, button);
           details.append(row);
@@ -1110,7 +1129,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       const data = await this._hass.callApi('POST', 'declan_two/music-playlists',
                                            {category, playlist: playlist.trim(), operation});
       if (!data || !data.categories) throw new Error('Save not confirmed');
-      this._playlistCatalogue = data.categories;
+      const updated = await this._hass.callApi('GET', 'declan_two/music-playlists');
+      this._playlistCatalogue = updated.categories;
+      this._playlistPreferences = updated.preferences || {};
       this.renderPlaylists(category);
       status.textContent = 'Saved playlist change for ' + category + '.';
     } catch {
