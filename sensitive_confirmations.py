@@ -58,8 +58,20 @@ def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_
                 return "custom:" + group
         except (ValueError, OSError, sqlite3.Error):
             return "custom:" + group
+        # An explicitly saved routine policy overrides legacy group defaults.
+        # In particular, an unchecked Good Night confirmation box must not
+        # be silently re-enabled by DECLAN_SENSITIVE_ROUTINES=night.
+        if group in {"night", "morning", "movie", "movie_bedroom"} and item:
+            return None
         return group
     if phrase.startswith(("good night", "goodnight", "time for bed", "shut the house down")):
+        try:
+            import routine_registry
+            mapped = routine_registry.load().get("night")
+        except (ValueError, OSError, sqlite3.Error):
+            return "night"
+        if mapped:
+            return "custom:night" if mapped["sensitive"] else None
         return "night"
     return None
 
