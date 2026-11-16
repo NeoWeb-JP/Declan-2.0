@@ -81,6 +81,13 @@ class APITests(TestCase):
                     self.assertEqual(reply['outcome'], 'started')
                 with patch.object(server, 'read_visitors_present', return_value=None):
                     self.assertEqual(self.ask('good morning')['reply'], 'A guest morning response.')
+                chained = (selection[0], 'turn on the study light')
+                with patch.object(server, 'select_routine_turn', return_value=chained), \
+                     patch.object(server, 'handle_light_request', return_value=('The study light failed.', 'failed')):
+                    reply = self.ask('good morning and turn on the study light')
+                    self.assertIn('My custom morning response.', reply['reply'])
+                    self.assertIn('The study light failed.', reply['reply'])
+                    self.assertEqual(reply['outcome'], server.chained_outcome('started', 'failed'))
             body['profile']['requested']['sass']['default'] = ['Stale overwrite']
             code, payload = self.request('/api/native/routine-responses', body=body, headers=headers)
             self.assertEqual(code, 400)

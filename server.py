@@ -2606,6 +2606,7 @@ class Handler(BaseHTTPRequestHandler):
             device=origin_device, browser=source != "assist",
         )
         routine_turn = None
+        routine_voice_result = None
         if routine_preview:
             routine_reply, outcome = routine_preview
         elif timer_result:
@@ -2636,6 +2637,7 @@ class Handler(BaseHTTPRequestHandler):
             routine, follow_on = routine_turn
             routine_reply, outcome, routine_status = execute_routine(routine, action_results)
             if follow_on:
+                routine_voice_result = (routine_reply, outcome)
                 light_steps = []
                 if follow_on.startswith("play "):
                     command = music.parse(follow_on)
@@ -2819,15 +2821,21 @@ class Handler(BaseHTTPRequestHandler):
                     reply["reply"] = personality_policy.movie_request_reply(
                         routine_turn[0][1].get("requested_action", routine_turn[0][1].get("operation", "toggle")),
                         guest=guest_mode != "off", visitor_present=visitor_present)
-            if (routine_turn and not routine_turn[1]
+            if (routine_turn
                     and outcome != "preview"
                     and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
                     and not any(word in phrase.casefold() for word in
                                 ("smoke", "fire alarm", "carbon monoxide", "security alert",
                                  "emergency", "intruder", "panic alarm"))):
-                reply["reply"] = routine_responses.render(
-                    routine_turn[0], outcome, reply["reply"],
-                    guest=guest_mode != "off" or visitor_present is not False)
+                if routine_voice_result:
+                    original, routine_outcome = routine_voice_result
+                    reply["reply"] = routine_responses.render(
+                        routine_turn[0], routine_outcome, original,
+                        guest=guest_mode != "off" or visitor_present is not False) + routine_reply[len(original):]
+                else:
+                    reply["reply"] = routine_responses.render(
+                        routine_turn[0], outcome, reply["reply"],
+                        guest=guest_mode != "off" or visitor_present is not False)
                 if (outcome in {"confirmed", "reported_success", "execution_completed"}
                         and routine_turn[0][1].get("_declan_reply_category") == "dinner"):
                     music_note = personality_policy.dinner_music_feedback(
