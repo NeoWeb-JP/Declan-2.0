@@ -1,6 +1,7 @@
 """Discover and run Home Assistant scripts without per-script approval."""
 import json
 import re
+import secrets
 from threading import Lock
 from time import monotonic
 from urllib.error import HTTPError
@@ -109,41 +110,56 @@ def execute(connection, item, *, parameters=None, expect_response=False):
     payload = {"entity_id": current["entity_id"]}
     if supplied:
         payload["variables"] = supplied
-    if expect_response:
-        # A status question needs the script's actual spoken summary, not
-        # an acknowledgement that an asynchronous script was started.
-        service = current["entity_id"].split(".", 1)[1]
-        request = Request(url + "/api/services/script/" + service + "?return_response",
-                          headers=headers, method="POST",
-                          data=json.dumps(supplied).encode())
-        try:
-            with opener.open(request, timeout=55) as response:
-                if response.status not in (200, 201):
-                    return "Home Assistant did not return a house status.", "unverified", None
-                result = json.loads(response.read(65536))
-        except (OSError, HTTPError, ValueError):
-            return ("The Home Assistant status script did not return a spoken summary. "
-                    "It needs a response_variable containing the status message.",
-                    "unverified", None)
-        data = result.get("service_response") if isinstance(result, dict) else None
-        if isinstance(data, dict) and current["entity_id"] in data:
-            data = data[current["entity_id"]]
-        if isinstance(data, dict):
-            for key in ("speech", "reply", "message", "response", "summary"):
-                value = data.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()[:4000], "reported_success", None
-        return ("The Home Assistant status script ran but did not return a spoken summary. "
-                "Return a response_variable with a message or speech field.",
-                "unverified", None)
-    request = Request(url + "/api/services/script/turn_on",
+
+    # Execute the script service itself. script.turn_on only confirms scheduling.
+    service = current["entity_id"].split(".", 1)[1]
+    request_id = "declan-" + secrets.token_hex(16)
+    if "request_id" in allowed_fields:
+        supplied["request_id"] = request_id
+    if "routine_id" in allowed_fields:
+        supplied["routine_id"] = current["entity_id"]
+    request = Request(url + "/api/services/script/" + service + "?return_response",
                       headers=headers, method="POST",
-                      data=json.dumps(payload).encode())
+                      data=json.dumps(supplied).encode())
     try:
-        with opener.open(request, timeout=15) as response:
+        with opener.open(request, timeout=55) as response:
             if response.status not in (200, 201):
-                return "Home Assistant didn't accept the script request.", "unverified", None
-            response.read(8192)
-    except (OSError, HTTPError):
-        return "Home Assistant didn't confirm the script request.", "unverified", None
-    return f"Started {current['name']}.", "requested", None
+                return "Home Assistant did not confirm script execution.", "unverified", None
+            result = json.loads(response.read(65536))
+    except HTTPError as error:
+        code = error.code
+        error.close()
+        return f"Home Assistant rejected the script (HTTP {code}).", "failed", None
+    except (OSError, ValueError, TypeError):
+        return "Home Assistant did not return a valid script result. Check its trace.", "unverified", None
+    data = result.get("service_response") if isinstance(result, dict) else None
+    if isinstance(data, dict) and current["entity_id"] in data:
+        data = data[current["entity_id"]]
+    if not isinstance(data, dict):
+        return "Home Assistant returned no script result. Check response_variable and traces.", "unverified", None
+    if "outcome" in data:
+        if "request_id" in allowed_fields and data.get("request_id") != request_id:
+            return "Script result did not match this request.", "unverified", None
+        if "routine_id" in allowed_fields and data.get("routine_id") != current["entity_id"]:
+            return "Script result did not match this routine.", "unverified", None
+        outcome = str(data["outcome"]).lower()
+        statuses = {"success": "reported_success", "partial": "partial",
+                    "failed": "failed", "cancelled": "cancelled",
+                    "unknown": "unverified", "started": "started"}
+        if outcome not in statuses:
+            return "Home Assistant returned an unknown script outcome.", "unverified", None
+        steps = data.get("steps", [])
+        if outcome == "success" and isinstance(steps, list):
+            if any(isinstance(step, dict) and step.get("required", True)
+                   and step.get("status") not in {"confirmed", "already_set"}
+                   for step in steps):
+                return "Script success was not confirmed by its required steps.", "unverified", None
+        description = {"success": "completed successfully", "partial": "partially completed",
+                       "failed": "failed", "cancelled": "was cancelled",
+                       "unknown": "could not be verified", "started": "started but not completed"}[outcome]
+        return current["name"] + " " + description + ".", statuses[outcome], None
+    for key in ("speech", "reply", "message", "response", "summary"):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:4000], "reported_success", None
+    return "Home Assistant returned no completion status or spoken summary.", "unverified", None

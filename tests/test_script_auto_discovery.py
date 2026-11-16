@@ -70,10 +70,11 @@ class ScriptSafetyTests(unittest.TestCase):
             result = script_discovery.execute(
                 ("http://ha", {}, opener), script,
                 parameters={"operation": "end", "room": "bedroom", "secret": "never"})
-        self.assertEqual(result[1], "requested")
-        payload = json.loads(opener.open.call_args.args[0].data)
-        self.assertEqual(payload, {"entity_id": "script.declan_movie_time",
-                                   "variables": {"operation": "end", "room": "bedroom"}})
+        self.assertEqual(result[1], "unverified")
+        request = opener.open.call_args.args[0]
+        self.assertTrue(request.full_url.endswith("/api/services/script/declan_movie_time?return_response"))
+        payload = json.loads(request.data)
+        self.assertEqual(payload, {"operation": "end", "room": "bedroom"})
 
     def test_execution_rejects_script_removed_from_ha(self):
         with patch.object(script_discovery, "discover", return_value=([], None)):
@@ -88,7 +89,8 @@ class ScriptSafetyTests(unittest.TestCase):
         with patch.object(script_discovery, "discover", return_value=(
             [{"entity_id": "script.house_status", "name": "House Status", "safe": False}], None)):
             result = script_discovery.execute(("http://ha", {}, opener), {"entity_id": "script.house_status"})
-        self.assertEqual(result[1], "requested")
+        self.assertEqual(result[1], "unverified")
+        self.assertIn("did not return a valid script result", result[0])
         self.assertEqual(opener.open.call_count, 1)
 
 

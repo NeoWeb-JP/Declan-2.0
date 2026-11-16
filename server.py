@@ -2550,6 +2550,7 @@ class Handler(BaseHTTPRequestHandler):
             satellite=satellite if isinstance(satellite, str) and len(satellite) <= 128 else None,
             device=origin_device, browser=source != "assist",
         )
+        routine_turn = None
         if routine_preview:
             routine_reply, outcome = routine_preview
         elif timer_result:
@@ -2705,9 +2706,15 @@ class Handler(BaseHTTPRequestHandler):
                     *personality_policy._SAVAGE, *personality_policy._GUEST
                 ))
             )
-            if (outcome == "confirmed" and not existing_lines
+            # A returned HA script outcome is verified only when the script
+            # explicitly reports success. Do not roast on "requested", partial,
+            # unknown, or missing responses.
+            verified_routine = (outcome == "reported_success"
+                                and routine_reply is not None
+                                and routine_turn is not None)
+            if (outcome in ("confirmed", "reported_success") and not existing_lines
                     and routine_reply is not None
-                    and (light_result is not None
+                    and (verified_routine or light_result is not None
                          or music.parse(phrase) or music.parse_control(phrase)
                          or (action_results and all(
                              step.get("status") in {"confirmed", "already_set", "completed"}
@@ -2718,7 +2725,7 @@ class Handler(BaseHTTPRequestHandler):
                                 ("smoke", "fire alarm", "carbon monoxide", "security alert",
                                  "emergency", "intruder", "panic alarm"))):
                 reply["reply"] = personality_policy.decorate(
-                    reply["reply"], outcome=outcome,
+                    reply["reply"], outcome="confirmed" if verified_routine else outcome,
                     guest=guest_mode != "off",
                     visitor_present=visitor_present,
                     category="music" if music.parse(phrase) or music.parse_control(phrase)
