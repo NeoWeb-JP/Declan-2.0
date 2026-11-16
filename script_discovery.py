@@ -248,7 +248,7 @@ def execute(connection, item, *, parameters=None, expect_response=False, action_
         outcome = str(data["outcome"]).lower()
         statuses = {"success": "reported_success", "partial": "partial",
                     "failed": "failed", "cancelled": "cancelled",
-                    "unknown": "unverified", "started": "started"}
+                    "unknown": "unverified", "started": "started", "busy": "busy"}
         if outcome not in statuses:
             return "Home Assistant returned an unknown script outcome.", "unverified", None
         steps = data.get("steps", [])
@@ -259,7 +259,8 @@ def execute(connection, item, *, parameters=None, expect_response=False, action_
                 return "Script success was not confirmed by its required steps.", "unverified", None
         description = {"success": "completed successfully", "partial": "partially completed",
                        "failed": "failed", "cancelled": "was cancelled",
-                       "unknown": "could not be verified", "started": "started but not completed"}[outcome]
+                       "unknown": "could not be verified", "started": "started but not completed",
+                       "busy": "is already in progress"}[outcome]
         if action_results is not None and isinstance(steps, list):
             for step in steps[:200]:
                 if not isinstance(step, dict) or not isinstance(step.get("target"), str):
