@@ -1681,12 +1681,12 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
         ceiling = ai_settings._money(settings["request_ceiling_usd"], allow_zero=False)
         usage = {}
         with history.database() as db:
-            result = guarded_fallback.run_guarded_fallback(
+            result = guarded_fallback.run_guarded_result(
                 message, safe,
                 planner=lambda text, exposed: _bounded_ai_plan(
                     text, exposed, settings, usage_sink=lambda value: usage.update({"value": value}),
                     inventory=safe),
-                dispatcher=lambda action: ha_dispatcher.dispatch_verified(
+                dispatcher=lambda action: ha_dispatcher.dispatch_result(
                     action, connection,
                     authorised=lambda candidate: candidate.entity_id in {
                         row["entity_id"] for row in safe
@@ -1696,11 +1696,11 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
                 request_ceiling_micro_usd=ceiling,
                 charge_micro_usd=lambda: ai_pricing.charge(settings["model"], usage.get("value")),
             )
-        return result["reply"], result["outcome"], [
+        return result.reply, result.outcome.value, [
             {"entity_id": action.entity_id, "action": action.service,
-             "ai_generated": True, "status": action.status,
+             "ai_generated": True, "status": action.status.value,
              **({"detail": action.detail} if settings["diagnostics"] else {})}
-            for action in result["actions"]
+            for action in result.actions
         ]
     except (ValueError, OSError, sqlite3.Error):
         return "I couldn't safely complete that request using OpenAI.", "unresolved", []
