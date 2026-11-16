@@ -324,8 +324,15 @@ class DeclanTwoNativePanel extends HTMLElement {
             <details class="settings-section settings-section--routines">
               <summary><span class="settings-section-icon" aria-hidden="true">⌘</span><span class="settings-section-title">Home Assistant routines<small>Script mappings, phrases and parameters</small></span></summary>
               <div class="settings-section-content">
-                <p class="muted">Map a routine to a Home Assistant script. Parameters are JSON values passed as script fields. Sensitive routines require confirmation before running.</p>
-                <div class="routine-entries"></div>
+                <p class="muted">Scripts are discovered from Home Assistant. Search by name, area or entity ID. Only scripts with custom settings need a saved override. Existing mappings are preserved.</p>
+                <label class="settings-subsection" style="display:grid;gap:8px">Find a Home Assistant script
+                  <input class="routine-search" type="search" placeholder="Search scripts, areas or entity IDs" style="width:100%;background:#091923;color:#e7f7ff;border:1px solid #315568;border-radius:8px;padding:12px"/>
+                </label>
+                <p class="routines-discovery-count muted" aria-live="polite"></p>
+                <div class="routine-discovery" style="max-height:380px;overflow-y:auto"></div>
+                <details class="settings-subsection routine-overrides"><summary>Advanced: existing custom mappings and overrides</summary>
+                  <div class="routine-entries"></div>
+                </details>
                 <div class="history-actions"><button class="routines-add" type="button">Add routine</button><button class="routines-save" type="button">Save routines</button><button class="routines-refresh" type="button">Reload</button></div>
                 <p class="routines-status muted" role="status" aria-live="polite"></p>
               </div>
@@ -548,6 +555,48 @@ class DeclanTwoNativePanel extends HTMLElement {
 
   }
 
+  renderScriptDiscovery() {
+    const root = this.shadowRoot.querySelector('.routine-discovery');
+    const count = this.shadowRoot.querySelector('.routines-discovery-count');
+    if (!root || !count) return;
+    const scripts = Object.values(this._hass?.states || {})
+      .filter(entity => entity.entity_id?.startsWith('script.'))
+      .sort((a, b) => (a.attributes?.friendly_name || a.entity_id).localeCompare(b.attributes?.friendly_name || b.entity_id));
+    const query = (this.shadowRoot.querySelector('.routine-search')?.value || '').trim().toLowerCase();
+    const matches = scripts.filter(entity => {
+      const area = this._hass?.areas?.[entity.attributes?.area_id]?.name || '';
+      return [entity.entity_id, entity.attributes?.friendly_name || '', area].join(' ').toLowerCase().includes(query);
+    });
+    const visible = matches.slice(0, 40);
+    root.replaceChildren();
+    count.textContent = scripts.length + ' scripts discovered · ' + matches.length + ' matching' +
+      (matches.length > visible.length ? ' · showing first ' + visible.length + ', refine your search' : '');
+    for (const entity of visible) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #315568';
+      const label = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = entity.attributes?.friendly_name || entity.entity_id;
+      const id = document.createElement('div');
+      id.className = 'muted';
+      id.textContent = entity.entity_id;
+      label.append(title, id);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Customise';
+      button.addEventListener('click', () => {
+        const key = entity.entity_id.slice(7);
+        const existing = [...this.shadowRoot.querySelectorAll('.routine-entry')]
+          .find(row => row.querySelector('[data-field="script"]')?.value === entity.entity_id);
+        this.shadowRoot.querySelector('.routine-overrides').open = true;
+        if (!existing) this.addRoutineRow(key, {script: entity.entity_id, phrases: [key.replaceAll('_', ' ')], fields: {}, sensitive: true});
+        this.shadowRoot.querySelector('.routine-overrides').scrollIntoView({block: 'nearest'});
+      });
+      row.append(label, button);
+      root.append(row);
+    }
+  }
+
   addRoutineRow(name = '', item = {}) {
     const root = this.shadowRoot.querySelector('.routine-entries');
     const row = document.createElement('div');
@@ -610,7 +659,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       for (const name of ['morning', 'night', 'movie', 'movie_bedroom', 'sexy_time', 'dinner']) {
         if (!Object.hasOwn(result.routines || {}, name)) this.addRoutineRow(name, {phrases: {morning:['good morning'], night:['good night'], movie:['movie time'], movie_bedroom:['movie time in the bedroom'], sexy_time:['sexy time'], dinner:['dinner time']}[name], fields: {}, sensitive: name === 'night'});
       }
-      status.textContent = 'Routine mappings loaded.';
+      this.renderScriptDiscovery();
+      status.textContent = 'Home Assistant scripts discovered. Existing custom mappings loaded.';
     } catch (error) {
       status.textContent = 'Could not load routine mappings: ' + (error?.body?.error || error?.body?.status || error?.message || 'Unknown error');
     }
