@@ -2724,8 +2724,12 @@ class Handler(BaseHTTPRequestHandler):
                     and not any(word in phrase.casefold() for word in
                                 ("smoke", "fire alarm", "carbon monoxide", "security alert",
                                  "emergency", "intruder", "panic alarm"))):
+                # The structured routine_status/outcome remain available to
+                # callers; the user-facing reply should be Declan's personality,
+                # not a technical HA script title or completion boilerplate.
+                spoken_reply = ("Sorted." if verified_routine else reply["reply"])
                 reply["reply"] = personality_policy.decorate(
-                    reply["reply"], outcome="confirmed" if verified_routine else outcome,
+                    spoken_reply, outcome="confirmed" if verified_routine else outcome,
                     guest=guest_mode != "off",
                     visitor_present=visitor_present,
                     category="music" if music.parse(phrase) or music.parse_control(phrase)
