@@ -313,7 +313,8 @@ def house_status_routine(phrase):
             template in {"house status", "home status"} for template in item["phrases"]
         ):
             return "custom:" + name, {}
-    return "unconfigured_house_status", {}
+    # Let safe automatic discovery resolve an unmapped House Status script.
+    return None
 
 
 def select_routine(phrase, origin):
