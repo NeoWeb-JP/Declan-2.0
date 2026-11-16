@@ -91,6 +91,9 @@ class DeclanTwoNativePanel extends HTMLElement {
         .overview-connection .state { font-size:.95rem; }
         .overview-connection .detail { margin:6px 0 0; font-size:.85rem; }
         .overview-update-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+        .audit-toolbar, .audit-routine-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; margin:12px 0; }
+        .audit-routine-actions label, .audit-stale-label { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:4px 0; }
+        .audit-routine-actions input[type="checkbox"], .audit-stale-label input { margin:0; width:18px; height:18px; }
         @media(max-width:520px) { .overview-chat { padding:18px; } .overview-chat-intro { gap:10px; } .overview-chat-intro h2 { font-size:1.25rem; } .overview-chat .chat-controls { flex-wrap:wrap; } .overview-chat .chat-controls input { flex:1 1 100%; } .overview-chat .chat-send { width:100%; } .overview-voice-controls button { flex:1 1 100%; } .overview-connection { padding:16px 18px; } }
         .turn { padding:14px 0; border-top:1px solid #1d3d51; overflow-wrap:anywhere; }
         .turn p { margin:6px 0; white-space:pre-wrap; }
@@ -288,7 +291,8 @@ class DeclanTwoNativePanel extends HTMLElement {
           <h2>Home Assistant Audit</h2>
           <p class="muted">Read-only snapshot of loaded scripts, automations and entities. No routines are run or changed. Finished traces do not verify device success. Retained traces may describe older configuration.</p>
           <button type="button" class="audit-refresh">Refresh audit</button>
-          <label>Show <select class="audit-review-filter"><option value="unreviewed">Unreviewed routines</option><option value="all">All routines</option><option value="reviewed">Reviewed and fixed</option></select></label>
+          <div class="audit-toolbar"><label>Show <select class="audit-review-filter"><option value="unreviewed">Unreviewed routines</option><option value="all">All routines</option><option value="reviewed">Reviewed and fixed</option></select></label>
+          <label class="audit-stale-label"><input type="checkbox" class="audit-show-stale"> Show stale entity records</label></div>
           <p class="audit-status" role="status" aria-live="polite">Open this page to inspect Home Assistant.</p>
           <label>Search names, entities or findings <input class="audit-search" type="search" style="width:100%;padding:10px;margin:10px 0;background:#102635;color:#e7f7ff;border:1px solid #315568;border-radius:9px"></label>
           <div class="audit-results"></div>
@@ -493,6 +497,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.audit-refresh', 'click', () => this.loadHAAudit());
       this.bindPanelEvent('.audit-search', 'input', () => this.renderHAAudit());
       this.bindPanelEvent('.audit-review-filter', 'change', () => this.renderHAAudit());
+      this.bindPanelEvent('.audit-show-stale', 'change', () => this.renderHAAudit());
       this.bindPanelEvent('.history-more', 'click', () => this.loadHistory(this._historyCursor));
       this.bindPanelEvent('.page-menu-toggle', 'click', () => {
         const nav = this.shadowRoot.querySelector('.page-navigation');
@@ -607,6 +612,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (!report) return;
     const query = this.shadowRoot.querySelector('.audit-search').value.trim().toLowerCase();
     const reviewFilter = this.shadowRoot.querySelector('.audit-review-filter').value;
+    const showStale = this.shadowRoot.querySelector('.audit-show-stale').checked;
     const matches = item => JSON.stringify(item).toLowerCase().includes(query);
     const addText = (parent, tag, text) => {
       const element = document.createElement(tag);
@@ -615,7 +621,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       return element;
     };
     for (const [title, rows] of [['Scripts & automations', report.routines], ['Entities', report.entities]]) {
-      const matching = rows.filter(matches).filter(item => title === 'Entities' || reviewFilter === 'all' || (reviewFilter === 'reviewed' ? item.reviewed : !item.reviewed));
+      const matching = rows.filter(matches).filter(item => showStale || !item.stale).filter(item => title === 'Entities' || reviewFilter === 'all' || (reviewFilter === 'reviewed' ? item.reviewed : !item.reviewed));
       const group = document.createElement('details');
       group.className = 'settings-spotify';
       addText(group, 'summary', `${title} (${matching.length})`);
@@ -627,7 +633,11 @@ class DeclanTwoNativePanel extends HTMLElement {
         const count = findings.length ? ` · ${findings.length} findings` : item.findings ? ' · No static issues found; device success unverified' : '';
         addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}${item.findings ? item.reviewed ? ' · Reviewed and fixed' : ' · Unreviewed' : ''}`);
         if (item.findings) {
-          const label = addText(details, 'label', ' Reviewed and fixed');
+          if (item.stale) addText(details, 'p', 'Stale entity record: Home Assistant has no loaded routine definition for this entity.');
+          const actions = document.createElement('div');
+          actions.className = 'audit-routine-actions';
+          details.append(actions);
+          const label = addText(actions, 'label', 'Reviewed and fixed');
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
           checkbox.checked = item.reviewed === true;
@@ -635,7 +645,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           label.prepend(checkbox);
           checkbox.addEventListener('change', () => this.setAuditReviewed(item, checkbox));
           if (item.yaml_available) {
-            const download = addText(details, 'button', 'Download YAML');
+            const download = addText(actions, 'button', 'Download YAML');
             download.type = 'button';
             download.className = 'audit-yaml-download';
             download.addEventListener('click', () => this.downloadAuditYaml(item, download));

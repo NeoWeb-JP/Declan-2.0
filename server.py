@@ -260,7 +260,7 @@ def routine_action_results(steps):
         }
         for step in steps[:200]
         if isinstance(step, dict) and isinstance(step.get("target"), str)
-        and step.get("status") in ("confirmed", "already_set", "skipped", "failed", "unverified", "planned")
+        and step.get("status") in ("confirmed", "already_set", "skipped", "failed", "unverified", "planned", "requested", "already_requested", "not_requested", "not_configured")
     ]
 
 
@@ -405,7 +405,7 @@ def execute_routine(selection, action_results, *, approved=False):
         return script_discovery.execute(
             ha_device_connection(), {"entity_id": period[5:]},
             parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
-            expect_response=options.get("_declan_expect_response", False))
+            expect_response=options.get("_declan_expect_response", False), action_results=action_results)
     if period == "unconfigured_house_status":
         return "I could not find a House Status script in Home Assistant.", "not_configured", None
     return "I couldn't find that routine in Home Assistant.", "not_configured", None
@@ -2751,6 +2751,11 @@ class Handler(BaseHTTPRequestHandler):
                     category="dinner" if dinner_reply else "music" if music.parse(phrase) or music.parse_control(phrase)
                     else "general",
                 )
+                if dinner_reply:
+                    music_note = personality_policy.dinner_music_feedback(
+                        action_results, guest=guest_mode != "off", visitor_present=visitor_present)
+                    if music_note:
+                        reply["reply"] += " " + music_note
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:

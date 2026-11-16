@@ -8,7 +8,7 @@ import script_discovery
 
 
 class RoutineResultTests(unittest.TestCase):
-    def run_script(self, outcome, steps=None):
+    def run_script(self, outcome, steps=None, recorded=None):
         item = {"entity_id": "script.declan_local_good_morning",
                 "name": "Declan - Good Morning - Shared Local Routine",
                 "fields": ["request_id", "routine_id"], "safe": True}
@@ -29,7 +29,7 @@ class RoutineResultTests(unittest.TestCase):
         opener = Mock()
         opener.open.side_effect = open_request
         with patch.object(script_discovery, "discover", return_value=([item], None)):
-            return script_discovery.execute(("http://ha", {}, opener), item)
+            return script_discovery.execute(("http://ha", {}, opener), item, action_results=recorded)
 
     def test_personality_only_after_verified_completion(self):
         from pathlib import Path
@@ -90,6 +90,18 @@ class RoutineResultTests(unittest.TestCase):
             {"required": True, "status": "confirmed"}])
         self.assertEqual(outcome, "reported_success")
         self.assertIn("completed successfully", reply)
+
+    def test_queued_optional_music_does_not_block_required_lighting_success(self):
+        recorded = []
+        steps = [{"target": "dining", "status": "confirmed", "required": True},
+                 {"target": "dinner_music", "action": "request_playback", "status": "requested", "required": False}]
+        self.assertEqual(self.run_script("success", steps, recorded)[1], "reported_success")
+        self.assertEqual(recorded[1]["status"], "requested")
+        import server
+        self.assertEqual(server.routine_action_results(recorded)[1]["status"], "requested")
+        failed = []
+        self.assertEqual(self.run_script("success", [{**steps[0], "status": "unverified"}, steps[1]], failed)[1], "unverified")
+        self.assertEqual(failed, [])
 
     def test_live_dinner_selection_carries_reply_category_without_hardcoded_entity(self):
         import server

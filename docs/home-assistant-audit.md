@@ -4,6 +4,11 @@ Open **Declan > Home Assistant Audit** using a Home Assistant administrator acco
 Opening the page or pressing **Refresh audit** reads the currently loaded HA sources.
 Search names, entity IDs or finding codes. Both groups and individual rows start collapsed.
 
+Stale entity records with no loaded script/automation are hidden by default in both
+groups. Enable **Show stale entity records** to inspect them. Loaded routines remain
+visible even when unavailable; stale records are not counted as loaded scripts or
+automations. The review checkbox and download button have separate, spaced controls.
+
 Use **Download YAML** inside a routine row to export its current loaded Home Assistant
 definition. This is read from HA when clicked, not from Declan's repository or the earlier
 audit snapshot. It contains the routine's configuration only, without audit/review metadata,
