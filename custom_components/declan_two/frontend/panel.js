@@ -268,7 +268,7 @@ class DeclanTwoNativePanel extends HTMLElement {
           <button type="button" class="page-choice" data-page="conversations">History &amp; Voice Recognition</button>
           <button type="button" class="page-choice" data-page="players">Media players</button>
           <button type="button" class="page-choice" data-page="audit">Home Assistant Audit</button>
-          <button type="button" class="page-choice" data-page="responses">Routine responses</button>
+          <button type="button" class="page-choice" data-page="responses">Responses</button>
           <button type="button" class="page-choice" data-page="settings">Settings</button>
           <button type="button" class="page-choice" data-page="updates">Updates</button>
         </nav>
@@ -299,11 +299,11 @@ class DeclanTwoNativePanel extends HTMLElement {
           <div class="timeline-list" aria-label="Voice recording review"></div>
         </section>
         <section class="panel card" id="panel-responses" hidden>
-          <h2>Routine responses</h2>
-          <p class="muted">Choose a routine to review its sass and Guest Mode responses. Declan picks a line from the matching list. Changes take effect after saving.</p>
+          <h2>Responses</h2>
+          <p class="muted">Choose an everyday command or Home Assistant routine. Edit its sass, Guest Mode and failure responses. Command replies keep the factual result or error. Changes take effect after saving.</p>
           <div class="update-controls">
-            <label>Routine <select class="responses-routine updates-select" aria-label="Routine"><option value="">Select a routine</option></select></label>
-            <button type="button" class="responses-reload">Reload routines</button>
+            <label>Response for <select class="responses-routine updates-select" aria-label="Routine or command"><option value="">Select a command or routine</option></select></label>
+            <button type="button" class="responses-reload">Reload responses</button>
             <button type="button" class="responses-save" disabled>Save responses</button>
           </div>
           <p class="responses-status muted" role="status" aria-live="polite"></p>
@@ -620,30 +620,34 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (this._responsesDirty && !window.confirm('Discard unsaved response changes and reload?')) return;
     this.responseBusy(true);
     const status = this.shadowRoot.querySelector('.responses-status');
-    status.textContent = 'Loading Home Assistant routines…';
+    status.textContent = 'Loading response categories…';
     try {
       const result = await this._hass.callApi('GET', 'declan_two/management/routine-responses');
       if (!Array.isArray(result.routines)) throw new Error('Invalid routine list');
       const select = this.shadowRoot.querySelector('.responses-routine');
-      select.replaceChildren(new Option('Select a routine', ''));
-      result.routines.sort((a, b) => a.name.localeCompare(b.name)).forEach(row => {
-        select.append(new Option(`${row.name} (${row.entity_id})`, row.entity_id));
-      });
+      select.replaceChildren(new Option('Select a command or routine', ''));
+      for (const [label, rows] of [['Everyday commands', result.commands || []], ['Home Assistant routines', result.routines]]) {
+        const group = document.createElement('optgroup'); group.label = label;
+        [...rows].sort((a, b) => a.name.localeCompare(b.name)).forEach(row => {
+          group.append(new Option(label === 'Everyday commands' ? row.name : `${row.name} (${row.entity_id})`, row.entity_id));
+        });
+        select.append(group);
+      }
       this._responseRoutinesLoaded = true;
       this._responseEntity = '';
       this._responseProfile = null;
       this._responsesDirty = false;
       this.shadowRoot.querySelector('.responses-editor').replaceChildren();
-      status.textContent = result.routines.length ? 'Select a routine to edit its responses.' : 'No Home Assistant scripts found.';
+      status.textContent = result.routine_error ? 'Everyday commands are available. Home Assistant routines could not be loaded; reload to retry.' : 'Select a command or routine to edit its responses.';
     } catch (error) {
-      status.textContent = 'Could not load routines. Use Reload routines to retry.';
+      status.textContent = 'Could not load response categories. Use Reload responses to retry.';
     } finally { this.responseBusy(false); }
   }
 
   async chooseResponseRoutine() {
     if (this._responsesPending) return;
     const select = this.shadowRoot.querySelector('.responses-routine');
-    if (this._responsesDirty && !window.confirm('Discard unsaved changes for this routine?')) {
+    if (this._responsesDirty && !window.confirm('Discard unsaved changes for this response category?')) {
       select.value = this._responseEntity || '';
       return;
     }
@@ -662,9 +666,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this._responseProfile = result.profile;
       this._responseExpected = result.expected;
       this.renderResponseEditor();
-      status.textContent = 'Edit, add or delete lines, then save. Empty lists use neutral wording. Action lists use Default when empty.';
+      status.textContent = 'Edit, add or delete lines, then save. Empty command lists remove banter but keep the factual result. Routine action lists use Default when empty.';
     } catch (error) {
-      status.textContent = 'Could not load responses. Select the routine again to retry.';
+      status.textContent = 'Could not load responses. Select the command or routine again to retry.';
     } finally { this.responseBusy(false); }
   }
 
@@ -694,11 +698,17 @@ class DeclanTwoNativePanel extends HTMLElement {
     const host = this.shadowRoot.querySelector('.responses-editor');
     host.replaceChildren();
     const profile = this._responseProfile;
-    for (const [phase, title, explanation] of [
+    const command = this._responseEntity?.startsWith('command:');
+    const sections = command ? [
+      ['completed', 'Command result', 'Spoken with the verified result or information. The factual result is always kept.'],
+      ['failure', 'Failures and incomplete results', 'Optional line before a lighting error or incomplete result. The actual error is always kept.']
+    ] : [
       ['requested', 'Routine requested', 'Spoken when Home Assistant accepts a background request. These lines should describe a request, rather than claim completion.'],
       ['completed', 'Routine finished', 'Spoken after the routine finishes. A finished trace does not verify individual devices.'],
       ['failure', 'Failures and incomplete results', 'Optional responses for failed, partial, cancelled or unverified runs. The actual error or diagnostic is always included.']
-    ]) {
+    ];
+    const failureCommands = new Set(["lights_on", "lights_off", "brightness", "full_brightness", "mixed_lighting", "lights_status"]);
+    for (const [phase, title, explanation] of sections.filter(([phase]) => !command || phase !== "failure" || failureCommands.has(this._responseEntity.slice(8)))) {
       const section = document.createElement('details');
       section.className = 'card';
       const summary = document.createElement('summary');
@@ -710,9 +720,9 @@ class DeclanTwoNativePanel extends HTMLElement {
         const heading = document.createElement('summary'); heading.textContent = label; tone.append(heading);
         const filterLabel = document.createElement('label'); filterLabel.textContent = 'Response for ';
         const filter = document.createElement('select'); filter.className = 'updates-select'; filter.setAttribute('aria-label', `${title}, ${label}, action`);
-        for (const action of ['default', 'start', 'end', 'toggle']) filter.append(new Option(action === 'default' ? 'Default' : action[0].toUpperCase() + action.slice(1), action));
+        for (const action of (command ? ['default'] : ['default', 'start', 'end', 'toggle'])) filter.append(new Option(action === 'default' ? 'Default' : action[0].toUpperCase() + action.slice(1), action));
         if (!profile[phase][mode].default.length && profile[phase][mode].start.length) filter.value = 'start';
-        filterLabel.append(filter); tone.append(filterLabel);
+        filterLabel.append(filter); filterLabel.hidden = command; tone.append(filterLabel);
         const rows = document.createElement('div'); tone.append(rows);
         const render = () => {
           rows.replaceChildren();

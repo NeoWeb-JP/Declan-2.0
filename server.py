@@ -56,6 +56,8 @@ import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses
+import command_responses
+import lighting_intents
 import roast
 import personality_policy
 
@@ -825,81 +827,10 @@ def parse_light_command(phrase):
 
 @diagnostics.timed("lighting")
 def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_device=None):
-    if phrase in {"what lights are on", "which lights are on", "what lights are still on", "which lights are still on"}:
-        return set_lights("", None)
-    preview = re.match(r"^(?:preview|dry[ -]run)\b[ ,:]*", phrase)
-    if preview:
-        phrase = phrase[preview.end():]
-    room_adjustment = re.fullmatch(r"make it (darker|lighter|brighter|very bright) in (.+)", phrase)
-    turn_adjustment = re.fullmatch(r"turn (down|up) ((?:the )?(?:all )?lights(?: in .+)?)", phrase)
-    if room_adjustment:
-        phrase = f"make the lights in {room_adjustment[2]} {room_adjustment[1]}"
-    elif turn_adjustment:
-        direction = "darker" if turn_adjustment[1] == "down" else "brighter"
-        phrase = f"make {turn_adjustment[2]} {direction}"
-    if phrase.endswith(" in here"):
-        contextual = phrase.removesuffix(" in here")
-        if re.fullmatch(r"make it (?:darker|lighter|brighter|very bright)", contextual):
-            contextual = contextual.replace("make it ", "make the lights ", 1)
-        command = parse_light_command(contextual)
-        if command is None or re.search(r"\b(?:actually|i mean|turn|make|except)\b", command[0]):
-            return "Please give me one lighting action for this room.", "unresolved"
-        if origin_device is None:
-            return "Which room do you mean? I can't identify a room for this request.", "unresolved"
-        if command[0] == "some lights" and command[1] != "on":
-            return "Please name the lights you want to change in this room.", "unresolved"
-        return set_lights(*command, preview=bool(preview), action_results=action_results,
-                          origin_device=origin_device)
-    follow_up = (
-        re.fullmatch(r"turn (it|them) (on|off)", phrase)
-        or re.fullmatch(r"(?:turn )?(on|off) (it|them)", phrase)
-        or re.fullmatch(r"make (it|them) (darker|lighter|brighter|very bright)", phrase)
-    )
-    if follow_up:
-        pronoun, direction = follow_up.groups()
-        if direction in ("it", "them"):
-            pronoun, direction = direction, pronoun
-        if not last_lights or (pronoun == "it") != (len(last_lights) == 1):
-            return "Which light or room do you mean?", "unresolved"
-        return set_lights(" and ".join(last_lights), "brighter" if direction == "lighter" else direction,
-                          preview=bool(preview), require_all=True, action_results=action_results)
-    parts = re.split(r"[ ,;]+(?:actually|no[ ,]+i mean|i mean|no(?=,))\b[ ,:;]*", phrase)
-    corrected = len(parts) > 1
-    if corrected and re.search(r"(?:^|\s)(?:and|then|as well as|in the|except(?: the)?)$", parts[-1]):
-        return "Please finish the corrected light command.", "unresolved"
-    brightness = None
-    relative_step = 10
-    dimming = re.fullmatch(r"(?:set|dim) (?:the )?(.+?) to\s+([+-]?\d+)\s*(?:percent|per cent|%)", parts[-1])
-    adjustment = re.fullmatch(r"(dim|brighten) (?:the )?(.+?) by\s+([+-]?\d+)\s*(?:percent|per cent|%)", parts[-1])
-    if dimming:
-        brightness = int(dimming[2])
-        if not 0 <= brightness <= 100:
-            return "Please choose a brightness from 0 to 100 percent.", "unresolved"
-        if re.search(r"\bturn (?:on|off)\b", dimming[1]):
-            return "Please give the brightness and on/off changes as separate commands.", "unresolved"
-        command = dimming[1], "on" if brightness else "off"
-    elif adjustment:
-        relative_step = int(adjustment[3])
-        if not 1 <= relative_step <= 100:
-            return "Please choose a brightness change from 1 to 100 percent.", "unresolved"
-        command = adjustment[2], "darker" if adjustment[1] == "dim" else "brighter"
-    else:
-        command = parse_light_command(parts[-1])
-    if corrected and command is None:
-        previous = parse_light_command(parts[0])
-        replacement = parts[-1].removeprefix("the ").strip()
-        if (previous and replacement and not previous[0].startswith("everything except ")
-                and not re.search(r"\b(?:turn (?:on|off)|make (?:darker|brighter|very bright))\b", previous[0])
-                and not re.match(r"^(?:turn|switch|make|on|off|the)\b", replacement)):
-            command = replacement, previous[1]
-    if command is None:
-        if corrected:
-            return "Please say the corrected light command in full.", "unresolved"
-        if preview:
-            return "Please give me a lighting command to preview.", "unresolved"
-        return None
-    return set_lights(*command, brightness=brightness or None, preview=bool(preview),
-                      require_all=corrected, action_results=action_results, relative_step=relative_step)
+    """Compatibility entry point; parsing and correction flow live outside HTTP."""
+    return lighting_intents.handle_light_request(
+        phrase, parse_light_command=parse_light_command, set_lights=set_lights,
+        action_results=action_results, last_lights=last_lights, origin_device=origin_device)
 
 
 def ha_device_connection():
@@ -2021,9 +1952,10 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/native/routine-responses":
             scripts, error = script_discovery.discover(ha_device_connection(), fresh=True)
             if error:
-                self.send_json(503, {"error": "Home Assistant routines unavailable. Try again."})
+                self.send_json(200, {"commands": command_responses.catalog(), "routines": [],
+                                     "routine_error": "Home Assistant routines unavailable. Try again."})
             else:
-                self.send_json(200, {"routines": [{"entity_id": row["entity_id"], "name": row["name"]} for row in scripts]})
+                self.send_json(200, {"commands": command_responses.catalog(), "routines": [{"entity_id": row["entity_id"], "name": row["name"]} for row in scripts]})
         elif self.path == "/api/native/routines":
             self.send_json(410, {"error": "Routine mappings are retired. Home Assistant scripts are the source of truth."})
         elif self.path == "/api/native/intents":
@@ -2374,17 +2306,22 @@ class Handler(BaseHTTPRequestHandler):
                     if not isinstance(body, dict) or set(body) not in ({"entity_id"}, {"entity_id", "profile", "expected"}):
                         raise ValueError("Invalid response change")
                     entity = body.get("entity_id")
-                    if not isinstance(entity, str) or not routine_responses.ENTITY.fullmatch(entity):
-                        raise ValueError("Select a routine")
-                    scripts, error = script_discovery.discover(ha_device_connection(), fresh=True)
-                    if error:
-                        self.send_json(503, {"error": "Home Assistant routines unavailable. Try again."})
-                        return
-                    item = next((row for row in scripts if row['entity_id'] == entity), None)
-                    if item is None:
-                        raise ValueError("That routine is no longer available. Reload routines.")
-                    result = (routine_responses.save(item, body['profile'], body['expected'])
-                              if 'profile' in body else routine_responses.snapshot(item))
+                    if isinstance(entity, str) and entity.startswith("command:"):
+                        item = command_responses.item(entity)
+                        manager = command_responses
+                    else:
+                        if not isinstance(entity, str) or not routine_responses.ENTITY.fullmatch(entity):
+                            raise ValueError("Select a routine or command")
+                        scripts, error = script_discovery.discover(ha_device_connection(), fresh=True)
+                        if error:
+                            self.send_json(503, {"error": "Home Assistant routines unavailable. Try again."})
+                            return
+                        item = next((row for row in scripts if row['entity_id'] == entity), None)
+                        if item is None:
+                            raise ValueError("That routine is no longer available. Reload routines.")
+                        manager = routine_responses
+                    result = (manager.save(item, body['profile'], body['expected'])
+                              if 'profile' in body else manager.snapshot(item))
                     self.send_json(200, result)
                 except ValueError as error:
                     self.send_json(400, {"error": str(error)})
@@ -2814,6 +2751,7 @@ class Handler(BaseHTTPRequestHandler):
             completed_routine = (outcome == "execution_completed"
                                  and routine_reply is not None and routine_turn is not None)
             if (outcome in ("confirmed", "reported_success", "execution_completed") and not existing_lines
+                    and light_result is None
                     and routine_reply is not None
                     and (verified_routine or completed_routine or light_result is not None
                          or music.parse(phrase) or music.parse_control(phrase)
@@ -2883,6 +2821,12 @@ class Handler(BaseHTTPRequestHandler):
                         action_results, guest=guest_mode != "off", visitor_present=visitor_present)
                     if music_note and music_note not in reply["reply"]:
                         reply["reply"] += " " + music_note
+            if (light_result is not None and routine_turn is None
+                    and outcome not in {"confirmed", "preview"}
+                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)):
+                response_category = lighting_intents.response_category(phrase, parse_light_command)
+                reply["reply"] = command_responses.failure(
+                    response_category, reply["reply"], guest=response_guest_mode != "off")
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:
@@ -3001,5 +2945,6 @@ def main():
 if __name__ == "__main__":
     declan_logs.install()
     main()
+
 
 

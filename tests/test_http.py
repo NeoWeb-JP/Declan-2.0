@@ -99,8 +99,16 @@ class APITests(TestCase):
             code, _ = self.request('/api/native/routine-responses', body={'entity_id': 'script.deleted'}, headers=headers)
             self.assertEqual(code, 400)
         with patch.object(server.script_discovery, 'discover', return_value=([], 'unavailable')):
-            code, _ = self.request('/api/native/routine-responses', headers=headers)
+            code, payload = self.request('/api/native/routine-responses', headers=headers)
+            self.assertEqual(code, 200)
+            catalog = json.loads(payload)
+            self.assertEqual(catalog['routines'], [])
+            self.assertIn('command:lights_on', {row['entity_id'] for row in catalog['commands']})
+            self.assertIn('routine_error', catalog)
+            code, payload = self.request('/api/native/routine-responses',
+                                         body={'entity_id': 'script.unavailable'}, headers=headers)
             self.assertEqual(code, 503)
+            self.assertIn('unavailable', json.loads(payload)['error'])
         code, _ = self.request('/api/native/routine-responses', body={'entity_id': '../bad'}, headers=headers)
         self.assertEqual(code, 400)
 
