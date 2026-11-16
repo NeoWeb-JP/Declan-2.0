@@ -48,6 +48,11 @@ class ScriptSafetyTests(unittest.TestCase):
         protected = {"entity_id": "script.garage", "name": "Garage", "safe": False}
         self.assertEqual(script_discovery.match("garage", [protected]), ("protected", protected))
 
+    def test_missing_ha_opener_fails_closed(self):
+        scripts, error = script_discovery.discover(("http://localhost", {}, None))
+        self.assertEqual(scripts, [])
+        self.assertEqual(error, "inspection_unavailable")
+
     def test_reinspection_blocks_script_that_became_unsafe(self):
         with patch.object(script_discovery, "discover", return_value=(
             [{"entity_id": "script.house_status", "name": "House Status", "safe": False}], None)):
