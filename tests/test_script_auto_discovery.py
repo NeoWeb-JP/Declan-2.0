@@ -59,6 +59,22 @@ class ScriptSafetyTests(unittest.TestCase):
         self.assertEqual(scripts, [])
         self.assertEqual(error, "inspection_unavailable")
 
+    def test_declared_ha_script_fields_are_passed_without_mapping(self):
+        from unittest.mock import MagicMock
+        import json
+        opener = MagicMock()
+        opener.open.return_value.__enter__.return_value.status = 200
+        script = {"entity_id": "script.declan_movie_time", "name": "Declan - Movie Time",
+                  "safe": True, "fields": ["operation", "room"]}
+        with patch.object(script_discovery, "discover", return_value=([script], None)):
+            result = script_discovery.execute(
+                ("http://ha", {}, opener), script,
+                parameters={"operation": "end", "room": "bedroom", "secret": "never"})
+        self.assertEqual(result[1], "requested")
+        payload = json.loads(opener.open.call_args.args[0].data)
+        self.assertEqual(payload, {"entity_id": "script.declan_movie_time",
+                                   "variables": {"operation": "end", "room": "bedroom"}})
+
     def test_execution_rejects_script_removed_from_ha(self):
         with patch.object(script_discovery, "discover", return_value=([], None)):
             result = script_discovery.execute(("url", {}, object()), {"entity_id": "script.house_status"})
