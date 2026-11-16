@@ -60,6 +60,7 @@ class RoutineResultTests(unittest.TestCase):
             response = MagicMock()
             response.status = 200
             response.read.return_value = b"[]"
+            response.__enter__.return_value = response
             return response
         opener = Mock()
         opener.open.side_effect = open_request
