@@ -420,7 +420,7 @@ def execute_routine(selection, action_results, *, approved=False):
 
 
 def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
-    """Run an explicitly mapped HA script; never infer sensitive approval."""
+    """Run a legacy mapped HA script; no per-script approval required."""
     try:
         item = routine_registry.load().get(name)
     except (ValueError, OSError, sqlite3.Error):
@@ -438,7 +438,7 @@ def run_custom_routine(name, action_results=None, *, approved=False, parameters=
         if parameters["room"] not in areas:
             return "I could not match that room to a Home Assistant area.", "unresolved", None
     script = item["script"]
-    # No script guessing or fallback: only a script selected in Settings may execute.
+    # Preserve legacy script parameters for existing installations.
     request_id = "declan-" + secrets.token_hex(16)
     payload = {**item["fields"], **(parameters or {}), "request_id": request_id, "routine_id": script}
     request = Request(f"{url}/api/services/script/{script.split('.', 1)[1]}?return_response",
