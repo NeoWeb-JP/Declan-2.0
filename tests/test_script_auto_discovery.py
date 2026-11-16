@@ -40,7 +40,7 @@ class ScriptSafetyTests(unittest.TestCase):
     def test_natural_alias_and_ambiguity(self):
         safe = {"entity_id": "script.house_status", "name": "House Status", "safe": True}
         self.assertEqual(script_discovery.match("what is the status of the house", [safe]), ("matched", safe))
-        self.assertEqual(script_discovery.match("run house status", [safe]), ("safe", safe))
+        self.assertEqual(script_discovery.match("run house status", [safe]), ("matched", safe))
         self.assertEqual(script_discovery.match("house status", [safe, dict(safe, entity_id="script.other")])[0], "ambiguous")
         self.assertIsNone(script_discovery.match("unlock the front door", [safe]))
 
