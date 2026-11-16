@@ -567,7 +567,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     })).sort((a, b) => (a.attributes?.friendly_name || a.entity_id).localeCompare(b.attributes?.friendly_name || b.entity_id));
     const query = (this.shadowRoot.querySelector('.routine-search')?.value || '').trim().toLowerCase();
     const matches = scripts.filter(entity => {
-      const area = this._hass?.areas?.[entity.attributes?.area_id]?.name || '';
+      const area = entity.attributes?.area_id || '';
       return [entity.entity_id, entity.attributes?.friendly_name || '', area].join(' ').toLowerCase().includes(query);
     });
     const visible = matches.slice(0, 40);
