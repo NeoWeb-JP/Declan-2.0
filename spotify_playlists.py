@@ -51,9 +51,11 @@ def normalize(raw):
         manual = unique(item.get("manual") or [])
         pinned = unique(item.get("favourites") or [])
         excluded = unique(item.get("excluded") or [])
-        # Existing installations stored manual additions in favourites. Keep
-        # those pinned, and treat them as manual for future refreshes.
-        manual = list(dict.fromkeys(manual + pinned))
+        # Legacy catalogues used favourites for manual additions. Only
+        # migrate them when the new manual field is absent; otherwise liking
+        # a discovered playlist must not silently convert it to manual.
+        if "manual" not in item:
+            manual = list(dict.fromkeys(manual + pinned))
         discovered = unique(item.get("discovered") or [])
         protected = list(dict.fromkeys(manual + [uri for uri in discovered if uri in liked]))
         if len(protected) > CAPACITY:
