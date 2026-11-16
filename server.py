@@ -57,6 +57,7 @@ from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses
 import command_responses
+import command_registry
 import lighting_intents
 import roast
 import personality_policy
@@ -2653,41 +2654,29 @@ class Handler(BaseHTTPRequestHandler):
                     information_context = conditions.question_context(information_phrase)
                 if outcome == "confirmed":
                     routine_reply = add_sass(routine_reply, category, read_guest_mode())
-            elif status_query := device_status.parse(phrase, last_device):
-                connection = ha_device_connection()
-                if connection is None:
-                    routine_reply, outcome = "The Home Assistant connection isn't configured.", "not_configured"
-                else:
-                    inventory, error = read_ha_inventory(connection)
-                    if error:
-                        routine_reply, outcome = "I couldn't read device states from Home Assistant.", error
-                    else:
-                        routine_reply, outcome, status_target = device_status.describe(*status_query, inventory)
-                        if outcome == "confirmed":
-                            guest_mode = next(
-                                (item.get("state") for item in inventory if isinstance(item, dict)
-                                 and item.get("entity_id") == GUEST_MODE_ENTITY), None
-                            )
-                            routine_reply = add_sass(routine_reply, "device_status", guest_mode)
-            elif music_feedback := music.parse_feedback(phrase):
-                routine_reply, outcome = music.feedback(music_feedback, ha_device_connection(), read_music_inventory)
-            elif music_control := music.parse_control(phrase):
-                routine_reply, outcome = music.control(
-                    music_control, ha_device_connection(), read_music_inventory,
-                    origin=origin_device or satellite, read_areas=read_ha_areas, assist=source == "assist",
-                )
-            elif music_command := music.parse(phrase):
-                routine_reply, outcome = music.play(
-                    music_command, ha_device_connection(), read_music_inventory,
-                    **({"origin": satellite or origin_device} if satellite or origin_device else {}),
-                )
             else:
-                media_result = search_media(phrase)
-                if media_result:
-                    routine_reply, outcome = media_result
+                local = command_registry.registry(command_registry.Dependencies(
+                    parse_status=device_status.parse, describe_status=device_status.describe,
+                    connection=ha_device_connection, inventory=read_ha_inventory,
+                    decorate=add_sass, guest_mode_entity=GUEST_MODE_ENTITY,
+                    parse_feedback=music.parse_feedback, feedback=music.feedback,
+                    parse_control=music.parse_control, control=music.control,
+                    parse_music=music.parse, play=music.play,
+                    music_inventory=read_music_inventory, areas=read_ha_areas,
+                )).dispatch(command_registry.RequestContext(
+                    phrase=phrase, source=source, last_device=last_device,
+                    origin_device=origin_device, satellite=satellite,
+                ))
+                if local is not None:
+                    routine_reply, outcome = local.result.as_legacy_pair()
+                    status_target = local.status_target
                 else:
-                    light_result = handle_light_request(phrase, action_results=action_results,
-                                                        last_lights=last_lights, origin_device=origin_device)
+                    media_result = search_media(phrase)
+                    if media_result:
+                        routine_reply, outcome = media_result
+                    else:
+                        light_result = handle_light_request(phrase, action_results=action_results,
+                                                            last_lights=last_lights, origin_device=origin_device)
             if light_result:
                 routine_reply, outcome = light_result
                 if not re.match(r"^(?:preview|dry[ -]run)\b", phrase):

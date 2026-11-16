@@ -9,6 +9,10 @@ class Outcome(StrEnum):
     FAILED = "failed"
     UNVERIFIED = "unverified"
     UNRESOLVED = "unresolved"
+    NOT_CONFIGURED = "not_configured"
+    UNAVAILABLE = "unavailable"
+    BUSY = "busy"
+    MUSIC_FEEDBACK = "music_feedback"
 
 
 class ActionStatus(StrEnum):
