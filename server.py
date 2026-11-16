@@ -2821,7 +2821,10 @@ class Handler(BaseHTTPRequestHandler):
                         guest=guest_mode != "off", visitor_present=visitor_present)
             if (routine_turn and not routine_turn[1]
                     and outcome != "preview"
-                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)):
+                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
+                    and not any(word in phrase.casefold() for word in
+                                ("smoke", "fire alarm", "carbon monoxide", "security alert",
+                                 "emergency", "intruder", "panic alarm"))):
                 reply["reply"] = routine_responses.render(
                     routine_turn[0], outcome, reply["reply"],
                     guest=guest_mode != "off" or visitor_present is not False)
