@@ -360,6 +360,15 @@ class DeclanTwoNativePanel extends HTMLElement {
               <div class="settings-section-content">
                 <p class="muted playlists-help">Discovery refresh is manual only, using Refresh inside each category. Your playlists and liked playlists are protected; disliked playlists stay blocked. Remove takes a playlist out of the current category (discovery may add it again). Delete excludes it from future discovery in this category.</p>
                 <p class="playlists-status muted" role="status" aria-live="polite">Expand this section to load your Spotify categories.</p>
+                <form class="playlists-add-form playlists-global-add">
+                  <label>Spotify playlist URL<input name="playlist" required autocomplete="off" placeholder="https://open.spotify.com/playlist/…" /></label>
+                  <label>Genre<select name="category" required aria-label="Choose playlist genre"></select></label>
+                  <button type="submit">Add playlist</button>
+                </form>
+                <form class="playlists-add-form playlists-new-genre">
+                  <label>Add a genre<input name="genre" required maxlength="40" autocomplete="off" placeholder="e.g. Blues" /></label>
+                  <button type="submit">Add genre</button>
+                </form>
                 <div class="playlists-list" aria-label="Playlists grouped by category"></div>
               </div>
             </details>
@@ -460,12 +469,14 @@ class DeclanTwoNativePanel extends HTMLElement {
         else if (button.dataset.playlistOperation)
           void this.updatePlaylist(button.dataset.playlistOperation, button.dataset.playlistUri, category);
       });
-      this.bindPanelEvent('.playlists-list', 'submit', event => {
-        const form = event.target.closest('form.playlists-add-form');
-        if (!form) return;
+      this.bindPanelEvent('.playlists-global-add', 'submit', event => {
         event.preventDefault();
-        const category = form.closest('details[data-playlist-category]')?.dataset.playlistCategory;
-        if (category) void this.updatePlaylist('add', form.querySelector('input').value, category);
+        const form = event.target;
+        void this.updatePlaylist('add', form.elements.playlist.value, form.elements.category.value);
+      });
+      this.bindPanelEvent('.playlists-new-genre', 'submit', event => {
+        event.preventDefault();
+        void this.addPlaylistGenre(event.target.elements.genre.value);
       });
       this.bindPanelEvent('.players-refresh', 'click', () => this.loadPlayers());
       this.bindPanelEvent('.players-save', 'click', () => this.savePlayers());
@@ -1053,6 +1064,16 @@ class DeclanTwoNativePanel extends HTMLElement {
       .map(node => node.dataset.playlistCategory));
     if (openCategory) previouslyOpen.add(openCategory);
     list.replaceChildren();
+    const genreSelect = this.shadowRoot.querySelector('.playlists-global-add select[name="category"]');
+    const previousGenre = genreSelect.value;
+    genreSelect.replaceChildren();
+    for (const category of Object.keys(catalogue)) {
+      const option = document.createElement('option');
+      option.value = category;
+      option.textContent = category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      genreSelect.append(option);
+    }
+    if (catalogue[previousGenre]) genreSelect.value = previousGenre;
     for (const [category, data] of Object.entries(catalogue)) {
       const playlists = Array.isArray(data.playlists) ? data.playlists : [];
       const details = document.createElement('details');
@@ -1149,20 +1170,6 @@ class DeclanTwoNativePanel extends HTMLElement {
           details.append(row);
         }
       }
-      const form = document.createElement('form');
-      form.className = 'playlists-add-form';
-      const labelInput = document.createElement('label');
-      labelInput.textContent = 'Add your own Spotify playlist (kept during refresh)';
-      const input = document.createElement('input');
-      input.required = true;
-      input.placeholder = 'https://open.spotify.com/playlist/…';
-      input.autocomplete = 'off';
-      labelInput.append(input);
-      const add = document.createElement('button');
-      add.type = 'submit';
-      add.textContent = 'Add playlist';
-      form.append(labelInput, add);
-      details.append(form);
       list.append(details);
     }
     const dislikedPlaylists = this._playlistPreferences?.disliked_playlists || [];
@@ -1228,6 +1235,27 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Saved playlist change for ' + category + '.';
     } catch {
       status.textContent = 'Playlist change failed. Check the link, the 25-playlist limit and Declan connection.';
+    } finally {
+      this._playlistsPending = false;
+    }
+  }
+
+  async addPlaylistGenre(genre) {
+    if (this._playlistsPending || !this._hass) return;
+    this._playlistsPending = true;
+    const status = this.shadowRoot.querySelector('.playlists-status');
+    status.textContent = 'Adding Spotify genre…';
+    try {
+      const data = await this._hass.callApi('POST', 'declan_two/music-playlists',
+                                           {operation: 'add_genre', genre: genre.trim()});
+      if (!data?.categories) throw new Error('Genre was not saved');
+      this._playlistCatalogue = data.categories;
+      this._playlistPreferences = data.preferences || {};
+      this.renderPlaylists();
+      this.shadowRoot.querySelector('.playlists-new-genre input').value = '';
+      status.textContent = 'Genre added. You can now add playlists or refresh it from Spotify.';
+    } catch {
+      status.textContent = 'Could not add genre. Check the name or whether it already exists.';
     } finally {
       this._playlistsPending = false;
     }
