@@ -30,6 +30,31 @@ def catalogue_path():
     return Path(os.environ.get("DECLAN_SPOTIFY_PLAYLISTS_FILE") or DEFAULT_PATH)
 
 
+def category_names(raw):
+    """Built-in genres plus persisted user-created genres."""
+    custom = (key for key in raw if isinstance(key, str)
+              and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", key))
+    return tuple(dict.fromkeys((*CATEGORIES, *custom)))
+
+
+def add_genre(name):
+    if not isinstance(name, str) or not 1 <= len(name.strip()) <= 40:
+        raise ValueError("Enter a genre name (up to 40 characters)")
+    slug = re.sub(r"[^a-z0-9]+", "_", name.casefold()).strip("_")
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,39}", slug):
+        raise ValueError("Genre must contain letters or numbers")
+    with LOCK:
+        data = load()
+        if slug in data:
+            raise ValueError("Genre already exists")
+        if len(data) >= 50:
+            raise ValueError("Maximum 50 genres")
+        data[slug] = {"manual": [], "favourites": [], "excluded": [],
+                      "discovered": [], "playlists": [], "titles": {}}
+        save(data)
+    return listing()
+
+
 def normalize(raw):
     """Keep user-added and liked playlists independently of discovery results.
 
@@ -45,7 +70,7 @@ def normalize(raw):
     disliked = {uri for uri, weight in preferences.items() if weight == 0}
     liked = {uri for uri, weight in preferences.items() if weight > 1}
     result = {}
-    for category in CATEGORIES:
+    for category in category_names(raw):
         item = raw.get(category, {}) if isinstance(raw, dict) else {}
         item = item if isinstance(item, dict) else {}
         manual = unique(item.get("manual") or [])
@@ -96,6 +121,8 @@ def save(data):
 
 
 def manage(body):
+    if isinstance(body, dict) and set(body) == {"operation", "genre"} and body["operation"] == "add_genre":
+        return add_genre(body["genre"])
     if not isinstance(body, dict) or set(body) != {"category", "playlist", "operation"}:
         raise ValueError("Invalid playlist change")
     category, operation = body["category"], body["operation"]
@@ -115,7 +142,7 @@ def manage(body):
                 save(data)
         return listing()
     selected = canonical(body["playlist"])
-    if category not in CATEGORIES or operation not in ("add", "remove", "delete", "favourite", "unfavourite", "dislike", "restore") or not selected:
+    if category not in load() or operation not in ("add", "remove", "delete", "favourite", "unfavourite", "dislike", "restore") or not selected:
         raise ValueError("Invalid playlist change")
     with LOCK:
         data = load()
@@ -194,7 +221,7 @@ def refresh(discovered, titles=None):
     """Merge Spotify search results without losing manual pins or exclusions."""
     with LOCK:
         data = load()
-        for category in CATEGORIES:
+        for category in data:
             if category in discovered:
                 # Preserve liked discovery entries, even when Spotify search
                 # no longer returns them. Dislikes stay excluded globally.
@@ -230,7 +257,7 @@ QUERIES = {
 
 def discover(opener, category):
     """Search exactly one user-selected category; never refresh everything."""
-    if category not in CATEGORIES:
+    if category not in load():
         raise ValueError("Select a Spotify category to refresh")
     import music
     targets = (category,)
@@ -239,7 +266,7 @@ def discover(opener, category):
     for name in targets:
         found = []
         names = {}
-        for term in QUERIES[name]:
+        for term in QUERIES.get(name, (name.replace("_", " ") + " music", name.replace("_", " ") + " playlist")):
             for link, kind, title in music.spotify_search(opener, term, "", ("playlist",)):
                 selected = canonical(link)
                 if kind == "playlist" and selected and selected not in found:
@@ -255,7 +282,7 @@ def discover(opener, category):
 
 def start_refresh(category, opener_factory):
     """Start one bounded refresh outside the HTTP request thread."""
-    if category not in CATEGORIES:
+    if category not in load():
         raise ValueError("Unknown Spotify category")
     with LOCK:
         if _REFRESH["running"]:
