@@ -22,6 +22,7 @@ from .management_view import DeclanManagementView
 from .script_discovery_view import DeclanScriptDiscoveryView
 from .ha_audit_view import DeclanHAAuditView, DeclanAuditReviewView, DeclanAuditYamlView
 from .script_result_view import DeclanScriptResultView
+from .routine_jobs import DeclanRoutineJobsView
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["conversation", "stt", "tts"]
@@ -45,6 +46,7 @@ async def async_setup(hass, config):
     hass.http.register_view(DeclanAuditReviewView())
     hass.http.register_view(DeclanAuditYamlView())
     hass.http.register_view(DeclanScriptResultView())
+    hass.http.register_view(DeclanRoutineJobsView())
     from .native_panel import async_register_native_panel
     await async_register_native_panel(hass)
     return True

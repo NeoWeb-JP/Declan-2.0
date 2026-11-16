@@ -29,6 +29,9 @@ def review_fingerprint(routine, findings, execution):
                 "findings": sorted([row for row in findings if row["path"] != "execution"], key=lambda row: json.dumps(row, sort_keys=True))}
     if execution and execution[0]["status"] in {"failed", "partial"}:
         relevant["latest_failure"] = {key: execution[0][key] for key in ("run_id", "status")}
+    background = routine.get("background_result") or {}
+    if background.get("outcome") in {"failed", "partial", "unverified", "cancelled"}:
+        relevant["background_failure"] = {key: background.get(key) for key in ("job_id", "outcome")}
     payload = json.dumps(relevant, sort_keys=True, default=encode, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
 
@@ -165,6 +168,7 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
             finding("error", "execution_failed", "execution",
                     "Open the corresponding run in Home Assistant Traces to inspect the failing action.")
         items.append({"entity_id": entity_id, "name": routine.get("name") or entity_id,
+                      "background_result": routine.get("background_result"),
                       "editor_path": routine.get("editor_path"),
                       "stale": bool(routine.get("stale")),
                       "yaml_available": bool(routine.get("yaml_available")),

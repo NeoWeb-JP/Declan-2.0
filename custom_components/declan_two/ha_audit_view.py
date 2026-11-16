@@ -38,6 +38,12 @@ async def collect_report(hass):
     routines = []
     gaps = []
     traces = {}
+    from .routine_jobs import latest_results
+    try:
+        background_results = await latest_results(hass)
+    except Exception:
+        background_results = {}
+        gaps.append("background routine results unavailable")
     for domain in ("script", "automation"):
         component = hass.data.get(domain)
         loaded = {entity.entity_id: entity for entity in getattr(component, "entities", ())}
@@ -64,6 +70,7 @@ async def collect_report(hass):
                 editor_id = raw.get("id")
             editor_path = f"/config/{domain}/edit/{quote(str(editor_id), safe='')}" if editor_id is not None else None
             routines.append({"entity_id": entity_id, "name": state.get("name"),
+                             "background_result": background_results.get(entity_id),
                              "editor_path": editor_path,
                              "stale": entity is None,
                              "yaml_available": isinstance(raw, Mapping),

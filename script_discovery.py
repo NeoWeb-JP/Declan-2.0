@@ -152,6 +152,32 @@ def completion_from_trace(connection, current, result):
     return None
 
 
+def enqueue(connection, entity_id, parameters):
+    """Wait only for HA's durable job receipt, never for routine completion."""
+    if connection is None:
+        return "Home Assistant is not connected.", "not_configured", None
+    url, headers, opener = connection
+    job_id = "declan-" + secrets.token_hex(16)
+    request = Request(url + "/api/declan_two/routine-jobs", headers=headers, method="POST",
+                      data=json.dumps({"entity_id": entity_id, "job_id": job_id, "parameters": parameters}).encode())
+    try:
+        with opener.open(request, timeout=2) as response:
+            data = json.loads(response.read(8192))
+            if response.status != 202 or not isinstance(data, dict) or data.get("status") != "accepted" or data.get("job_id") != job_id or data.get("entity_id") != entity_id:
+                return "Home Assistant did not acknowledge the routine request.", "unverified", None
+    except HTTPError as error:
+        code = error.code
+        error.close()
+        if code == 409:
+            return "That routine is already in progress.", "busy", None
+        if code == 404:
+            return "Check that the script is available and update the Declan HA integration, then restart Home Assistant. Nothing was queued.", "not_configured", None
+        return "Home Assistant rejected the routine request.", "failed", None
+    except (OSError, ValueError, TypeError):
+        return "I couldn't confirm the routine request. It may still start; check the audit before retrying.", "unverified", None
+    return "Movie Time requested.", "started", "Background job " + job_id
+
+
 def execute(connection, item, *, parameters=None, expect_response=False, action_results=None):
     """Verify the live HA script and send only parameters it declares."""
     scripts, error = discover(connection, fresh=True)

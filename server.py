@@ -353,6 +353,7 @@ def select_routine(phrase, origin):
                               "movie_room": movie[1] or "lounge"}
                 if "requested_action" in item.get("fields", []):
                     parameters["requested_action"] = movie[0]
+                parameters["_declan_background"] = True
             elif phrase in SEXY_TIME_COMMANDS:
                 parameters = {"operation": SEXY_TIME_COMMANDS[phrase]}
             if is_house_status:
@@ -404,6 +405,9 @@ def execute_routine(selection, action_results, *, approved=False):
     if period == "auto_ambiguous":
         return "Several Home Assistant scripts match that name. Please use a more specific name.", "unresolved", None
     if period.startswith("auto:"):
+        if options.get("_declan_background"):
+            return script_discovery.enqueue(ha_device_connection(), period[5:],
+                {key: value for key, value in options.items() if not key.startswith("_declan_")})
         return script_discovery.execute(
             ha_device_connection(), {"entity_id": period[5:]},
             parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
@@ -464,6 +468,8 @@ def run_custom_routine(name, action_results=None, *, approved=False, parameters=
 
 
 def chained_outcome(routine, lighting):
+    if routine == "started" and lighting == "confirmed":
+        return "started"
     if routine == "execution_completed" and lighting == "confirmed":
         return "execution_completed"
     if routine == "reported_success" and lighting == "confirmed":
@@ -2758,6 +2764,11 @@ class Handler(BaseHTTPRequestHandler):
                         action_results, guest=guest_mode != "off", visitor_present=visitor_present)
                     if music_note:
                         reply["reply"] += " " + music_note
+            if (outcome == "started" and routine_turn and not routine_turn[1]
+                    and routine_turn[0][1].get("_declan_background")):
+                reply["reply"] = personality_policy.movie_request_reply(
+                    routine_turn[0][1].get("requested_action", routine_turn[0][1].get("operation", "toggle")),
+                    guest=guest_mode != "off", visitor_present=visitor_present)
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:
