@@ -599,3 +599,31 @@ test('stale records and invalid editor paths cannot navigate', async t => {
   assert.equal(element.ownerDocument.defaultView.location.pathname,'/');
 });
 
+
+
+test('everyday responses load beside routines and keep bulk edits isolated to their category', async t => {
+  const {element, root, calls} = panel(t, {});
+  const data = responseProfile();
+  for (const mode of ['sass', 'guest']) { data.completed[mode].default = [mode + ' light line']; data.requested[mode].default = []; }
+  element._hass.callApi = async (...args) => {
+    calls.push(args);
+    if (args[0] === 'GET') return {commands:[{entity_id:'command:lights_on',name:'Lights: turn on'}],routines:[],routine_error:'HA offline'};
+    return args[2].profile ? {saved:true,expected:'b'.repeat(64)} : {profile:data,expected:'a'.repeat(64)};
+  };
+  await element.loadResponseRoutines();
+  assert.equal(root.querySelector('optgroup').label,'Everyday commands');
+  assert.match(root.querySelector('.responses-status').textContent,/Everyday commands are available/);
+  root.querySelector('.responses-routine').value='command:lights_on';
+  await element.chooseResponseRoutine();
+  assert.equal(root.querySelectorAll('.responses-editor > details').length,2);
+  assert.match(root.querySelector('.responses-editor').textContent,/factual result is always kept/);
+  const bulk=root.querySelector('.responses-bulk-input');
+  bulk.value='["Added light line","Added light line"]';
+  bulk.closest('details').querySelector('button').click();
+  await element.saveResponses();
+  const payload=calls.at(-1)[2];
+  assert.equal(payload.entity_id,'command:lights_on');
+  assert.deepEqual([...payload.profile.completed.sass.default],['sass light line','Added light line']);
+  assert.deepEqual([...payload.profile.completed.guest.default],['guest light line']);
+  assert.ok([...root.querySelectorAll('.responses-editor details')].every(row=>!row.open));
+});

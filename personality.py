@@ -330,6 +330,10 @@ _recent = {}
 def choose_line(category, guest_mode):
     """Keep the last two lines per category and tone out of the draw."""
     guest = guest_mode != "off"
+    import command_responses
+    custom = command_responses.selected(category, guest)
+    if custom is not None:
+        return custom
     key = category, guest
     lines = LINES[category][guest]
     with _lock:
@@ -341,6 +345,8 @@ def choose_line(category, guest_mode):
 
 def add_sass(reply, category, guest_mode):
     line = choose_line(category, guest_mode)
+    if not line:
+        return reply
     if category == "lights_on":
         return f"{line} {reply}"
     return f"{reply} {line}"
