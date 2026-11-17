@@ -56,6 +56,16 @@ class MypyImportGuardTests(unittest.TestCase):
     def test_inventory_crash_without_diagnostics_is_rejected(self):
         code, output = self.run_guard("mypy: internal failure\n", status=2)
         self.assertNotEqual(code, 0)
+        self.assertIn("exited unexpectedly", output)
+
+    def test_mypy_crash_with_error_text_is_rejected(self):
+        code, output = self.run_guard("mypy: error: internal failure\n", status=2)
+        self.assertNotEqual(code, 0)
+        self.assertIn("exited unexpectedly", output)
+
+    def test_mypy_diagnostic_failure_without_errors_is_rejected(self):
+        code, output = self.run_guard("mypy: unexpected output\n", status=1)
+        self.assertNotEqual(code, 0)
         self.assertIn("failed without diagnostics", output)
 
     def test_successful_empty_inventory_is_allowed(self):
