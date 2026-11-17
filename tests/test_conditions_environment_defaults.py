@@ -28,5 +28,26 @@ class ConditionsEnvironmentDefaultsTests(unittest.TestCase):
                 self.assertIsNone(conditions.ha_connection())
 
 
+    def test_default_country_prefers_unique_gb_candidate_without_ha(self):
+        candidates = [{"name": "Example UK", "country_code": "GB"},
+                      {"name": "Example ZA", "country_code": "ZA"}]
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIs(conditions.nearest_place(None, candidates), candidates[0])
+
+    def test_country_override_is_case_insensitive(self):
+        candidates = [{"name": "Example UK", "country_code": "GB"},
+                      {"name": "Example ZA", "country_code": "ZA"}]
+        with patch.dict(os.environ, {"DECLAN_DEFAULT_COUNTRY": "za"}, clear=True):
+            self.assertIs(conditions.nearest_place(None, candidates), candidates[1])
+
+    def test_country_selection_fails_closed_for_ambiguous_or_empty_preference(self):
+        candidates = [{"name": "One", "country_code": "GB"},
+                      {"name": "Two", "country_code": "GB"}]
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIsNone(conditions.nearest_place(None, candidates))
+        with patch.dict(os.environ, {"DECLAN_DEFAULT_COUNTRY": ""}, clear=True):
+            self.assertIsNone(conditions.nearest_place(None, candidates))
+
+
 if __name__ == "__main__":
     unittest.main()
