@@ -2713,12 +2713,14 @@ class Handler(BaseHTTPRequestHandler):
                 visitor_present=visitor_present, render=routine_responses.render,
                 personality=personality_policy,
             )
-            if (light_result is not None and routine_turn is None
-                    and outcome not in {"confirmed", "preview"}
-                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)):
-                response_category = lighting_intents.response_category(phrase, parse_light_command)
-                reply["reply"] = command_responses.failure(
-                    response_category, reply["reply"], guest=response_guest_mode != "off")
+            reply["reply"] = response_composition.lighting_failure_reply(
+                reply["reply"], light_result=light_result, routine_turn=routine_turn,
+                outcome=outcome, phrase=phrase,
+                response_guest=response_guest_mode != "off",
+                response_category=lighting_intents.response_category,
+                parse_light_command=parse_light_command,
+                render_failure=command_responses.failure,
+            )
             if outcome:
                 reply["outcome"] = outcome
             if routine_status:

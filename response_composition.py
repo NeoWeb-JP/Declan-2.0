@@ -87,3 +87,16 @@ def general_reply(reply, *, outcome, routine_reply, routine_turn, light_result,
         if note:
             decorated += " " + note
     return decorated
+
+
+def lighting_failure_reply(reply, *, light_result, routine_turn, outcome, phrase,
+                           response_guest, response_category, parse_light_command,
+                           render_failure):
+    """Use editable lighting failure text only for non-routine, non-preview failures."""
+    import re
+    if (light_result is None or routine_turn is not None
+            or outcome in {"confirmed", "preview"}
+            or re.match(r"^(?:preview|dry[ -]run)\b", phrase)):
+        return reply
+    category = response_category(phrase, parse_light_command)
+    return render_failure(category, reply, guest=response_guest)
