@@ -52,6 +52,7 @@ import routine_preview_detection
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
+import stop_command_dispatch
 import history
 import music
 import approved_media_players
@@ -2530,12 +2531,14 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = routine_preview
         elif timer_result:
             routine_reply, outcome = timer_result.result.as_legacy_pair()
-        elif stop_result := command_registry.stop_registry(
-            stop_routines=stop_pending_routines, stop_everywhere=stop_everywhere_output,
+        elif stop_result := stop_command_dispatch.dispatch_stop(
+            phrase, source=source, origin_device=origin_device, satellite=satellite,
+            registry_factory=command_registry.stop_registry,
+            context_factory=command_registry.RequestContext,
+            stop_routines=stop_pending_routines,
+            stop_everywhere=stop_everywhere_output,
             connection=ha_device_connection,
-        ).dispatch(command_registry.RequestContext(
-            phrase=phrase, source=source, origin_device=origin_device, satellite=satellite,
-        )):
+        ):
             routine_reply, outcome = stop_result.result.as_legacy_pair()
             routine_status = stop_result.routine_status
         elif (roast_target := roast.target(phrase)) is not None:
