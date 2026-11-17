@@ -4,7 +4,6 @@ All amounts are integer micro-USD to avoid floating-point overspend. This
 reserves a maximum cost *before* network access. A crashed request retains its
 reservation until the month rolls over, favouring safety over availability.
 """
-import sqlite3
 from datetime import datetime, timezone
 
 MICRO_USD = 1_000_000
