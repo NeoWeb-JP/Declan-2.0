@@ -1160,18 +1160,24 @@ def read_music_inventory(connection):
 
 
 def stop_everywhere_result(connection):
-    """Typed stop-all result, preserving playback diagnostics."""
-    from local_outcome_contracts import routine_execution_result
-    return routine_execution_result(stop_everywhere_output(connection))
+    """Return a typed stop-all result with playback diagnostics."""
+    return _stop_everywhere_typed_core(connection)
 
 
 def stop_everywhere_output(connection):
+    """Legacy stop-all response for existing callers."""
+    typed, status = stop_everywhere_result(connection)
+    return typed.reply, typed.outcome.value, status
+
+
+def _stop_everywhere_typed_core(connection):
+    from execution_results import ExecutionResult, Outcome
     """Stop all active approved Music Assistant destinations, including Everywhere."""
     if connection is None:
-        return "", "not_configured", "Home Assistant is not configured."
+        return ExecutionResult("", Outcome.NOT_CONFIGURED), "Home Assistant is not configured."
     inventory, error = read_music_inventory(connection)
     if error:
-        return "", error, "Could not discover the approved music players."
+        return ExecutionResult("", error), "Could not discover the approved music players."
     destinations, players = music.music_players(inventory)
     targets = sorted({entity for entity in destinations.values()
                       if entity and players.get(entity, {}).get("state") in music.ACTIVE})
@@ -1182,7 +1188,7 @@ def stop_everywhere_output(connection):
         members = (players[group].get("attributes") or {}).get("group_members") or []
         targets = [entity for entity in targets if entity == group or entity not in members]
     if not targets:
-        return "", "confirmed", "No approved music players are currently playing."
+        return ExecutionResult("", Outcome.CONFIRMED), "No approved music players are currently playing."
     failed = []
     for entity in targets:
         try:
@@ -1195,9 +1201,9 @@ def stop_everywhere_output(connection):
         except (OSError, ValueError):
             failed.append(entity)
     if failed:
-        return "", "partial" if len(failed) < len(targets) else "unverified", (
+        return ExecutionResult("", Outcome.PARTIAL if len(failed) < len(targets) else Outcome.UNVERIFIED), (
             "Could not verify Stop for: " + ", ".join(failed))
-    return "", "confirmed", "Stopped playback on all active approved music players."
+    return ExecutionResult("", Outcome.CONFIRMED), "Stopped playback on all active approved music players."
 
 
 def stop_origin_output(connection, satellite, device):
