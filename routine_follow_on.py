@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from execution_results import ExecutionResult, Outcome
 from music_provider_result import music_execution_result
 from command_response import CommandResponse
+from lighting_action_evidence import confirmed_lighting_entities
 
 
 @dataclass(frozen=True)
@@ -45,10 +46,7 @@ def execute_result(follow_on, *, routine_result, routine_status,
     action_results.extend(light_steps)
     lighting_context = ()
     if follow_outcome is Outcome.CONFIRMED and scope is not None and len(light_steps) < 200:
-        lighting_context = tuple(dict.fromkeys(
-            step["entity_id"] for step in light_steps
-            if step["status"] in ("confirmed", "already_set") and "entity_id" in step
-        ))
+        lighting_context = confirmed_lighting_entities(light_steps)
     if routine_status and routine_status not in routine_reply:
         routine_reply += f" {routine_status}"
     routine_reply += f" {follow_reply}"
