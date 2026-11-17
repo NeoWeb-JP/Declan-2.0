@@ -17,7 +17,7 @@ class EnvironmentReferenceTests(unittest.TestCase):
         self.assertGreater(len(rows), 20)
         self.assertEqual(rows[0], "| Variable | Purpose | Example |")
         self.assertEqual(rows[1], "| --- | --- | --- |")
-        self.assertEqual(len(rows), len(section.strip().splitlines()))
+        self.assertEqual(rows, [line for line in section.splitlines() if line.strip()])
         names = [re.match(r"\\| \\x60([A-Z][A-Z0-9_]*)\\x60 \\|", row) for row in rows[2:]]
         self.assertTrue(all(names), "Every environment table row needs a variable name")
         self.assertEqual(len(names), len({match.group(1) for match in names if match}))
