@@ -154,8 +154,8 @@ def stop_registry(*, stop_routines, stop_everywhere, connection):
         return HandledCommand("stop_routine", typed, routine_status=status)
 
     def run_everywhere(context, match):
-        reply, outcome, status = stop_everywhere(connection())
-        return HandledCommand("stop_everywhere", ExecutionResult(reply, outcome), routine_status=status)
+        typed, status = routine_execution_result(stop_everywhere(connection()))
+        return HandledCommand("stop_everywhere", typed, routine_status=status)
 
     return HandlerRegistry((
         Handler("stop_routine", 1,
