@@ -90,6 +90,16 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_GOOD_MORNING_SCRIPT, DECLAN_GOOD_NIGHT_SCRIPT, DECLAN_MOVIE_SCRIPT, DECLAN_BEDROOM_MOVIE_SCRIPT | Empty imported values fall back to the corresponding server environment defaults; settings are stored in Declan's configuration database | Nonempty imported IDs must belong to the lowercase `script.` entity domain; wrong domains and malformed IDs are rejected | `tests/test_routine_settings_import_validation.py` |
 | DECLAN_MOVIE_REMOTE, DECLAN_BEDROOM_MOVIE_REMOTE | Empty imported values fall back to the corresponding server environment defaults; settings are stored in Declan's configuration database | Nonempty imported IDs must belong to the lowercase `remote.` entity domain; wrong domains and malformed IDs are rejected | `tests/test_routine_settings_import_validation.py` |
 
+### Persisted setting precedence
+
+For the settings listed in `configuration.FIELDS`, Declan reads a nonempty saved
+value from its settings database first. When the saved value is empty or absent,
+it falls back to the corresponding process environment variable, then to the
+caller's explicit default if the variable is also missing. Other configuration
+keys read the process environment directly without opening the settings database.
+These precedence rules are regression-tested in
+`tests/test_settings_precedence.py` (merged PR #465).
+
 The Spotify credential source can also be a persisted settings file, not just
 the process environment. The `DECLAN_WEB_TTS_ENTITY` and
 `DECLAN_VISITORS_ENTITY` values are read through Declan's configuration
