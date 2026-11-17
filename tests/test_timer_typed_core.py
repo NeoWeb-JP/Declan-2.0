@@ -1,0 +1,57 @@
+"""Timer core returns typed outcomes while legacy handle API remains unchanged."""
+import unittest
+from unittest.mock import Mock, patch
+
+import timers
+from execution_results import ExecutionResult, Outcome
+
+
+class TimerCoreTypedTests(unittest.TestCase):
+    def test_unmatched_phrase_remains_none(self):
+        self.assertIsNone(timers.handle_result("turn on kitchen", Mock()))
+        self.assertIsNone(timers.handle("turn on kitchen", Mock()))
+
+    def test_invalid_duration_returns_typed_unresolved(self):
+        result = timers.handle_result("set a timer for nonsense minutes", Mock())
+        self.assertIsInstance(result, ExecutionResult)
+        self.assertIs(result.outcome, Outcome.UNRESOLVED)
+        self.assertEqual(timers.handle("set a timer for nonsense minutes", Mock()),
+                         result.as_legacy_pair())
+
+    def test_missing_alarm_output_is_typed_unavailable(self):
+        with patch.object(timers, "resolve_output", return_value=None):
+            result = timers.handle_result("set a timer for 5 minutes", Mock())
+        self.assertIs(result.outcome, Outcome.UNAVAILABLE)
+
+    def test_no_timer_is_typed(self):
+        with patch.object(timers, "database") as database, \
+             patch.object(timers, "time", return_value=100):
+            db = database.return_value.__enter__.return_value
+            db.execute.return_value.fetchall.return_value = []
+            result = timers.handle_result("list timers", Mock())
+        self.assertIs(result.outcome, Outcome.NO_TIMER)
+        self.assertEqual(result.reply, "There are no timers.")
+
+    def test_named_missing_timer_is_typed(self):
+        with patch.object(timers, "database") as database, \
+             patch.object(timers, "time", return_value=100):
+            db = database.return_value.__enter__.return_value
+            db.execute.return_value.fetchall.return_value = []
+            result = timers.handle_result("cancel kitchen timer", Mock())
+        self.assertIs(result.outcome, Outcome.NO_TIMER)
+        self.assertIn("couldn't find", result.reply)
+
+    def test_public_handle_uses_typed_core(self):
+        with patch.object(timers, "handle_result",
+                          return_value=ExecutionResult("Set timer", Outcome.TIMER_SET)):
+            self.assertEqual(timers.handle("set a timer for 5 minutes", Mock()),
+                             ("Set timer", "timer_set"))
+
+    def test_invalid_core_result_cannot_be_silently_accepted(self):
+        with patch.object(timers, "handle_result", return_value=("Set", "timer_set")):
+            with self.assertRaises(AttributeError):
+                timers.handle("set a timer for 5 minutes", Mock())
+
+
+if __name__ == "__main__":
+    unittest.main()
