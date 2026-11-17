@@ -40,7 +40,7 @@ BACKEND_MODULES = (
     "spotify_playlists.py",
 )
 ENV_READ = re.compile(
-    r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.get\s*\(\s*|\[\s*))['"]((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))['"]"""
+    r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.(?:get|setdefault|pop)\s*\(\s*|\[\s*))['"]((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))['"]"""
 )
 DOCUMENTED = re.compile(r"^\|\s*\`((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))\`\s*\|", re.MULTILINE)
 
@@ -54,6 +54,10 @@ class EnvironmentDocumentationTests(unittest.TestCase):
             'environ.get("DECLAN_EXAMPLE")',
             'os.environ["DECLAN_EXAMPLE"]',
             'environ["DECLAN_EXAMPLE"]',
+            'os.environ.setdefault("DECLAN_EXAMPLE", "fallback")',
+            'os.environ.pop("DECLAN_EXAMPLE", None)',
+            'environ.setdefault("DECLAN_EXAMPLE", "fallback")',
+            'environ.pop("DECLAN_EXAMPLE", None)',
             'os.environ.get("OPENAI_API_KEY")',
         )
         for expression in examples:
