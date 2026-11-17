@@ -190,6 +190,7 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         sys.modules["audit_fixture.script_result_view"] = self.result_view
         job_spec = importlib.util.spec_from_file_location("audit_fixture.routine_jobs", INTEGRATION / "routine_jobs.py")
         self.jobs_view = importlib.util.module_from_spec(job_spec)
+        sys.modules["audit_fixture.routine_jobs"] = self.jobs_view
         job_spec.loader.exec_module(self.jobs_view)
         sys.modules["audit_fixture.routine_jobs"] = self.jobs_view
         entity = SimpleNamespace(entity_id="automation.actual_entity", raw_config={"id": "persistent-id", "actions": []},
