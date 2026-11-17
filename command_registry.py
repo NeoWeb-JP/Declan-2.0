@@ -217,7 +217,7 @@ def lighting_registry(*, matches, parse_light_command, handle_light_request,
         )
         if result is None:
             return None
-        return HandledCommand("lighting", ExecutionResult(*result))
+        return HandledCommand("lighting", result if isinstance(result, ExecutionResult) else ExecutionResult(*result))
 
     return HandlerRegistry((Handler("lighting", 0,
         lambda context: context.phrase if matches(context.phrase, parse_light_command) else None,

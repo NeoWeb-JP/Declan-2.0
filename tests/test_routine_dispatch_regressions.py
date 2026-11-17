@@ -10,8 +10,8 @@ class RoutineDispatchTests(unittest.TestCase):
                   "safe": True, "fields": ["operation", "requested_action"]}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "enqueue", return_value=("requested", "started", "job")) as enqueue, \
-             patch.object(server.script_discovery, "execute", side_effect=AssertionError("waited for music")):
+             patch.object(server.script_discovery, "_enqueue_provider", return_value=("requested", "started", "job")) as enqueue, \
+             patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("waited for music")):
             for phrase, action in server.SEXY_TIME_COMMANDS.items():
                 selection = server.select_routine(phrase, None)
                 self.assertEqual(selection[0], "auto:" + script["entity_id"])
@@ -33,8 +33,8 @@ class RoutineDispatchTests(unittest.TestCase):
                   "name": "Declan - Good Night - Shared Local Routine", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "enqueue", return_value=("requested", "started", "job")) as enqueue, \
-             patch.object(server.script_discovery, "execute", side_effect=AssertionError("waited for bedtime")):
+             patch.object(server.script_discovery, "_enqueue_provider", return_value=("requested", "started", "job")) as enqueue, \
+             patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("waited for bedtime")):
             for phrase in (*server.GOOD_NIGHT_PHRASES, "declan good night shared local routine"):
                 selection = server.select_routine(phrase, None)
                 self.assertEqual(selection, ("auto:" + script["entity_id"],
@@ -47,8 +47,8 @@ class RoutineDispatchTests(unittest.TestCase):
                   "name": "Declan - Good Morning - Shared Local Routine", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "enqueue", return_value=("requested", "started", "job")) as enqueue, \
-             patch.object(server.script_discovery, "execute", side_effect=AssertionError("waited for morning")):
+             patch.object(server.script_discovery, "_enqueue_provider", return_value=("requested", "started", "job")) as enqueue, \
+             patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("waited for morning")):
             for phrase in (*server.GOOD_MORNING_PHRASES, "declan good morning shared local routine"):
                 selection = server.select_routine(phrase, None)
                 self.assertEqual(selection, ("auto:" + script["entity_id"],
@@ -111,7 +111,7 @@ class RoutineDispatchTests(unittest.TestCase):
                   "name": "Declan - Home Health Summary", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "execute",
+             patch.object(server.script_discovery, "_execute_provider",
                           return_value=("All doors closed.", "reported_success", None)) as execute:
             selection = server.select_routine("what is the status of the house", None)
             self.assertEqual(selection[0], "auto:script.declan_home_health_summary")

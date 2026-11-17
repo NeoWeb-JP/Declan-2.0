@@ -16,8 +16,8 @@ import test_ha_audit as audit_tests
 class BackgroundDispatchTests(unittest.TestCase):
     def test_movie_uses_receipt_endpoint_and_never_blocking_execute(self):
         with patch.object(server, "ha_device_connection", return_value="connection"), \
-             patch.object(server.script_discovery, "enqueue", return_value=("requested", "started", "job")) as enqueue, \
-             patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking call")):
+             patch.object(server.script_discovery, "_enqueue_provider", return_value=("requested", "started", "job")) as enqueue, \
+             patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("blocking call")):
             result = server.execute_routine(("auto:script.movie_time", {"_declan_background": True, "requested_action": "end"}), [])
         enqueue.assert_called_once_with("connection", "script.movie_time", {"requested_action": "end"})
         self.assertEqual(result[1], "started")

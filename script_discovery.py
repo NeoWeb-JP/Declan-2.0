@@ -1,4 +1,5 @@
 """Discover and run Home Assistant scripts without per-script approval."""
+from execution_results import ExecutionResult, Outcome
 import json
 import re
 import secrets
@@ -111,7 +112,7 @@ def match(phrase, scripts):
     return "matched", item
 
 
-def completion_from_trace(connection, current, result):
+def completion_from_trace_result(connection, current, result):
     """Read evidence for this invocation, never the latest unrelated script run."""
     changed = result.get("changed_states") if isinstance(result, dict) else result
     if not isinstance(changed, list):
@@ -140,37 +141,37 @@ def completion_from_trace(connection, current, result):
     status = evidence.get("status")
     detail = "HA trace " + evidence["run_id"][:128] + "; device results not verified."
     if status == "finished_unverified":
-        return "Routine finished.", "execution_completed", detail
+        return ExecutionResult("Routine finished.", Outcome.EXECUTION_COMPLETED), detail
     if status == "partial":
-        return "The routine finished with action errors. Check its Home Assistant trace.", "partial", detail
+        return ExecutionResult("The routine finished with action errors. Check its Home Assistant trace.", Outcome.PARTIAL), detail
     if status == "failed":
-        return "The routine failed. Check its Home Assistant trace.", "failed", detail
+        return ExecutionResult("The routine failed. Check its Home Assistant trace.", Outcome.FAILED), detail
     if status == "cancelled":
-        return "The routine was cancelled.", "cancelled", detail
+        return ExecutionResult("The routine was cancelled.", Outcome.CANCELLED), detail
     if status == "running":
-        return "The routine is still running.", "started", detail
+        return ExecutionResult("The routine is still running.", Outcome.STARTED), detail
     return None
 
 
 def enqueue_result(connection, entity_id, parameters):
     """Return a validated typed background dispatch and its receipt detail."""
     from local_outcome_contracts import routine_execution_result
-    return routine_execution_result(enqueue(connection, entity_id, parameters))
+    return routine_execution_result(_enqueue_provider(connection, entity_id, parameters))
 
 
 def execute_result(connection, item, *, parameters=None, expect_response=False, action_results=None):
     """Return a validated typed Home Assistant script result and status detail."""
     from local_outcome_contracts import routine_execution_result
-    return routine_execution_result(execute(
+    return routine_execution_result(_execute_provider(
         connection, item, parameters=parameters, expect_response=expect_response,
         action_results=action_results,
     ))
 
 
-def enqueue(connection, entity_id, parameters):
+def _enqueue_provider(connection, entity_id, parameters):
     """Wait only for HA's durable job receipt, never for routine completion."""
     if connection is None:
-        return "Home Assistant is not connected.", "not_configured", None
+        return ExecutionResult("Home Assistant is not connected.", Outcome.NOT_CONFIGURED), None
     url, headers, opener = connection
     job_id = "declan-" + secrets.token_hex(16)
     request = Request(url + "/api/declan_two/routine-jobs", headers=headers, method="POST",
@@ -179,28 +180,28 @@ def enqueue(connection, entity_id, parameters):
         with opener.open(request, timeout=2) as response:
             data = json.loads(response.read(8192))
             if response.status != 202 or not isinstance(data, dict) or data.get("status") != "accepted" or data.get("job_id") != job_id or data.get("entity_id") != entity_id:
-                return "Home Assistant did not acknowledge the routine request.", "unverified", None
+                return ExecutionResult("Home Assistant did not acknowledge the routine request.", Outcome.UNVERIFIED), None
     except HTTPError as error:
         code = error.code
         error.close()
         if code == 409:
-            return "That routine is already in progress.", "busy", None
+            return ExecutionResult("That routine is already in progress.", Outcome.BUSY), None
         if code == 404:
-            return "Check that the script is available and update the Declan HA integration, then restart Home Assistant. Nothing was queued.", "not_configured", None
-        return "Home Assistant rejected the routine request.", "failed", None
+            return ExecutionResult("Check that the script is available and update the Declan HA integration, then restart Home Assistant. Nothing was queued.", Outcome.NOT_CONFIGURED), None
+        return ExecutionResult("Home Assistant rejected the routine request.", Outcome.FAILED), None
     except (OSError, ValueError, TypeError):
-        return "I couldn't confirm the routine request. It may still start; check the audit before retrying.", "unverified", None
-    return "Routine requested.", "started", "Background job " + job_id
+        return ExecutionResult("I couldn't confirm the routine request. It may still start; check the audit before retrying.", Outcome.UNVERIFIED), None
+    return ExecutionResult("Routine requested.", Outcome.STARTED), "Background job " + job_id
 
 
-def execute(connection, item, *, parameters=None, expect_response=False, action_results=None):
+def _execute_provider(connection, item, *, parameters=None, expect_response=False, action_results=None):
     """Verify the live HA script and send only parameters it declares."""
     scripts, error = discover(connection, fresh=True)
     if error:
-        return "I couldn't verify that script exists in Home Assistant. Nothing was run.", "unverified", None
+        return ExecutionResult("I couldn't verify that script exists in Home Assistant. Nothing was run.", Outcome.UNVERIFIED), None
     current = next((row for row in scripts if row["entity_id"] == item["entity_id"]), None)
     if not current:
-        return "That script is no longer available in Home Assistant.", "unresolved", None
+        return ExecutionResult("That script is no longer available in Home Assistant.", Outcome.UNRESOLVED), None
     url, headers, opener = connection
     allowed_fields = current.get("fields", [])
     if not isinstance(allowed_fields, list):
@@ -224,7 +225,7 @@ def execute(connection, item, *, parameters=None, expect_response=False, action_
     try:
         with opener.open(request, timeout=55) as response:
             if response.status not in (200, 201):
-                return "Home Assistant did not confirm script execution.", "unverified", None
+                return ExecutionResult("Home Assistant did not confirm script execution.", Outcome.UNVERIFIED), None
             result = json.loads(response.read(65536))
     except HTTPError as error:
         code = error.code
@@ -256,55 +257,53 @@ def execute(connection, item, *, parameters=None, expect_response=False, action_
             try:
                 with opener.open(plain_request, timeout=55) as response:
                     if response.status not in (200, 201):
-                        return "Home Assistant did not confirm script dispatch.", "unverified", None
+                        return ExecutionResult("Home Assistant did not confirm script dispatch.", Outcome.UNVERIFIED), None
                     plain_result = json.loads(response.read(65536))
             except HTTPError as retry_error:
                 retry_code = retry_error.code
                 retry_error.close()
-                return f"Home Assistant rejected script execution (HTTP {retry_code}).", "failed", None
+                return ExecutionResult(f"Home Assistant rejected script execution (HTTP {retry_code}).", Outcome.FAILED), None
             except (OSError, ValueError, TypeError):
-                return "Home Assistant could not confirm script execution.", "unverified", None
-            if not expect_response and (observed := completion_from_trace(connection, current, plain_result)):
+                return ExecutionResult("Home Assistant could not confirm script execution.", Outcome.UNVERIFIED), None
+            if not expect_response and (observed := completion_from_trace_result(connection, current, plain_result)):
                 return observed
-            return (current["name"] + " was sent to Home Assistant, but this script service "
-                    "does not support returning a completion result. Check the script trace.",
-                    "unverified", None)
-        return (f"Home Assistant rejected the script (HTTP {code})"
-                + (f": {reason}" if reason else "."),
-                "failed", None)
+            return ExecutionResult(current["name"] + " was sent to Home Assistant, but this script service "
+                    "does not support returning a completion result. Check the script trace.", Outcome.UNVERIFIED), None
+        return ExecutionResult(f"Home Assistant rejected the script (HTTP {code})"
+                + (f": {reason}" if reason else "."), Outcome.FAILED), None
     except (OSError, ValueError, TypeError):
-        return "Home Assistant did not return a valid script result. Check its trace.", "unverified", None
+        return ExecutionResult("Home Assistant did not return a valid script result. Check its trace.", Outcome.UNVERIFIED), None
     data = result.get("service_response") if isinstance(result, dict) else None
     if isinstance(data, dict) and current["entity_id"] in data:
         data = data[current["entity_id"]]
     if not isinstance(data, dict):
-        if not expect_response and (observed := completion_from_trace(connection, current, result)):
+        if not expect_response and (observed := completion_from_trace_result(connection, current, result)):
             return observed
-        return "Home Assistant returned no script result. Check response_variable and traces.", "unverified", None
+        return ExecutionResult("Home Assistant returned no script result. Check response_variable and traces.", Outcome.UNVERIFIED), None
     if "outcome" in data:
         if "request_id" in allowed_fields and data.get("request_id") != request_id:
-            return "Script result did not match this request.", "unverified", None
+            return ExecutionResult("Script result did not match this request.", Outcome.UNVERIFIED), None
         if "routine_id" in allowed_fields and data.get("routine_id") != current["entity_id"]:
-            return "Script result did not match this routine.", "unverified", None
+            return ExecutionResult("Script result did not match this routine.", Outcome.UNVERIFIED), None
         outcome = str(data["outcome"]).lower()
         statuses = {"success": "reported_success", "partial": "partial",
                     "failed": "failed", "cancelled": "cancelled",
                     "unknown": "unverified", "started": "started", "busy": "busy"}
         if outcome not in statuses:
-            return "Home Assistant returned an unknown script outcome.", "unverified", None
+            return ExecutionResult("Home Assistant returned an unknown script outcome.", Outcome.UNVERIFIED), None
         reasons = {
             "screen_moving": "The projector screen is still moving. Please wait before trying Movie Time again.",
             "screen_position_unverified": "I couldn't determine a safe screen position and direction. Movie Time was not run.",
             "requested_action_missing_or_invalid": "Movie Time did not receive a valid start, end or toggle action. Nothing was run.",
         }
         if outcome in {"unknown", "busy"} and isinstance(data.get("reason_code"), str) and data["reason_code"] in reasons:
-            return reasons[data["reason_code"]], statuses[outcome], None
+            return ExecutionResult(reasons[data["reason_code"]], Outcome(statuses[outcome])), None
         steps = data.get("steps", [])
         if outcome == "success" and isinstance(steps, list):
             if any(isinstance(step, dict) and step.get("required", True)
                    and step.get("status") not in {"confirmed", "already_set"}
                    for step in steps):
-                return "Script success was not confirmed by its required steps.", "unverified", None
+                return ExecutionResult("Script success was not confirmed by its required steps.", Outcome.UNVERIFIED), None
         description = {"success": "completed successfully", "partial": "partially completed",
                        "failed": "failed", "cancelled": "was cancelled",
                        "unknown": "could not be verified", "started": "started but not completed",
@@ -319,11 +318,36 @@ def execute(connection, item, *, parameters=None, expect_response=False, action_
                     **{key: step[key][:240] for key in ("target", "status", "action", "entity_id") if isinstance(step.get(key), str)},
                     **({"required": step["required"]} if type(step.get("required")) is bool else {}),
                 })
-        return current["name"] + " " + description + ".", statuses[outcome], None
+        return ExecutionResult(current["name"] + " " + description + ".", Outcome(statuses[outcome])), None
     for key in ("speech", "reply", "message", "response", "summary"):
         value = data.get(key)
         if isinstance(value, str) and value.strip():
-            return value.strip()[:4000], "reported_success", None
-    if not expect_response and (observed := completion_from_trace(connection, current, result)):
+            return ExecutionResult(value.strip()[:4000], Outcome.REPORTED_SUCCESS), None
+    if not expect_response and (observed := completion_from_trace_result(connection, current, result)):
         return observed
-    return "Home Assistant returned no completion status or spoken summary.", "unverified", None
+    return ExecutionResult("Home Assistant returned no completion status or spoken summary.", Outcome.UNVERIFIED), None
+
+
+def _legacy_routine_result(value):
+    if value is None:
+        return None
+    result, detail = value
+    return result.reply, result.outcome.value, detail
+
+
+def completion_from_trace(connection, current, result):
+    """Compatibility API for correlated trace evidence."""
+    return _legacy_routine_result(completion_from_trace_result(connection, current, result))
+
+
+def enqueue(connection, entity_id, parameters):
+    """Compatibility API for background routine receipts."""
+    return _legacy_routine_result(enqueue_result(connection, entity_id, parameters))
+
+
+def execute(connection, item, *, parameters=None, expect_response=False, action_results=None):
+    """Compatibility API for foreground script execution."""
+    return _legacy_routine_result(execute_result(
+        connection, item, parameters=parameters, expect_response=expect_response,
+        action_results=action_results,
+    ))

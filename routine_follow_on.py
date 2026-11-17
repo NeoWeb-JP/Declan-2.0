@@ -28,7 +28,6 @@ def execute(follow_on, *, routine_reply, routine_outcome, routine_status,
                        **({"origin": music_origin} if music_origin else {}))
             if command else ("Tell me where to play the music.", "unresolved")
         )
-        follow_reply, follow_outcome = follow_result.as_legacy_pair()
     else:
         lighting_result = handle_lighting(
             follow_on, action_results=light_steps, last_lights=last_lights,
@@ -38,10 +37,10 @@ def execute(follow_on, *, routine_reply, routine_outcome, routine_status,
                          else ExecutionResult(*(lighting_result or (
                              "I couldn't understand the lighting command after the routine.", "unresolved"
                          ))))
-        follow_reply, follow_outcome = follow_result.as_legacy_pair()
+    follow_reply, follow_outcome = follow_result.reply, follow_result.outcome
     action_results.extend(light_steps)
     lighting_context = ()
-    if follow_outcome == "confirmed" and scope is not None and len(light_steps) < 200:
+    if follow_outcome is Outcome.CONFIRMED and scope is not None and len(light_steps) < 200:
         lighting_context = tuple(dict.fromkeys(
             step["entity_id"] for step in light_steps
             if step["status"] in ("confirmed", "already_set") and "entity_id" in step

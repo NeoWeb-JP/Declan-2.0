@@ -22,6 +22,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
+from execution_results import ExecutionResult, Outcome
 from arbitration import CaptureArbiter
 
 import conditions
@@ -127,13 +128,18 @@ def track_routine(name, script):
             ACTIVE_ROUTINES.pop(name, None)
 
 def stop_pending_routines():
+    """Compatibility API for mapped routine cancellation."""
+    return _routine_legacy_triple(*stop_pending_routines_result())
+
+
+def stop_pending_routines_result():
     connection = ha_device_connection()
     if connection is None:
-        return "Home Assistant is not connected.", "not_configured", None
+        return ExecutionResult("Home Assistant is not connected.", Outcome.NOT_CONFIGURED), None
     with ACTIVE_ROUTINES_LOCK:
         active = dict(ACTIVE_ROUTINES)
     if not active:
-        return "No mapped routine is currently awaiting completion.", "confirmed", None
+        return ExecutionResult("No mapped routine is currently awaiting completion.", Outcome.CONFIRMED), None
     url, headers, opener = connection
     stopped, unknown = [], []
     for name, script in active.items():
@@ -152,7 +158,7 @@ def stop_pending_routines():
     if unknown:
         message += "Could not confirm cancellation request for: " + ", ".join(unknown) + "."
     message += " Already completed actions were not rolled back."
-    return message, "unverified" if unknown or stopped else "confirmed", None
+    return ExecutionResult(message, Outcome.UNVERIFIED if unknown or stopped else Outcome.CONFIRMED), None
 
 IDLE_SECONDS = 300
 ASSIST_PORT = 52737
@@ -460,7 +466,6 @@ def preview_routine(phrase, origin=None):
 
 def execute_routine_result(selection, action_results, *, approved=False):
     """Typed execution result for local routine selection with optional status."""
-    from local_outcome_contracts import routine_execution_result
     period, options = selection
     if period.startswith("auto:"):
         if options.get("_declan_background"):
@@ -472,9 +477,11 @@ def execute_routine_result(selection, action_results, *, approved=False):
             parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
             expect_response=options.get("_declan_expect_response", False),
             action_results=action_results)
-    result = (execute_routine(selection, action_results, approved=True)
-              if approved else execute_routine(selection, action_results))
-    return routine_execution_result(result)
+    if period == "auto_ambiguous":
+        return ExecutionResult("Several Home Assistant scripts match that name. Please use a more specific name.", Outcome.UNRESOLVED), None
+    if period == "unconfigured_house_status":
+        return ExecutionResult("I could not find a House Status script in Home Assistant.", Outcome.NOT_CONFIGURED), None
+    return ExecutionResult("I couldn't find that routine in Home Assistant.", Outcome.NOT_CONFIGURED), None
 
 
 def _routine_legacy_triple(result, status):
@@ -483,20 +490,7 @@ def _routine_legacy_triple(result, status):
 
 
 def execute_routine(selection, action_results, *, approved=False):
-    period, options = selection
-    if period == "auto_ambiguous":
-        return "Several Home Assistant scripts match that name. Please use a more specific name.", "unresolved", None
-    if period.startswith("auto:"):
-        if options.get("_declan_background"):
-            return _routine_legacy_triple(*script_discovery.enqueue_result(ha_device_connection(), period[5:],
-                {key: value for key, value in options.items() if not key.startswith("_declan_")}))
-        return _routine_legacy_triple(*script_discovery.execute_result(
-            ha_device_connection(), {"entity_id": period[5:]},
-            parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
-            expect_response=options.get("_declan_expect_response", False), action_results=action_results))
-    if period == "unconfigured_house_status":
-        return "I could not find a House Status script in Home Assistant.", "not_configured", None
-    return "I couldn't find that routine in Home Assistant.", "not_configured", None
+    return _routine_legacy_triple(*execute_routine_result(selection, action_results, approved=approved))
 
 
 def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
@@ -898,6 +892,13 @@ def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_
     """Compatibility entry point; parsing and correction flow live outside HTTP."""
     return lighting_intents.handle_light_request(
         phrase, parse_light_command=parse_light_command, set_lights=set_lights,
+        action_results=action_results, last_lights=last_lights, origin_device=origin_device)
+
+
+def handle_light_request_result(phrase, *, action_results=None, last_lights=(), origin_device=None):
+    """Keep typed lighting outcomes through intent and execution dispatch."""
+    return lighting_intents.handle_light_request_result(
+        phrase, parse_light_command=parse_light_command, set_lights=set_lights_result,
         action_results=action_results, last_lights=last_lights, origin_device=origin_device)
 
 
@@ -1356,14 +1357,24 @@ def set_switch_as_light(name, desired_state, inventory, connection, *, preview=F
 
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
+    """Compatibility API for callers expecting plain reply/outcome strings."""
+    return set_lights_result(
+        name, desired_state, brightness=brightness, preview=preview,
+        require_all=require_all, relative_step=relative_step,
+        action_results=action_results, origin_device=origin_device,
+    ).as_legacy_pair()
+
+
+def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
+               action_results=None, origin_device=None):
     """Resolve Home Assistant lights before dispatch and verify their reported states."""
     connection = ha_device_connection()
     if connection is None:
-        return "The Home Assistant connection isn't configured.", "not_configured"
+        return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
     url, headers, opener = connection
     inventory, error = read_ha_inventory(connection)
     if error:
-        return "I couldn't read the lights from Home Assistant.", error
+        return ExecutionResult("I couldn't read the lights from Home Assistant.", Outcome(error))
 
     guest_mode = next(
         (item.get("state") for item in inventory
@@ -1400,7 +1411,7 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
     if desired_state is None:
         individual_lights = [light for entity, light in lights.items() if entity not in light_groups]
         if not individual_lights:
-            return "Home Assistant didn't report any individual lights to check.", "unavailable"
+            return ExecutionResult("Home Assistant didn't report any individual lights to check.", Outcome.UNAVAILABLE)
         on = sorted(label for label, state in individual_lights if state == "on")
         unknown = sorted(label for label, state in individual_lights if state not in ("on", "off"))
         if on:
@@ -1413,8 +1424,8 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
             reply = "Home Assistant reports all individual lights are off."
         if unknown:
             reply += " I couldn't check: " + ", ".join(unknown) + "."
-            return reply, "partial" if len(unknown) < len(individual_lights) else "unverified"
-        return add_sass(reply, "lights_status", guest_mode), "confirmed"
+            return ExecutionResult(reply, Outcome("partial" if len(unknown) < len(individual_lights) else "unverified"))
+        return ExecutionResult(add_sass(reply, "lights_status", guest_mode), Outcome.CONFIRMED)
 
     areas = None
     room_targets = set()
@@ -1425,16 +1436,16 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
     if origin_device is not None:
         load_area_metadata()
         if not areas:
-            return "Which room do you mean? I couldn't verify the Assist device's area.", "unresolved"
+            return ExecutionResult("Which room do you mean? I couldn't verify the Assist device's area.", Outcome.UNRESOLVED)
         local_members = (lights.keys() & next(iter(areas.values()))) - light_groups
         if not local_members:
-            return "Home Assistant didn't report any individual lights in this room.", "unresolved"
+            return ExecutionResult("Home Assistant didn't report any individual lights in this room.", Outcome.UNRESOLVED)
         if name == "some lights":
             off = sorted(entity for entity in local_members if lights[entity][1] == "off")
             if not off:
                 if any(lights[entity][1] not in ("on", "off") for entity in local_members):
-                    return "I couldn't verify any more lights to turn on in this room.", "unverified"
-                return "All the lights I can see in this room are already on.", "confirmed"
+                    return ExecutionResult("I couldn't verify any more lights to turn on in this room.", Outcome.UNVERIFIED)
+                return ExecutionResult("All the lights I can see in this room are already on.", Outcome.CONFIRMED)
             local_members = set(off[:2])
 
     def resolve(target, state, *, use_area=False):
@@ -1595,10 +1606,10 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
         if brightness is None and not require_all and len(resolved_targets) == 1:
             switch_result = set_switch_as_light(name, desired_state, inventory, connection, preview=preview, action_results=action_results)
             if switch_result is not None:
-                return switch_result
-        return (skipped_details.strip(), skipped[0][1]) if skipped else (
+                return lighting_intents._lighting_result(switch_result)
+        return lighting_intents._lighting_result((skipped_details.strip(), skipped[0][1]) if skipped else (
             "Tell me which lights to switch.", "unresolved"
-        )
+        ))
     if preview:
         for entity, (label, _, direction) in selected.items():
             record_action(label, direction, "planned", entity=entity)
@@ -1608,11 +1619,11 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
         plan = [f"set {', '.join(labels)} to {percent}%" if percent is not None
                 else f"turn {direction} {', '.join(labels)}"
                 for (direction, percent), labels in groups.items()]
-        return f"Preview: I would {'; '.join(plan)}.{skipped_details}", "preview"
+        return ExecutionResult(f"Preview: I would {'; '.join(plan)}.{skipped_details}", Outcome.PREVIEW)
     if require_all and skipped:
         for entity, (label, _, direction) in selected.items():
             record_action(label, direction, "skipped", entity=entity, detail="incomplete correction")
-        return f"I left the lights unchanged because I couldn't resolve the full correction.{skipped_details}", "unresolved"
+        return ExecutionResult(f"I left the lights unchanged because I couldn't resolve the full correction.{skipped_details}", Outcome.UNRESOLVED)
     pending = {}
     verified = {(goal, target_levels[entity]): [] for entity, (_, _, goal) in selected.items()}
 
@@ -1726,7 +1737,7 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
         else:
             category = "lights_on" if "on" in directions else "lights_off"
         reply = add_sass(reply, category, guest_mode)
-    return reply, outcome
+    return ExecutionResult(reply, Outcome(outcome))
 
 
 
@@ -2602,7 +2613,7 @@ class Handler(BaseHTTPRequestHandler):
             phrase, source=source, origin_device=origin_device, satellite=satellite,
             registry_factory=command_registry.stop_registry,
             context_factory=command_registry.RequestContext,
-            stop_routines=stop_pending_routines,
+            stop_routines=stop_pending_routines_result,
             stop_everywhere=stop_everywhere_result,
             connection=ha_device_connection,
         ):
@@ -2634,10 +2645,10 @@ class Handler(BaseHTTPRequestHandler):
                     routine_dispatch, origin_device=origin_device,
                     satellite=satellite, action_results=action_results,
                     scope=scope, execute=routine_follow_on.execute,
-                    parse_music=music.parse, play_music=music.play,
+                    parse_music=music.parse, play_music=music.play_result,
                     connection=ha_device_connection,
                     music_inventory=read_music_inventory,
-                    handle_lighting=handle_light_request,
+                    handle_lighting=handle_light_request_result,
                     last_lights=last_lights, chained_outcome=chained_outcome,
                 )
             )
@@ -2685,7 +2696,7 @@ class Handler(BaseHTTPRequestHandler):
                         context_factory=command_registry.RequestContext,
                         matches=lighting_intents.matches,
                         parse_light_command=parse_light_command,
-                        handle_light_request=handle_light_request,
+                        handle_light_request=handle_light_request_result,
                         action_results=action_results, last_lights=last_lights,
                         scope=scope,
                         dispatch_lighting=lighting_command_dispatch.dispatch_lighting,
