@@ -722,7 +722,6 @@ def run_routine_result(period, *, action_results=None, movie_action=None, movie_
     if connection is None:
         return ExecutionResult(f"{salutation} The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED), None
     url, headers, opener = connection
-    movie_prefix = "DECLAN_BEDROOM_MOVIE" if movie_room == "bedroom" else "DECLAN_MOVIE"
     routine_key = ("movie_bedroom" if movie_room == "bedroom" else "movie") if movie_action else period
     try:
         mapped = routine_registry.load().get(routine_key)
