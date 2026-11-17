@@ -33,17 +33,27 @@ jobs:
       - name: Bandit security baseline
         continue-on-error: true
         run: bandit -r . -x ./tests,./.git -q
-      - name: Audit pinned dependency files
+      - name: Audit tracked requirements files
         continue-on-error: true
         shell: bash
         run: |
-          shopt -s nullglob
-          files=(requirements*.txt)
+          mapfile -d '' -t files < <(git ls-files -z -- ':(glob)**/requirements*.txt')
           if (("${#files[@]}" == 0)); then
-            echo "No root requirements files found; skipping pip-audit."
+            echo "No tracked requirements files found." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          echo "Auditing ${#files[@]} tracked requirements file(s)." | tee -a "$GITHUB_STEP_SUMMARY"
+          failures=0
           for file in "${files[@]}"; do
             echo "Auditing $file"
-            python -m pip_audit -r "$file" --disable-pip --no-deps || exit 1
+            if python -m pip_audit -r "$file" --disable-pip --no-deps; then
+              echo "- PASS: \`$file\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- REVIEW: \`$file\` (vulnerability or audit error)" >> "$GITHUB_STEP_SUMMARY"
+              failures=$((failures + 1))
+            fi
           done
+          if ((failures > 0)); then
+            echo "$failures requirement file(s) need review."
+            exit 1
+          fi
