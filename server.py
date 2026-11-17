@@ -61,6 +61,7 @@ import fallback_entity_authorization
 import guarded_fallback_dispatch
 import response_persona_context
 import turn_context_preparation
+import turn_response_composition
 import history
 import music
 import approved_media_players
@@ -2661,27 +2662,23 @@ class Handler(BaseHTTPRequestHandler):
                 outcome=outcome, scope=scope, message=message, now=monotonic(),
                 suggestion_factory=turn_finalization.lighting_phrase_suggestion,
             )
-            reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
-                             scope=scope, guest_mode=response_guest_mode)
-            reply["reply"] = turn_response_orchestration.compose(
-                reply["reply"], outcome=outcome, routine_reply=routine_reply,
+            reply = turn_response_composition.compose_turn_response(
+                effective_message, session_id, routine_reply,
+                lighting_context=lighting_context, scope=scope,
+                response_guest_mode=response_guest_mode, outcome=outcome,
                 routine_turn=routine_turn, light_result=light_result,
                 phrase=phrase, action_results=action_results,
-                guest=guest_mode != "off",
-                response_guest=response_guest_mode != "off",
-                visitor_present=visitor_present,
-                routine_voice_result=routine_voice_result,
-                personality=personality_policy,
-                lines=__import__("personality").LINES,
+                guest_mode=guest_mode, visitor_present=visitor_present,
+                routine_voice_result=routine_voice_result, routine_status=routine_status,
+                converse=converse, compose=turn_response_orchestration.compose,
+                apply_outcome_metadata=turn_finalization.apply_outcome_metadata,
+                personality=personality_policy, lines=__import__("personality").LINES,
                 parse_music=music.parse, parse_music_control=music.parse_control,
                 render_routine=routine_responses.render,
                 response_category=lighting_intents.response_category,
                 parse_light_command=parse_light_command,
                 render_failure=command_responses.failure,
                 composition=response_composition,
-            )
-            turn_finalization.apply_outcome_metadata(
-                reply, outcome=outcome, routine_status=routine_status,
             )
             session = SESSIONS[reply["session_id"]]
             turn_persistence_orchestration.finalize_turn(
