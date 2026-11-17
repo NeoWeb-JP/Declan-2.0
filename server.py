@@ -50,6 +50,7 @@ import sensitive_confirmation_response
 import sensitive_confirmation_decision
 import routine_preview_detection
 import guest_assignment_command
+import roast_command_dispatch
 import history
 import music
 import approved_media_players
@@ -2535,12 +2536,12 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = stop_result.result.as_legacy_pair()
             routine_status = stop_result.routine_status
         elif (roast_target := roast.target(phrase)) is not None:
-            roast_guest_mode = personality_policy.response_guest_mode(
-                read_guest_mode(), read_visitors_present()
+            routine_reply, outcome = roast_command_dispatch.respond_to_roast(
+                roast_target, guest_mode=read_guest_mode,
+                visitors_present=read_visitors_present,
+                response_guest_mode=personality_policy.response_guest_mode,
+                respond=roast.respond,
             )
-            routine_reply, outcome = roast.respond(
-                roast_target, guest=roast_guest_mode != "off"
-            ), "confirmed"
         elif (guest_action := guest_assignment_command.assignment_action(
             phrase, GUEST_COMMANDS
         )) is not None:
