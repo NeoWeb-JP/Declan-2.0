@@ -152,7 +152,9 @@ def main():
         os.setgroups([])
         os.setgid(65534)
         os.setuid(65534)
-    with ThreadingHTTPServer(("0.0.0.0", 8099), ProxyHandler) as server:
+    # Home Assistant Supervisor connects through the add-on network namespace.
+    # Requests are restricted to SUPERVISOR_ADDRESS in ProxyHandler.forward().
+    with ThreadingHTTPServer(("0.0.0.0", 8099), ProxyHandler) as server:  # nosec B104
         server.target = target
         server.ingress_token = token
         server.panel_token = secrets.token_urlsafe(32)

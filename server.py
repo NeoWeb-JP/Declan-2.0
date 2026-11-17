@@ -2801,7 +2801,9 @@ def main():
     history.retention_seconds()  # Reject invalid retention before accepting requests.
     history.initialize()
     timers.initialize()
-    bind_address = "0.0.0.0" if args.assist_lan else "127.0.0.1"
+    # Assist LAN mode explicitly exposes the server to configured LAN clients;
+    # the Assist token is validated above before opening the listener.
+    bind_address = "0.0.0.0" if args.assist_lan else "127.0.0.1"  # nosec B104
     if args.assist_lan:
         bind_address = os.environ.get('DECLAN_BIND_ADDRESS', bind_address)
         try:
