@@ -36,6 +36,7 @@ import voicepipeline
 import device_status
 import retry_learning
 import retry_training_persistence
+import conversation_persistence
 import history
 import music
 import approved_media_players
@@ -2743,15 +2744,13 @@ class Handler(BaseHTTPRequestHandler):
                 normalize_phrase=history.normalize_phrase,
                 teach_phrase=history.teach_phrase, log_error=self.log_error,
             )
-            try:
-                history.record(reply["session_id"], source, message, reply["reply"], outcome, routine_status,
-                               action_results, phrase_suggestion, speaker=body.get("speaker") if source == "assist" else None,
-                               diagnostic_id=diagnostics.current_id())
-                if action_results:
-                    reply["action_results"] = action_results
-            except (OSError, sqlite3.Error):
-                self.log_error("Could not save conversation history.")
-                reply["history_saved"] = False
+            conversation_persistence.save_turn(
+                reply, source=source, message=message, outcome=outcome,
+                routine_status=routine_status, action_results=action_results,
+                phrase_suggestion=phrase_suggestion, speaker=body.get("speaker"),
+                record=history.record, diagnostic_id=diagnostics.current_id,
+                log_error=self.log_error,
+            )
         self.send_json(200, reply)
 
 
