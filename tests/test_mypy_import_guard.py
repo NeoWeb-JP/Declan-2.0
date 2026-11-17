@@ -1,6 +1,7 @@
 """Exercise the blocking missing-import guard from the actual CI workflow."""
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -10,6 +11,7 @@ WORKFLOW = ROOT / ".github/workflows/python-quality.yml"
 STEP = "      - name: Reject unexpected missing imports (blocking)"
 
 
+@unittest.skipIf(sys.platform == "win32", "CI guard uses Bash on Ubuntu")
 class MypyImportGuardTests(unittest.TestCase):
     @staticmethod
     def guard_script():
