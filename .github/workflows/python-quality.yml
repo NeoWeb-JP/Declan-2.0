@@ -49,9 +49,11 @@ jobs:
           cat mypy-advisory.log
           missing=$(grep -c '\[import-not-found\]' mypy-advisory.log || true)
           other=$(grep 'error: ' mypy-advisory.log | grep -vc '\[import-not-found\]' || true)
+          ha_missing=$(grep '\[import-not-found\]' mypy-advisory.log | grep -c 'module named "homeassistant' || true)
+          non_ha_missing=$((missing - ha_missing))
           {
             echo "### Advisory mypy inventory"
-            echo "- Missing runtime imports: ${missing}"
+            echo "- Missing runtime imports: ${missing} (${ha_missing} Home Assistant, ${non_ha_missing} other)"
             echo "- Other type diagnostics: ${other}"
             echo "- Exit status: ${result} (advisory; blocking check runs above)"
             echo
