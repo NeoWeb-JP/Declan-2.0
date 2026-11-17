@@ -1,5 +1,5 @@
 """Execute already-authorised plans; typed results never confuse receipt with success."""
-from action_plan import CandidateAction
+from action_plan import CandidateAction, ActionReadiness, execution_order_result
 # Re-export ActionResult for existing Python callers.
 from execution_results import ActionResult, ActionStatus, DispatchResult, ExecutionResult, Outcome
 
@@ -15,10 +15,13 @@ def execute_verified(plan, dispatcher):
     if not callable(dispatcher):
         raise ValueError("Trusted dispatcher is required")
     results = []
-    for index, action in enumerate(plan):
-        if any(not results[dep].confirmed for dep in action.depends_on):
+    outcomes = {}
+    for decision in execution_order_result(plan, outcomes):
+        index, action = decision.index, decision.action
+        if decision.status is ActionReadiness.SKIPPED_DEPENDENCY:
             results.append(ActionResult(index, action.entity_id, action.service,
                                         ActionStatus.SKIPPED_DEPENDENCY))
+            outcomes[index] = False
             continue
         try:
             dispatch = DispatchResult.coerce(dispatcher(action))
@@ -27,6 +30,7 @@ def execute_verified(plan, dispatcher):
             dispatch = DispatchResult(ActionStatus.FAILED, "Dispatch or verification failed")
         results.append(ActionResult(index, action.entity_id, action.service,
                                     dispatch.status, dispatch.detail[:240]))
+        outcomes[index] = results[-1].confirmed
     return tuple(results)
 
 

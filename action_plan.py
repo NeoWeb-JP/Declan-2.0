@@ -5,6 +5,7 @@ service names may become candidate actions. This module performs no I/O.
 """
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 
 ENTITY = re.compile(r"^(light|switch|fan|cover|script|media_player)\.[a-z0-9_]+$")
 SERVICES = {
@@ -56,7 +57,22 @@ def validate_plan(payload, exposed_entities):
     return tuple(result)
 
 
-def execution_order(plan, outcomes):
+class ActionReadiness(StrEnum):
+    PENDING = "pending"
+    SKIPPED_DEPENDENCY = "skipped_dependency"
+
+
+@dataclass(frozen=True)
+class OrderedActionResult:
+    index: int
+    action: CandidateAction
+    status: ActionReadiness
+
+    def as_legacy_tuple(self):
+        return self.index, self.action, self.status.value
+
+
+def execution_order_result(plan, outcomes):
     """Yield pending candidates; skip dependencies that did not succeed.
 
     outcomes maps previous action indices to verified success booleans.
@@ -64,6 +80,12 @@ def execution_order(plan, outcomes):
     """
     for index, action in enumerate(plan):
         if any(outcomes.get(dep) is not True for dep in action.depends_on):
-            yield index, action, "skipped_dependency"
+            yield OrderedActionResult(index, action, ActionReadiness.SKIPPED_DEPENDENCY)
         else:
-            yield index, action, "pending"
+            yield OrderedActionResult(index, action, ActionReadiness.PENDING)
+
+
+def execution_order(plan, outcomes):
+    """Compatibility API retaining index/action/plain-status tuples."""
+    for result in execution_order_result(plan, outcomes):
+        yield result.as_legacy_tuple()

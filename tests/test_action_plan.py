@@ -1,9 +1,30 @@
 import unittest
 
 from action_plan import validate_plan, execution_order
+from action_plan import execution_order_result, ActionReadiness
 
 
 class PlanValidationTests(unittest.TestCase):
+    def test_typed_dependency_decisions_observe_live_verified_outcomes(self):
+        actions = validate_plan({"actions": [
+            {"entity_id": "light.kitchen", "service": "turn_on"},
+            {"entity_id": "light.study", "service": "turn_on", "depends_on": [0]},
+        ]}, {"light.kitchen", "light.study"})
+        for value, expected in ((True, ActionReadiness.PENDING), (False, ActionReadiness.SKIPPED_DEPENDENCY),
+                                (1, ActionReadiness.SKIPPED_DEPENDENCY), (None, ActionReadiness.SKIPPED_DEPENDENCY)):
+            outcomes = {}
+            decisions = execution_order_result(actions, outcomes)
+            first = next(decisions)
+            self.assertIs(first.action, actions[0])
+            self.assertIs(first.status, ActionReadiness.PENDING)
+            with self.assertRaises(AttributeError):
+                setattr(first, "status", expected)
+            outcomes[0] = value
+            self.assertIs(next(decisions).status, expected)
+            legacy = list(execution_order(actions, outcomes))
+            self.assertEqual(legacy[1], (1, actions[1], expected.value))
+            self.assertIs(type(legacy[1][2]), str)
+
     def test_exposed_action(self):
         self.assertEqual(validate_plan({"actions": [{"entity_id": "light.kitchen", "service": "turn_on"}]}, {"light.kitchen"})[0].entity_id, "light.kitchen")
 

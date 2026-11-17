@@ -364,6 +364,13 @@ dismissed/rejected/discarded statuses remain excluded; missing and unfamiliar
 statuses retain the original behavior and do not imply review approval. Recording
 lookup, transcript consistency, wire rows and teaching responses are unchanged.
 
+Dependency ordering now yields frozen `OrderedActionResult` values with
+`ActionReadiness` to the active executor. The shared scheduler observes verified
+outcomes lazily, preserving dependent skips and independent execution; the public
+`execution_order` adapter retains plain-status tuples. End-to-end model/provider
+tests verify incomplete responses never dispatch, reservations remain accounted,
+empty plans remain unresolved and model completion cannot bypass device verification.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
