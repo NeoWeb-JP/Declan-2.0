@@ -1,6 +1,37 @@
 """Opt-in typed accumulation with compatibility for existing list callers."""
 from action_evidence_wire import TYPED_EVIDENCE
 from movie_action_evidence import MovieActionEvidence
+from enum import StrEnum
+from execution_results import ActionResult, ActionStatus
+from fallback_action_evidence import FallbackActionEvidence
+from lighting_action_evidence import LightingActionEvidence
+from routine_action_evidence import RoutineActionEvidence
+
+
+class LegacyCompletionStatus(StrEnum):
+    CONFIRMED = "confirmed"
+    ALREADY_SET = "already_set"
+    COMPLETED = "completed"
+
+
+def evidence_completed(row):
+    """Interpret completion without projecting typed provider evidence to strings."""
+    if isinstance(row, (LightingActionEvidence, RoutineActionEvidence)):
+        return row.completed
+    if isinstance(row, ActionResult):
+        return row.confirmed
+    if isinstance(row, FallbackActionEvidence):
+        return row.status is ActionStatus.CONFIRMED
+    if isinstance(row, dict):
+        value = row.get("status")
+        if isinstance(value, str):
+            try:
+                LegacyCompletionStatus(value)
+                return True
+            except ValueError:
+                pass
+    # A movie launch receipt confirms acceptance, never completion.
+    return False
 
 
 class ActionEvidenceBuffer(list):
