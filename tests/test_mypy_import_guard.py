@@ -68,6 +68,14 @@ class MypyImportGuardTests(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("failed without diagnostics", output)
 
+    def test_success_status_with_error_diagnostics_is_rejected(self):
+        code, output = self.run_guard(
+            'integration.py:1: error: Cannot find module named "homeassistant.helpers"  [import-not-found]\n',
+            status=0,
+        )
+        self.assertNotEqual(code, 0)
+        self.assertIn("despite a successful exit", output)
+
     def test_successful_empty_inventory_is_allowed(self):
         code, output = self.run_guard("Success: no issues found\n", status=0)
         self.assertEqual(code, 0, output)
