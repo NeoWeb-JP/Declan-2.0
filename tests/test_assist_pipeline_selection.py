@@ -28,7 +28,7 @@ class AssistPipelineSelectionTests(unittest.TestCase):
                 self.assertEqual(sent[1]["end_stage"], "stt")
 
     def test_configured_pipeline_is_sent_unchanged(self):
-        sent = self.run("pipeline-id-123")
+        sent = self.capture_messages("pipeline-id-123")
         self.assertEqual(sent[1]["pipeline"], "pipeline-id-123")
         self.assertEqual(sent[0], {"type": "auth", "access_token": "test-token"})
 
