@@ -41,6 +41,7 @@ import turn_finalization
 import turn_response_orchestration
 import turn_persistence_orchestration
 import request_origin
+import request_validation
 import history
 import music
 import approved_media_players
@@ -2399,12 +2400,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError
                 self.spotify_settings(body)
                 return
-            message = body["message"].strip()
-            session_id = body.get("session_id")
-            if not 0 < len(message) <= 1000:
-                raise ValueError
-            if session_id is not None and (not isinstance(session_id, str) or len(session_id) > 64):
-                raise ValueError
+            message, session_id = request_validation.message_and_session(body)
         except (ValueError, TypeError, KeyError, AttributeError):
             detail = ("Send valid Spotify settings." if self.path == "/api/settings/spotify"
                       else "Send valid history confirmation." if self.path == "/api/history/clear"
