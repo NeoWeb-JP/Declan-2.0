@@ -324,7 +324,7 @@ LINES = {
 
 _random = SystemRandom()
 _lock = Lock()
-_recent = {}
+_recent: dict = {}
 
 
 def choose_line(category, guest_mode):
