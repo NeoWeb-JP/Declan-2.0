@@ -53,7 +53,8 @@ class VoiceCache:
                             os.fsync(stream.fileno())
                         os.replace(tmp, target)
                     finally:
-                        if os.path.exists(tmp):os.unlink(tmp)
+                        if os.path.exists(tmp):
+                            os.unlink(tmp)
                 return True
             if not await asyncio.to_thread(write):
                 self.skipped_writes += 1
@@ -71,17 +72,23 @@ class VoiceCache:
             raise ValueError('Invalid page size')
         def scan():
             parent = self.directory
-            while not parent.exists():parent = parent.parent
+            while not parent.exists():
+                parent = parent.parent
             free = shutil.disk_usage(parent).free
-            entries=[]; used=0; count=0
+            entries=[]
+            used=0
+            count=0
             for path in self.directory.glob('*/*'):
-                if not path.is_file() or path.is_symlink():continue
+                if not path.is_file() or path.is_symlink():
+                    continue
                 used += path.stat().st_size
-                if path.suffix[1:] not in {'wav','mp3','ogg','flac'}:continue
+                if path.suffix[1:] not in {'wav','mp3','ogg','flac'}:
+                    continue
                 count += 1
                 try:
                     metadata=json.loads(path.with_suffix(path.suffix+'.json').read_text(encoding='utf-8'))
-                    if not isinstance(metadata,dict):raise ValueError('Invalid metadata')
+                    if not isinstance(metadata,dict):
+                        raise ValueError('Invalid metadata')
                 except (OSError,ValueError):
                     metadata={'text':'Older cached audio (text unavailable)','kind':'legacy'}
                 entries.append({**metadata,'key':path.stem,'extension':path.suffix[1:],
@@ -107,8 +114,10 @@ class VoiceCache:
     async def saved_audio(self, key, extension):
         path=self.path_for(key,extension)
         def read():
-            if path.is_symlink() or path.parent.is_symlink():raise ValueError('Invalid cache path')
-            if path.stat().st_size > 8*1024*1024:raise ValueError('Audio too large to preview')
+            if path.is_symlink() or path.parent.is_symlink():
+                raise ValueError('Invalid cache path')
+            if path.stat().st_size > 8*1024*1024:
+                raise ValueError('Audio too large to preview')
             return path.read_bytes()
         return await asyncio.to_thread(read)
 
