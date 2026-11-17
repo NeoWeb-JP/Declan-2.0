@@ -520,7 +520,7 @@ class APITests(TestCase):
         self.assertEqual(play.call_args.args[0], ("everywhere", None, "spotify"))
 
     def test_room_music_stop_routes_to_transport_control(self):
-        with patch.object(server.music, "control", return_value=("Stopped playback in the bedroom.", "confirmed")) as control:
+        with patch.object(server.music, "_control_provider", return_value=server.music.music_execution_result(("Stopped playback in the bedroom.", "confirmed"))) as control:
             response = self.ask("Stop music in the bedroom", path="/api/chat")
         self.assertEqual(response["outcome"], "confirmed")
         self.assertEqual(control.call_args.args[0], ("media_stop", "bedroom"))
