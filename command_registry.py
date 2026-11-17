@@ -21,6 +21,7 @@ class HandledCommand:
     result: ExecutionResult
     status_target: str | None = None
     routine_status: str | None = None
+    information_context: object = None
 
 
 @dataclass(frozen=True)
@@ -176,3 +177,25 @@ def timer_registry(*, matches, handle, opener, guest_mode, decorate):
 
     return HandlerRegistry((Handler("timer", 0,
         lambda context: context.phrase if matches(context.phrase) else None, run),))
+
+
+def information_registry(*, matches, follow_up, handle, question_context,
+                         opener, last_information, decorate, guest_mode):
+    """Read-only information commands with contextual follow-up ownership."""
+    def run(context, phrase):
+        information_phrase, clarification = follow_up(phrase, last_information)
+        if clarification:
+            return HandledCommand("information", ExecutionResult(clarification, Outcome.UNRESOLVED))
+        result = handle(information_phrase, opener)
+        if result is None:
+            raise ValueError("Matched information request returned no result")
+        reply, outcome, category = result
+        typed = ExecutionResult(reply, outcome)
+        next_context = question_context(information_phrase) if typed.outcome in {
+            Outcome.CONFIRMED, Outcome.PARTIAL, Outcome.UNAVAILABLE} else None
+        if typed.outcome is Outcome.CONFIRMED:
+            typed = ExecutionResult(decorate(reply, category, guest_mode()), typed.outcome)
+        return HandledCommand("information", typed, information_context=next_context)
+
+    return HandlerRegistry((Handler("information", 0,
+        lambda context: context.phrase if matches(context.phrase, last_information) else None, run),))
