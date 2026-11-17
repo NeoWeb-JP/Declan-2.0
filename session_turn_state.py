@@ -1,7 +1,8 @@
 """Bounded conversational retry state, independent of HTTP transport."""
 import re
 from execution_results import Outcome, parse_outcome
-from action_evidence_buffer import evidence_value
+from action_evidence_buffer import evidence_lighting_reason
+from lighting_action_evidence import LightingActionReason
 
 SUCCESS_OUTCOMES = frozenset({
     Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED,
@@ -22,7 +23,7 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
     decision_outcome = parse_outcome(outcome)
     if (light_result and decision_outcome is Outcome.UNRESOLVED and scope is not None
             and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
-            and any(evidence_value(step, "detail") == "unresolved" for step in action_results)):
+            and any(evidence_lighting_reason(step) is LightingActionReason.UNRESOLVED for step in action_results)):
         session["failed_light_phrase"] = {
             "text": message, "scope": scope, "actions": actions,
         }

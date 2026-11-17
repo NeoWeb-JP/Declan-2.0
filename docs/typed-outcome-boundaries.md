@@ -418,6 +418,12 @@ summary counting. Report JSON still contains the original finding mappings and
 plain severity strings. Canonical fingerprint inputs and review issue hashes
 match legacy mappings, preserving existing review identities and stale counts.
 
+Lighting action reason codes now enter frozen evidence as `LightingActionReason`
+values and remain typed through the session correction gate. Existing `detail`
+fields still serialize exact plain strings; arbitrary provider/state detail text
+is retained without inventing a reason. Legacy evidence is interpreted at the
+boundary, and only the exact unresolved reason creates correction context.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

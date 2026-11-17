@@ -6,11 +6,28 @@ from unittest.mock import Mock, patch
 
 from execution_results import ExecutionResult, Outcome
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus, confirmed_lighting_entities
+from lighting_action_evidence import LightingActionReason
 from lighting_context_finalization import confirmed_lighting_context
 import server
 
 
 class TypedLightingActionEvidenceTests(unittest.TestCase):
+    def test_reason_codes_are_typed_without_changing_detail_wire_fields(self):
+        for reason in LightingActionReason:
+            for detail in (reason, reason.value):
+                with self.subTest(detail=detail):
+                    evidence = LightingActionEvidence("Study", "turn_on", LightingActionStatus.SKIPPED, detail=detail)
+                    self.assertIs(evidence.reason, reason)
+                    self.assertIs(type(evidence.detail), str)
+                    self.assertEqual(evidence.to_wire(), {"target": "Study", "action": "turn_on",
+                        "status": "skipped", "detail": reason.value})
+                    with self.assertRaises(FrozenInstanceError):
+                        evidence.reason = None
+        for detail in (None, "UNRESOLVED", " unresolved", "HTTP 401", "future reason"):
+            evidence = LightingActionEvidence("Study", "turn_on", LightingActionStatus.UNVERIFIED, detail=detail)
+            self.assertIsNone(evidence.reason)
+            self.assertEqual(evidence.detail, detail)
+
     def test_skipped_lighting_aggregation_retains_typed_outcomes_and_order(self):
         inventory = [{"entity_id": "light.study", "state": "on", "attributes": {"friendly_name": "Study"}},
                      {"entity_id": "light.hall", "state": "unavailable", "attributes": {"friendly_name": "Hall"}}]

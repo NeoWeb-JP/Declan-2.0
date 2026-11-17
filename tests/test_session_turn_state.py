@@ -2,9 +2,19 @@
 import unittest
 from session_turn_state import update_turn
 from execution_results import Outcome
+from lighting_action_evidence import LightingActionEvidence, LightingActionStatus, LightingActionReason
 
 
 class SessionTurnStateTests(unittest.TestCase):
+    def test_typed_and_legacy_lighting_reasons_preserve_exact_correction_gate(self):
+        for reason in (*LightingActionReason, "future reason", "UNRESOLVED", None):
+            detail = reason.value if isinstance(reason, LightingActionReason) else reason
+            evidence = LightingActionEvidence("Study", "turn_off", LightingActionStatus.SKIPPED, detail=detail)
+            typed = self.update(light=True, steps=[evidence])
+            legacy = self.update(light=True, steps=[evidence.to_wire()])
+            self.assertEqual(typed, legacy)
+            self.assertEqual("failed_light_phrase" in typed[0], reason is LightingActionReason.UNRESOLVED)
+
     def test_typed_and_legacy_outcomes_preserve_retry_state(self):
         for outcome in Outcome:
             with self.subTest(outcome=outcome):

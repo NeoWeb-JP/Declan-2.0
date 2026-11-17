@@ -1,5 +1,5 @@
 """Typed lighting-provider evidence with explicit legacy mapping output."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 
@@ -12,6 +12,28 @@ class LightingActionStatus(StrEnum):
     PLANNED = "planned"
 
 
+class LightingActionReason(StrEnum):
+    UNRESOLVED = "unresolved"
+    AMBIGUOUS = "ambiguous"
+    UNAVAILABLE = "unavailable"
+    BRIGHTNESS_UNSUPPORTED = "brightness unsupported"
+    ALREADY_OFF = "already off"
+    BRIGHTNESS_UNKNOWN = "current brightness unknown"
+    CONFLICTING_DIRECTIONS = "conflicting directions"
+    INCOMPLETE_CORRECTION = "incomplete correction"
+    DISPATCH_TIME_LIMIT = "dispatch time limit"
+    NO_DISPATCH_RESPONSE = "no dispatch response"
+
+
+def parse_lighting_reason(value) -> LightingActionReason | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return LightingActionReason(value)
+    except ValueError:
+        return None
+
+
 @dataclass(frozen=True)
 class LightingActionEvidence:
     target: str
@@ -19,6 +41,7 @@ class LightingActionEvidence:
     status: LightingActionStatus
     entity_id: str | None = None
     detail: str | None = None
+    reason: LightingActionReason | None = field(init=False)
 
     def __post_init__(self):
         object.__setattr__(self, "status", LightingActionStatus(self.status))
@@ -28,6 +51,9 @@ class LightingActionEvidence:
             raise ValueError("Lighting action entity ID must be text or None")
         if self.detail is not None and not isinstance(self.detail, str):
             raise ValueError("Lighting action detail must be text or None")
+        object.__setattr__(self, "reason", parse_lighting_reason(self.detail))
+        if isinstance(self.detail, LightingActionReason):
+            object.__setattr__(self, "detail", self.detail.value)
 
     @property
     def completed(self):
