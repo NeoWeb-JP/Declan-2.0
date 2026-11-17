@@ -152,7 +152,7 @@ class CommandResponseTests(TestCase):
                  patch.object(server, "read_guest_mode", return_value="off"), \
                  patch.object(server, "read_visitors_present", return_value=False), \
                  patch.object(server, "select_routine_turn", return_value=None), \
-                 patch.object(server, "handle_light_request", return_value=result), \
+                 patch.object(server, "handle_light_request_result", return_value=result), \
                  patch.object(server, "search_media", return_value=None):
                 handler.handle_post()
             status, reply = handler.send_json.call_args.args

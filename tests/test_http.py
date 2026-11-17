@@ -57,8 +57,8 @@ class APITests(TestCase):
         item = {"entity_id": "script.good_morning", "name": "Declan - Good Morning", "safe": False}
         headers = {"Origin": self.origin, "Content-Type": "application/json"}
         with patch.object(server.script_discovery, "discover", return_value=([item], None)), \
-             patch.object(server.script_discovery, "execute", side_effect=AssertionError("editor executed a script")), \
-             patch.object(server.script_discovery, "enqueue", side_effect=AssertionError("editor queued a script")):
+             patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("editor executed a script")), \
+             patch.object(server.script_discovery, "_enqueue_provider", side_effect=AssertionError("editor queued a script")):
             code, payload = self.request('/api/native/routine-responses', headers=headers)
             self.assertEqual(code, 200)
             self.assertEqual(json.loads(payload)['routines'][0]['entity_id'], item['entity_id'])
@@ -73,7 +73,7 @@ class APITests(TestCase):
             self.assertTrue(json.loads(payload)['saved'])
             selection = (("auto:script.good_morning", {"_declan_background": True, "_declan_reply_category": "morning"}), None)
             with patch.object(server, 'select_routine_turn', return_value=selection), \
-                 patch.object(server.script_discovery, 'enqueue', return_value=('Requested.', 'started', 'job')), \
+                 patch.object(server.script_discovery, '_enqueue_provider', return_value=('Requested.', 'started', 'job')), \
                  patch.object(server.CAPTURE_ARBITER, 'claim', return_value=True):
                 for path in ('/api/chat', '/api/assist'):
                     reply = self.ask('good morning', path=path)
@@ -83,7 +83,7 @@ class APITests(TestCase):
                     self.assertEqual(self.ask('good morning')['reply'], 'A guest morning response.')
                 chained = (selection[0], 'turn on the study light')
                 with patch.object(server, 'select_routine_turn', return_value=chained), \
-                     patch.object(server, 'handle_light_request', return_value=('The study light failed.', 'failed')):
+                     patch.object(server, 'handle_light_request_result', return_value=('The study light failed.', 'failed')):
                     reply = self.ask('good morning and turn on the study light')
                     self.assertIn('My custom morning response.', reply['reply'])
                     self.assertIn('The study light failed.', reply['reply'])
@@ -139,8 +139,8 @@ class APITests(TestCase):
         selection = (("auto:script.good_morning", {"_declan_background": True,
                       "_declan_reply_category": "morning"}), None)
         with patch.object(server, "select_routine_turn", return_value=selection), \
-             patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")), \
-             patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking call")), \
+             patch.object(server.script_discovery, "_enqueue_provider", return_value=("Routine requested.", "started", "Background job j")), \
+             patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("blocking call")), \
              patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
             for path in ("/api/chat", "/api/assist"):
                 reply = self.ask("good morning", path=path)
@@ -153,7 +153,7 @@ class APITests(TestCase):
         selection = (("auto:script.good_morning", {"_declan_background": True,
                       "_declan_reply_category": "morning"}), None)
         with patch.object(server, "select_routine_turn", return_value=selection), \
-             patch.object(server.script_discovery, "enqueue", return_value=("Request not confirmed.", "unverified", None)), \
+             patch.object(server.script_discovery, "_enqueue_provider", return_value=("Request not confirmed.", "unverified", None)), \
              patch.object(server.personality_policy, "morning_request_reply", side_effect=AssertionError("false acknowledgement")):
             reply = self.ask("good morning")
             self.assertEqual(reply["outcome"], "unverified")
@@ -166,8 +166,8 @@ class APITests(TestCase):
         selection = (("auto:script.good_night", {"_declan_background": True,
                       "_declan_reply_category": "night"}), None)
         with patch.object(server, "select_routine_turn", return_value=selection), \
-             patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
-             patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking call")), \
+             patch.object(server.script_discovery, "_enqueue_provider", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
+             patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("blocking call")), \
              patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
             for guest in ("off", "on"):
                 with patch.object(server, "read_guest_mode", return_value=guest):
@@ -187,7 +187,7 @@ class APITests(TestCase):
         with patch.dict(server.os.environ, {"DECLAN_SENSITIVE_ROUTINES": "night,guest"}), \
              patch.object(server.routine_registry, "load", return_value={}), \
              patch.object(server, "select_routine_turn", return_value=selection), \
-             patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
+             patch.object(server.script_discovery, "_enqueue_provider", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
              patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
             prompt = self.ask("goodnight", path="/api/assist")
             self.assertEqual(prompt["outcome"], "confirmation_prompt")
@@ -203,14 +203,14 @@ class APITests(TestCase):
         with patch.object(server, "select_routine_turn", return_value=selection), \
              patch.object(server.personality_policy, "night_request_reply", side_effect=AssertionError("false acknowledgement")):
             for outcome in ("busy", "unverified", "failed"):
-                with patch.object(server.script_discovery, "enqueue", return_value=("Request not accepted.", outcome, None)):
+                with patch.object(server.script_discovery, "_enqueue_provider", return_value=("Request not accepted.", outcome, None)):
                     reply = self.ask("goodnight")
                     self.assertEqual(reply["outcome"], outcome)
                     self.assertEqual(reply["reply"], "Request not accepted.")
 
     def test_sexy_receipt_returns_directional_sass_without_waiting_for_music(self):
-        with patch.object(server.script_discovery, "enqueue", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
-             patch.object(server.script_discovery, "execute", side_effect=AssertionError("blocking music call")), \
+        with patch.object(server.script_discovery, "_enqueue_provider", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
+             patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("blocking music call")), \
              patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
             for action in ("start", "end"):
                 selection = (("auto:script.sexy_time", {"operation": action, "_declan_background": True,
@@ -231,7 +231,7 @@ class APITests(TestCase):
         with patch.object(server, "select_routine_turn", return_value=selection), \
              patch.object(server.personality_policy, "sexy_request_reply", side_effect=AssertionError("false acknowledgement")):
             for outcome in ("busy", "unverified", "not_configured", "failed"):
-                with patch.object(server.script_discovery, "enqueue", return_value=("Request not accepted.", outcome, None)):
+                with patch.object(server.script_discovery, "_enqueue_provider", return_value=("Request not accepted.", outcome, None)):
                     reply = self.ask("bedroom mood")
                     self.assertEqual(reply["outcome"], outcome)
                     self.assertEqual(reply["reply"], "Request not accepted.")
@@ -282,7 +282,7 @@ class APITests(TestCase):
 
     def test_unqualified_assist_music_passes_origin_to_playback(self):
         with patch.object(server, "ha_device_connection", return_value=None), patch.object(
-            server.music, "play", return_value=("Playing country music.", "confirmed")
+            server.music, "_play_provider", return_value=("Playing country music.", "confirmed")
         ) as play:
             result = self.ask("Play country music.", path="/api/assist", device="utility-device")
             self.assertEqual(result["outcome"], "confirmed")
@@ -385,7 +385,7 @@ class APITests(TestCase):
         connection = ("http://ha.invalid", {}, Mock())
         with patch.object(server, "ha_device_connection", return_value=connection), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "enqueue",
+             patch.object(server.script_discovery, "_enqueue_provider",
                           return_value=("Routine requested.", "started", "Background job j")) as enqueue:
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
                 result = self.ask(phrase, path="/api/assist")
@@ -400,7 +400,7 @@ class APITests(TestCase):
                   "fields": ["dinner_message"]}
         with patch.object(server, "ha_device_connection", return_value=("http://ha.invalid", {}, Mock())), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "execute",
+             patch.object(server.script_discovery, "_execute_provider",
                           return_value=("Dinner ready.", "requested", None)) as execute:
             for phrase in {*server.DINNER_PHRASES, "it's dinner time"}:
                 result = self.ask(phrase + "!", path="/api/assist")
@@ -431,7 +431,7 @@ class APITests(TestCase):
                   "fields": ["operation"]}
         with patch.object(server, "ha_device_connection", return_value=("http://ha.invalid", {}, Mock())), \
              patch.object(server.script_discovery, "discover", return_value=([script], None)), \
-             patch.object(server.script_discovery, "enqueue",
+             patch.object(server.script_discovery, "_enqueue_provider",
                           return_value=("Routine requested.", "started", "Background job j")) as routine:
             self.assertEqual(self.ask("Finish bedroom session.", path="/api/assist")["reply"], server.UNMATCHED_REPLY)
             turn = json.loads(self.request("/api/history")[1])["turns"][0]
@@ -514,7 +514,7 @@ class APITests(TestCase):
             self.assertEqual(self.ask("Set a timer for five seconds")["outcome"], "timer_set")
 
     def test_music_handoff_routes_from_assist(self):
-        with patch.object(server.music, "play", return_value=("Spotify is playing everywhere.", "confirmed")) as play:
+        with patch.object(server.music, "_play_provider", return_value=("Spotify is playing everywhere.", "confirmed")) as play:
             response = self.ask("Move the music everywhere", path="/api/assist")
         self.assertEqual(response["outcome"], "confirmed")
         self.assertEqual(play.call_args.args[0], ("everywhere", None, "spotify"))

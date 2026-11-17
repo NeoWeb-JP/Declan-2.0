@@ -1,9 +1,4 @@
-"""Typed boundary for legacy music provider replies.
-
-The Music Assistant/Spotify provider currently returns legacy (reply, outcome)
-pairs. Validate them immediately at the caller boundary without changing its
-public wire contract or playback side effects.
-"""
+"""Validate typed music provider results and legacy injected reply pairs."""
 from execution_results import ExecutionResult
 
 

@@ -9,11 +9,12 @@ from execution_results import ExecutionResult, Outcome
 
 class MusicProviderTypedTests(unittest.TestCase):
     def test_feedback_returns_typed_outcome(self):
-        with patch.object(music, "feedback", return_value=("Saved", "music_feedback")) as legacy:
+        with patch.object(music, "_feedback_provider", return_value=ExecutionResult("Saved", Outcome.MUSIC_FEEDBACK)) as provider, \
+             patch.object(music, "feedback", side_effect=AssertionError("legacy wrapper used")):
             result = music.feedback_result(("like", None), "ha", Mock())
         self.assertIsInstance(result, ExecutionResult)
         self.assertIs(result.outcome, Outcome.MUSIC_FEEDBACK)
-        legacy.assert_called_once()
+        provider.assert_called_once()
 
     def test_control_preserves_origin_and_assist(self):
         with patch.object(music, "_control_provider", return_value=ExecutionResult("Stopped", Outcome.CONFIRMED)) as provider:
@@ -24,14 +25,15 @@ class MusicProviderTypedTests(unittest.TestCase):
         self.assertTrue(provider.call_args.kwargs["assist"])
 
     def test_play_preserves_origin(self):
-        with patch.object(music, "play", return_value=("Playing", "confirmed")) as legacy:
+        with patch.object(music, "_play_provider", return_value=ExecutionResult("Playing", Outcome.CONFIRMED)) as provider, \
+             patch.object(music, "play", side_effect=AssertionError("legacy wrapper used")):
             result = music.play_result(("kitchen", "country", "spotify"), "ha", Mock(),
                                        origin="satellite")
         self.assertIs(result.outcome, Outcome.CONFIRMED)
-        self.assertEqual(legacy.call_args.kwargs["origin"], "satellite")
+        self.assertEqual(provider.call_args.kwargs["origin"], "satellite")
 
     def test_typed_provider_rejects_unknown_outcome(self):
-        with patch.object(music, "play", return_value=("Playing", "unknown")):
+        with patch.object(music, "_play_provider", return_value=("Playing", "unknown")):
             with self.assertRaises(ValueError):
                 music.play_result(("kitchen", "country", "spotify"), "ha", Mock())
 

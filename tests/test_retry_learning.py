@@ -22,7 +22,7 @@ class RetryLearningTests(unittest.TestCase):
         self.enterContext(patch.object(server, 'read_visitors_present', return_value=False))
         self.enterContext(patch.object(server, 'guarded_openai_fallback', return_value=None))
         self.enterContext(patch.object(server, 'select_routine_turn', return_value=None))
-        self.enterContext(patch.object(server, 'handle_light_request', return_value=None))
+        self.enterContext(patch.object(server, 'handle_light_request_result', return_value=None))
         self.enterContext(patch.object(server, 'search_media', return_value=None))
         self.enterContext(patch.object(server.CAPTURE_ARBITER, 'claim', return_value=True))
         self.enterContext(patch.dict(server.os.environ, {'DECLAN_ASSIST_TOKEN': 'test'}))
@@ -48,7 +48,7 @@ class RetryLearningTests(unittest.TestCase):
         return result
 
     def succeed(self):
-        return patch.object(server, 'handle_light_request', return_value=('Done', 'confirmed'))
+        return patch.object(server, 'handle_light_request_result', return_value=('Done', 'confirmed'))
 
     def test_successful_similar_retry_learns_and_preserves_both_responses(self):
         first = self.ask('office light on it', speaker={'interaction_id':'clip', 'name':'Unknown', 'confidence':0.1})
@@ -62,7 +62,7 @@ class RetryLearningTests(unittest.TestCase):
         self.assertEqual(turns[1]['reply'], server.UNMATCHED_REPLY)
         self.assertEqual(turns[1]['speaker_match']['interaction_id'], 'clip')
         self.assertTrue(turns[0]['reply'])
-        with patch.object(server, 'handle_light_request', return_value=('Done','confirmed')) as handle:
+        with patch.object(server, 'handle_light_request_result', return_value=('Done','confirmed')) as handle:
             self.ask('office light on it')
         self.assertEqual(handle.call_args.args[0], 'office light on')
 
