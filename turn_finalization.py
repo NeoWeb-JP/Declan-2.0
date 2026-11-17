@@ -1,4 +1,5 @@
 """Pure request-finalisation helpers for HTTP turn handling."""
+from execution_results import Outcome
 
 
 def lighting_phrase_suggestion(previous, *, light_result, outcome, actions,
@@ -17,7 +18,7 @@ def lighting_phrase_suggestion(previous, *, light_result, outcome, actions,
 def apply_outcome_metadata(reply, *, outcome, routine_status):
     """Attach result metadata without modifying the spoken response."""
     if outcome:
-        reply["outcome"] = outcome
+        reply["outcome"] = outcome.value if isinstance(outcome, Outcome) else outcome
     if routine_status:
         reply["routine_status"] = routine_status
     return reply

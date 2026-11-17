@@ -1,9 +1,10 @@
 """Bounded conversational retry state, independent of HTTP transport."""
 import re
+from execution_results import Outcome
 
 SUCCESS_OUTCOMES = frozenset({
-    "confirmed", "reported_success", "execution_completed",
-    "timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped",
+    Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED,
+    Outcome.TIMER_SET, Outcome.TIMER_ADJUSTED, Outcome.TIMER_CANCELLED, Outcome.TIMER_STOPPED,
 })
 
 
