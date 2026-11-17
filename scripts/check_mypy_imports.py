@@ -8,10 +8,18 @@ IMPORT_ERROR = re.compile(r'error: .*?module named "([^"]+)"\s+\[import-not-foun
 
 
 def unexpected_imports(text: str) -> list[str]:
-    return [line for line in text.splitlines()
-            if (match := IMPORT_ERROR.search(line)) and
-            not (match.group(1) == "homeassistant" or
-                 match.group(1).startswith("homeassistant."))]
+    unexpected = []
+    for line in text.splitlines():
+        if "[import-not-found]" not in line:
+            continue
+        match = IMPORT_ERROR.search(line)
+        # An unrecognised mypy diagnostic must not bypass the import guard.
+        if match is None or not (
+            match.group(1) == "homeassistant"
+            or match.group(1).startswith("homeassistant.")
+        ):
+            unexpected.append(line)
+    return unexpected
 
 
 def main() -> int:
