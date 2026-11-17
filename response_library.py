@@ -11,7 +11,7 @@ MODES = ("sass", "guest")
 ACTIONS = ("default", "start", "end", "toggle")
 _random = SystemRandom()
 _lock = Lock()
-_recent = {}
+_recent: dict = {}
 
 
 def validate(profile):
