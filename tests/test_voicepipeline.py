@@ -3,7 +3,7 @@ import io
 import json
 import os
 from unittest import TestCase
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
 import voicepipeline as vp
