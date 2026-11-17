@@ -458,6 +458,14 @@ def preview_routine(phrase, origin=None):
             "Simulated spoken response: Starting the routine. Nothing has been run.", "preview")
 
 
+def execute_routine_result(selection, action_results, *, approved=False):
+    """Typed execution result for local routine selection with optional status."""
+    from local_outcome_contracts import routine_execution_result
+    result = (execute_routine(selection, action_results, approved=True)
+              if approved else execute_routine(selection, action_results))
+    return routine_execution_result(result)
+
+
 def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
     if period == "auto_ambiguous":
@@ -2581,7 +2589,7 @@ class Handler(BaseHTTPRequestHandler):
             satellite=satellite, action_results=action_results,
             registry_factory=command_registry.routine_registry,
             context_factory=command_registry.RequestContext,
-            select=select_routine_turn, execute=execute_routine,
+            select=select_routine_turn, execute=execute_routine_result,
         ):
             routine_status = routine_dispatch.routine_status
             routine_turn = routine_dispatch.routine_selection
