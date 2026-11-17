@@ -26,6 +26,32 @@ class TraceOutcome(StrEnum):
     UNVERIFIED = "unverified"
 
 
+class TraceStepStatus(StrEnum):
+    FAILED = "failed"
+    OBSERVED = "observed"
+
+
+@dataclass(frozen=True)
+class TraceStepEvidence:
+    path: str
+    status: TraceStepStatus
+
+    def __post_init__(self):
+        if not isinstance(self.status, TraceStepStatus):
+            raise TypeError("status must be a TraceStepStatus")
+
+    def to_wire(self) -> dict:
+        return {"path": self.path, "status": self.status.value}
+
+
+def trace_step_wire(step):
+    return step.to_wire() if isinstance(step, TraceStepEvidence) else dict(step)
+
+
+def execution_value(execution, key):
+    return getattr(execution, key) if isinstance(execution, TraceExecution) else execution[key]
+
+
 @dataclass(frozen=True)
 class TraceExecution:
     status: TraceOutcome
@@ -33,7 +59,7 @@ class TraceExecution:
     start: str | None = None
     finish: str | None = None
     last_step: Any = None
-    steps: tuple[dict, ...] = ()
+    steps: tuple[TraceStepEvidence | dict, ...] = ()
     steps_truncated: bool = False
 
     def __post_init__(self):
@@ -43,13 +69,14 @@ class TraceExecution:
     def to_wire(self) -> dict:
         return {"run_id": self.run_id, "status": self.status.value,
                 "start": self.start, "finish": self.finish, "last_step": self.last_step,
-                "steps": [dict(step) for step in self.steps], "steps_truncated": self.steps_truncated}
+                "steps": [trace_step_wire(step) for step in self.steps], "steps_truncated": self.steps_truncated}
 
 
 def classify_trace_typed(trace) -> TraceExecution:
     if trace.get("error") or trace.get("script_execution") == "error":
         status = TraceOutcome.FAILED
-    elif any(step["status"] == "failed" for step in trace.get("audit_steps", [])):
+    elif any((step.status if isinstance(step, TraceStepEvidence) else step["status"]) == TraceStepStatus.FAILED
+             for step in trace.get("audit_steps", [])):
         status = TraceOutcome.PARTIAL
     elif trace.get("not_triggered") or trace.get("script_execution") == "failed_conditions":
         status = TraceOutcome.SKIPPED
@@ -68,7 +95,8 @@ def classify_trace_typed(trace) -> TraceExecution:
 
     return TraceExecution(status, trace.get("run_id"), stamp(timestamp.get("start")),
                           stamp(timestamp.get("finish")), trace.get("last_step"),
-                          tuple(dict(step) for step in trace.get("audit_steps", [])[:100]),
+                          tuple(step if isinstance(step, TraceStepEvidence) else dict(step)
+                                for step in trace.get("audit_steps", [])[:100]),
                           len(trace.get("audit_steps", [])) > 100)
 
 
@@ -90,8 +118,8 @@ def review_fingerprint(routine, findings, execution):
                 "disabled": routine.get("disabled", False),
                 "references": {kind: sorted(values, key=str) for kind, values in routine.get("references", {}).items()},
                 "findings": sorted([row for row in findings if row["path"] != "execution"], key=lambda row: json.dumps(row, sort_keys=True))}
-    if execution and execution[0]["status"] in {"failed", "partial"}:
-        relevant["latest_failure"] = {key: execution[0][key] for key in ("run_id", "status")}
+    if execution and execution_value(execution[0], "status") in {TraceOutcome.FAILED, TraceOutcome.PARTIAL}:
+        relevant["latest_failure"] = {key: execution_value(execution[0], key) for key in ("run_id", "status")}
     background = routine.get("background_result") or {}
     if background.get("outcome") in {"failed", "partial", "unverified", "cancelled"}:
         relevant["background_failure"] = {key: background.get(key) for key in ("job_id", "outcome")}
@@ -99,15 +127,19 @@ def review_fingerprint(routine, findings, execution):
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def trace_steps(trace):
+def trace_steps_typed(trace) -> tuple[TraceStepEvidence, ...]:
     """Keep only action paths and error presence, never values or error text."""
     steps = []
     for path, entries in (trace.get("trace") or {}).items():
         if not isinstance(entries, list):
             continue
         failed = any(isinstance(entry, Mapping) and entry.get("error") for entry in entries)
-        steps.append({"path": str(path), "status": "failed" if failed else "observed"})
-    return steps
+        steps.append(TraceStepEvidence(str(path), TraceStepStatus.FAILED if failed else TraceStepStatus.OBSERVED))
+    return tuple(steps)
+
+
+def trace_steps(trace):
+    return [step.to_wire() for step in trace_steps_typed(trace)]
 
 
 def review_evidence(routine, findings, execution):
@@ -115,8 +147,8 @@ def review_evidence(routine, findings, execution):
     source = review_fingerprint({**routine, "background_result": None}, [], [])
     issues = [["finding", row["severity"], row["code"], row["path"]]
               for row in findings if row["path"] != "execution"]
-    issues.extend(["trace", row["run_id"], row["status"]] for row in execution
-                  if row["status"] in {"failed", "partial"})
+    issues.extend(["trace", execution_value(row, "run_id"), execution_value(row, "status")] for row in execution
+                  if execution_value(row, "status") in {TraceOutcome.FAILED, TraceOutcome.PARTIAL})
     background = routine.get("background_result") or {}
     if background.get("outcome") in {"failed", "partial", "unverified", "cancelled"}:
         issues.append(["background", background.get("job_id"), background["outcome"]])
@@ -217,13 +249,13 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
             finding("warning", "routine_disabled", "state", "Review whether this routine should remain disabled.")
         execution = []
         for trace in traces.get(entity_id, []):
-            execution.append(classify_trace_typed(trace).to_wire())
-        execution.sort(key=lambda row: row.get("start") or "", reverse=True)
+            execution.append(classify_trace_typed(trace))
+        execution.sort(key=lambda row: row.start or "", reverse=True)
         execution = execution[:5]
         if not execution:
             finding("unverified", "no_trace", "execution",
                     "No retained trace is available. Review a future normal run in Home Assistant.")
-        elif any(row["status"] in {"failed", "partial"} for row in execution):
+        elif any(row.status in {TraceOutcome.FAILED, TraceOutcome.PARTIAL} for row in execution):
             finding("error", "execution_failed", "execution",
                     "Open the corresponding run in Home Assistant Traces to inspect the failing action.")
         review_source, review_issues = review_evidence(routine, findings, execution)
@@ -236,7 +268,7 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                       "fingerprint": review_fingerprint(routine, findings, execution),
                       "state": routine.get("state"), "disabled": bool(routine.get("disabled")),
                       "dependencies": [{"kind": kind, "id": target} for kind, target in sorted(dependencies)],
-                      "findings": findings, "executions": execution})
+                      "findings": findings, "executions": [row.to_wire() for row in execution]})
     stale_ids = {row["entity_id"] for row in items if row["stale"]}
     entities = [{"entity_id": key, "name": states.get(key, {}).get("name") or key,
                  "stale": key in stale_ids,
