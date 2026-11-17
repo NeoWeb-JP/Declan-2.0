@@ -466,18 +466,23 @@ def execute_routine_result(selection, action_results, *, approved=False):
     return routine_execution_result(result)
 
 
+def _routine_legacy_triple(result, status):
+    """Preserve legacy routine callers while validating discovered script outcomes."""
+    return result.reply, result.outcome.value, status
+
+
 def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
     if period == "auto_ambiguous":
         return "Several Home Assistant scripts match that name. Please use a more specific name.", "unresolved", None
     if period.startswith("auto:"):
         if options.get("_declan_background"):
-            return script_discovery.enqueue(ha_device_connection(), period[5:],
-                {key: value for key, value in options.items() if not key.startswith("_declan_")})
-        return script_discovery.execute(
+            return _routine_legacy_triple(*script_discovery.enqueue_result(ha_device_connection(), period[5:],
+                {key: value for key, value in options.items() if not key.startswith("_declan_")}))
+        return _routine_legacy_triple(*script_discovery.execute_result(
             ha_device_connection(), {"entity_id": period[5:]},
             parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
-            expect_response=options.get("_declan_expect_response", False), action_results=action_results)
+            expect_response=options.get("_declan_expect_response", False), action_results=action_results))
     if period == "unconfigured_house_status":
         return "I could not find a House Status script in Home Assistant.", "not_configured", None
     return "I couldn't find that routine in Home Assistant.", "not_configured", None
