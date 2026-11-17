@@ -2618,16 +2618,15 @@ class Handler(BaseHTTPRequestHandler):
                 routine_reply += f" {follow_reply}"
                 outcome = chained_outcome(outcome, follow_outcome)
         else:
-            information_phrase, clarification = conditions.follow_up(phrase, last_information)
-            condition_result = conditions.handle(information_phrase, opener) if not clarification else None
-            if clarification:
-                routine_reply, outcome = clarification, "unresolved"
-            elif condition_result:
-                routine_reply, outcome, category = condition_result
-                if outcome in ("confirmed", "partial", "unavailable"):
-                    information_context = conditions.question_context(information_phrase)
-                if outcome == "confirmed":
-                    routine_reply = add_sass(routine_reply, category, read_guest_mode())
+            information_result = command_registry.information_registry(
+                matches=conditions.matches, follow_up=conditions.follow_up,
+                handle=conditions.handle, question_context=conditions.question_context,
+                opener=opener, last_information=last_information,
+                decorate=add_sass, guest_mode=read_guest_mode,
+            ).dispatch(command_registry.RequestContext(phrase=phrase, source=source))
+            if information_result:
+                routine_reply, outcome = information_result.result.as_legacy_pair()
+                information_context = information_result.information_context
             else:
                 local = command_registry.registry(command_registry.Dependencies(
                     parse_status=device_status.parse, describe_status=device_status.describe,

@@ -411,6 +411,17 @@ def follow_up(phrase, context):
     return f"what's the {kind}{location}", None
 
 
+def matches(phrase, context=None):
+    """Pure information-command recognition, including contextual follow-ups."""
+    normalized = phrase.replace("’", "'")
+    if FOLLOW_UP.fullmatch(normalized):
+        resolved, clarification = follow_up(normalized, context)
+        return bool(clarification or (resolved != normalized and matches(resolved)))
+    normalized = re.sub(r"^what time is it in ", "what is the time in ", normalized)
+    return bool(forecast_question(normalized) or PLACE_QUESTION.fullmatch(normalized)
+                or HOME_WEATHER.fullmatch(normalized) or normalized in INSIDE)
+
+
 def handle(phrase, opener):
     phrase = phrase.replace("’", "'")
     if forecast := forecast_question(phrase):
