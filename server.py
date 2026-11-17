@@ -106,13 +106,13 @@ import personality_policy
 DECLAN_EVENT_LOG = logging.getLogger("declan.server")
 DECLAN_EVENT_LOG.setLevel(logging.INFO)
 
-SESSIONS = OrderedDict()
+SESSIONS: OrderedDict = OrderedDict()
 SESSION_LOCK = Lock()
 CAPTURE_ARBITER = CaptureArbiter()
 SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
-routine_last_attempts = {}
+routine_last_attempts: dict = {}
 ACTIVE_ROUTINES = {}
 ACTIVE_ROUTINES_LOCK = Lock()
 
