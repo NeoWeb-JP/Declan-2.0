@@ -26,14 +26,12 @@ jobs:
         run: python -m pip install ruff==0.14.5 bandit==1.9.1 pip-audit==2.9.0 mypy==1.18.2
       - name: Ruff lint
         run: ruff check . --output-format github
-      - name: Mypy backend type check (blocking)
+      - name: Mypy repository type check (blocking)
         run: |
-          python -m mypy --config-file mypy.ini --disable-error-code import-not-found \
-            server.py music.py script_discovery.py personality.py response_library.py \
-            updates.py sensitive_confirmations.py declan_logs.py configuration.py \
-            command_responses.py routine_responses.py \
-            tests/test_quiet_speech.py tests/test_ha_audit.py \
-            tests/test_declan_compatibility.py tests/test_arbitration.py
+          # Runtime integration dependencies are absent in this audit job.
+          # Enforce all available type diagnostics across every source file.
+          python -m mypy --config-file mypy.ini \
+            --disable-error-code import-not-found .
       - name: Mypy full-repository baseline (advisory)
         continue-on-error: true
         run: python -m mypy --config-file mypy.ini .
