@@ -50,6 +50,8 @@ class InformationRegistryTests(TestCase):
         self.handle.assert_not_called()
         self.guest.assert_not_called()
 
-    def test_unresolvable_contextual_follow_up_can_fall_through(self):
-        self.assertIsNone(self.dispatch("what about home", ("time", "oxford", None)))
+    def test_time_follow_up_at_home_requires_place_clarification(self):
+        result = self.dispatch("what about home", ("time", "oxford", None))
+        self.assertIs(result.result.outcome, Outcome.UNRESOLVED)
+        self.assertEqual(result.result.reply, "Which place should I check the local time for?")
         self.handle.assert_not_called()
