@@ -43,7 +43,7 @@ def _fingerprint(state):
 def export(include_learning=False):
     with history.database() as db:
         state = _state(db)
-    settings = {key: state['settings'].get(key, os.environ.get(key, '')) for key in FIELDS}
+    settings = {key: (state['settings'].get(key) or os.environ.get(key, '')) for key in FIELDS}
     document = {'format': 'declan-settings', 'schema_version': 1, 'settings': settings}
     if include_learning:
         document['learned_intents'] = state['learned_intents']
@@ -94,7 +94,7 @@ def apply(document, expected):
         # Recovery data and all imported changes commit together, or none do.
         db.execute('CREATE TABLE IF NOT EXISTS settings_recovery (id INTEGER PRIMARY KEY, document TEXT)')
         previous = {'format': 'declan-settings', 'schema_version': 1,
-                    'settings': {key: state['settings'].get(key, os.environ.get(key, '')) for key in FIELDS},
+                    'settings': {key: (state['settings'].get(key) or os.environ.get(key, '')) for key in FIELDS},
                     'learned_intents': state['learned_intents']}
         db.execute('INSERT OR REPLACE INTO settings_recovery VALUES (1, ?)', (json.dumps(previous),))
         db.executemany('INSERT OR REPLACE INTO server_settings VALUES (?, ?)', document['settings'].items())
