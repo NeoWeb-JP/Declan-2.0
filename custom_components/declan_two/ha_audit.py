@@ -12,6 +12,8 @@ import re
 import hashlib
 import json
 
+from .routine_job_results import REVIEW_FAILURES, stored_job
+
 IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]*\.[a-z0-9_]+\Z")
 SELECTORS = {"entity_id": "entity", "device_id": "device", "area_id": "area"}
 
@@ -120,8 +122,8 @@ def review_fingerprint(routine, findings, execution):
                 "findings": sorted([row for row in findings if row["path"] != "execution"], key=lambda row: json.dumps(row, sort_keys=True))}
     if execution and execution_value(execution[0], "status") in {TraceOutcome.FAILED, TraceOutcome.PARTIAL}:
         relevant["latest_failure"] = {key: execution_value(execution[0], key) for key in ("run_id", "status")}
-    background = routine.get("background_result") or {}
-    if background.get("outcome") in {"failed", "partial", "unverified", "cancelled"}:
+    background = stored_job(routine.get("background_result"))
+    if background.outcome in REVIEW_FAILURES:
         relevant["background_failure"] = {key: background.get(key) for key in ("job_id", "outcome")}
     payload = json.dumps(relevant, sort_keys=True, default=encode, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
@@ -149,9 +151,9 @@ def review_evidence(routine, findings, execution):
               for row in findings if row["path"] != "execution"]
     issues.extend(["trace", execution_value(row, "run_id"), execution_value(row, "status")] for row in execution
                   if execution_value(row, "status") in {TraceOutcome.FAILED, TraceOutcome.PARTIAL})
-    background = routine.get("background_result") or {}
-    if background.get("outcome") in {"failed", "partial", "unverified", "cancelled"}:
-        issues.append(["background", background.get("job_id"), background["outcome"]])
+    background = stored_job(routine.get("background_result"))
+    if background.outcome in REVIEW_FAILURES:
+        issues.append(["background", background.get("job_id"), background.get("outcome")])
     return source, sorted({hashlib.sha256(json.dumps(issue, sort_keys=True).encode()).hexdigest()
                            for issue in issues})
 
@@ -261,7 +263,8 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
         review_source, review_issues = review_evidence(routine, findings, execution)
         items.append({"entity_id": entity_id, "name": routine.get("name") or entity_id,
                       "review_source": review_source, "review_issues": review_issues,
-                      "background_result": routine.get("background_result"),
+                      "background_result": stored_job(routine["background_result"]).to_wire()
+                          if routine.get("background_result") is not None else None,
                       "editor_path": routine.get("editor_path"),
                       "stale": bool(routine.get("stale")),
                       "yaml_available": bool(routine.get("yaml_available")),

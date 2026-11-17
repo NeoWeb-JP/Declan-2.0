@@ -38,9 +38,9 @@ async def collect_report(hass):
     routines = []
     gaps = []
     traces = {}
-    from .routine_jobs import latest_results
+    from .routine_jobs import latest_results_typed
     try:
-        background_results = await latest_results(hass)
+        background_results = await latest_results_typed(hass)
     except Exception:
         background_results = {}
         gaps.append("background routine results unavailable")

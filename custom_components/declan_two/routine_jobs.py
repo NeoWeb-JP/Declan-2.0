@@ -3,7 +3,6 @@ import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from enum import StrEnum
 import logging
 import re
 
@@ -11,18 +10,9 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 
 from .script_discovery_view import declared_script_fields
+from .routine_job_results import RoutineJobOutcome, StoredRoutineJob, job_outcome
 
 _LOGGER = logging.getLogger(__name__)
-class RoutineJobOutcome(StrEnum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    REPORTED_SUCCESS = "reported_success"
-    PARTIAL = "partial"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    BUSY = "busy"
-    UNVERIFIED = "unverified"
-    FINISHED_UNVERIFIED = "finished_unverified"
 
 
 @dataclass(frozen=True)
@@ -63,7 +53,7 @@ async def job_state(hass):
             # Preserve the evidence and never replay an interrupted request.
             recovered = False
             for job in state["jobs"].values():
-                if job.get("outcome") in ACTIVE:
+                if job_outcome(job.get("outcome")) in ACTIVE:
                     job.update(outcome=RoutineJobOutcome.UNVERIFIED.value, reason="interrupted", updated_at=timestamp())
                     recovered = True
             if recovered:
@@ -75,7 +65,7 @@ async def save_job(state, job):
     async with state["lock"]:
         jobs = dict(state["jobs"])
         jobs[job["job_id"]] = dict(job)
-        completed = sorted((key for key, value in jobs.items() if value["outcome"] not in ACTIVE),
+        completed = sorted((key for key, value in jobs.items() if job_outcome(value["outcome"]) not in ACTIVE),
                            key=lambda key: jobs[key]["updated_at"])
         while len(jobs) > 100 and completed:
             jobs.pop(completed.pop(0))
@@ -137,18 +127,22 @@ async def run_job(hass, state, job, service, parameters, fields, context):
             await asyncio.shield(save_job(state, final))
         except Exception:
             _LOGGER.warning("Declan background result could not be saved for %s", job["job_id"])
-        log = _LOGGER.warning if final["outcome"] not in {RoutineJobOutcome.REPORTED_SUCCESS, RoutineJobOutcome.FINISHED_UNVERIFIED} else _LOGGER.info
+        log = _LOGGER.warning if job_outcome(final["outcome"]) not in {RoutineJobOutcome.REPORTED_SUCCESS, RoutineJobOutcome.FINISHED_UNVERIFIED} else _LOGGER.info
         log("Declan background routine %s job %s: %s", job["entity_id"], job["job_id"], final["outcome"])
 
 
-async def latest_results(hass):
+async def latest_results_typed(hass) -> dict[str, StoredRoutineJob]:
     state = await job_state(hass)
     latest = {}
     for job in state["jobs"].values():
         entity_id = job["entity_id"]
         if entity_id not in latest or job["created_at"] > latest[entity_id]["created_at"]:
             latest[entity_id] = dict(job)
-    return latest
+    return {entity_id: StoredRoutineJob(job) for entity_id, job in latest.items()}
+
+
+async def latest_results(hass):
+    return {entity_id: job.to_wire() for entity_id, job in (await latest_results_typed(hass)).items()}
 
 
 class DeclanRoutineJobsView(HomeAssistantView):
@@ -194,9 +188,9 @@ class DeclanRoutineJobsView(HomeAssistantView):
                 if state["jobs"][body["job_id"]]["entity_id"] != body["entity_id"]:
                     raise web.HTTPBadRequest()
                 return web.json_response({"status": "accepted", "job_id": body["job_id"], "entity_id": body["entity_id"]}, status=202)
-            if any(row["entity_id"] == body["entity_id"] and row["outcome"] in ACTIVE for row in state["jobs"].values()):
+            if any(row["entity_id"] == body["entity_id"] and job_outcome(row["outcome"]) in ACTIVE for row in state["jobs"].values()):
                 return web.json_response({"error": "already_running"}, status=409)
-            if sum(row["outcome"] in ACTIVE for row in state["jobs"].values()) >= 4:
+            if sum(job_outcome(row["outcome"]) in ACTIVE for row in state["jobs"].values()) >= 4:
                 return web.json_response({"error": "queue_full"}, status=429)
             job = {"job_id": body["job_id"], "entity_id": body["entity_id"], "outcome": RoutineJobOutcome.QUEUED.value,
                    "created_at": timestamp(), "updated_at": timestamp(), "steps": []}
