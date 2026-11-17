@@ -2,6 +2,7 @@
 import sqlite3
 
 import history
+from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 
 
 def database_ready():
@@ -12,3 +13,10 @@ def database_ready():
         return True
     except (sqlite3.Error, OSError):
         return False
+
+
+def home_assistant_ready(status: HomeAssistantStatusResult) -> bool:
+    """Only a live authenticated HA connection proves dependency readiness."""
+    if not isinstance(status, HomeAssistantStatusResult):
+        raise TypeError("Expected typed Home Assistant status result.")
+    return status.status is HomeAssistantStatus.CONNECTED
