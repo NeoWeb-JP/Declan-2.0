@@ -66,20 +66,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$result"
       - name: Reject unexpected missing imports (blocking)
-        shell: bash
-        run: |
-          # The advisory mypy run writes this log even when it exits nonzero.
-          # Home Assistant modules are supplied by the HA runtime, not this job.
-          if [[ ! -f mypy-advisory.log ]]; then
-            echo "::error::Missing mypy advisory inventory"
-            exit 1
-          fi
-          unexpected=$(grep '\[import-not-found\]' mypy-advisory.log | grep -v 'module named "homeassistant' || true)
-          if [[ -n "$unexpected" ]]; then
-            echo "::error::Unexpected non-Home Assistant missing imports"
-            printf '%s\\n' "$unexpected"
-            exit 1
-          fi
+        run: python scripts/check_mypy_imports.py
       - name: Bandit security scan
         run: bandit -r . -x ./tests,./.git -q
       - name: Audit tracked requirements files
