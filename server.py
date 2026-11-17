@@ -44,6 +44,7 @@ import request_origin
 import request_validation
 import session_context_retrieval
 import retry_context
+import retry_cancellation
 import history
 import music
 import approved_media_players
@@ -2485,14 +2486,11 @@ class Handler(BaseHTTPRequestHandler):
             )
         if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
             with SESSION_LOCK:
-                reply = converse(message, session_id, "", scope=scope)
-                reply.update(outcome="cancelled", continue_conversation=False)
-                try:
-                    history.record(reply["session_id"], source, message, "", "cancelled",
-                                   speaker=body.get("speaker") if source == "assist" else None)
-                except (OSError, sqlite3.Error):
-                    reply["history_saved"] = False
-                    self.log_error("Could not save conversation history.")
+                reply = retry_cancellation.cancel_retry(
+                    message, session_id, scope=scope, source=source,
+                    speaker=body.get("speaker"), converse=converse,
+                    record=history.record, log_error=self.log_error,
+                )
             self.send_json(200, reply)
             return
         opener = build_opener(ProxyHandler({}), NoRedirect())
