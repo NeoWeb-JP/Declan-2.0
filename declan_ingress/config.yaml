@@ -13,7 +13,7 @@ panel_icon: mdi:robot
 panel_title: Declan 2.0
 panel_admin: true
 options:
-  declan_url: http://192.168.0.55:52737
+  declan_url: http://127.0.0.1:52737
   ingress_token: ""
 schema:
   declan_url: url
