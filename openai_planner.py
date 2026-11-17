@@ -11,6 +11,7 @@ from urllib.error import HTTPError, URLError
 
 from action_plan import validate_plan
 from ai_pricing import RATES
+from model_response_results import ModelResponseResult, ModelResponseStatus
 
 MODEL_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$")
 MAX_CONTEXT = 100
@@ -120,17 +121,12 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
             if not callable(usage_sink):
                 raise ValueError("Invalid usage receiver")
             usage_sink(result.get("usage"))
-        if result.get("status") != "completed":
+        provider_result = ModelResponseResult.parse(result)
+        if provider_result.status is not ModelResponseStatus.COMPLETED:
             raise ValueError("Incomplete model response")
-        pieces = [
-            part["text"] for item in result["output"]
-            if item.get("type") == "message" and item.get("role") == "assistant"
-            for part in item.get("content", [])
-            if part.get("type") == "output_text"
-        ]
-        if len(pieces) != 1:
-            raise ValueError("Ambiguous model response")
-        proposed = json.loads(pieces[0])
+        if provider_result.text is None:
+            raise ValueError("Missing model response text")
+        proposed = json.loads(provider_result.text)
     except (TypeError, KeyError, ValueError, AttributeError, IndexError):
         raise ValueError("Invalid model plan") from None
     # An empty plan is a deliberate refusal/clarification, never an action.
