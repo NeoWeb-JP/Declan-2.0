@@ -84,8 +84,16 @@ HTTP/history outcomes use explicit `Outcome` members converted to plain strings.
 Origin binding, 30-second expiry, one-shot consumption and non-Assist bypass
 retain their previous semantics.
 
+Conversational retry cancellation exposes `cancel_retry_result()` with a frozen
+`RetryCancellationResult`, retaining typed cancellation execution, session
+metadata and persistence status. Its wire adapter preserves plain outcomes,
+silent cancellation and nonfatal history errors. Roast response and roast/guest
+dispatch expose typed result entrypoints, preserving result/action identity,
+roast-before-guest priority and single execution. Legacy injected pairs are
+validated at that dispatch boundary; public APIs retain their existing mappings
+or tuples.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes conversational retry cancellation, roast/guest dispatch and
-final-response/session orchestration still using legacy tuples. Structured action
+scope includes final-response/session orchestration still using legacy tuples. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.

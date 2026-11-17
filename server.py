@@ -2570,12 +2570,12 @@ class Handler(BaseHTTPRequestHandler):
             )
         if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
             with SESSION_LOCK:
-                reply = retry_cancellation.cancel_retry(
+                cancellation = retry_cancellation.cancel_retry_result(
                     message, session_id, scope=scope, source=source,
                     speaker=body.get("speaker"), converse=converse,
                     record=history.record, log_error=self.log_error,
                 )
-            self.send_json(200, reply)
+            self.send_json(200, cancellation.to_wire())
             return
         opener = build_opener(ProxyHandler({}), NoRedirect())
         # HA owns script permissions. Guest assignment is a separate privileged
@@ -2633,9 +2633,9 @@ class Handler(BaseHTTPRequestHandler):
             response = stop_result_response.stop_response(stop_result)
             routine_reply, outcome = response.result.reply, response.result.outcome
             routine_status = response.routine_status
-        elif (roast_guest_result := roast_guest_dispatch.dispatch_roast_or_guest(
+        elif (roast_guest_result := roast_guest_dispatch.dispatch_roast_or_guest_result(
             phrase, roast_target=roast.target,
-            respond_to_roast=roast_command_dispatch.respond_to_roast,
+            respond_to_roast=roast_command_dispatch.respond_to_roast_result,
             guest_mode=read_guest_mode, visitors_present=read_visitors_present,
             response_guest_mode=personality_policy.response_guest_mode,
             roast_respond=roast.respond,
@@ -2643,7 +2643,7 @@ class Handler(BaseHTTPRequestHandler):
             guest_commands=GUEST_COMMANDS, guest_assignment=guest_assignment_result,
             connection=ha_device_connection,
         )) is not None:
-            routine_reply, outcome = roast_guest_result
+            routine_reply, outcome = roast_guest_result.reply, roast_guest_result.outcome
         elif routine_dispatch := routine_registry_dispatch.dispatch_routine(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
