@@ -55,6 +55,7 @@ import early_command_result
 import stop_result_response
 import roast_guest_dispatch
 import routine_registry_dispatch
+import routine_follow_on_dispatch
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2578,25 +2579,20 @@ class Handler(BaseHTTPRequestHandler):
             context_factory=command_registry.RequestContext,
             select=select_routine_turn, execute=execute_routine,
         ):
-            lighting_context = ()
-            routine_reply, outcome = routine_dispatch.result.as_legacy_pair()
             routine_status = routine_dispatch.routine_status
             routine_turn = routine_dispatch.routine_selection
-            follow_on = routine_dispatch.routine_follow_on
-            if follow_on:
-                chained = routine_follow_on.execute(
-                    follow_on, routine_reply=routine_reply, routine_outcome=outcome,
-                    routine_status=routine_status, parse_music=music.parse,
-                    play_music=music.play, connection=ha_device_connection,
+            (routine_reply, outcome, lighting_context, routine_voice_result) = (
+                routine_follow_on_dispatch.execute_follow_on(
+                    routine_dispatch, origin_device=origin_device,
+                    satellite=satellite, action_results=action_results,
+                    scope=scope, execute=routine_follow_on.execute,
+                    parse_music=music.parse, play_music=music.play,
+                    connection=ha_device_connection,
                     music_inventory=read_music_inventory,
-                    handle_lighting=handle_light_request, last_lights=last_lights,
-                    origin=origin_device or satellite, music_origin=satellite or origin_device,
-                    action_results=action_results, scope=scope,
-                    chained_outcome=chained_outcome,
+                    handle_lighting=handle_light_request,
+                    last_lights=last_lights, chained_outcome=chained_outcome,
                 )
-                routine_reply, outcome = chained.reply, chained.outcome
-                lighting_context = chained.lighting_context
-                routine_voice_result = chained.routine_voice_result
+            )
         else:
             information_result = information_command_dispatch.dispatch_information(
                 phrase, source=source,
