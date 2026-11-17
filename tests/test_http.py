@@ -317,8 +317,10 @@ class APITests(TestCase):
             }, headers={"Authorization": "Bearer test", "Content-Type": "application/json"})
             self.assertEqual(status, 200)
             return json.loads(payload)
+        from execution_results import ExecutionResult, Outcome
         with patch.object(server, "select_routine", return_value=("auto:script.dinner", {})), \
-             patch.object(server, "execute_routine", return_value=("Dinner ready.", "requested", None)) as dinner:
+             patch.object(server.script_discovery, "execute_result",
+                          return_value=(ExecutionResult("Dinner ready.", Outcome.REQUESTED), None)) as dinner:
             with ThreadPoolExecutor(max_workers=2) as pool:
                 quiet = pool.submit(call, "kitchen", 0.1)
                 loud = pool.submit(call, "bedroom", 0.5)

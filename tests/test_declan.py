@@ -12,6 +12,7 @@ import conditions
 import device_status
 import server
 import timers
+from execution_results import ExecutionResult, Outcome
 
 
 class CoreTests(TestCase):
@@ -98,11 +99,11 @@ class ChainingTests(TestCase):
     def test_partial_routine_does_not_skip_lights_on_browser_or_assist(self):
         order = []
 
-        def run_routine(selection, action_results):
-            self.assertEqual(selection, ("auto:script.good_morning", {}))
+        def run_routine(connection, item, *, parameters, expect_response, action_results):
+            self.assertEqual(item, {"entity_id": "script.good_morning"})
             order.append("routine")
             action_results.append({"target": "Dining lights", "status": "unverified"})
-            return "Good morning.", "partial", "I couldn't confirm the dining lights."
+            return ExecutionResult("Good morning.", Outcome.PARTIAL), "I couldn't confirm the dining lights."
 
         def turn_lights(phrase, *, action_results, last_lights, origin_device):
             self.assertEqual(phrase, "turn on the fairy lights")
@@ -114,7 +115,7 @@ class ChainingTests(TestCase):
         with ExitStack() as stack:
             stack.enter_context(patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": "test-token"}))
             stack.enter_context(patch.object(server, "select_routine", side_effect=lambda phrase, origin: ("auto:script.good_morning", {}) if phrase in {"good morning", "run good morning"} else None))
-            stack.enter_context(patch.object(server, "execute_routine", side_effect=run_routine))
+            stack.enter_context(patch.object(server.script_discovery, "execute_result", side_effect=run_routine))
             stack.enter_context(patch.object(server, "handle_light_request", side_effect=turn_lights))
             stack.enter_context(patch.object(server, "SESSIONS", server.OrderedDict()))
             history = stack.enter_context(patch.object(server.history, "record"))

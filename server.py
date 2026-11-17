@@ -461,6 +461,17 @@ def preview_routine(phrase, origin=None):
 def execute_routine_result(selection, action_results, *, approved=False):
     """Typed execution result for local routine selection with optional status."""
     from local_outcome_contracts import routine_execution_result
+    period, options = selection
+    if period.startswith("auto:"):
+        if options.get("_declan_background"):
+            return script_discovery.enqueue_result(
+                ha_device_connection(), period[5:],
+                {key: value for key, value in options.items() if not key.startswith("_declan_")})
+        return script_discovery.execute_result(
+            ha_device_connection(), {"entity_id": period[5:]},
+            parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
+            expect_response=options.get("_declan_expect_response", False),
+            action_results=action_results)
     result = (execute_routine(selection, action_results, approved=True)
               if approved else execute_routine(selection, action_results))
     return routine_execution_result(result)
