@@ -2,16 +2,75 @@
 from contextlib import closing, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
+from dataclasses import dataclass
+from enum import StrEnum
 from functools import wraps
 import json
 from pathlib import Path
 import secrets
 import sqlite3
 from time import monotonic, time
+from typing import Any
+
+from execution_results import ExecutionResult, Outcome, parse_outcome
 
 DATABASE = Path(__file__).resolve().parent / '.data' / 'diagnostics.sqlite3'
 ACTIVE = ContextVar('declan_request_trace', default=None)
 RETENTION = 7 * 86400
+
+
+class DiagnosticOutcome(StrEnum):
+    UNKNOWN = 'unknown'
+    COMPLETED = 'completed'
+    FAILED = 'failed'
+
+
+@dataclass(frozen=True)
+class DiagnosticResult:
+    status: DiagnosticOutcome | Outcome | None
+    wire_value: Any
+
+    def __post_init__(self):
+        if self.status is not None:
+            if not isinstance(self.status, (DiagnosticOutcome, Outcome)):
+                raise TypeError('status must be a diagnostic or execution outcome')
+            if self.wire_value != self.status.value:
+                raise ValueError('wire outcome must match its recognized status')
+
+    @classmethod
+    def from_value(cls, value) -> 'DiagnosticResult':
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            try:
+                status = DiagnosticOutcome(value)
+                return cls(status, status.value)
+            except ValueError:
+                outcome = parse_outcome(value)
+                if outcome is not None:
+                    return cls(outcome, outcome.value)
+        return cls(None, value)
+
+
+def set_outcome(trace, value):
+    result = DiagnosticResult.from_value(value)
+    trace['outcome'] = result.wire_value
+
+
+def outcome_result(trace) -> DiagnosticResult:
+    return DiagnosticResult.from_value(trace.get('outcome'))
+
+
+def timed_result(value) -> DiagnosticResult:
+    if isinstance(value, ExecutionResult):
+        return DiagnosticResult.from_value(value.outcome)
+    if isinstance(value, tuple) and value and isinstance(value[0], ExecutionResult):
+        return DiagnosticResult.from_value(value[0].outcome)
+    if isinstance(value, tuple) and len(value) > 1 and isinstance(value[1], str):
+        return DiagnosticResult.from_value(value[1])
+    if isinstance(value, bool):
+        return DiagnosticResult.from_value(Outcome.CONFIRMED if value else Outcome.UNVERIFIED)
+    return DiagnosticResult.from_value(DiagnosticOutcome.COMPLETED)
 
 
 def current_id():
@@ -22,21 +81,23 @@ def current_id():
 @contextmanager
 def request(route):
     trace = {'id': secrets.token_hex(12), 'route': route, 'created_at': time(),
-             'stages': [], 'outcome': 'unknown'}
+             'stages': []}
+    set_outcome(trace, DiagnosticOutcome.UNKNOWN)
     token = ACTIVE.set(trace)
     trace['_started'] = monotonic()
     try:
         yield trace
     except Exception:
-        trace['outcome'] = 'failed'
+        set_outcome(trace, DiagnosticOutcome.FAILED)
         raise
     finally:
-        if '_saved' not in trace or trace['outcome'] == 'failed':
+        if '_saved' not in trace or outcome_result(trace).status is DiagnosticOutcome.FAILED:
             persist(trace)
         ACTIVE.reset(token)
 
 
 def persist(trace):
+    set_outcome(trace, outcome_result(trace))
     trace['duration_ms'] = round((monotonic() - trace['_started']) * 1000)
     try:
         DATABASE.parent.mkdir(parents=True, exist_ok=True)
@@ -56,18 +117,19 @@ def persist(trace):
 def stage(name):
     trace = ACTIVE.get()
     started = monotonic()
-    entry = {'stage': name, 'outcome': 'completed'}
+    entry = {'stage': name}
+    set_outcome(entry, DiagnosticOutcome.COMPLETED)
     try:
         yield entry
     except Exception as error:
-        entry['outcome'] = 'failed'
+        set_outcome(entry, DiagnosticOutcome.FAILED)
         # Deliberately omit exception text: URLs and headers may contain secrets.
         entry['error'] = type(error).__name__
         raise
     finally:
         entry['duration_ms'] = round((monotonic() - started) * 1000)
         if trace is not None and len(trace['stages']) < 80:
-            trace['stages'].append(entry)
+            trace['stages'].append({key: value for key, value in entry.items() if not key.startswith('_')})
 
 
 def timed(name):
@@ -76,10 +138,7 @@ def timed(name):
         def wrapped(*args, **kwargs):
             with stage(name) as entry:
                 result = function(*args, **kwargs)
-                if isinstance(result, tuple) and len(result) > 1 and isinstance(result[1], str):
-                    entry['outcome'] = result[1]
-                elif isinstance(result, bool):
-                    entry['outcome'] = 'confirmed' if result else 'unverified'
+                set_outcome(entry, timed_result(result))
                 return result
         return wrapped
     return decorate

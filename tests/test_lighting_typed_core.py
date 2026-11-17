@@ -1,12 +1,20 @@
 """Typed lighting intent provider and backwards-compatible responses."""
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import lighting_intents
 from execution_results import ExecutionResult, Outcome
 
 
 class LightingTypedCoreTests(unittest.TestCase):
+    def test_local_validation_constructs_enum_result_without_legacy_adapter(self):
+        with patch.object(lighting_intents, "_lighting_result", side_effect=AssertionError("legacy pair")), \
+             patch.object(lighting_intents, "ExecutionResult", wraps=ExecutionResult) as model:
+            result = lighting_intents.handle_light_request_result(
+                "set kitchen lights to 101 percent", parse_light_command=Mock(), set_lights=Mock())
+        self.assertIs(result.outcome, Outcome.UNRESOLVED)
+        self.assertIs(model.call_args.args[1], Outcome.UNRESOLVED)
+
     def test_unmatched_phrase_returns_none(self):
         parser = Mock(return_value=None)
         self.assertIsNone(lighting_intents.handle_light_request_result(

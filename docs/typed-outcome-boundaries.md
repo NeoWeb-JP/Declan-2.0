@@ -239,8 +239,24 @@ directly rather than passing new string pairs through the compatibility adapter.
 The public timer API still returns its original pair or `None`; timer persistence,
 expiry and cancellation semantics are unchanged.
 
-Issue #17 and its overall typed-outcome checklist remain open. Remaining source
-audit scope includes diagnostic trace outcomes, which have an independent
-vocabulary, and a final review of compatibility adapters across the migrated
-providers. Broader evidence statuses must not be silently narrowed to verified
-`ActionStatus`.
+Diagnostics now interprets outcomes with frozen `DiagnosticResult` values,
+separating timing-only `DiagnosticOutcome` values from execution `Outcome`
+members. Timed functions recognize typed execution results and typed result/detail
+pairs as well as legacy tuples and booleans, returning the original value
+unchanged. Live request/stage mappings, SQLite payloads and HTTP exports retain
+plain outcomes, including unknown future strings. Error names remain redacted,
+stage/retention bounds remain unchanged, and failures after early saves replace
+the earlier request outcome.
+
+The compatibility review also converted the remaining mapped custom-routine
+completion decisions to `ScriptProviderResult`, preserving their narrower
+accepted vocabulary and required-step checks. Local lighting-intent validation
+replies now construct enum-backed execution results directly. The remaining
+`_lighting_result` calls adapt injected executors; public pair/triple adapters and
+external protocol/state comparisons are intentional compatibility boundaries.
+
+Issue #17 and its overall typed-outcome checklist remain open. The audit found
+one further shared provider contract: `ha_inventory.read` returns inventory/error
+pairs consumed by lighting and music inventory readers. That transport/result
+boundary still requires a typed core and compatibility adapters. Broader evidence
+statuses must not be silently narrowed to verified `ActionStatus`.

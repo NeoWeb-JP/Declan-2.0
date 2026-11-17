@@ -532,19 +532,18 @@ def run_custom_routine_result(name, action_results=None, *, approved=False, para
             value = value[script]
         if not isinstance(value, dict) or value.get("request_id") != request_id or value.get("routine_id") != script:
             return ExecutionResult(f"{name} was requested, but completion was not verified.", Outcome.UNVERIFIED), None
-        status = value.get("outcome")
-        if status not in {"started", "success", "partial", "failed", "cancelled"}:
+        provider_result = ScriptProviderResult.parse(value.get("outcome"))
+        status = provider_result.outcome
+        if status not in {ScriptReportedOutcome.STARTED, ScriptReportedOutcome.SUCCESS,
+                          ScriptReportedOutcome.PARTIAL, ScriptReportedOutcome.FAILED, ScriptReportedOutcome.CANCELLED}:
             return ExecutionResult(f"{name} returned no verified completion outcome.", Outcome.UNVERIFIED), None
         steps = routine_action_results_typed(value.get("steps"))
         if action_results is not None:
             extend_action_evidence(action_results, steps)
         required = [step for step in steps if step.required is not False]
-        if status == "success" and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(not step.completed for step in required)):
+        if status is ScriptReportedOutcome.SUCCESS and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(not step.completed for step in required)):
             return ExecutionResult(f"{name} was started, but required steps were not verified.", Outcome.UNVERIFIED), None
-        outcome = {"started": Outcome.STARTED, "success": Outcome.REPORTED_SUCCESS,
-                   "partial": Outcome.PARTIAL, "failed": Outcome.FAILED,
-                   "cancelled": Outcome.CANCELLED}[status]
-        return ExecutionResult(f"{name} {status}.", outcome), None
+        return ExecutionResult(f"{name} {status}.", provider_result.execution_outcome), None
 
 
 def chained_outcome(routine, lighting):
@@ -1842,8 +1841,8 @@ class Handler(BaseHTTPRequestHandler):
             data, self._page_nonce = secure_page(data)
         trace = diagnostics.ACTIVE.get()
         if trace is not None:
-            if trace['outcome'] == 'unknown':
-                trace['outcome'] = 'failed' if status >= 400 else 'completed'
+            if diagnostics.outcome_result(trace).status is diagnostics.DiagnosticOutcome.UNKNOWN:
+                diagnostics.set_outcome(trace, diagnostics.DiagnosticOutcome.FAILED if status >= 400 else diagnostics.DiagnosticOutcome.COMPLETED)
             diagnostics.persist(trace)
         # Record useful request outcomes without logging request bodies,
         # tokens, query strings or routine transcripts.
@@ -1869,7 +1868,8 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self, status, data):
         trace = diagnostics.ACTIVE.get()
         if trace is not None:
-            trace['outcome'] = data.get('outcome') or ('failed' if status >= 400 else 'completed')
+            diagnostics.set_outcome(trace, data.get('outcome') or (
+                diagnostics.DiagnosticOutcome.FAILED if status >= 400 else diagnostics.DiagnosticOutcome.COMPLETED))
             data = {**data, 'diagnostic_id': trace['id']}
         self.send_body(status, json.dumps(data).encode(), "application/json")
 

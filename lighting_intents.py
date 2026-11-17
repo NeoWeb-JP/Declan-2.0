@@ -1,7 +1,7 @@
 """Lighting phrase handling with injected parser and execution dependencies."""
 import re
 
-from execution_results import ExecutionResult
+from execution_results import ExecutionResult, Outcome
 
 
 def _lighting_result(value):
@@ -39,11 +39,11 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
             contextual = contextual.replace("make it ", "make the lights ", 1)
         command = parse_light_command(contextual)
         if command is None or re.search(r"\b(?:actually|i mean|turn|make|except)\b", command[0]):
-            return _lighting_result(("Please give me one lighting action for this room.", "unresolved"))
+            return ExecutionResult("Please give me one lighting action for this room.", Outcome.UNRESOLVED)
         if origin_device is None:
-            return _lighting_result(("Which room do you mean? I can't identify a room for this request.", "unresolved"))
+            return ExecutionResult("Which room do you mean? I can't identify a room for this request.", Outcome.UNRESOLVED)
         if command[0] == "some lights" and command[1] != "on":
-            return _lighting_result(("Please name the lights you want to change in this room.", "unresolved"))
+            return ExecutionResult("Please name the lights you want to change in this room.", Outcome.UNRESOLVED)
         return _lighting_result(set_lights(*command, preview=bool(preview), action_results=action_results,
                           origin_device=origin_device))
     follow_up = (
@@ -56,13 +56,13 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
         if direction in ("it", "them"):
             pronoun, direction = direction, pronoun
         if not last_lights or (pronoun == "it") != (len(last_lights) == 1):
-            return _lighting_result(("Which light or room do you mean?", "unresolved"))
+            return ExecutionResult("Which light or room do you mean?", Outcome.UNRESOLVED)
         return _lighting_result(set_lights(" and ".join(last_lights), "brighter" if direction == "lighter" else direction,
                           preview=bool(preview), require_all=True, action_results=action_results))
     parts = re.split(r"[ ,;]+(?:actually|no[ ,]+i mean|i mean|no(?=,))\b[ ,:;]*", phrase)
     corrected = len(parts) > 1
     if corrected and re.search(r"(?:^|\s)(?:and|then|as well as|in the|except(?: the)?)$", parts[-1]):
-        return _lighting_result(("Please finish the corrected light command.", "unresolved"))
+        return ExecutionResult("Please finish the corrected light command.", Outcome.UNRESOLVED)
     brightness = None
     relative_step = 10
     dimming = re.fullmatch(r"(?:set|dim) (?:the )?(.+?) to\s+([+-]?\d+)\s*(?:percent|per cent|%)", parts[-1])
@@ -70,14 +70,14 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
     if dimming:
         brightness = int(dimming[2])
         if not 0 <= brightness <= 100:
-            return _lighting_result(("Please choose a brightness from 0 to 100 percent.", "unresolved"))
+            return ExecutionResult("Please choose a brightness from 0 to 100 percent.", Outcome.UNRESOLVED)
         if re.search(r"\bturn (?:on|off)\b", dimming[1]):
-            return _lighting_result(("Please give the brightness and on/off changes as separate commands.", "unresolved"))
+            return ExecutionResult("Please give the brightness and on/off changes as separate commands.", Outcome.UNRESOLVED)
         command = dimming[1], "on" if brightness else "off"
     elif adjustment:
         relative_step = int(adjustment[3])
         if not 1 <= relative_step <= 100:
-            return _lighting_result(("Please choose a brightness change from 1 to 100 percent.", "unresolved"))
+            return ExecutionResult("Please choose a brightness change from 1 to 100 percent.", Outcome.UNRESOLVED)
         command = adjustment[2], "darker" if adjustment[1] == "dim" else "brighter"
     else:
         command = parse_light_command(parts[-1])
@@ -90,9 +90,9 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
             command = replacement, previous[1]
     if command is None:
         if corrected:
-            return _lighting_result(("Please say the corrected light command in full.", "unresolved"))
+            return ExecutionResult("Please say the corrected light command in full.", Outcome.UNRESOLVED)
         if preview:
-            return _lighting_result(("Please give me a lighting command to preview.", "unresolved"))
+            return ExecutionResult("Please give me a lighting command to preview.", Outcome.UNRESOLVED)
         return None
     return _lighting_result(set_lights(*command, brightness=brightness or None, preview=bool(preview),
                       require_all=corrected, action_results=action_results, relative_step=relative_step))
