@@ -38,9 +38,7 @@ jobs:
           # The blocking check above already rejects all available source-level
           # diagnostics. This separate check inventories imports unavailable in
           # the minimal audit environment (not production type regressions).
-          python -m mypy --config-file mypy.ini --show-error-codes \
-            --disable-error-code attr-defined \
-            --disable-error-code misc .
+          python -m mypy --config-file mypy.ini --show-error-codes .
       - name: Bandit security scan
         run: bandit -r . -x ./tests,./.git -q
       - name: Audit tracked requirements files
