@@ -24,6 +24,7 @@ class HandledCommand:
     information_context: object = None
     routine_follow_on: str | None = None
     routine_reply: str | None = None
+    routine_selection: object = None
 
 
 @dataclass(frozen=True)
@@ -229,7 +230,7 @@ def routine_registry(*, select, execute, action_results, origin):
         reply, outcome, status = execute(routine, action_results)
         return HandledCommand("routine", ExecutionResult(reply, outcome),
                               routine_status=status, routine_follow_on=follow_on,
-                              routine_reply=reply)
+                              routine_reply=reply, routine_selection=selection)
 
     return HandlerRegistry((Handler("routine", 0,
         lambda context: select(context.phrase, origin), run),))
