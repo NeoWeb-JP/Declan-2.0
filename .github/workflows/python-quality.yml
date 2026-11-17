@@ -53,9 +53,9 @@ jobs:
             echo
             echo "<details><summary>First 20 missing-import diagnostics</summary>"
             echo
-            echo '\`\`\`text'
+            echo '```text'
             grep '\[import-not-found\]' mypy-advisory.log | head -n 20 || true
-            echo '\`\`\`'
+            echo '```'
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$result"
