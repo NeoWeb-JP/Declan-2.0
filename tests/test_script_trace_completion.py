@@ -8,6 +8,23 @@ import script_discovery
 
 
 class TraceCompletionTests(unittest.TestCase):
+    def test_discovered_provider_outcome_normalization_and_unknown_values(self):
+        for outcome, expected in (("SUCCESS", "reported_success"), ("partial", "partial"),
+                ("failed", "failed"), ("cancelled", "cancelled"), ("started", "started"),
+                ("busy", "busy"), ("unknown", "unverified"), ([], "unverified"),
+                ("new_outcome", "unverified")):
+            with self.subTest(outcome=outcome):
+                result, calls = self.execute(data={"outcome": outcome, "steps": [{"target": "light", "status": "confirmed"}]})
+                self.assertEqual(result[1], expected)
+                self.assertEqual(len(calls), 1)
+
+    def test_trace_protocol_unknown_or_malformed_status_never_claims_success(self):
+        for status in ("skipped", "unverified", "finished", "FINISHED_UNVERIFIED", [], None):
+            with self.subTest(status=status):
+                result, calls = self.execute(status=status)
+                self.assertEqual(result[1], "unverified")
+                self.assertEqual([call.get_method() for call in calls], ["POST", "GET"])
+
     def execute(self, status="finished_unverified", *, contexts=("context1",), expect_response=False,
                 evidence_override=None, data=None, error=None):
         script = {"entity_id": "script.dinner", "name": "Dinner", "fields": []}

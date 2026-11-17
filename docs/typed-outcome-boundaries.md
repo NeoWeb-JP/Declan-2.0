@@ -202,8 +202,19 @@ no recognized enum interpretation and retain their original wire values, metadat
 and steps. Serialization returns detached copies, preserving storage compatibility
 and existing review identifiers without promoting unknown evidence to success.
 
-Issue #17 and its overall typed-outcome checklist remain open. The scoped HA
-trace/job readback migration is implemented; remaining follow-up is a repository
-audit of other internal outcome contracts and legacy adapters before considering
-the wider migration complete. Broader evidence statuses must not be silently
-narrowed to verified `ActionStatus`.
+Backend script completion now parses external values into frozen
+`ScriptProviderResult` values and dedicated `ScriptReportedOutcome` members
+before discovered-script or mapped-routine execution decisions. Discovered
+scripts retain their lowercase normalization; mapped routines retain exact-value
+matching. Required-step downgrades, direction/correlation guards, speech and
+legacy result triples remain unchanged. Correlated trace lookup similarly parses
+the independent trace-provider vocabulary before selecting an execution result;
+unknown or malformed trace statuses never establish completion.
+
+Issue #17 and its overall typed-outcome checklist remain open. The wider source
+audit identified remaining string contracts in script discovery/matching
+(`discover`, `match`, and their selection consumers), plus outcome comparisons in
+response composition/decorators (`response_composition.py`,
+`routine_responses.py`) and session/finalization helpers. These remain explicit
+follow-up scope. Broader evidence statuses must not be silently narrowed to
+verified `ActionStatus`.
