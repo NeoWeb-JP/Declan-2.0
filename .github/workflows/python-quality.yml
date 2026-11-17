@@ -50,6 +50,13 @@ jobs:
             echo "- Missing runtime imports: ${missing}"
             echo "- Other type diagnostics: ${other}"
             echo "- Exit status: ${result} (advisory; blocking check runs above)"
+            echo
+            echo "<details><summary>First 20 missing-import diagnostics</summary>"
+            echo
+            echo '\`\`\`text'
+            grep '\[import-not-found\]' mypy-advisory.log | head -n 20 || true
+            echo '\`\`\`'
+            echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$result"
       - name: Bandit security scan
