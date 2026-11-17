@@ -82,6 +82,8 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_SENSITIVE_ROUTINES | Defaults to `night,guest`; explicitly empty disables legacy group defaults | Comma-separated values are trimmed, case-folded and deduplicated; explicitly saved routine policies take precedence | `tests/test_sensitive_environment_boundaries.py` |
 | DECLAN_TRUSTED_SPEAKERS | Missing or empty means no speaker is trusted by the legacy confirmation gate | Names are trimmed and case-folded; membership also requires numeric confidence from 0.85 through 1.0, excluding booleans | `tests/test_sensitive_environment_boundaries.py` |
 | DECLAN_TRUSTED_RELEASES | Defaults to `/etc/declan/trusted-releases.json` | Requires an absolute POSIX path and a root-owned, non-group/world-writable, non-symlink file and parent chain; malformed allow-list content fails closed | `tests/test_trusted_releases_environment.py` |
+| DECLAN_HA_URL, DECLAN_HA_TOKEN | Missing or blank credentials yield an unconfigured status, or a recent-Assist fallback; guest and visitor state are unknown | URL is trimmed and must use HTTP(S) without embedded credentials, query or fragment; invalid settings fail before network access | `tests/test_ha_status_environment_defaults.py`, `tests/test_ha_presence_environment_defaults.py` |
+| DECLAN_VISITORS_ENTITY | Uses the persisted configuration value or built-in visitor entity default; this is not a direct process-environment read | Only `input_boolean.` IDs with lowercase letters, digits and underscores are accepted; invalid IDs fail before HA requests | `tests/test_visitor_entity_configuration.py` |
 
 The Spotify credential source can also be a persisted settings file, not just
 the process environment. The `DECLAN_WEB_TTS_ENTITY` and
