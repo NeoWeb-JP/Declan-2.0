@@ -69,7 +69,11 @@ class SensitiveConfirmationTests(unittest.TestCase):
         server = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
         decision = Path(__file__).resolve().parents[1].joinpath(
             "sensitive_confirmation_decision.py").read_text()
-        self.assertIn("sensitive_confirmation_decision.evaluate(", server)
+        turn = Path(__file__).resolve().parents[1].joinpath(
+            "sensitive_confirmation_turn.py").read_text()
+        self.assertIn("sensitive_confirmation_turn.confirmation_turn(", server)
+        self.assertIn("evaluate(", turn)
+        self.assertIn("confirmation_response(", turn)
         self.assertIn("confirmations.evaluate(", decision)
         self.assertIn("candidate, None, guest_commands, {}, set()", decision)
         self.assertIn("script_discovery.execute(", server)
