@@ -1,14 +1,50 @@
 """Typed outcome contract regression tests for provider and follow-on boundaries."""
 import unittest
 from dataclasses import FrozenInstanceError
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from execution_results import ExecutionResult, Outcome
 from music_provider_result import music_execution_result
 from routine_follow_on import FollowOnResult, execute
+from routine_follow_on import execute_result
+import routine_follow_on
 
 
 class TypedBoundaryTests(unittest.TestCase):
+    def test_missing_follow_on_results_are_constructed_typed_without_legacy_roundtrips(self):
+        original_init = ExecutionResult.__post_init__
+
+        def require_enum(result):
+            self.assertIsInstance(result.outcome, Outcome)
+            original_init(result)
+
+        for phrase, fragment in (("play nonsense", "Tell me where to play the music."),
+                                 ("turn on mystery", "couldn't understand the lighting command")):
+            with self.subTest(phrase=phrase):
+                routine = ExecutionResult("Routine completed.", Outcome.EXECUTION_COMPLETED)
+                play, connection = Mock(), Mock()
+                lighting = Mock(return_value=None)
+                combine = Mock(return_value=Outcome.PARTIAL)
+                with patch.object(ExecutionResult, "__post_init__", require_enum), \
+                     patch.object(routine_follow_on, "music_execution_result", side_effect=AssertionError("legacy fallback")):
+                    result = execute_result(phrase, routine_result=routine, routine_status=None,
+                        parse_music=lambda _: None, play_music=play, connection=connection,
+                        music_inventory=Mock(), handle_lighting=lighting, last_lights=None,
+                        origin="kitchen", music_origin=None, action_results=[], scope="kitchen",
+                        chained_outcome=combine)
+                self.assertIs(result.result.outcome, Outcome.PARTIAL)
+                self.assertIs(result.routine_voice_result, routine)
+                self.assertIn(fragment, result.result.reply)
+                self.assertEqual(result.lighting_context, ())
+                combine.assert_called_once_with(Outcome.EXECUTION_COMPLETED, Outcome.UNRESOLVED)
+                self.assertIs(combine.call_args.args[1], Outcome.UNRESOLVED)
+                play.assert_not_called()
+                connection.assert_not_called()
+                if phrase.startswith("play "):
+                    lighting.assert_not_called()
+                else:
+                    lighting.assert_called_once()
+
     def test_music_legacy_pair_is_typed(self):
         result = music_execution_result(("Playing", "confirmed"))
         self.assertIs(result.outcome, Outcome.CONFIRMED)

@@ -29,20 +29,24 @@ def execute_result(follow_on, *, routine_result, routine_status,
     light_steps = ActionEvidenceBuffer()
     if follow_on.startswith("play "):
         command = parse_music(follow_on)
-        follow_result = music_execution_result(
-            play_music(command, connection(), music_inventory,
-                       **({"origin": music_origin} if music_origin else {}))
-            if command else ("Tell me where to play the music.", "unresolved")
-        )
+        if command:
+            follow_result = music_execution_result(
+                play_music(command, connection(), music_inventory,
+                           **({"origin": music_origin} if music_origin else {})))
+        else:
+            follow_result = ExecutionResult("Tell me where to play the music.", Outcome.UNRESOLVED)
     else:
         lighting_result = handle_lighting(
             follow_on, action_results=light_steps, last_lights=last_lights,
             origin_device=origin,
         )
-        follow_result = (lighting_result if isinstance(lighting_result, ExecutionResult)
-                         else ExecutionResult(*(lighting_result or (
-                             "I couldn't understand the lighting command after the routine.", "unresolved"
-                         ))))
+        if isinstance(lighting_result, ExecutionResult):
+            follow_result = lighting_result
+        elif lighting_result:
+            follow_result = ExecutionResult(*lighting_result)
+        else:
+            follow_result = ExecutionResult(
+                "I couldn't understand the lighting command after the routine.", Outcome.UNRESOLVED)
     follow_reply, follow_outcome = follow_result.reply, follow_result.outcome
     extend_action_evidence(action_results, light_steps)
     lighting_context = ()
