@@ -38,7 +38,7 @@ BACKEND_MODULES = (
 ENV_READ = re.compile(
     r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.get\s*\(\s*|\[\s*))['"](DECLAN_[A-Z0-9_]+)['"]"""
 )
-DOCUMENTED = re.compile(r"^\\|\\s*`(DECLAN_[A-Z0-9_]+)`\\s*\\|", re.MULTILINE)
+DOCUMENTED = re.compile(r"^\|\s*\`(DECLAN_[A-Z0-9_]+)\`\s*\|", re.MULTILINE)
 
 
 class EnvironmentDocumentationTests(unittest.TestCase):
