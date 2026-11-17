@@ -15,6 +15,7 @@ from tempfile import mkdtemp
 from threading import Event, Lock, Thread
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+from update_results import UpdateJobState, UpdateStatusResult
 
 
 REPOSITORY = "https://github.com/NeoWeb-JP/Declan-2.0.git"
@@ -25,7 +26,7 @@ APP = Path(__file__).resolve().parent
 RESTART = Event()
 _lock = Lock()
 _tags: dict = {}
-_job = {"state": "idle"}
+_job = {"state": UpdateJobState.IDLE.value}
 
 
 def trusted_releases():
@@ -143,9 +144,14 @@ def installed_version(fallback):
     return version if VERSION.fullmatch(version) else fallback
 
 
-def status():
+def status_result() -> UpdateStatusResult:
     with _lock:
-        return {"enabled": layout() is not None, **_job}
+        return UpdateStatusResult({"enabled": layout() is not None, **_job})
+
+
+def status():
+    """Compatibility API retaining plain JSON status fields."""
+    return status_result().to_wire()
 
 
 def version_order(tag):
@@ -182,13 +188,13 @@ def queue(version, current, include_prereleases=False):
     if root is None:
         raise ValueError("Updates are not enabled on this installation.")
     with _lock:
-        if _job["state"] in {"installing", "restarting"}:
+        if UpdateStatusResult({"state": _job["state"]}).active:
             raise ValueError("An update is already in progress.")
         if not isinstance(version, str) or version not in _tags or version == current:
             raise ValueError("Check for updates and select a different release.")
         if _tags[version].get('include_prereleases', False) != include_prereleases:
             raise ValueError('The release channel changed. Check for updates again.')
-        _job.update(state="installing", version=version)
+        _job.update(state=UpdateJobState.INSTALLING.value, version=version)
         selection = dict(_tags[version])
         Thread(target=install, args=(root, version, selection), daemon=True).start()
 
@@ -254,12 +260,12 @@ def install(root, version, expected_ref):
                 pending.unlink(missing_ok=True)
         activated = True
         with _lock:
-            _job.update(state="restarting")
+            _job.update(state=UpdateJobState.RESTARTING.value)
         RESTART.set()
     except (OSError, ValueError, sqlite3.Error, subprocess.SubprocessError) as error:
         print(f"Declan update {version} failed: {type(error).__name__}", flush=True)
         with _lock:
-            _job.update(state="failed")
+            _job.update(state=UpdateJobState.FAILED.value)
     finally:
         if staged is not None and not activated:
             shutil.rmtree(staged, ignore_errors=True)

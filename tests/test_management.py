@@ -215,6 +215,15 @@ class ManagementTests(TestCase):
 
 
 class ManagementAPITests(TestCase):
+    def test_update_status_route_serializes_typed_snapshot_without_legacy_adapter(self):
+        with patch.object(server.updates, "_job", {"state": "failed", "version": "1.2.3", "backup": "saved"}), \
+             patch.object(server.updates, "layout", return_value=None), \
+             patch.object(server.updates, "status", side_effect=AssertionError("legacy status roundtrip")):
+            status, result = self.request('/api/updates/status')
+        self.assertEqual(status, 200)
+        self.assertEqual(result, {"enabled": False, "state": "failed", "version": "1.2.3",
+                                  "backup": "saved", "current": server.RELEASE_VERSION})
+
     def setUp(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
         for module, name in ((history, 'history'), (diagnostics, 'diagnostics'), (voice_profiles, 'voices')):

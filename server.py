@@ -2089,10 +2089,10 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/ha-status":
             self.send_json(200, {"status": home_assistant_status_result().status.value, "release_version": RELEASE_VERSION})
         elif self.path == "/api/updates/status":
-            self.send_json(200, {**updates.status(), "current": RELEASE_VERSION})
+            self.send_json(200, {**updates.status_result().to_wire(), "current": RELEASE_VERSION})
         elif self.path == "/api/updates":
             try:
-                self.send_json(200, {**updates.status(), "current": RELEASE_VERSION, "versions": updates.check()})
+                self.send_json(200, {**updates.status_result().to_wire(), "current": RELEASE_VERSION, "versions": updates.check()})
             except (OSError, ValueError, subprocess.SubprocessError):
                 self.send_json(503, {"error": "Couldn't check GitHub for releases."})
         elif self.path in {"/api/settings/export", "/api/settings/export-learning", "/api/settings/recovery", "/api/settings/recovery-learning"}:
@@ -2516,7 +2516,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     if isinstance(body, dict) and body.get('operation') == 'check':
                         versions = updates.check(body.get('include_prereleases', False))
-                        self.send_json(200, {**updates.status(), 'current': RELEASE_VERSION,
+                        self.send_json(200, {**updates.status_result().to_wire(), 'current': RELEASE_VERSION,
                                              'versions': versions, 'prereleases': updates.prerelease_versions()})
                         return
                     updates.queue(body.get("version") if isinstance(body, dict) else None, RELEASE_VERSION,
