@@ -22,6 +22,24 @@ class EnvironmentReferenceTests(unittest.TestCase):
         self.assertTrue(all(names), "Every environment table row needs a variable name")
         self.assertEqual(len(names), len({match.group(1) for match in names if match}))
 
+    def test_active_example_assignments_have_documented_purposes(self):
+        reference = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
+        example = (ROOT / ".env.example").read_text(encoding="utf-8")
+        rows = dict(
+            (name, purpose.strip())
+            for name, purpose in re.findall(
+                r"^\\| \\x60([A-Z][A-Z0-9_]*)\\x60 \\| ([^|]*) \\|",
+                reference, re.MULTILINE,
+            )
+        )
+        active = re.findall(r"^([A-Z][A-Z0-9_]*)=(.*)$", example, re.MULTILINE)
+        self.assertTrue(active, "Expected configured examples")
+        for name, value in active:
+            with self.subTest(variable=name):
+                self.assertIn(name, rows)
+                self.assertTrue(rows[name], "Document the purpose of each active setting")
+                self.assertNotIn("\\n", value)
+
     def test_example_variables_are_documented(self):
         reference = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
