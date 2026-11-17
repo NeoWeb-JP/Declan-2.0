@@ -91,6 +91,7 @@ import ha_dispatcher
 import routine_registry
 from routine_action_evidence import RoutineActionStatus, parse_routine_actions
 from script_provider_results import ScriptProviderResult, ScriptReportedOutcome
+from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
@@ -361,7 +362,7 @@ HOUSE_STATUS_REQUESTS = {
 }
 
 
-def select_routine(phrase, origin):
+def select_routine_result(phrase, origin) -> RoutineSelection | None:
     """Resolve routine requests exclusively against Home Assistant scripts."""
     phrase = phrase.removeprefix("run ").removeprefix("the ")
     if not 1 <= len(phrase.split()) <= 20:
@@ -369,10 +370,10 @@ def select_routine(phrase, origin):
     is_house_status = phrase in HOUSE_STATUS_REQUESTS
     connection = ha_device_connection()
     if connection is None:
-        return ("unconfigured_house_status", {}) if is_house_status else None
+        return RoutineSelection(RoutineSelectionKind.HOUSE_STATUS_MISSING) if is_house_status else None
     discovery = script_discovery.discover_result(connection)
     if discovery.error is not None:
-        return ("unconfigured_house_status", {}) if is_house_status else None
+        return RoutineSelection(RoutineSelectionKind.HOUSE_STATUS_MISSING) if is_house_status else None
     candidates = [phrase]
     if is_house_status:
         candidates.extend(("house status", "home health summary"))
@@ -395,7 +396,7 @@ def select_routine(phrase, origin):
         found = script_discovery.match_result(candidate, discovery.scripts)
         if found.status is not script_discovery.ScriptMatchStatus.NO_MATCH:
             if found.status is script_discovery.ScriptMatchStatus.AMBIGUOUS:
-                return "auto_ambiguous", {}
+                return RoutineSelection(RoutineSelectionKind.AMBIGUOUS)
             item = found.selected
             # Generic Movie Time is valid for start/end only if HA declares
             # an operation/action field that can distinguish the direction.
@@ -405,7 +406,7 @@ def select_routine(phrase, origin):
             if (SEXY_TIME_COMMANDS.get(phrase) == "end" and candidate == "sexy time"
                     and not set(item.get("fields", [])) & {"operation", "requested_action"}):
                 continue
-            parameters = {}
+            parameters: dict = {}
             if movie:
                 parameters = {"operation": movie[0], "movie_action": movie[0],
                               "action": movie[0], "room": movie[1] or "lounge",
@@ -426,40 +427,51 @@ def select_routine(phrase, origin):
                 parameters["_declan_expect_response"] = True
             if {"dinner", "dinner is served"} & script_discovery.phrases(item):
                 parameters["_declan_reply_category"] = "dinner"
-            return "auto:" + item["entity_id"], parameters
+            return RoutineSelection(RoutineSelectionKind.SCRIPT, item["entity_id"], parameters)
     if is_house_status:
-        return "unconfigured_house_status", {}
+        return RoutineSelection(RoutineSelectionKind.HOUSE_STATUS_MISSING)
     return None
 
 
-def select_routine_turn(phrase, origin):
+def select_routine(phrase, origin):
+    result = select_routine_result(phrase, origin)
+    return RoutineSelection.coerce(result).as_legacy_pair() if result is not None else None
+
+
+def select_routine_turn_result(phrase, origin) -> RoutineTurnSelection | None:
     for join in re.finditer(r"(?:,\s*|\s+)(?:and then|and|then) (?=turn |make |set |dim |play )", phrase):
         follow_on = phrase[join.end():]
         if follow_on.startswith("play ") and parse_movie_request(phrase[:join.start()].removeprefix("run ")):
             continue
-        if routine := select_routine(phrase[:join.start()], origin):
-            return routine, follow_on
-    routine = select_routine(phrase, origin)
-    return (routine, None) if routine else None
+        if routine := select_routine_result(phrase[:join.start()], origin):
+            return RoutineTurnSelection(RoutineSelection.coerce(routine), follow_on)
+    routine = select_routine_result(phrase, origin)
+    return RoutineTurnSelection(RoutineSelection.coerce(routine)) if routine is not None else None
+
+
+def select_routine_turn(phrase, origin):
+    result = select_routine_turn_result(phrase, origin)
+    return RoutineTurnSelection.coerce(result).as_legacy_pair() if result is not None else None
 
 
 
 def preview_routine_result(phrase, origin=None):
     """Read-only preview of a Home Assistant script; never dispatch actions."""
-    selection = select_routine_turn(phrase, origin)
+    selection = select_routine_turn_result(phrase, origin)
     if not selection:
         return ExecutionResult("I couldn't find that script in Home Assistant. Nothing has been run.", Outcome.UNRESOLVED)
-    (kind, options), follow_on = selection
-    if follow_on:
+    selection = RoutineTurnSelection.coerce(selection)
+    routine = selection.routine
+    if selection.follow_on:
         return ExecutionResult("I cannot preview chained commands yet. Nothing has been run.", Outcome.UNRESOLVED)
-    if kind == "auto_ambiguous":
+    if routine.kind is RoutineSelectionKind.AMBIGUOUS:
         return ExecutionResult("Several Home Assistant scripts match. Nothing has been run.", Outcome.UNRESOLVED)
-    if kind == "unconfigured_house_status":
+    if routine.kind is RoutineSelectionKind.HOUSE_STATUS_MISSING:
         return ExecutionResult("I couldn't find a House Status script in Home Assistant. Nothing has been run.", Outcome.NOT_CONFIGURED)
-    if not kind.startswith("auto:"):
+    if routine.kind is not RoutineSelectionKind.SCRIPT:
         return ExecutionResult("I couldn't identify a Home Assistant script. Nothing has been run.", Outcome.UNRESOLVED)
-    script = kind[5:]
-    variables = ", ".join(f"{key}={value}" for key, value in options.items())
+    script = routine.entity_id
+    variables = ", ".join(f"{key}={value}" for key, value in routine.options.items())
     detail = f" with {variables}" if variables else ""
     return ExecutionResult(f"Preview: I would request Home Assistant script {script}{detail}. "
             "The script's internal actions and final reply cannot be predicted without running it. "
@@ -468,20 +480,21 @@ def preview_routine_result(phrase, origin=None):
 
 def execute_routine_result(selection, action_results, *, approved=False):
     """Typed execution result for local routine selection with optional status."""
-    period, options = selection
-    if period.startswith("auto:"):
+    selection = RoutineSelection.coerce(selection)
+    options = selection.options
+    if selection.kind is RoutineSelectionKind.SCRIPT:
         if options.get("_declan_background"):
             return script_discovery.enqueue_result(
-                ha_device_connection(), period[5:],
+                ha_device_connection(), selection.entity_id,
                 {key: value for key, value in options.items() if not key.startswith("_declan_")})
         return script_discovery.execute_result(
-            ha_device_connection(), {"entity_id": period[5:]},
+            ha_device_connection(), {"entity_id": selection.entity_id},
             parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
             expect_response=options.get("_declan_expect_response", False),
             action_results=action_results)
-    if period == "auto_ambiguous":
+    if selection.kind is RoutineSelectionKind.AMBIGUOUS:
         return ExecutionResult("Several Home Assistant scripts match that name. Please use a more specific name.", Outcome.UNRESOLVED), None
-    if period == "unconfigured_house_status":
+    if selection.kind is RoutineSelectionKind.HOUSE_STATUS_MISSING:
         return ExecutionResult("I could not find a House Status script in Home Assistant.", Outcome.NOT_CONFIGURED), None
     return ExecutionResult("I couldn't find that routine in Home Assistant.", Outcome.NOT_CONFIGURED), None
 
@@ -2660,7 +2673,7 @@ class Handler(BaseHTTPRequestHandler):
             satellite=satellite, action_results=action_results,
             registry_factory=command_registry.routine_registry,
             context_factory=command_registry.RequestContext,
-            select=select_routine_turn, execute=execute_routine_result,
+            select=select_routine_turn_result, execute=execute_routine_result,
         ):
             routine_status = routine_dispatch.routine_status
             routine_turn = routine_dispatch.routine_selection

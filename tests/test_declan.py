@@ -114,7 +114,7 @@ class ChainingTests(TestCase):
 
         with ExitStack() as stack:
             stack.enter_context(patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": "test-token"}))
-            stack.enter_context(patch.object(server, "select_routine", side_effect=lambda phrase, origin: ("auto:script.good_morning", {}) if phrase in {"good morning", "run good morning"} else None))
+            stack.enter_context(patch.object(server, 'select_routine_result', side_effect=lambda phrase, origin: ("auto:script.good_morning", {}) if phrase in {"good morning", "run good morning"} else None))
             stack.enter_context(patch.object(server.script_discovery, "execute_result", side_effect=run_routine))
             stack.enter_context(patch.object(server, "handle_light_request_result", side_effect=turn_lights))
             stack.enter_context(patch.object(server, "SESSIONS", server.OrderedDict()))

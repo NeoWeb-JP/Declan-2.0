@@ -71,7 +71,7 @@ class APITests(TestCase):
             self.assertEqual(code, 200, payload)
             self.assertTrue(json.loads(payload)['saved'])
             selection = (("auto:script.good_morning", {"_declan_background": True, "_declan_reply_category": "morning"}), None)
-            with patch.object(server, 'select_routine_turn', return_value=selection), \
+            with patch.object(server, 'select_routine_turn_result', return_value=selection), \
                  patch.object(server.script_discovery, '_enqueue_provider', return_value=('Requested.', 'started', 'job')), \
                  patch.object(server.CAPTURE_ARBITER, 'claim', return_value=True):
                 for path in ('/api/chat', '/api/assist'):
@@ -81,7 +81,7 @@ class APITests(TestCase):
                 with patch.object(server, 'read_visitors_present', return_value=None):
                     self.assertEqual(self.ask('good morning')['reply'], 'A guest morning response.')
                 chained = (selection[0], 'turn on the study light')
-                with patch.object(server, 'select_routine_turn', return_value=chained), \
+                with patch.object(server, 'select_routine_turn_result', return_value=chained), \
                      patch.object(server, 'handle_light_request_result', return_value=('The study light failed.', 'failed')):
                     reply = self.ask('good morning and turn on the study light')
                     self.assertIn('My custom morning response.', reply['reply'])
@@ -137,7 +137,7 @@ class APITests(TestCase):
     def test_morning_receipt_returns_morning_sass_on_browser_and_assist(self):
         selection = (("auto:script.good_morning", {"_declan_background": True,
                       "_declan_reply_category": "morning"}), None)
-        with patch.object(server, "select_routine_turn", return_value=selection), \
+        with patch.object(server, 'select_routine_turn_result', return_value=selection), \
              patch.object(server.script_discovery, "_enqueue_provider", return_value=("Routine requested.", "started", "Background job j")), \
              patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("blocking call")), \
              patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
@@ -151,7 +151,7 @@ class APITests(TestCase):
     def test_morning_receipt_failure_is_not_replaced_by_cheerful_acknowledgement(self):
         selection = (("auto:script.good_morning", {"_declan_background": True,
                       "_declan_reply_category": "morning"}), None)
-        with patch.object(server, "select_routine_turn", return_value=selection), \
+        with patch.object(server, 'select_routine_turn_result', return_value=selection), \
              patch.object(server.script_discovery, "_enqueue_provider", return_value=("Request not confirmed.", "unverified", None)), \
              patch.object(server.personality_policy, "morning_request_reply", side_effect=AssertionError("false acknowledgement")):
             reply = self.ask("good morning")
@@ -164,7 +164,7 @@ class APITests(TestCase):
         self.enterContext(patch.object(server.routine_registry, "load", return_value={}))
         selection = (("auto:script.good_night", {"_declan_background": True,
                       "_declan_reply_category": "night"}), None)
-        with patch.object(server, "select_routine_turn", return_value=selection), \
+        with patch.object(server, 'select_routine_turn_result', return_value=selection), \
              patch.object(server.script_discovery, "_enqueue_provider", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
              patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("blocking call")), \
              patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
@@ -185,7 +185,7 @@ class APITests(TestCase):
                       "_declan_reply_category": "night"}), None)
         with patch.dict(server.os.environ, {"DECLAN_SENSITIVE_ROUTINES": "night,guest"}), \
              patch.object(server.routine_registry, "load", return_value={}), \
-             patch.object(server, "select_routine_turn", return_value=selection), \
+             patch.object(server, 'select_routine_turn_result', return_value=selection), \
              patch.object(server.script_discovery, "_enqueue_provider", return_value=("Routine requested.", "started", "Background job j")) as enqueue, \
              patch.object(server.CAPTURE_ARBITER, "claim", return_value=True):
             prompt = self.ask("goodnight", path="/api/assist")
@@ -199,7 +199,7 @@ class APITests(TestCase):
     def test_night_busy_or_unverified_receipt_never_claims_bedtime_started(self):
         selection = (("auto:script.good_night", {"_declan_background": True,
                       "_declan_reply_category": "night"}), None)
-        with patch.object(server, "select_routine_turn", return_value=selection), \
+        with patch.object(server, 'select_routine_turn_result', return_value=selection), \
              patch.object(server.personality_policy, "night_request_reply", side_effect=AssertionError("false acknowledgement")):
             for outcome in ("busy", "unverified", "failed"):
                 with patch.object(server.script_discovery, "_enqueue_provider", return_value=("Request not accepted.", outcome, None)):
@@ -214,7 +214,7 @@ class APITests(TestCase):
             for action in ("start", "end"):
                 selection = (("auto:script.sexy_time", {"operation": action, "_declan_background": True,
                               "_declan_reply_category": "sexy"}), None)
-                with patch.object(server, "select_routine_turn", return_value=selection):
+                with patch.object(server, 'select_routine_turn_result', return_value=selection):
                     for path in ("/api/chat", "/api/assist"):
                         reply = self.ask(action + " bedroom mood", path=path)
                         self.assertEqual(reply["outcome"], "started")
@@ -227,7 +227,7 @@ class APITests(TestCase):
     def test_sexy_receipt_failure_does_not_get_an_optimistic_reply(self):
         selection = (("auto:script.sexy_time", {"operation": "start", "_declan_background": True,
                       "_declan_reply_category": "sexy"}), None)
-        with patch.object(server, "select_routine_turn", return_value=selection), \
+        with patch.object(server, 'select_routine_turn_result', return_value=selection), \
              patch.object(server.personality_policy, "sexy_request_reply", side_effect=AssertionError("false acknowledgement")):
             for outcome in ("busy", "unverified", "not_configured", "failed"):
                 with patch.object(server.script_discovery, "_enqueue_provider", return_value=("Request not accepted.", outcome, None)):
@@ -317,7 +317,7 @@ class APITests(TestCase):
             self.assertEqual(status, 200)
             return json.loads(payload)
         from execution_results import ExecutionResult, Outcome
-        with patch.object(server, "select_routine", return_value=("auto:script.dinner", {})), \
+        with patch.object(server, 'select_routine_result', return_value=("auto:script.dinner", {})), \
              patch.object(server.script_discovery, "execute_result",
                           return_value=(ExecutionResult("Dinner ready.", Outcome.REQUESTED), None)) as dinner:
             with ThreadPoolExecutor(max_workers=2) as pool:

@@ -279,6 +279,15 @@ projected boolean flag remain compatible. Public summary mappings and durable
 job payloads still contain the original plain strings and booleans. Direct legacy
 summary construction with mapping rows remains supported at serialization.
 
+Routine selection now uses frozen `RoutineSelection` and `RoutineTurnSelection`
+values with a dedicated `RoutineSelectionKind` enum. Script, ambiguity,
+missing-House-Status and unsupported selections remain distinct through active
+selection, preview and execution decisions. The registry passes typed selections
+to the active executor and projects legacy tuples only for existing response
+metadata. Legacy selection/turn APIs, injected tuple selectors/executors,
+follow-on parsing and reply wording remain compatible. Selection options are
+detached at construction and when exposed through legacy adapters.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

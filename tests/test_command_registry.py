@@ -166,7 +166,7 @@ class HTTPRegistryTests(TestCase):
         self.enterContext(patch.object(server,"SESSIONS",server.OrderedDict()))
         self.enterContext(patch.object(server,"read_guest_mode",return_value="off"))
         self.enterContext(patch.object(server,"read_visitors_present",return_value=False))
-        self.enterContext(patch.object(server,"select_routine_turn",return_value=None))
+        self.enterContext(patch.object(server,'select_routine_turn_result',return_value=None))
         self.enterContext(patch.object(server.conditions,"handle_result",return_value=None))
         self.enterContext(patch.object(server.timers,"handle",return_value=None))
 
