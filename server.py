@@ -2042,6 +2042,16 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/health":
             ready = health_readiness.database_ready()
             self.send_json(200 if ready else 503, {"status": "ok" if ready else "unavailable"})
+        elif self.path == "/health/dependencies":
+            database_ready = health_readiness.database_ready()
+            ha_status = home_assistant_status()
+            ha_ready = ha_status in {"connected", "assist_recent"}
+            ready = database_ready and ha_ready
+            self.send_json(200 if ready else 503, {
+                "status": "ok" if ready else "unavailable",
+                "database": "ok" if database_ready else "unavailable",
+                "home_assistant": ha_status,
+            })
         elif self.path == "/api/capabilities":
             self.send_json(200, {
                 "api_version": "1.0",
