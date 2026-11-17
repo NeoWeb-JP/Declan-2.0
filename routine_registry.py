@@ -4,7 +4,6 @@ No routine execution happens when mappings are created or imported.
 """
 import json
 import re
-import sqlite3
 import history
 
 SCRIPT = re.compile(r"script\.[a-z0-9_]+\Z")
