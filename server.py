@@ -48,6 +48,7 @@ import retry_cancellation
 import learned_intent_resolution
 import sensitive_confirmation_response
 import sensitive_confirmation_decision
+import sensitive_confirmation_turn
 import routine_preview_detection
 import guest_assignment_command
 import roast_command_dispatch
@@ -2504,24 +2505,25 @@ class Handler(BaseHTTPRequestHandler):
         # HA owns script permissions. Guest assignment is a separate privileged
         # action and retains its existing voice confirmation protection.
         routine_approved = True
-        if source == "assist":
-            session_id, decision, approved_phrase = sensitive_confirmation_decision.evaluate(
-                message, phrase, session_id, satellite=satellite,
-                origin_device=origin_device, speaker=body.get("speaker"),
+        session_id, confirmed_phrase, confirmation_reply = (
+            sensitive_confirmation_turn.confirmation_turn(
+                message, phrase, session_id, source=source,
+                satellite=satellite, origin_device=origin_device,
+                speaker=body.get("speaker"),
+                evaluate=sensitive_confirmation_decision.evaluate,
+                confirmation_response=sensitive_confirmation_response.confirmation_response,
                 normalize=history.normalize_phrase, guest_commands=GUEST_COMMANDS,
                 confirmations=SENSITIVE_CONFIRMATIONS,
+                record=history.record, diagnostic_id=diagnostics.current_id,
+                log_error=self.log_error,
             )
-            confirmation_reply = sensitive_confirmation_response.confirmation_response(
-                decision, session_id, source=source, message=message,
-                speaker=body.get("speaker"), record=history.record,
-                diagnostic_id=diagnostics.current_id, log_error=self.log_error,
-            )
-            if confirmation_reply is not None:
-                self.send_json(200, confirmation_reply)
-                return
-            if decision == "confirmed":
-                phrase = approved_phrase
-                effective_message = approved_phrase
+        )
+        if confirmation_reply is not None:
+            self.send_json(200, confirmation_reply)
+            return
+        if confirmed_phrase != phrase:
+            phrase = confirmed_phrase
+            effective_message = confirmed_phrase
         preview_phrase = routine_preview_detection.routine_preview_phrase(phrase)
         routine_preview = (
             preview_routine(preview_phrase, origin_device or satellite)
