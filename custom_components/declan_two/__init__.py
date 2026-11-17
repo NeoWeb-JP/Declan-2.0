@@ -189,7 +189,12 @@ async def async_setup_entry(hass, entry):
             await _forward_assist_history(hass, entry, data)
 
     hass.data.setdefault("declan_two", {})["record_assist_reply"] = record_internal_reply
-    entry.async_on_unload(lambda: hass.data.get("declan_two", {}).pop("record_assist_reply", None))
+    def unregister_internal_reply():
+        callbacks = hass.data.get("declan_two", {})
+        if callbacks.get("record_assist_reply") is record_internal_reply:
+            callbacks.pop("record_assist_reply", None)
+
+    entry.async_on_unload(unregister_internal_reply)
 
     entry.async_on_unload(hass.bus.async_listen("declan_two_assist_reply", record_assist_reply))
     return True
