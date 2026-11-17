@@ -110,6 +110,23 @@ class EnvironmentDocumentationTests(unittest.TestCase):
         duplicates = sorted({key for key in entries if entries.count(key) > 1})
         self.assertEqual(duplicates, [], "Each environment setting needs one inventory row")
 
+    def test_example_environment_keys_have_no_unrecognized_names(self):
+        """Catch typoed configuration keys that the application will ignore."""
+        example = (ROOT / ".env.example").read_text(encoding="utf-8")
+        assigned = set(re.findall(
+            r"^\\s*#?\\s*([A-Z][A-Z0-9_]*)\\s*=",
+            example,
+            re.MULTILINE,
+        ))
+        documented = set(DOCUMENTED.findall(
+            (ROOT / "docs/environment.md").read_text(encoding="utf-8")
+        ))
+        self.assertEqual(
+            sorted(assigned - documented),
+            [],
+            "Every .env.example assignment must have a documented environment key",
+        )
+
     def test_example_environment_keys_are_documented(self):
         documented = set(DOCUMENTED.findall((ROOT / "docs/environment.md").read_text(encoding="utf-8")))
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
