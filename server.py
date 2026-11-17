@@ -56,6 +56,7 @@ import stop_result_response
 import roast_guest_dispatch
 import routine_registry_dispatch
 import routine_follow_on_dispatch
+import information_result_response
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2604,8 +2605,11 @@ class Handler(BaseHTTPRequestHandler):
                 decorate=add_sass, guest_mode=read_guest_mode,
             )
             if information_result:
-                routine_reply, outcome = information_result.result.as_legacy_pair()
-                information_context = information_result.information_context
+                routine_reply, outcome, information_context = (
+                    information_result_response.information_result_response(
+                        information_result,
+                    )
+                )
             else:
                 local = device_command_dispatch.dispatch_device(
                     phrase, source=source, last_device=last_device,
