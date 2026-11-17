@@ -11,16 +11,18 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    async_add_entities([DeclanTwoAgent(entry)])
+    async_add_entities([DeclanTwoAgent(entry, hass)])
 
 
 class DeclanTwoAgent(conversation.ConversationEntity):
     _attr_name = "Declan 2.0"
 
-    def __init__(self, entry):
+    def __init__(self, entry, hass=None):
         self._attr_unique_id = entry.entry_id
         self._url = entry.data["url"] + "/api/assist"
         self._token = entry.data["token"]
+        self._entry = entry
+        self._configured_hass = hass
 
     @property
     def supported_languages(self):
@@ -59,6 +61,8 @@ class DeclanTwoAgent(conversation.ConversationEntity):
                 allow_redirects=False,
                 timeout=aiohttp.ClientTimeout(total=75, sock_connect=3),
             ) as result:
+                if result.status in {401, 403} and self._configured_hass is not None:
+                    self._entry.async_start_reauth(self._configured_hass)
                 if result.status != 200:
                     _LOGGER.warning("Declan Assist request returned HTTP %s", result.status)
                     error_reply = ("Home Assistant couldn't authenticate with Declan."
