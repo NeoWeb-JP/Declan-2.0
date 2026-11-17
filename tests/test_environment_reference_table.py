@@ -25,7 +25,7 @@ class EnvironmentReferenceTests(unittest.TestCase):
     def test_example_variables_are_documented(self):
         reference = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
-        documented = set(re.findall(r"^\\| `([A-Z][A-Z0-9_]*)` \\|", reference, re.MULTILINE))
+        documented = set(re.findall(r"^\| `([A-Z][A-Z0-9_]*)` \|", reference, re.MULTILINE))
         example_names = set(re.findall(
             r"^\s*#?\s*(DECLAN_[A-Z0-9_]+)\s*=", example, re.MULTILINE
         ))
