@@ -209,6 +209,9 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             self.entry.options["overnight_announcement_outputs"] = "media_player.kitchen"
         name, handler = hass.bus.async_listen.call_args.args
         self.assertEqual(name, "declan_two_assist_reply")
+        for invalid_data in (None, "invalid", [], 42):
+            await handler(SimpleNamespace(data=invalid_data))
+        self.session.post.assert_not_called()
         await handler(SimpleNamespace(data={"message": ""}))
         self.session.post.assert_not_called()
         await handler(SimpleNamespace(data={"message": "good morning", "reply": "Morning", "outcome": "partial"}))
