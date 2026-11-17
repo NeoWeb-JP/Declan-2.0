@@ -182,6 +182,15 @@ async def async_setup_entry(hass, entry):
     hass.services.async_register("declan_two", "announce", announce)
     entry.async_on_unload(lambda: hass.services.async_remove("declan_two", "announce"))
 
+    # Internal callers can record replies without publishing a spoofable global event.
+    # The legacy bus listener remains until its producers have migrated.
+    async def record_internal_reply(data):
+        if isinstance(data, dict):
+            await _forward_assist_history(hass, entry, data)
+
+    hass.data.setdefault("declan_two", {})["record_assist_reply"] = record_internal_reply
+    entry.async_on_unload(lambda: hass.data.get("declan_two", {}).pop("record_assist_reply", None))
+
     entry.async_on_unload(hass.bus.async_listen("declan_two_assist_reply", record_assist_reply))
     return True
 
