@@ -49,5 +49,63 @@ class ConditionsEnvironmentDefaultsTests(unittest.TestCase):
             self.assertIsNone(conditions.nearest_place(None, candidates))
 
 
+
+class WeatherEntityDefaultsTests(unittest.TestCase):
+    def run_read(self, settings, *, outdoors_only=False):
+        urls = []
+
+        def fake_read(_opener, url, _headers=None, timeout=3, **_kwargs):
+            urls.append(url)
+            if "/weather." in url:
+                return {"state": "sunny", "attributes": {
+                    "temperature": 19, "temperature_unit": "°C"}}
+            if "/climate." in url or "/sensor." in url:
+                return {"state": "21", "attributes": {
+                    "current_temperature": 21, "unit_of_measurement": "°C"}}
+            return {}
+
+        with patch.dict(os.environ, settings, clear=True), patch.object(
+                conditions, "ha_connection", return_value=("http://ha.local", {})), patch.object(
+                conditions, "read_json", side_effect=fake_read):
+            result = conditions.home_temperatures_result(
+                object(), outdoors_only=outdoors_only)
+        return result, urls
+
+    def test_unset_defaults(self):
+        result, urls = self.run_read({})
+        self.assertEqual(result.outcome.value, "confirmed")
+        self.assertEqual(urls, [
+            "http://ha.local/api/states/weather.forecast_home",
+            "http://ha.local/api/states/climate.home",
+        ])
+
+    def test_overrides_and_whitespace(self):
+        result, urls = self.run_read({
+            "DECLAN_WEATHER_ENTITY": " weather.outdoor ",
+            "DECLAN_INDOOR_TEMPERATURE_ENTITY": " sensor.room ",
+        })
+        self.assertEqual(result.outcome.value, "confirmed")
+        self.assertEqual(urls, [
+            "http://ha.local/api/states/weather.outdoor",
+            "http://ha.local/api/states/sensor.room",
+        ])
+
+    def test_empty_and_invalid_values_fail_closed(self):
+        for settings in (
+            {"DECLAN_WEATHER_ENTITY": "", "DECLAN_INDOOR_TEMPERATURE_ENTITY": ""},
+            {"DECLAN_WEATHER_ENTITY": "weather.home?query=1",
+             "DECLAN_INDOOR_TEMPERATURE_ENTITY": "script.unsafe"},
+        ):
+            with self.subTest(settings=settings):
+                result, urls = self.run_read(settings)
+                self.assertEqual(urls, [])
+                self.assertEqual(result.outcome.value, "unavailable")
+
+    def test_outdoor_only_does_not_fetch_indoor(self):
+        result, urls = self.run_read({}, outdoors_only=True)
+        self.assertEqual(result.outcome.value, "confirmed")
+        self.assertEqual(urls, ["http://ha.local/api/states/weather.forecast_home"])
+
+
 if __name__ == "__main__":
     unittest.main()
