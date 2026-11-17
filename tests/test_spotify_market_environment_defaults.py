@@ -1,5 +1,4 @@
 """Verify Spotify market environment defaults against outgoing search requests."""
-import json
 import os
 import unittest
 from unittest.mock import patch
