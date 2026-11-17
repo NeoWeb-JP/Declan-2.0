@@ -89,6 +89,23 @@ class EnvironmentDocumentationTests(unittest.TestCase):
             "Add modules with runtime DECLAN_* reads to BACKEND_MODULES and document new keys",
         )
 
+    def test_environment_inventory_has_unique_described_entries(self):
+        """Each environment setting needs one meaningful purpose and example."""
+        inventory = (ROOT / "docs/environment.md").read_text(encoding="utf-8")
+        entries = []
+        incomplete = []
+        for line in inventory.splitlines():
+            if not DOCUMENTED.match(line):
+                continue
+            columns = [column.strip() for column in line.strip().strip("|").split("|")]
+            key = DOCUMENTED.match(line).group(1)
+            entries.append(key)
+            if len(columns) < 3 or not columns[1] or not columns[2]:
+                incomplete.append(key)
+        self.assertEqual(incomplete, [], "Document a purpose and example for each setting")
+        duplicates = sorted({key for key in entries if entries.count(key) > 1})
+        self.assertEqual(duplicates, [], "Each environment setting needs one inventory row")
+
     def test_example_environment_keys_are_documented(self):
         documented = set(DOCUMENTED.findall((ROOT / "docs/environment.md").read_text(encoding="utf-8")))
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
