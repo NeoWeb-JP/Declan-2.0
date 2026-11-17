@@ -29,6 +29,28 @@ class Outcome(StrEnum):
     CANCELLED = "cancelled"
     REJECTED = "rejected"
     DUPLICATE = "duplicate"
+    SKIPPED = "skipped"
+
+
+class MovieLaunchStatus(StrEnum):
+    SENT = "sent"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+    UNVERIFIED = "unverified"
+
+
+@dataclass(frozen=True)
+class MovieLaunchResult:
+    status: MovieLaunchStatus
+    detail: str
+
+    def __post_init__(self):
+        object.__setattr__(self, "status", MovieLaunchStatus(self.status))
+        if not isinstance(self.detail, str):
+            raise ValueError("Movie launch detail must be text")
+
+    def as_legacy_pair(self):
+        return self.status.value, self.detail
 
 
 class ActionStatus(StrEnum):

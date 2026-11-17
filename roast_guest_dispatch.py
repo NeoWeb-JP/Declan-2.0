@@ -1,4 +1,5 @@
 """Dispatch roast and guest assignment commands in existing priority order."""
+from execution_results import ExecutionResult
 
 
 def dispatch_roast_or_guest(phrase, *, roast_target, respond_to_roast,
@@ -16,5 +17,6 @@ def dispatch_roast_or_guest(phrase, *, roast_target, respond_to_roast,
         )
     action = assignment_action(phrase, guest_commands)
     if action is not None:
-        return guest_assignment(action, connection())
+        result = guest_assignment(action, connection())
+        return result.as_legacy_pair() if isinstance(result, ExecutionResult) else result
     return None

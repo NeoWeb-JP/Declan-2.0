@@ -39,9 +39,18 @@ the active registry, preserving typed result identity; `search_media()` retains
 its original pair/None contract. Provider resolution, search routing and response
 decoration retain their previous behavior.
 
+Auxiliary actions expose `launch_movie_app_result()`, `start_dinner_result()`,
+`guest_assignment_result()` and `set_switch_as_light_result()`. Movie launch uses
+a frozen `MovieLaunchResult` with its own status enum: `sent` means dispatch was
+accepted, not verified completion. The other providers use `ExecutionResult`;
+`Outcome.SKIPPED` preserves the existing quiet-hours announcement outcome.
+Mapped movies and lighting consume the typed auxiliary cores directly; guest
+dispatch adapts its typed result at the existing response boundary. All original
+public status/detail or reply/outcome APIs retain plain strings and unmatched
+switch results remain `None`.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes auxiliary action providers (movie launch, announcements, guest
-assignment and switch-as-light fallback) and
+scope includes
 response/session orchestration that still uses legacy tuples. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.

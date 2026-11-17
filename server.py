@@ -22,7 +22,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from execution_results import ExecutionResult, Outcome
+from execution_results import ExecutionResult, Outcome, MovieLaunchResult, MovieLaunchStatus
 from arbitration import CaptureArbiter
 
 import conditions
@@ -630,14 +630,14 @@ def search_media_result(phrase):
     return ExecutionResult("I couldn't get a title search result from Declan Local.", Outcome.UNVERIFIED)
 
 
-def launch_movie_app(connection, remote, app):
+def launch_movie_app_result(connection, remote, app):
     label, command = app
     url, headers, opener = connection
     try:
         with opener.open(Request(f"{url}/api/states/{remote}", headers=headers), timeout=1.5) as response:
             state = json.loads(response.read(65536))["state"]
         if state in ("unknown", "unavailable"):
-            return "skipped", f"The remote is unavailable. I didn't send the {label} command."
+            return MovieLaunchResult(MovieLaunchStatus.SKIPPED, f"The remote is unavailable. I didn't send the {label} command.")
         request = Request(f"{url}/api/services/remote/send_command", headers=headers,
                           data=json.dumps({"entity_id": remote, "command": ["KEY_HOME", f"app:{command}"],
                                            "delay_secs": 2}).encode())
@@ -645,10 +645,10 @@ def launch_movie_app(connection, remote, app):
             pass
     except HTTPError as error:
         error.close()
-        return "failed", f"Home Assistant rejected the {label} launch request."
+        return MovieLaunchResult(MovieLaunchStatus.FAILED, f"Home Assistant rejected the {label} launch request.")
     except (OSError, ValueError, KeyError, TypeError):
-        return "unverified", f"I couldn't confirm whether Home Assistant accepted the {label} launch request."
-    return "sent", f"Home Assistant accepted the command to open {label}."
+        return MovieLaunchResult(MovieLaunchStatus.UNVERIFIED, f"I couldn't confirm whether Home Assistant accepted the {label} launch request.")
+    return MovieLaunchResult(MovieLaunchStatus.SENT, f"Home Assistant accepted the command to open {label}.")
 
 
 def discover_movie_entities(connection, room, *, script, remote, needs_remote):
@@ -780,7 +780,8 @@ def run_routine_result(period, *, action_results=None, movie_action=None, movie_
             if movie_app:
                 if outcome is Outcome.REPORTED_SUCCESS:
                     sleep(7)
-                    status, note = launch_movie_app(connection, remote, movie_app)
+                    launch = launch_movie_app_result(connection, remote, movie_app)
+                    status, note = launch.status.value, launch.detail
                 else:
                     status, note = "skipped", detail or "Movie Time was not verified."
                 if action_results is not None:
@@ -1008,21 +1009,21 @@ def run_sexy_time_result(operation, connection, *, approved=False):
 
 
 @diagnostics.timed("dinner_dispatch")
-def start_dinner(connection, *, approved=False):
+def start_dinner_result(connection, *, approved=False):
     # Dinner is a non-safety announcement. Never dispatch it during
     # overnight quiet hours, even when explicitly requested.
     if not personality_policy.overnight_announcement_allowed("dinner"):
-        return "Dinner announcements are muted between 23:00 and 07:00.", "skipped"
+        return ExecutionResult("Dinner announcements are muted between 23:00 and 07:00.", Outcome.SKIPPED)
     if connection is None:
-        return "The Home Assistant connection isn't configured.", "not_configured"
+        return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
     try:
         dinner_mapping = routine_registry.load().get("dinner")
     except (OSError, ValueError, sqlite3.Error):
         dinner_mapping = None
     if not dinner_mapping:
-        return "Map the Dinner script in Declan Settings.", "not_configured"
+        return ExecutionResult("Map the Dinner script in Declan Settings.", Outcome.NOT_CONFIGURED)
     if dinner_mapping["sensitive"] and not approved:
-        return "Dinner routine requires explicit confirmation.", "unresolved"
+        return ExecutionResult("Dinner routine requires explicit confirmation.", Outcome.UNRESOLVED)
     url, headers, opener = connection
     announcement = choose_line("dinner_announcement", read_guest_mode())
     request = Request(
@@ -1037,16 +1038,16 @@ def start_dinner(connection, *, approved=False):
     except HTTPError as error:
         error.close()
         if 400 <= error.code < 500:
-            return "Home Assistant rejected the dinner announcement request.", "unavailable"
-        return "I couldn't confirm that Home Assistant accepted the dinner announcement request.", "unverified"
+            return ExecutionResult("Home Assistant rejected the dinner announcement request.", Outcome.UNAVAILABLE)
+        return ExecutionResult("I couldn't confirm that Home Assistant accepted the dinner announcement request.", Outcome.UNVERIFIED)
     except OSError:
-        return "I couldn't confirm that Home Assistant accepted the dinner announcement request.", "unverified"
-    return announcement, "requested"
+        return ExecutionResult("I couldn't confirm that Home Assistant accepted the dinner announcement request.", Outcome.UNVERIFIED)
+    return ExecutionResult(announcement, Outcome.REQUESTED)
 
 
-def guest_assignment(operation, connection):
+def guest_assignment_result(operation, connection):
     if connection is None:
-        return "I couldn't reach Home Assistant to check Guest Mode or the guest register.", "unavailable"
+        return ExecutionResult("I couldn't reach Home Assistant to check Guest Mode or the guest register.", Outcome.UNAVAILABLE)
     url, headers, opener = connection
 
     def request(path, data=None):
@@ -1070,37 +1071,37 @@ def guest_assignment(operation, connection):
     if operation.startswith("assign:"):
         names = operation.partition(":")[2].strip()
         if not re.fullmatch(r"[A-Za-z][A-Za-z '\\-]{0,119}", names):
-            return "Tell me who is in charge.", "unresolved"
+            return ExecutionResult("Tell me who is in charge.", Outcome.UNRESOLVED)
         request("/api/services/input_text/set_value", {"entity_id": GUEST_REGISTER_ENTITY, "value": names})
         if read_state(GUEST_REGISTER_ENTITY) != names:
-            return "I couldn't verify the guest register was updated, so Guest Mode was left unchanged.", "unverified"
+            return ExecutionResult("I couldn't verify the guest register was updated, so Guest Mode was left unchanged.", Outcome.UNVERIFIED)
         request("/api/services/input_boolean/turn_on", {"entity_id": GUEST_MODE_ENTITY})
         if read_state(GUEST_MODE_ENTITY) != "on":
-            return "I updated the guest register, but couldn't verify Guest Mode is on.", "partial"
-        return f"{names} are in charge. Guest Mode is on.", "confirmed"
+            return ExecutionResult("I updated the guest register, but couldn't verify Guest Mode is on.", Outcome.PARTIAL)
+        return ExecutionResult(f"{names} are in charge. Guest Mode is on.", Outcome.CONFIRMED)
 
     if operation == "clear":
         request("/api/services/input_text/set_value", {"entity_id": GUEST_REGISTER_ENTITY, "value": ""})
         names = read_state(GUEST_REGISTER_ENTITY)
         # Keep Guest Mode in place until the register is verified empty.
         if names != "":
-            return "I couldn't verify that the guest register was cleared, so I left Guest Mode alone.", "unverified"
+            return ExecutionResult("I couldn't verify that the guest register was cleared, so I left Guest Mode alone.", Outcome.UNVERIFIED)
         request("/api/services/input_boolean/turn_off", {"entity_id": GUEST_MODE_ENTITY})
         if read_state(GUEST_MODE_ENTITY) != "off":
-            return "I cleared the guest register, but couldn't verify that Guest Mode is off.", "partial"
-        return add_sass("I cleared the guest register and turned off Guest Mode.", "guest_cleared", "off"), "confirmed"
+            return ExecutionResult("I cleared the guest register, but couldn't verify that Guest Mode is off.", Outcome.PARTIAL)
+        return ExecutionResult(add_sass("I cleared the guest register and turned off Guest Mode.", "guest_cleared", "off"), Outcome.CONFIRMED)
 
     mode = read_state(GUEST_MODE_ENTITY)
     names = read_state(GUEST_REGISTER_ENTITY)
     if mode not in {"on", "off"} or names is None:
-        return "I couldn't read Guest Mode or the guest register.", "unavailable"
+        return ExecutionResult("I couldn't read Guest Mode or the guest register.", Outcome.UNAVAILABLE)
     if mode == "on":
         if names:
-            return f"Currently in charge: {names}. Guest Mode is on.", "confirmed"
-        return "Guest Mode is on, but nobody is listed in the guest register.", "confirmed"
+            return ExecutionResult(f"Currently in charge: {names}. Guest Mode is on.", Outcome.CONFIRMED)
+        return ExecutionResult("Guest Mode is on, but nobody is listed in the guest register.", Outcome.CONFIRMED)
     if names:
-        return f"Guest Mode is off, but the guest register still lists {names}.", "confirmed"
-    return add_sass("Guest Mode is off. The house is back in your hands.", "guest_inactive", mode), "confirmed"
+        return ExecutionResult(f"Guest Mode is off, but the guest register still lists {names}.", Outcome.CONFIRMED)
+    return ExecutionResult(add_sass("Guest Mode is off. The house is back in your hands.", "guest_inactive", mode), Outcome.CONFIRMED)
 
 
 @diagnostics.timed("speech_generation")
@@ -1319,7 +1320,7 @@ def read_ha_areas(connection, origin=None):
 
 
 
-def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
+def set_switch_as_light_result(name, desired_state, inventory, connection, *, preview=False, action_results=None):
     """Only switch entities explicitly marked as lights may receive light commands."""
     if desired_state not in {"on", "off"}:
         return None
@@ -1337,14 +1338,14 @@ def set_switch_as_light(name, desired_state, inventory, connection, *, preview=F
     if not eligible:
         return None
     if len(eligible) != 1:
-        return "More than one marked light switch matches. Please use its exact entity ID.", "unresolved"
+        return ExecutionResult("More than one marked light switch matches. Please use its exact entity ID.", Outcome.UNRESOLVED)
     entity, previous, label = eligible[0]
     if previous not in {"on", "off"}:
-        return f"{label} is unavailable in Home Assistant.", "unavailable"
+        return ExecutionResult(f"{label} is unavailable in Home Assistant.", Outcome.UNAVAILABLE)
     if preview:
-        return f"Preview: I would turn {desired_state} {label}.", "preview"
+        return ExecutionResult(f"Preview: I would turn {desired_state} {label}.", Outcome.PREVIEW)
     if previous == desired_state:
-        return f"{label} is already {desired_state}.", "confirmed"
+        return ExecutionResult(f"{label} is already {desired_state}.", Outcome.CONFIRMED)
     url, headers, opener = connection
     request = Request(f"{url}/api/services/switch/turn_{desired_state}", headers=headers,
                       data=json.dumps({"entity_id": entity}).encode(), method="POST")
@@ -1363,8 +1364,7 @@ def set_switch_as_light(name, desired_state, inventory, connection, *, preview=F
     if action_results is not None:
         action_results.append({"target": label, "entity_id": entity, "action": "turn_" + desired_state,
                                "status": "confirmed" if verified else "unverified"})
-    return (f"{label} is {desired_state}." if verified else f"I couldn't verify {label} is {desired_state}.",
-            "confirmed" if verified else "unverified")
+    return ExecutionResult(f"{label} is {desired_state}." if verified else f"I couldn't verify {label} is {desired_state}.", Outcome.CONFIRMED if verified else Outcome.UNVERIFIED)
 
 
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
@@ -1616,7 +1616,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     skipped_details = "".join(f" {message}" for message, _ in skipped)
     if not selected:
         if brightness is None and not require_all and len(resolved_targets) == 1:
-            switch_result = set_switch_as_light(name, desired_state, inventory, connection, preview=preview, action_results=action_results)
+            switch_result = set_switch_as_light_result(name, desired_state, inventory, connection, preview=preview, action_results=action_results)
             if switch_result is not None:
                 return lighting_intents._lighting_result(switch_result)
         return lighting_intents._lighting_result((skipped_details.strip(), skipped[0][1]) if skipped else (
@@ -2639,7 +2639,7 @@ class Handler(BaseHTTPRequestHandler):
             response_guest_mode=personality_policy.response_guest_mode,
             roast_respond=roast.respond,
             assignment_action=guest_assignment_command.assignment_action,
-            guest_commands=GUEST_COMMANDS, guest_assignment=guest_assignment,
+            guest_commands=GUEST_COMMANDS, guest_assignment=guest_assignment_result,
             connection=ha_device_connection,
         )) is not None:
             routine_reply, outcome = roast_guest_result
@@ -2884,6 +2884,27 @@ def run_sexy_time(operation, connection, *, approved=False):
     """Compatibility API for the mapped bedroom routine."""
     return _routine_legacy_triple(*run_sexy_time_result(operation, connection, approved=approved))
 
+
+def launch_movie_app(connection, remote, app):
+    """Compatibility API for app-launch status and detail strings."""
+    return launch_movie_app_result(connection, remote, app).as_legacy_pair()
+
+
+def start_dinner(connection, *, approved=False):
+    """Compatibility API for announcement reply/outcome strings."""
+    return start_dinner_result(connection, approved=approved).as_legacy_pair()
+
+
+def guest_assignment(operation, connection):
+    """Compatibility API for guest assignment reply/outcome strings."""
+    return guest_assignment_result(operation, connection).as_legacy_pair()
+
+
+def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
+    """Compatibility API for marked switch-as-light reply/outcome pairs."""
+    result = set_switch_as_light_result(name, desired_state, inventory, connection,
+                                      preview=preview, action_results=action_results)
+    return result.as_legacy_pair() if result is not None else None
 
 if __name__ == "__main__":
     declan_logs.install()
