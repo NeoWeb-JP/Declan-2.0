@@ -31,7 +31,7 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):
             if not valid:
                 errors["url"] = "invalid_url"
             elif len(user_input["token"]) < 32:
-                errors["token"] = "invalid_token"
+                errors["token"] = "invalid_token"  # nosec B105 - HA validation error key, not a password
             else:
                 await self.async_set_unique_id(url)
                 self._abort_if_unique_id_configured()
