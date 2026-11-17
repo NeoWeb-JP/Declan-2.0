@@ -1,12 +1,47 @@
 """Typed script discovery results preserve existing HA execution and receipt contracts."""
 import unittest
-from unittest.mock import patch
+import json
+from unittest.mock import MagicMock, patch
 
 import script_discovery
 from execution_results import ExecutionResult, Outcome
+from script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
 
 
 class ScriptDiscoveryTypedResultTests(unittest.TestCase):
+    def test_correlated_receipts_are_typed_and_immutable(self):
+        payload = {"status": "accepted", "job_id": "declan-fixed", "entity_id": "script.morning"}
+        result = BackgroundReceiptResult.parse(202, payload, job_id="declan-fixed", entity_id="script.morning")
+        self.assertIs(result.status, BackgroundReceiptStatus.ACCEPTED)
+        with self.assertRaises(AttributeError):
+            setattr(result, "status", BackgroundReceiptStatus.UNVERIFIED)
+        with self.assertRaises(TypeError):
+            BackgroundReceiptResult("accepted")
+
+    def test_real_enqueue_preserves_conservative_receipt_decisions(self):
+        valid = {"status": "accepted", "job_id": "declan-fixed", "entity_id": "script.morning"}
+        cases = [(202, valid, Outcome.STARTED), (200, valid, Outcome.UNVERIFIED)]
+        for key, value in (("status", "ACCEPTED"), ("status", "completed"),
+                           ("job_id", "other"), ("entity_id", "script.other"),
+                           ("status", []), ("job_id", None)):
+            cases.append((202, {**valid, key: value}, Outcome.UNVERIFIED))
+        for payload in (None, [], {}, "accepted"):
+            cases.append((202, payload, Outcome.UNVERIFIED))
+        for status, payload, expected in cases:
+            with self.subTest(status=status, payload=payload):
+                opener = MagicMock()
+                response = opener.open.return_value.__enter__.return_value
+                response.status = status
+                response.read.return_value = json.dumps(payload).encode()
+                with patch.object(script_discovery.secrets, "token_hex", return_value="fixed"):
+                    result, detail = script_discovery.enqueue_result(
+                        ("http://ha.invalid", {}, opener), "script.morning", {})
+                self.assertIs(result.outcome, expected)
+                self.assertEqual(detail, "Background job declan-fixed" if expected is Outcome.STARTED else None)
+                self.assertEqual(opener.open.call_args.kwargs["timeout"], 2)
+                request = opener.open.call_args.args[0]
+                self.assertEqual(json.loads(request.data), {"entity_id": "script.morning", "job_id": "declan-fixed", "parameters": {}})
+
     def test_enqueue_success_preserves_receipt(self):
         with patch.object(script_discovery, "_enqueue_provider", return_value=(
                 "Routine requested.", "started", "Background job declan-123")) as enqueue:
