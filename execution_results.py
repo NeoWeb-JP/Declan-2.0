@@ -24,6 +24,11 @@ class Outcome(StrEnum):
     PREVIEW = "preview"
     STARTED = "started"
     REQUESTED = "requested"
+    REPORTED_SUCCESS = "reported_success"
+    EXECUTION_COMPLETED = "execution_completed"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
+    DUPLICATE = "duplicate"
 
 
 class ActionStatus(StrEnum):
