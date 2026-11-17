@@ -11,7 +11,8 @@ from homeassistant.helpers import selector
 from .voice_defaults import DEFAULT_PROVIDER
 
 
-class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):
+# The audit environment lacks Home Assistant type definitions for ConfigFlow.__init_subclass__.
+class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # type: ignore[call-arg]
     VERSION = 1
 
     @staticmethod
