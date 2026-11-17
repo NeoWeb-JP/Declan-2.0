@@ -26,7 +26,6 @@ from .routine_jobs import DeclanRoutineJobsView
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["conversation", "stt", "tts"]
-CONFIG_SCHEMA = None
 
 
 async def async_setup(hass, config):
