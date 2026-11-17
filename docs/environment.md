@@ -30,8 +30,14 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_MEDIA_SEARCH_AGENT` | Home Assistant conversation agent for media search | `conversation.example` |
 | `DECLAN_WEB_ASSIST_PIPELINE` | Home Assistant Assist pipeline identifier for browser voice | Set to your configured pipeline ID |
 | `DECLAN_VISITORS_ENTITY` | Home Assistant visitor-presence input boolean | `input_boolean.example_visitors` |
+| `DECLAN_TRUSTED_RELEASES` | Path to updater allow-list for pinned release mode | `/etc/declan/trusted-releases.json` |
+| `DECLAN_UPDATE_SOURCE` | Release trust source; `github` (default) or `pinned` | `github` |
+| `DECLAN_UPDATE_ROOT` | Optional updater installation root override | Leave unset |
+| `DECLAN_UPDATE_SUPERVISED` | Set to `1` only for the supervised updater process | Leave unset |
+| `DECLAN_SENSITIVE_ROUTINES` | Legacy sensitive routine categories; current configured confirmation policy takes precedence | `night,guest` |
+| `DECLAN_TRUSTED_SPEAKERS` | Comma-separated trusted speaker labels used by legacy confirmation checks; voice identity is not authentication | Leave empty |
 
-The added HA, Assist, bind-address and release-version names were verified against `server.py` on 17 November 2026. This inventory covers names verified in `server.py`, `configuration.py`, `music.py`, and `voicepipeline.py`; additional modules may define more settings. Configuration keys in `configuration.py` are stored as named configuration entries and should not be assumed to be read directly from the process environment. Confirm each value's source in the deployment before relying on an environment override.
+The added HA, Assist, bind-address and release-version names were verified against `server.py` on 17 November 2026. This inventory covers names verified in the backend modules listed by the environment documentation regression test, including `updates.py` and `sensitive_confirmations.py`; additional modules may define more settings. Configuration keys in `configuration.py` are stored as named configuration entries and should not be assumed to be read directly from the process environment. Confirm each value's source in the deployment before relying on an environment override.
 
 ## Installation
 
