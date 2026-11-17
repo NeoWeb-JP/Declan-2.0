@@ -25,13 +25,13 @@ class EnvironmentReferenceTests(unittest.TestCase):
     def test_active_example_assignments_have_documented_purposes(self):
         reference = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
-        rows = dict(
-            (name, purpose.strip())
-            for name, purpose in re.findall(
-                r"^\\| \\x60([A-Z][A-Z0-9_]*)\\x60 \\| ([^|]*) \\|",
-                reference, re.MULTILINE,
-            )
-        )
+        rows = {}
+        for line in reference.splitlines():
+            if not line.startswith("| `"):
+                continue
+            columns = [column.strip() for column in line.split("|")]
+            if len(columns) >= 4 and columns[1].startswith("`"):
+                rows[columns[1].strip("`")] = columns[2]
         active = re.findall(r"^([A-Z][A-Z0-9_]*)=(.*)$", example, re.MULTILINE)
         self.assertTrue(active, "Expected configured examples")
         for name, value in active:
