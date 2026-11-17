@@ -61,6 +61,7 @@ import response_composition
 import command_responses
 import command_registry
 import session_orchestration
+import session_turn_state
 import lighting_intents
 import roast
 import personality_policy
@@ -2726,24 +2727,13 @@ class Handler(BaseHTTPRequestHandler):
             if routine_status:
                 reply["routine_status"] = routine_status
             session = SESSIONS[reply["session_id"]]
-            session["last"] = message
-            session["device_status_target"] = status_target
-            session["device_status_scope"] = scope
-            session["information_context"] = information_context
-            session["information_scope"] = scope
-            session.pop("failed_light_phrase", None)
-            if (light_result and outcome == "unresolved" and scope is not None
-                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
-                    and any(step.get("detail") == "unresolved" for step in action_results)):
-                session["failed_light_phrase"] = {"text": message, "scope": scope, "actions": actions}
-            needs_retry = reply["reply"] == UNMATCHED_REPLY
-            reply["continue_conversation"] = needs_retry
-            reply["follow_up_timeout"] = 10 if needs_retry else 0
-            if needs_retry and scope is not None:
-                session["pending_retry"] = {"text": message, "scope": scope, "at": monotonic()}
-            retry_succeeded = (outcome in {"confirmed", "reported_success", "execution_completed",
-                                         "timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"}
-                               or outcome is None and not needs_retry)
+            retry_succeeded = session_turn_state.update_turn(
+                session, reply, message=message, phrase=phrase, outcome=outcome,
+                scope=scope, status_target=status_target,
+                information_context=information_context, light_result=light_result,
+                action_results=action_results, actions=actions,
+                unmatched_reply=UNMATCHED_REPLY, now=monotonic(),
+            )
             if (pending_retry and retry_succeeded
                     and retry_learning.similar(pending_retry["text"], message)
                     and history.normalize_phrase(pending_retry["text"]) != history.normalize_phrase(effective_message)):
