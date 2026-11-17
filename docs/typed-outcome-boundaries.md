@@ -358,6 +358,12 @@ still precedes rejection, malformed/ambiguous output retains the public error,
 and validated candidate tuples and empty-plan behavior are unchanged. A completed
 model response is never evidence of Home Assistant execution.
 
+VoicePipeline recording review exclusions are interpreted through frozen
+`InteractionReviewResult` values before the teaching route decides. Exact
+dismissed/rejected/discarded statuses remain excluded; missing and unfamiliar
+statuses retain the original behavior and do not imply review approval. Recording
+lookup, transcript consistency, wire rows and teaching responses are unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

@@ -2464,7 +2464,7 @@ class Handler(BaseHTTPRequestHandler):
                         matches = [row for row in rows if row.get("id") == recording_id]
                         transcripts = {row.get("transcript") for row in matches}
                         if len(transcripts) != 1 or not matches or any(
-                                row.get("status") in {"dismissed", "rejected", "discarded"} for row in matches):
+                                voicepipeline.InteractionReviewResult.parse(row.get("status")).blocks_teaching for row in matches):
                             raise ValueError("Refresh and choose a recording with a transcript.")
                         history.teach_phrase(transcripts.pop(), body["target"])
                     elif set(body) == {"turn_id", "target"} and type(body["turn_id"]) is int:

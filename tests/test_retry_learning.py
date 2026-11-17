@@ -27,7 +27,7 @@ class RetryLearningTests(unittest.TestCase):
         self.enterContext(patch.object(server.CAPTURE_ARBITER, 'claim', return_value=True))
         self.enterContext(patch.dict(server.os.environ, {'DECLAN_ASSIST_TOKEN': 'test'}))
 
-    def ask(self, message, session=None, device='kitchen', path='/api/assist', **extra):
+    def ask(self, message, session=None, device='kitchen', path='/api/assist', expected_status=200, **extra):
         handler = object.__new__(server.Handler)
         handler.path = path
         body = json.dumps(extra if path.startswith('/api/native/') else
@@ -44,7 +44,7 @@ class RetryLearningTests(unittest.TestCase):
         handler.log_error = Mock()
         handler.handle_post()
         status, result = handler.send_json.call_args.args
-        self.assertEqual(status, 200, result)
+        self.assertEqual(status, expected_status, result)
         return result
 
     def succeed(self):
@@ -115,6 +115,33 @@ class RetryLearningTests(unittest.TestCase):
         self.assertTrue(result['saved'])
         dispatch.assert_not_called()
         self.assertEqual(history.learned_intent('office light on it'),'office light on')
+
+    def test_recording_review_statuses_preserve_teaching_and_rejection(self):
+        for status, blocked in (("dismissed", True), ("rejected", True), ("discarded", True),
+                                ("pending", False), ("resolved", False), ("future_status", False),
+                                ("DISMISSED", False), (None, False)):
+            with self.subTest(status=status):
+                rows = [{'id': 'old', 'transcript': 'office light on it', 'status': status}]
+                with patch.object(server.voicepipeline, 'interactions', return_value=rows), \
+                     patch.object(history, 'teach_phrase') as teach, self.succeed() as dispatch:
+                    result = self.ask('unused', path='/api/native/intents', recording_id='old',
+                                      target='office light on', expected_status=400 if blocked else 200)
+                if blocked:
+                    self.assertEqual(result, {'error': 'Refresh and choose a recording with a transcript.'})
+                    teach.assert_not_called()
+                else:
+                    self.assertEqual(result, {'saved': True})
+                    teach.assert_called_once_with('office light on it', 'office light on')
+                dispatch.assert_not_called()
+
+    def test_recording_lookup_still_rejects_missing_conflicting_or_discarded_copies(self):
+        row = {'id': 'old', 'transcript': 'office light on it', 'status': 'pending'}
+        for rows in ([], [row, {**row, 'transcript': 'different'}], [row, {**row, 'status': 'discarded'}]):
+            with self.subTest(rows=rows), patch.object(server.voicepipeline, 'interactions', return_value=rows), \
+                 patch.object(history, 'teach_phrase') as teach:
+                self.ask('unused', path='/api/native/intents', recording_id='old',
+                         target='office light on', expected_status=400)
+                teach.assert_not_called()
 
     def test_similarity_rejects_target_direction_and_number_changes(self):
         self.assertTrue(retry_learning.similar('please switch the lights on it', 'turn light on'))
