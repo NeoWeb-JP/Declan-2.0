@@ -166,10 +166,10 @@ class TimerAndHistoryTests(TestCase):
         browser, uncertain, confident = history.recent()
         self.assertIsNone(browser["speaker_match"])
         self.assertEqual(uncertain["speaker_match"], {
-            "name": "Unknown", "candidate": "Edd", "confidence": 0.4, "interaction_id": "match-123",
+            "name": "Unknown", "candidate": "Ed", "confidence": 0.4, "interaction_id": "match-123",
         })
         self.assertEqual(confident["speaker_match"], {
-            "name": "Edd", "confidence": 0.9, "interaction_id": "match-123",
+            "name": "Ed", "confidence": 0.9, "interaction_id": "match-123",
         })
 
     def test_history_records_routine_evidence_and_paginates(self):
