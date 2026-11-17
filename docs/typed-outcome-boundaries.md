@@ -395,6 +395,13 @@ provider results. Regression guards reject string construction and music adapter
 round trips on these fallbacks while preserving routine evidence identity,
 combined outcomes, replies and the absence of provider dispatch on missing music.
 
+Updater job status now uses frozen, isolated `UpdateStatusResult` snapshots and
+`UpdateJobState` decisions for the busy gate and status endpoints. Existing job
+storage and public `status()` stay plain mappings; unknown states and extra
+fields are preserved losslessly. Installation checks, worker arguments, locking,
+activation and restart behavior are unchanged; no installation is performed by
+the snapshot or queue unit tests.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
