@@ -316,6 +316,13 @@ its `text` payload, empty-text success response, exception behavior, pipeline
 selection, audio framing, deadlines and socket cleanup remain compatible. These
 recognition statuses are separate from household execution outcomes.
 
+Home Assistant token verification now returns a frozen `TokenVerificationResult`
+with `TokenVerificationStatus` through setup, reconfiguration and reauthentication.
+Only the form boundary converts failures to existing error keys; the public
+`verify_declan_token` adapter retains its `None`/plain-string contract. Results
+contain no credentials or URL. Redirect refusal, timeout handling, credential
+validation and entry updates after successful verification remain unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

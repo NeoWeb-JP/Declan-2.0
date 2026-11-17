@@ -10,6 +10,60 @@ import wave
 
 
 class AssistBridgeTests(IsolatedAsyncioTestCase):
+    async def test_token_verification_returns_typed_status_without_retaining_credentials(self):
+        statuses = self.config.TokenVerificationStatus
+        self.session.get.return_value = MagicMock()
+        probe = self.session.get.return_value.__aenter__.return_value
+        for http_status, expected in ((200, statuses.VALID), (401, statuses.INVALID_AUTH),
+                (403, statuses.INVALID_AUTH), (503, statuses.CANNOT_CONNECT), (302, statuses.CANNOT_CONNECT)):
+            with self.subTest(status=http_status):
+                probe.status = http_status
+                result = await self.config.verify_declan_token_result(None, "http://declan.invalid", "secret-token")
+                self.assertIs(result.status, expected)
+                self.assertEqual(result.as_legacy_error(), None if expected is statuses.VALID else expected.value)
+                self.assertNotIn("secret-token", str(result))
+                self.assertNotIn("declan.invalid", str(result))
+                self.assertFalse(self.session.get.call_args.kwargs["allow_redirects"])
+                self.assertEqual(self.session.get.call_args.kwargs["headers"], {"Authorization": "Bearer secret-token"})
+                with self.assertRaises(AttributeError):
+                    result.status = statuses.VALID
+        for error in (TimeoutError("secret timeout"), OSError("secret provider error")):
+            with patch.object(self.session, "get", side_effect=error):
+                result = await self.config.verify_declan_token_result(None, "http://declan.invalid", "secret-token")
+            self.assertIs(result.status, statuses.CANNOT_CONNECT)
+
+    async def test_token_verification_legacy_adapter_preserves_none_or_error_keys(self):
+        for status in self.config.TokenVerificationStatus:
+            result = self.config.TokenVerificationResult(status)
+            with patch.object(self.config, "verify_declan_token_result", return_value=result):
+                error = await self.config.verify_declan_token(None, "http://declan.invalid", "token")
+            self.assertEqual(error, result.as_legacy_error())
+            if error is not None:
+                self.assertIs(type(error), str)
+
+    async def test_setup_reconfigure_and_reauth_consume_typed_verification_directly(self):
+        self.session.get.return_value = MagicMock()
+        for step in ("user", "reconfigure", "reauth_confirm"):
+            flow = self.config.DeclanTwoConfigFlow()
+            flow.hass = SimpleNamespace()
+            flow._get_reconfigure_entry = Mock(return_value=self.entry)
+            flow._get_reauth_entry = Mock(return_value=self.entry)
+            flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
+            flow.async_set_unique_id = AsyncMock()
+            flow._abort_if_unique_id_configured = Mock()
+            flow.async_create_entry = Mock(return_value={"created": True})
+            flow.async_update_reload_and_abort = Mock(return_value={"updated": True})
+            payload = {"url": "http://declan.invalid", "token": "n" * 32}
+            probe = self.session.get.return_value.__aenter__.return_value
+            with self.subTest(step=step), patch.object(self.config, "verify_declan_token", side_effect=AssertionError("legacy verification")):
+                probe.status = 401
+                self.assertEqual(await getattr(flow, "async_step_" + step)(payload), {"base": "invalid_auth"})
+                flow.async_create_entry.assert_not_called()
+                flow.async_update_reload_and_abort.assert_not_called()
+                probe.status = 200
+                result = await getattr(flow, "async_step_" + step)(payload)
+                self.assertEqual(result, {"created": True} if step == "user" else {"updated": True})
+
     def setUp(self):
         class ConfigFlow:
             def __init_subclass__(cls, **kwargs):

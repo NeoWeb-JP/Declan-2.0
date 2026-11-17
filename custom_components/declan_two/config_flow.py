@@ -10,11 +10,16 @@ from homeassistant.components import tts
 
 from homeassistant.helpers import selector
 
-from .config_validation import valid_declan_origin
+from .config_validation import TokenVerificationResult, TokenVerificationStatus, valid_declan_origin
 from .voice_defaults import DEFAULT_PROVIDER
 
 
 async def verify_declan_token(hass, url: str, token: str) -> str | None:
+    """Compatibility API returning the original form error key or None."""
+    return (await verify_declan_token_result(hass, url, token)).as_legacy_error()
+
+
+async def verify_declan_token_result(hass, url: str, token: str) -> TokenVerificationResult:
     """Check a Declan Assist token without redirects or leaking credentials."""
     try:
         async with async_get_clientsession(hass).get(
@@ -24,12 +29,12 @@ async def verify_declan_token(hass, url: str, token: str) -> str | None:
             allow_redirects=False,
         ) as response:
             if response.status in {401, 403}:
-                return "invalid_auth"
+                return TokenVerificationResult(TokenVerificationStatus.INVALID_AUTH)
             if response.status != 200:
-                return "cannot_connect"
+                return TokenVerificationResult(TokenVerificationStatus.CANNOT_CONNECT)
     except (aiohttp.ClientError, TimeoutError):
-        return "cannot_connect"
-    return None
+        return TokenVerificationResult(TokenVerificationStatus.CANNOT_CONNECT)
+    return TokenVerificationResult(TokenVerificationStatus.VALID)
 
 
 # The audit environment lacks Home Assistant type definitions for ConfigFlow.__init_subclass__.
@@ -50,9 +55,9 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
             elif len(user_input["token"]) < 32:
                 errors["token"] = "invalid_token"  # nosec B105 - HA validation error key, not a password
             else:
-                auth_error = await verify_declan_token(self.hass, url, user_input["token"])
-                if auth_error:
-                    errors["base"] = auth_error
+                verification = await verify_declan_token_result(self.hass, url, user_input["token"])
+                if verification.status is not TokenVerificationStatus.VALID:
+                    errors["base"] = verification.status.value
                 if errors:
                     return self.async_show_form(
                         step_id="user", data_schema=vol.Schema({
@@ -88,9 +93,9 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
             elif len(token) < 32:
                 errors["token"] = "invalid_token"  # nosec B105 - HA form error key, not a credential
             else:
-                auth_error = await verify_declan_token(self.hass, url, token)
-                if auth_error:
-                    errors["base"] = auth_error
+                verification = await verify_declan_token_result(self.hass, url, token)
+                if verification.status is not TokenVerificationStatus.VALID:
+                    errors["base"] = verification.status.value
                 if not errors:
                     return self.async_update_reload_and_abort(
                         entry, data_updates={"url": url, "token": token},
@@ -118,9 +123,9 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
             if len(token) < 32:
                 errors["token"] = "invalid_token"  # nosec B105 - HA form error identifier
             else:
-                auth_error = await verify_declan_token(self.hass, entry.data["url"], token)
-                if auth_error:
-                    errors["base"] = auth_error
+                verification = await verify_declan_token_result(self.hass, entry.data["url"], token)
+                if verification.status is not TokenVerificationStatus.VALID:
+                    errors["base"] = verification.status.value
                 if not errors:
                     return self.async_update_reload_and_abort(
                         entry, data_updates={"token": token},
