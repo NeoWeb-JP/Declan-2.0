@@ -56,6 +56,8 @@ async def async_setup_entry(hass, entry):
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def record_assist_reply(event):
+        if not isinstance(getattr(event, "data", None), dict):
+            return
         message = event.data.get("message")
         reply = event.data.get("reply")
         if not all(isinstance(value, str) and 0 < len(value.strip()) <= 1000 for value in (message, reply)):
