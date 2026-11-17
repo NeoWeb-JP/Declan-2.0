@@ -20,6 +20,7 @@ class HandledCommand:
     handler: str
     result: ExecutionResult
     status_target: str | None = None
+    routine_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -135,4 +136,22 @@ def registry(deps):
             r"start (?:movie time|cinema time|cinema mode) and play(?: the (?:movie|film|show))?) (.+)",
             context.phrase,
         ) else None, media_search)] if deps.search_media is not None else []),
+    ))
+
+
+def stop_registry(*, stop_routines, stop_everywhere, connection):
+    """Higher-priority stop commands; run after timer parsing to preserve timer ownership."""
+    def run_routines(context, match):
+        reply, outcome, status = stop_routines()
+        return HandledCommand("stop_routine", ExecutionResult(reply, outcome), routine_status=status)
+
+    def run_everywhere(context, match):
+        reply, outcome, status = stop_everywhere(connection())
+        return HandledCommand("stop_everywhere", ExecutionResult(reply, outcome), routine_status=status)
+
+    return HandlerRegistry((
+        Handler("stop_routine", 1,
+                lambda context: context.phrase in {"stop routine", "cancel routine",
+                                                    "stop the routine", "cancel the routine"}, run_routines),
+        Handler("stop_everywhere", 2, lambda context: context.phrase == "stop", run_everywhere),
     ))
