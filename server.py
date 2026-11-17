@@ -45,6 +45,7 @@ import request_validation
 import session_context_retrieval
 import retry_context
 import retry_cancellation
+import learned_intent_resolution
 import history
 import music
 import approved_media_players
@@ -2462,23 +2463,12 @@ class Handler(BaseHTTPRequestHandler):
         lighting_context = None
         status_target = None
         information_context = None
-        # Resolve explicit spoken self-corrections before any routine, lighting,
-        # media or learned-intent side effect. Do not split ambiguous conjunctions.
-        try:
-            effective_message = preprocess_speech(message).commands[0]
-        except ValueError:
-            effective_message = message
-        phrase = history.normalize_phrase(effective_message)
-        if len(phrase) <= 120:
-            try:
-                target = history.learned_intent(phrase)
-            except (OSError, sqlite3.Error):
-                self.log_error("Could not look up learned intention; using the original transcript.")
-                target = None
-            if isinstance(target, str) and 0 < len(target) <= 120:
-                # Interpret once through the normal handlers. Never follow alias chains.
-                effective_message = target
-                phrase = history.normalize_phrase(target)
+        # Resolve self-corrections and learned aliases before command side effects.
+        effective_message, phrase = learned_intent_resolution.resolve(
+            message, preprocess=preprocess_speech,
+            normalize=history.normalize_phrase,
+            learned_intent=history.learned_intent, log_error=self.log_error,
+        )
         with SESSION_LOCK:
             pending_retry = retry_context.consume_pending_retry(
                 SESSIONS.get(session_id), scope, now=monotonic(),
