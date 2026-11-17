@@ -2744,7 +2744,7 @@ class Handler(BaseHTTPRequestHandler):
                 outcome=outcome, scope=scope, message=message, now=monotonic(),
                 suggestion_factory=turn_finalization.lighting_phrase_suggestion,
             )
-            reply = turn_response_composition.compose_turn_response(
+            response = turn_response_composition.compose_turn_result(
                 effective_message, session_id, routine_reply,
                 lighting_context=lighting_context, scope=scope,
                 response_guest_mode=response_guest_mode, outcome=outcome,
@@ -2762,8 +2762,9 @@ class Handler(BaseHTTPRequestHandler):
                 render_failure=command_responses.failure,
                 composition=response_composition,
             )
-            turn_persistence_dispatch.persist_turn(
-                reply, sessions=SESSIONS,
+            response = turn_persistence_dispatch.persist_turn_result(
+                response, sessions=SESSIONS,
+                apply_outcome_metadata=turn_finalization.apply_outcome_metadata,
                 finalize=turn_persistence_orchestration.finalize_turn,
                 message=message, phrase=phrase,
                 outcome=outcome, scope=scope, status_target=status_target,
@@ -2783,7 +2784,7 @@ class Handler(BaseHTTPRequestHandler):
                 training_module=retry_training_persistence,
                 history_module=conversation_persistence,
             )
-        self.send_json(200, reply)
+        self.send_json(200, response.to_wire())
 
 
 def main():

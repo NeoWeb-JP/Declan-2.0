@@ -93,7 +93,16 @@ roast-before-guest priority and single execution. Legacy injected pairs are
 validated at that dispatch boundary; public APIs retain their existing mappings
 or tuples.
 
+Final response composition exposes `compose_turn_result()` with a frozen
+`TurnResponse`, validating outcomes before session/composition changes and
+retaining `None` for unhandled chat. `persist_turn_result()` uses this response's
+outcome and routine status as authoritative values, preserving session, retry,
+training and history mutations in the returned typed response. Explicit wire
+adapters retain plain outcomes and extra metadata; original mapping-based
+composition and persistence APIs remain compatible.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes final-response/session orchestration still using legacy tuples. Structured action
+scope includes information-provider and routine-preview outcomes and the
+lighting-result marker still represented as a reply/outcome pair. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.
