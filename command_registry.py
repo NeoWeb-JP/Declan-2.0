@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 
 from execution_results import ExecutionResult, Outcome
+from music_provider_result import music_execution_result
 
 
 @dataclass(frozen=True)
@@ -110,7 +111,7 @@ def registry(deps):
 
     def feedback(context, command):
         reply, outcome = deps.feedback(command, deps.connection(), deps.music_inventory)
-        return HandledCommand("music_feedback", ExecutionResult(reply, outcome))
+        return HandledCommand("music_feedback", music_execution_result((reply, outcome)))
 
     def control(context, command):
         reply, outcome = deps.control(
@@ -118,7 +119,7 @@ def registry(deps):
             origin=context.origin_device or context.satellite, read_areas=deps.areas,
             assist=context.source == "assist",
         )
-        return HandledCommand("music_control", ExecutionResult(reply, outcome))
+        return HandledCommand("music_control", music_execution_result((reply, outcome)))
 
     def play(context, command):
         reply, outcome = deps.play(
@@ -126,7 +127,7 @@ def registry(deps):
             **({"origin": context.satellite or context.origin_device}
                if context.satellite or context.origin_device else {}),
         )
-        return HandledCommand("music_play", ExecutionResult(reply, outcome))
+        return HandledCommand("music_play", music_execution_result((reply, outcome)))
 
     def media_search(context, phrase):
         reply, outcome = deps.search_media(phrase)

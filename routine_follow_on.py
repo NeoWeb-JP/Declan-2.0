@@ -1,13 +1,18 @@
 """Chained routine follow-on actions, independent of HTTP request handling."""
 from dataclasses import dataclass
+from execution_results import ExecutionResult, Outcome
+from music_provider_result import music_execution_result
 
 
 @dataclass(frozen=True)
 class FollowOnResult:
     reply: str
-    outcome: str
+    outcome: Outcome
     lighting_context: tuple[str, ...]
     routine_voice_result: tuple[str, str]
+
+    def __post_init__(self):
+        object.__setattr__(self, "outcome", Outcome(self.outcome))
 
 
 def execute(follow_on, *, routine_reply, routine_outcome, routine_status,
@@ -18,19 +23,21 @@ def execute(follow_on, *, routine_reply, routine_outcome, routine_status,
     light_steps = []
     if follow_on.startswith("play "):
         command = parse_music(follow_on)
-        follow_reply, follow_outcome = (
+        follow_result = music_execution_result(
             play_music(command, connection(), music_inventory,
                        **({"origin": music_origin} if music_origin else {}))
             if command else ("Tell me where to play the music.", "unresolved")
         )
+        follow_reply, follow_outcome = follow_result.as_legacy_pair()
     else:
         lighting_result = handle_lighting(
             follow_on, action_results=light_steps, last_lights=last_lights,
             origin_device=origin,
         )
-        follow_reply, follow_outcome = lighting_result or (
+        follow_result = ExecutionResult(*(lighting_result or (
             "I couldn't understand the lighting command after the routine.", "unresolved"
-        )
+        )))
+        follow_reply, follow_outcome = follow_result.as_legacy_pair()
     action_results.extend(light_steps)
     lighting_context = ()
     if follow_outcome == "confirmed" and scope is not None and len(light_steps) < 200:
@@ -43,6 +50,6 @@ def execute(follow_on, *, routine_reply, routine_outcome, routine_status,
         routine_reply += f" {routine_status}"
     routine_reply += f" {follow_reply}"
     return FollowOnResult(
-        routine_reply, chained_outcome(routine_outcome, follow_outcome),
+        routine_reply, Outcome(chained_outcome(routine_outcome, follow_outcome)),
         lighting_context, (original_reply, routine_outcome),
     )
