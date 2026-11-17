@@ -351,6 +351,13 @@ outcomes select guard messages; other outcomes and malformed/future reasons reta
 their existing behavior. Outcome normalization remains independent of reason
 parsing. Legacy replies, outcomes, details and correlation guards are unchanged.
 
+OpenAI response status and the single assistant output text are interpreted by
+a frozen `ModelResponseResult` before plan decoding. Only exact completed
+responses can supply text; all other statuses remain unverified. Usage accounting
+still precedes rejection, malformed/ambiguous output retains the public error,
+and validated candidate tuples and empty-plan behavior are unchanged. A completed
+model response is never evidence of Home Assistant execution.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from openai_planner import request_plan
+from model_response_results import ModelResponseResult, ModelResponseStatus
 
 
 class FakeOpener:
@@ -26,6 +27,35 @@ def response(plan):
 
 
 class OpenAIPlannerTests(unittest.TestCase):
+    def test_response_result_is_typed_frozen_and_not_an_execution_result(self):
+        result = ModelResponseResult.parse(response({"actions": []}))
+        self.assertIs(result.status, ModelResponseStatus.COMPLETED)
+        self.assertEqual(json.loads(result.text), {"actions": []})
+        with self.assertRaises(AttributeError):
+            setattr(result, "text", "changed")
+        for status in ("incomplete", "failed", "cancelled", "in_progress", "queued", "COMPLETED", None, [], {}):
+            with self.subTest(status=status):
+                parsed = ModelResponseResult.parse({"status": status, "output": "ignored"})
+                self.assertIs(parsed.status, ModelResponseStatus.UNVERIFIED)
+                self.assertIsNone(parsed.text)
+
+    def test_invalid_provider_results_still_account_usage_before_rejection(self):
+        valid = response({"actions": []})
+        message = valid["output"][0]
+        cases = [{"status": status, "output": valid["output"]}
+                 for status in ("incomplete", "future", "COMPLETED", [], None)]
+        cases.extend({"status": "completed", "output": output} for output in
+                     ([], [message, message], [None], [{**message, "content": None}],
+                      [{**message, "content": [{"type": "output_text", "text": []}]}]))
+        for payload in cases:
+            with self.subTest(payload=payload):
+                payload["usage"] = {"input_tokens": 10, "output_tokens": 2}
+                usage = []
+                with self.assertRaisesRegex(ValueError, "^Invalid model plan$"):
+                    request_plan("lights on", ["light.kitchen"], opener=FakeOpener(payload),
+                                 model="gpt-5-mini", api_key="test", usage_sink=usage.append)
+                self.assertEqual(usage, [payload["usage"]])
+
     def test_validated_candidate_no_dispatch(self):
         opener = FakeOpener(response({"actions": [{"entity_id": "light.kitchen", "service": "turn_on"}]}))
         plan = request_plan("lights on", ["light.kitchen"], opener=opener, model="gpt-5-mini", api_key="test")
