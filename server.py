@@ -58,6 +58,7 @@ import routine_registry_dispatch
 import routine_follow_on_dispatch
 import information_result_response
 import device_result_response
+import lighting_result_dispatch
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2632,22 +2633,24 @@ class Handler(BaseHTTPRequestHandler):
                         device_result_response.device_result_response(local)
                     )
                 else:
-                    lighting_dispatch = lighting_command_dispatch.dispatch_lighting(
-                        phrase, source=source, origin_device=origin_device, satellite=satellite,
+                    lighting_result = lighting_result_dispatch.dispatch_lighting_result(
+                        phrase, source=source, origin_device=origin_device,
+                        satellite=satellite,
                         registry_factory=command_registry.lighting_registry,
                         context_factory=command_registry.RequestContext,
                         matches=lighting_intents.matches,
                         parse_light_command=parse_light_command,
                         handle_light_request=handle_light_request,
                         action_results=action_results, last_lights=last_lights,
+                        scope=scope,
+                        dispatch_lighting=lighting_command_dispatch.dispatch_lighting,
+                        confirmed_lighting_context=(
+                            lighting_context_finalization.confirmed_lighting_context
+                        ),
                     )
-                    if lighting_dispatch is not None:
-                        light_result = lighting_dispatch.result.as_legacy_pair()
-            if light_result:
-                routine_reply, outcome = light_result
-                lighting_context = lighting_context_finalization.confirmed_lighting_context(
-                    phrase, outcome, scope, action_results,
-                )
+                    if lighting_result is not None:
+                        routine_reply, outcome, lighting_context = lighting_result
+                        light_result = (routine_reply, outcome)
         if routine_reply is None and light_result is None:
             exposed = fallback_entity_authorization.exposed_entities(
                 body, self.headers.get("Authorization", ""),
