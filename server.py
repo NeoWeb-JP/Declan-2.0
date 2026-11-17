@@ -1761,29 +1761,29 @@ def _bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None
     return plan
 
 
-def guarded_openai_fallback(message, *, source, exposed_entities=()):
+def guarded_openai_fallback_result(message, *, source, exposed_entities=()):
     """Opt-in fallback after local handlers. Sensitive targets excluded."""
     try:
         settings = ai_settings.read()
     except (OSError, ValueError, sqlite3.Error):
-        return "AI settings are unavailable; local commands still work.", "unresolved", []
+        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("AI settings are unavailable; local commands still work.", Outcome.UNRESOLVED))
     if not settings["enabled"] or not ai_intent_gate.is_action_request(message):
         return None
     connection = ha_device_connection()
     if connection is None:
-        return "Home Assistant is unavailable.", "unavailable", []
+        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("Home Assistant is unavailable.", Outcome.UNAVAILABLE))
     inventory, error = read_ha_inventory(connection)
     if error or inventory is None:
-        return "I couldn't verify Home Assistant devices.", "unavailable", []
+        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("I couldn't verify Home Assistant devices.", Outcome.UNAVAILABLE))
     # Only the authenticated HA integration supplies its effective Assist
     # exposure set. Never use all inventory rows as implicit permission.
     if not isinstance(exposed_entities, (list, tuple)) or len(exposed_entities) > 20000:
-        return "AI device permissions are unavailable.", "unresolved", []
+        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
     permitted = set(exposed_entities)
     if not permitted or len(permitted) != len(exposed_entities) or any(
             not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", item)
             for item in exposed_entities):
-        return "AI device permissions are unavailable.", "unresolved", []
+        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
     safe = [row for row in inventory if row["entity_id"] in permitted
             and row["entity_id"].split(".", 1)[0] in settings["allowed_domains"]]
     try:
@@ -1807,14 +1807,14 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
                 request_ceiling_micro_usd=ceiling,
                 charge_micro_usd=lambda: ai_pricing.charge(settings["model"], usage.get("value")),
             )
-        return result.reply, result.outcome.value, [
+        return guarded_fallback_dispatch.FallbackResponse(result, tuple(
             {"entity_id": action.entity_id, "action": action.service,
              "ai_generated": True, "status": action.status.value,
              **({"detail": action.detail} if settings["diagnostics"] else {})}
             for action in result.actions
-        ]
+        ))
     except (ValueError, OSError, sqlite3.Error):
-        return "I couldn't safely complete that request using OpenAI.", "unresolved", []
+        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("I couldn't safely complete that request using OpenAI.", Outcome.UNRESOLVED))
 
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
@@ -2719,18 +2719,18 @@ class Handler(BaseHTTPRequestHandler):
                         routine_reply, outcome = lighting_result.result.reply, lighting_result.result.outcome
                         lighting_context = lighting_result.lighting_context
                         light_result = (routine_reply, outcome)
-        fallback_result = fallback_orchestration.resolve_fallback(
+        fallback_result = fallback_orchestration.resolve_fallback_result(
             effective_message, routine_reply=routine_reply,
             light_result=light_result, body=body,
             authorization=self.headers.get("Authorization", ""),
             bridge_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
             source=source, action_results=action_results,
             exposed_entities=fallback_entity_authorization.exposed_entities,
-            dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback,
-            fallback_handler=guarded_openai_fallback,
+            dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback_result,
+            fallback_handler=guarded_openai_fallback_result,
         )
         if fallback_result is not None:
-            routine_reply, outcome = fallback_result
+            routine_reply, outcome = fallback_result.reply, fallback_result.outcome
         chat_kind = effective_message.casefold().strip(" .?!")
         guest_mode, visitor_present, response_guest_mode = (
             response_persona_context.resolve_response_persona(
@@ -2907,6 +2907,12 @@ def set_switch_as_light(name, desired_state, inventory, connection, *, preview=F
     result = set_switch_as_light_result(name, desired_state, inventory, connection,
                                       preview=preview, action_results=action_results)
     return result.as_legacy_pair() if result is not None else None
+
+
+def guarded_openai_fallback(message, *, source, exposed_entities=()):
+    """Compatibility API retaining the reply/outcome/action-steps triple."""
+    response = guarded_openai_fallback_result(message, source=source, exposed_entities=exposed_entities)
+    return response.as_legacy_triple() if response is not None else None
 
 if __name__ == "__main__":
     declan_logs.install()
