@@ -1,6 +1,7 @@
 """Prioritized local handlers, with pure matching and injected execution dependencies."""
 from collections.abc import Callable
 from dataclasses import dataclass
+import re
 
 from execution_results import ExecutionResult, Outcome
 
@@ -75,6 +76,7 @@ class Dependencies:
     play: Callable
     music_inventory: Callable
     areas: Callable
+    search_media: Callable | None = None
 
 
 def registry(deps):
@@ -119,9 +121,18 @@ def registry(deps):
         )
         return HandledCommand("music_play", ExecutionResult(reply, outcome))
 
+    def media_search(context, phrase):
+        reply, outcome = deps.search_media(phrase)
+        return HandledCommand("media_search", ExecutionResult(reply, outcome))
+
     return HandlerRegistry((
         Handler("device_status", 10, lambda context: deps.parse_status(context.phrase, context.last_device), status),
         Handler("music_feedback", 20, lambda context: deps.parse_feedback(context.phrase), feedback),
         Handler("music_control", 30, lambda context: deps.parse_control(context.phrase), control),
         Handler("music_play", 40, lambda context: deps.parse_music(context.phrase), play),
+        *([Handler("media_search", 50, lambda context: context.phrase if re.fullmatch(
+            r"(?:where can i (?:watch|stream|find)|(?:search|look) for|find (?:the )?(?:movie|film|show)|"
+            r"start (?:movie time|cinema time|cinema mode) and play(?: the (?:movie|film|show))?) (.+)",
+            context.phrase,
+        ) else None, media_search)] if deps.search_media is not None else []),
     ))
