@@ -6,39 +6,6 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BACKEND_MODULES = (
-    "server.py", "configuration.py", "music.py", "voicepipeline.py",
-    "updates.py", "sensitive_confirmations.py", "declan_logs.py",
-    "command_responses.py", "routine_responses.py", "script_discovery.py",
-    "personality.py", "response_library.py", "arbitration.py",
-    "history.py", "timers.py", "conditions.py", "web_stt.py",
-    "diagnostics.py", "voice_profiles.py", "lighting_intents.py",
-    "custom_components/declan_two/conversation.py",
-    "custom_components/declan_two/stt.py",
-    "custom_components/declan_two/tts.py",
-    "custom_components/declan_two/voice_defaults.py",
-    "custom_components/declan_two/routine_jobs.py",
-    "custom_components/declan_two/updates_view.py",
-    "custom_components/declan_two/management_view.py",
-    "custom_components/declan_two/microphone_view.py",
-    "custom_components/declan_two/ha_audit_view.py",
-    "custom_components/declan_two/__init__.py",
-    "custom_components/declan_two/history_view.py",
-    "custom_components/declan_two/chat_view.py",
-    "custom_components/declan_two/media_players_view.py",
-    "custom_components/declan_two/music_playlists_view.py",
-    "custom_components/declan_two/ai_settings_view.py",
-    "custom_components/declan_two/voice_review_view.py",
-    "custom_components/declan_two/settings_status_view.py",
-    "custom_components/declan_two/script_discovery_view.py",
-    "custom_components/declan_two/script_result_view.py",
-    "custom_components/declan_two/capabilities_view.py",
-    "custom_components/declan_two/config_flow.py",
-    "approved_media_players.py",
-    "openai_planner.py",
-    "ai_credentials.py",
-    "spotify_playlists.py",
-)
 ENV_READ = re.compile(
     r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.(?:get|setdefault|pop)\s*\(\s*|\[\s*))['"]((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))['"]"""
 )
@@ -66,36 +33,22 @@ class EnvironmentDocumentationTests(unittest.TestCase):
                     "OPENAI_API_KEY" if "OPENAI_API_KEY" in expression else "DECLAN_EXAMPLE"
                 ])
 
-    def test_backend_environment_reads_are_documented(self):
-        documented = set(DOCUMENTED.findall((ROOT / "docs/environment.md").read_text(encoding="utf-8")))
+    def test_repository_environment_reads_are_documented(self):
+        """Audit every production Python module, including newly added modules."""
+        documented = set(DOCUMENTED.findall(
+            (ROOT / "docs/environment.md").read_text(encoding="utf-8")
+        ))
         missing = {}
-        for filename in BACKEND_MODULES:
-            source = (ROOT / filename).read_text(encoding="utf-8")
+        for file in ROOT.rglob("*.py"):
+            relative = file.relative_to(ROOT)
+            if any(part in {"tests", ".git", ".venv", "venv", "node_modules"}
+                   for part in relative.parts):
+                continue
+            source = file.read_text(encoding="utf-8")
             undocumented = sorted(set(ENV_READ.findall(source)) - documented)
             if undocumented:
-                missing[filename] = undocumented
-        self.assertEqual(missing, {}, "Document runtime environment reads in docs/environment.md")
-
-    def test_audit_scope_includes_all_modules_reading_documented_environment_keys(self):
-        """Flag newly added modules with environment reads for audit expansion."""
-        scoped = set(BACKEND_MODULES)
-        candidates = sorted(
-            file for file in ROOT.rglob("*.py")
-            if not any(part in {"tests", ".git", ".venv", "venv", "node_modules"}
-                       for part in file.relative_to(ROOT).parts)
-        )
-        unaudited = {}
-        for file in candidates:
-            relative = file.relative_to(ROOT).as_posix()
-            if relative in scoped:
-                continue
-            keys = sorted(set(ENV_READ.findall(file.read_text(encoding="utf-8"))))
-            if keys:
-                unaudited[relative] = keys
-        self.assertEqual(
-            unaudited, {},
-            "Add modules with runtime environment reads to BACKEND_MODULES and document new keys",
-        )
+                missing[relative.as_posix()] = undocumented
+        self.assertEqual(missing, {}, "Document production environment reads")
 
     def test_environment_inventory_has_unique_described_entries(self):
         """Each environment setting needs one meaningful purpose and example."""
