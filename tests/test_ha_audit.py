@@ -12,7 +12,12 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "custom_components/declan_two"
-spec = importlib.util.spec_from_file_location("ha_audit_under_test", INTEGRATION / "ha_audit.py")
+job_result_spec = importlib.util.spec_from_file_location("audit_fixture.routine_job_results", INTEGRATION / "routine_job_results.py")
+assert job_result_spec is not None and job_result_spec.loader is not None
+job_results = importlib.util.module_from_spec(job_result_spec)
+sys.modules[job_result_spec.name] = job_results
+job_result_spec.loader.exec_module(job_results)
+spec = importlib.util.spec_from_file_location("audit_fixture.ha_audit", INTEGRATION / "ha_audit.py")
 assert spec is not None and spec.loader is not None
 audit = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = audit
@@ -24,6 +29,20 @@ review_spec.loader.exec_module(reviews)
 
 
 class AuditTests(unittest.TestCase):
+    def test_stored_job_review_decisions_preserve_identifiers_and_unknown_values(self):
+        for outcome in (*job_results.RoutineJobOutcome, "future_status", None, ["failed"]):
+            with self.subTest(outcome=outcome):
+                wire = {"job_id": "job", "outcome": str(outcome) if isinstance(outcome, str) else outcome,
+                        "steps": [{"status": "observed"}], "extra": "retained"}
+                routine = {"entity_id": "script.test", "config": {}, "background_result": wire}
+                typed = {**routine, "background_result": job_results.StoredRoutineJob(wire)}
+                self.assertEqual(audit.review_fingerprint(routine, [], []), audit.review_fingerprint(typed, [], []))
+                self.assertEqual(audit.review_evidence(routine, [], []), audit.review_evidence(typed, [], []))
+                expected_failure = isinstance(outcome, str) and outcome in {"failed", "partial", "unverified", "cancelled"}
+                self.assertEqual(len(audit.review_evidence(typed, [], [])[1]), int(expected_failure))
+                report = self.report(routines=[typed])
+                self.assertEqual(report["routines"][0]["background_result"], wire)
+
     def test_typed_steps_keep_only_paths_and_error_presence(self):
         trace = {"trace": {"action/0": [{"error": "secret", "changed_variables": {"token": "hidden"}}],
                            "action/1": [{"result": {"success": True}}], "ignored": {"error": "secret"}}}

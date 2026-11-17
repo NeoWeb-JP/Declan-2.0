@@ -58,6 +58,35 @@ class BackgroundDispatchTests(unittest.TestCase):
 
 
 class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
+    async def test_stored_job_readback_keeps_typed_outcomes_and_wire_compatibility(self):
+        state = await self.jobs_view.job_state(self.hass)
+        for index, outcome in enumerate((*self.jobs_view.RoutineJobOutcome, "future_status")):
+            wire = {"job_id": str(index), "entity_id": "script." + str(index),
+                    "outcome": str(outcome), "created_at": str(index), "updated_at": str(index),
+                    "steps": [{"status": "unusual_external_status"}], "extra": {"retained": True}}
+            await self.jobs_view.save_job(state, wire)
+        typed = await self.jobs_view.latest_results_typed(self.hass)
+        legacy = await self.jobs_view.latest_results(self.hass)
+        for entity_id, result in typed.items():
+            self.assertEqual(result.to_wire(), legacy[entity_id])
+            if result.get("outcome") == "future_status":
+                self.assertIsNone(result.outcome)
+            else:
+                self.assertIsInstance(result.outcome, self.jobs_view.RoutineJobOutcome)
+            changed = result.to_wire()
+            changed["extra"]["retained"] = False
+            self.assertTrue(result.get("extra")["retained"])
+            self.assertTrue(state["jobs"][result.get("job_id")]["extra"]["retained"])
+            with self.assertRaises(AttributeError):
+                result.outcome = None
+
+    async def test_audit_collector_uses_typed_job_readback(self):
+        with patch.object(self.jobs_view, "latest_results", side_effect=AssertionError("legacy roundtrip")), \
+             patch.object(self.jobs_view, "latest_results_typed", wraps=self.jobs_view.latest_results_typed) as typed:
+            report = await self.view.collect_report(self.hass)
+        typed.assert_awaited_once()
+        self.assertNotIn("background routine results unavailable", report["gaps"])
+
     async def test_background_trace_fallback_consumes_typed_lookup(self):
         async def service(*args, **kwargs):
             return None

@@ -193,7 +193,17 @@ remain accepted by classification. Audit review/failure consumers retain typed
 executions until report serialization. Fingerprints and review issue identifiers
 are identical for typed and legacy inputs, preserving existing review decisions.
 
-Issue #17 and its overall typed-outcome checklist remain open. Remaining
-cross-component audit scope includes persisted background-job state readback and
-its outcome consumers. Broader evidence statuses must not be silently narrowed
-to verified `ActionStatus`.
+Persisted background jobs now use frozen `StoredRoutineJob` snapshots at the
+readback boundary. `latest_results_typed` feeds audit collection and enum-backed
+review decisions directly; `latest_results` remains the original mapping API.
+Queue, restart, retention and logging decisions parse stored outcomes explicitly.
+The shared job enum includes trace `skipped` results. Unknown future outcomes have
+no recognized enum interpretation and retain their original wire values, metadata
+and steps. Serialization returns detached copies, preserving storage compatibility
+and existing review identifiers without promoting unknown evidence to success.
+
+Issue #17 and its overall typed-outcome checklist remain open. The scoped HA
+trace/job readback migration is implemented; remaining follow-up is a repository
+audit of other internal outcome contracts and legacy adapters before considering
+the wider migration complete. Broader evidence statuses must not be silently
+narrowed to verified `ActionStatus`.
