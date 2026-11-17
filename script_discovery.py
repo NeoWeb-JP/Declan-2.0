@@ -152,6 +152,21 @@ def completion_from_trace(connection, current, result):
     return None
 
 
+def enqueue_result(connection, entity_id, parameters):
+    """Return a validated typed background dispatch and its receipt detail."""
+    from local_outcome_contracts import routine_execution_result
+    return routine_execution_result(enqueue(connection, entity_id, parameters))
+
+
+def execute_result(connection, item, *, parameters=None, expect_response=False, action_results=None):
+    """Return a validated typed Home Assistant script result and status detail."""
+    from local_outcome_contracts import routine_execution_result
+    return routine_execution_result(execute(
+        connection, item, parameters=parameters, expect_response=expect_response,
+        action_results=action_results,
+    ))
+
+
 def enqueue(connection, entity_id, parameters):
     """Wait only for HA's durable job receipt, never for routine completion."""
     if connection is None:
