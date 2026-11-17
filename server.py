@@ -50,6 +50,7 @@ import sensitive_confirmation_response
 import sensitive_confirmation_decision
 import sensitive_confirmation_turn
 import routine_preview_detection
+import routine_preview_dispatch
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2524,10 +2525,10 @@ class Handler(BaseHTTPRequestHandler):
         if is_confirmed:
             phrase = confirmed_phrase
             effective_message = confirmed_phrase
-        preview_phrase = routine_preview_detection.routine_preview_phrase(phrase)
-        routine_preview = (
-            preview_routine(preview_phrase, origin_device or satellite)
-            if preview_phrase else None
+        routine_preview = routine_preview_dispatch.dispatch_preview(
+            phrase, origin_device=origin_device, satellite=satellite,
+            detect_phrase=routine_preview_detection.routine_preview_phrase,
+            preview_routine=preview_routine,
         )
         timer_result = timer_command_dispatch.dispatch_timer(
             phrase, source=source, origin_device=origin_device, satellite=satellite,
