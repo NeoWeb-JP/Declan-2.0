@@ -57,6 +57,7 @@ import information_command_dispatch
 import device_command_dispatch
 import lighting_command_dispatch
 import lighting_context_finalization
+import fallback_entity_authorization
 import history
 import music
 import approved_media_players
@@ -2631,11 +2632,10 @@ class Handler(BaseHTTPRequestHandler):
                     phrase, outcome, scope, action_results,
                 )
         if routine_reply is None and light_result is None:
-            bridge_token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
-            authenticated_ha = len(bridge_token) >= 32 and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                ("Bearer " + bridge_token).encode())
-            exposed = body.get("ai_exposed_entities", ()) if authenticated_ha else ()
+            exposed = fallback_entity_authorization.exposed_entities(
+                body, self.headers.get("Authorization", ""),
+                os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+            )
             fallback = guarded_openai_fallback(
                 effective_message, source=source, exposed_entities=exposed)
             if fallback is not None:
