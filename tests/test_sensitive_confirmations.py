@@ -80,4 +80,5 @@ class SensitiveConfirmationTests(unittest.TestCase):
         self.assertIn("script_discovery.enqueue_result(", server)
 
 
-if __name__=="__main__": unittest.main()
+if __name__=="__main__":
+    unittest.main()
