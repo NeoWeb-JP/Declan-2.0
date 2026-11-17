@@ -1,9 +1,17 @@
 """HTTP turn finalisation regression tests."""
 import unittest
 from turn_finalization import lighting_phrase_suggestion, apply_outcome_metadata
+from execution_results import Outcome
 
 
 class TurnFinalizationTests(unittest.TestCase):
+    def test_typed_and_legacy_outcomes_preserve_suggestion_gates(self):
+        for outcome in Outcome:
+            with self.subTest(outcome=outcome):
+                self.assertEqual(self.suggestion(outcome=outcome), self.suggestion(outcome=outcome.value))
+        for outcome in ("future_outcome", [], None):
+            self.assertIsNone(self.suggestion(outcome=outcome))
+
     def suggestion(self, *, previous=None, outcome="confirmed", actions=None,
                    scope="kitchen", message="turn off kitchen lights", now=120):
         if previous is None:

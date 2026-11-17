@@ -1,9 +1,16 @@
 """Lighting context finalization regression tests."""
 import unittest
 from lighting_context_finalization import confirmed_lighting_context
+from execution_results import Outcome
 
 
 class LightingContextFinalizationTests(unittest.TestCase):
+    def test_typed_outcome_gate_matches_legacy_and_rejects_unknown_values(self):
+        for outcome in Outcome:
+            self.assertEqual(self.context(outcome=outcome), self.context(outcome=outcome.value))
+        for outcome in ("future_outcome", [], None):
+            self.assertEqual(self.context(outcome=outcome), ())
+
     def context(self, phrase="turn on the lights", outcome="confirmed", scope="kitchen", steps=None):
         if steps is None:
             steps = [{"entity_id": "light.kitchen", "status": "confirmed"}]

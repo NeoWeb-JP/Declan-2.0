@@ -8,9 +8,35 @@ from unittest.mock import patch
 import history
 import routine_responses as responses
 import personality_policy
+import script_discovery
+from execution_results import Outcome, parse_outcome
 
 
 class RoutineResponsesTests(TestCase):
+    def test_response_rendering_uses_typed_discovery_cache_and_plain_phase(self):
+        live = {**self.item, "name": "Live script name", "fields": ["request_id"]}
+        cached = script_discovery.DiscoveryResult((live,))
+        with patch.dict(script_discovery._CACHE, {"ha": (0, cached)}, clear=True), \
+             patch.object(responses, "select", return_value="Custom line") as select:
+            result = responses.render(("auto:" + live["entity_id"], {}), Outcome.STARTED, "Original")
+        self.assertEqual(result, "Custom line")
+        select.assert_called_once_with(live, "requested", False, "default")
+        self.assertIs(type(select.call_args.args[1]), str)
+
+    def test_typed_phase_selection_preserves_failure_diagnostics(self):
+        for outcome in Outcome:
+            with self.subTest(outcome=outcome), patch.object(responses, "select", return_value="Custom line"):
+                selection = ("auto:" + self.item["entity_id"], {})
+                self.assertEqual(responses.render(selection, outcome, "Diagnostic"),
+                                 responses.render(selection, outcome.value, "Diagnostic"))
+                phase = responses.response_phase(outcome)
+                if phase is responses.ResponsePhase.FAILURE:
+                    self.assertEqual(responses.render(selection, outcome, "Diagnostic"), "Custom line Diagnostic")
+        for unknown in ("future_outcome", [], None):
+            self.assertIsNone(parse_outcome(unknown))
+            self.assertIsNone(responses.response_phase(unknown))
+            self.assertEqual(responses.render(("auto:script.test", {}), unknown, "Original"), "Original")
+
     def setUp(self):
         folder = Path(self.enterContext(TemporaryDirectory()))
         self.enterContext(patch.object(history, 'DATABASE', folder / 'history.db'))

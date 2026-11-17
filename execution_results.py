@@ -35,6 +35,18 @@ class Outcome(StrEnum):
     CONFIRMATION_DENIED = "confirmation_denied"
 
 
+def parse_outcome(value) -> Outcome | None:
+    """Interpret legacy outcome inputs without treating unknown values as success."""
+    if isinstance(value, Outcome):
+        return value
+    if not isinstance(value, str):
+        return None
+    try:
+        return Outcome(value)
+    except ValueError:
+        return None
+
+
 class MovieLaunchStatus(StrEnum):
     SENT = "sent"
     SKIPPED = "skipped"

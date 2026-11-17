@@ -1,12 +1,12 @@
 """Pure request-finalisation helpers for HTTP turn handling."""
-from execution_results import Outcome
+from execution_results import Outcome, parse_outcome
 
 
 def lighting_phrase_suggestion(previous, *, light_result, outcome, actions,
                                scope, message, now):
     """Return an earlier unresolved lighting phrase for user-review training."""
     failed_phrase = previous.get("failed_light_phrase") if previous else None
-    if (light_result and outcome == "confirmed" and actions and scope is not None
+    if (light_result and parse_outcome(outcome) is Outcome.CONFIRMED and actions and scope is not None
             and failed_phrase and failed_phrase["scope"] == scope
             and now - previous["at"] <= 30
             and actions & failed_phrase["actions"]

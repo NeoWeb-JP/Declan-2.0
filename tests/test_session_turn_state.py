@@ -1,9 +1,20 @@
 """Session context and voice correction retry regression tests."""
 import unittest
 from session_turn_state import update_turn
+from execution_results import Outcome
 
 
 class SessionTurnStateTests(unittest.TestCase):
+    def test_typed_and_legacy_outcomes_preserve_retry_state(self):
+        for outcome in Outcome:
+            with self.subTest(outcome=outcome):
+                self.assertEqual(self.update(outcome=outcome, reply_text="Done.", light=True,
+                    steps=[{"detail": "unresolved"}]), self.update(outcome=outcome.value,
+                    reply_text="Done.", light=True, steps=[{"detail": "unresolved"}]))
+        for outcome in ("future_outcome", []):
+            self.assertFalse(self.update(outcome=outcome, reply_text="Done.")[2])
+        self.assertTrue(self.update(outcome=None, reply_text="Done.")[2])
+
     def update(self, *, outcome="unresolved", reply_text="Unmatched", phrase="turn off kitchen",
                light=None, steps=None, scope="kitchen"):
         session = {"failed_light_phrase": {"old": True}}
