@@ -9,6 +9,7 @@ from homeassistant.components import tts
 from homeassistant.helpers import selector
 
 from .voice_defaults import DEFAULT_PROVIDER
+from .config_validation import valid_declan_origin
 
 
 # The audit environment lacks Home Assistant type definitions for ConfigFlow.__init_subclass__.
