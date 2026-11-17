@@ -56,6 +56,28 @@ When closing the remaining [P2 documentation task](https://github.com/NeoWeb-JP/
 
 The added HA, Assist, bind-address and release-version names were verified against `server.py` on 17 November 2026. This inventory covers names verified in the backend modules listed by the environment documentation regression test, including `updates.py` and `sensitive_confirmations.py`; additional modules may define more settings. Configuration keys in `configuration.py` are stored as named configuration entries and should not be assumed to be read directly from the process environment. Confirm each value's source in the deployment before relying on an environment override.
 
+## Verified runtime defaults and precedence
+
+The following behaviours are exercised by dedicated regression tests. These
+describe runtime behaviour, not merely the presence of an inventory entry.
+
+| Setting | Unset or empty | Override and invalid handling | Test |
+| --- | --- | --- | --- |
+| `DECLAN_WEATHER_ENTITY` | Uses `weather.forecast_home` when unset | Trims valid weather entity IDs; malformed IDs are rejected before a request | `tests/test_conditions_environment_defaults.py` |
+| `DECLAN_INDOOR_TEMPERATURE_ENTITY` | Uses the configured climate default when unset | Valid entity overrides are accepted; malformed entities are rejected | `tests/test_conditions_environment_defaults.py` |
+| `DECLAN_SPOTIFY_PRESETS` | Built-in presets remain available | Valid JSON object entries override presets; malformed JSON and invalid references are ignored | `tests/test_spotify_presets_environment_defaults.py` |
+| `DECLAN_SPOTIFY_CLIENT_ID`, `DECLAN_SPOTIFY_CLIENT_SECRET` | Missing or partial credentials are unconfigured | Both environment values are trimmed; valid saved settings take precedence and invalid saved settings do not silently fall back | `tests/test_spotify_credential_environment_defaults.py` |
+| `DECLAN_ALLOW_UNCONFIGURED_MA` | Compatibility discovery is disabled | Only the exact value `1` enables discovery of registered Music Assistant players; approved mappings take precedence | `tests/test_music_assistant_compat_environment.py` |
+| `DECLAN_SPOTIFY_MARKET` | Defaults to `GB` when unset | Trims and uppercases a two-letter code; empty or invalid codes fail before a search request | `tests/test_spotify_market_environment_defaults.py` |
+| `DECLAN_INGRESS_TOKEN` | Missing or short tokens cannot authenticate | Requires an exact token match of at least 32 characters and must differ from the Assist token | `tests/test_ingress_token_environment_defaults.py` |
+
+The Spotify credential source can also be a persisted settings file, not just
+the process environment. The `DECLAN_WEB_TTS_ENTITY` and
+`DECLAN_VISITORS_ENTITY` values are read through Declan's configuration
+store in `server.py`, rather than directly from `os.environ` at their use
+sites. Treat the inventory as an operator-facing configuration guide, not proof
+that every listed key is a direct environment override.
+
 ## Installation
 
 1. Copy [`.env.example`](../.env.example) into the protected server configuration location.
