@@ -2215,11 +2215,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(503, {"error": "Install requirements-web-voice.txt to enable the Assist microphone."})
             return
         except web_stt.AssistSpeechError as error:
-            print(f"Web Assist transcription failed: {error.code}", flush=True)
+            DECLAN_EVENT_LOG.warning("web_assist_transcription_failed code=%s", error.code)
             self.send_json(502, {"error": f"Home Assistant speech recognition failed ({error.code})."})
             return
         except (OSError, ValueError, AttributeError, TypeError) as error:
-            print(f"Web Assist connection or protocol failure: {type(error).__name__}", flush=True)
+            DECLAN_EVENT_LOG.warning("web_assist_connection_failed exception_type=%s", type(error).__name__)
             self.send_json(502, {"error": "Home Assistant couldn't transcribe that recording."})
             return
         self.send_json(200, {"text": result.text})
