@@ -5,7 +5,16 @@ from unittest.mock import Mock
 
 import command_registry as commands
 from execution_results import Outcome
-from tests.test_command_registry import dependencies
+def dependencies():
+    return commands.Dependencies(
+        parse_status=Mock(return_value=None), describe_status=Mock(),
+        connection=Mock(return_value="connection"), inventory=Mock(),
+        decorate=Mock(), guest_mode_entity="input_boolean.guest_mode",
+        parse_feedback=Mock(return_value=None), feedback=Mock(),
+        parse_control=Mock(return_value=None), control=Mock(),
+        parse_music=Mock(return_value=None), play=Mock(return_value=("Playing.", "confirmed")),
+        music_inventory=Mock(), areas=Mock(),
+    )
 
 
 class MediaSearchRegistryTests(TestCase):
