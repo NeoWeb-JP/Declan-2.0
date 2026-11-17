@@ -6,7 +6,7 @@ import re
 from threading import RLock
 
 _LOCK = RLock()
-_ENTRIES = deque(maxlen=500)
+_ENTRIES: deque = deque(maxlen=500)
 _HANDLER = None
 _SENSITIVE = re.compile(
     r"(?i)(bearer\s+)[a-z0-9._~+/-]+|"

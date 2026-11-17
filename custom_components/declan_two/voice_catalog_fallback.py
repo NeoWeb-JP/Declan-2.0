@@ -22,7 +22,7 @@ def category_alternatives(message: str, catalogue: dict, *, guest: bool) -> tupl
     """
     modes = GUEST_MODES if guest else HOME_MODES
     for action in SAFE_ACTIONS:
-        pool = []
+        pool: list[str] = []
         for mode in modes:
             entries = catalogue.get(mode, {}).get(action, [])
             if not isinstance(entries, list):

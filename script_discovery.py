@@ -9,7 +9,7 @@ from urllib.error import HTTPError
 from urllib.request import Request
 from urllib.parse import urlencode
 
-_CACHE = {}
+_CACHE: dict = {}
 _CACHE_LOCK = Lock()
 CACHE_SECONDS = 30
 

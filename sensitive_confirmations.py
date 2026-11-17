@@ -8,7 +8,7 @@ from confirmation_results import ConfirmationDecision, ConfirmationEvaluation
 YES = {"yes", "yes confirm", "confirm", "go ahead", "do it"}
 NO = {"no", "cancel", "never mind", "don't", "stop"}
 DEFAULT_GROUPS = {"night", "guest"}
-DEFAULT_TRUSTED = set()
+DEFAULT_TRUSTED: set[str] = set()
 TTL_SECONDS = 30
 
 

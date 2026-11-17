@@ -9,7 +9,7 @@ from threading import Lock
 
 _RANDOM = SystemRandom()
 _LOCK = Lock()
-_RECENT = {}
+_RECENT: dict = {}
 _SAVAGE = (
     "Another heroic achievement in avoiding the light switch.",
     "There you go, you absolute muppet.",
