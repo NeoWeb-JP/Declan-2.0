@@ -7,7 +7,6 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 
 import server
-from personality import LINES
 
 from test_home_assistant import HA_ENV
 
