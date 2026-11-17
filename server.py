@@ -93,6 +93,7 @@ from routine_action_evidence import RoutineActionStatus, parse_routine_actions
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
+from fallback_action_evidence import FallbackActionEvidence
 import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
@@ -1802,9 +1803,7 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=()):
                 charge_micro_usd=lambda: ai_pricing.charge(settings["model"], usage.get("value")),
             )
         return guarded_fallback_dispatch.FallbackResponse(result, tuple(
-            {"entity_id": action.entity_id, "action": action.service,
-             "ai_generated": True, "status": action.status.value,
-             **({"detail": action.detail} if settings["diagnostics"] else {})}
+            FallbackActionEvidence.from_action(action, include_detail=settings["diagnostics"])
             for action in result.actions
         ))
     except (ValueError, OSError, sqlite3.Error):
@@ -2519,7 +2518,7 @@ class Handler(BaseHTTPRequestHandler):
                     session_id or secrets.token_urlsafe(24), "ha_sentence", message, spoken_reply,
                     outcome if isinstance(outcome, str) and len(outcome) <= 64 else None,
                     routine_status if isinstance(routine_status, str) and len(routine_status) <= 1000 else None,
-                    routine_action_results(body.get("steps")),
+                    routine_action_results_typed(body.get("steps")),
                 )
             except (OSError, sqlite3.Error):
                 self.send_json(503, {"error": "Conversation history is unavailable."})

@@ -75,8 +75,9 @@ class TypedFallbackResponseTests(unittest.TestCase):
                  patch.object(server, "guarded_openai_fallback", side_effect=AssertionError("legacy provider")):
                 response = server.guarded_openai_fallback_result("lights on", source="assist", exposed_entities=["light.study"])
             self.assertIs(response.result, self.execution)
-            self.assertEqual("detail" in response.action_steps[0], diagnostics)
-            self.assertIs(type(response.action_steps[0]["status"]), str)
+            wire = response.action_steps[0].to_wire()
+            self.assertEqual("detail" in wire, diagnostics)
+            self.assertIs(type(wire["status"]), str)
             run.assert_called_once()
 
     def test_response_is_frozen_and_legacy_adapter_preserves_plain_triple(self):

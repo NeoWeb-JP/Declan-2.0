@@ -53,7 +53,7 @@ class NativeAISettingsContractTests(unittest.TestCase):
         self.assertIn('if (showProposals && Array.isArray(turn.action_results)', JS)
         self.assertIn('step.ai_generated === true', JS)
         self.assertIn('"action_results": [{', HISTORY)
-        self.assertIn('if settings["diagnostics"] else {}', BACKEND)
+        self.assertIn('FallbackActionEvidence.from_action(action, include_detail=settings["diagnostics"])', BACKEND)
 
     def test_fallback_local_first_and_allowlist(self):
         self.assertIn("if routine_reply is not None or light_result is not None:", FALLBACK)

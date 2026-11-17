@@ -377,6 +377,25 @@ class APITests(TestCase):
         self.assertEqual(self.request("/api/history?before=0")[0], 400)
         self.assertEqual(self.request("/api/history", headers={"Host": "other.invalid"})[0], 403)
 
+    def test_routine_event_retains_typed_steps_until_history_boundary(self):
+        from routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
+        with patch.object(server, "routine_action_results", side_effect=AssertionError("legacy evidence")), \
+             patch.object(server.history, "record", wraps=server.history.record) as record:
+            status, _ = self.request("/api/assist/history", headers={
+                "Content-Type": "application/json", "Authorization": "Bearer test"}, body={
+                    "message": "routine event", "reply": "Finished",
+                    "outcome": "finished_unverified", "routine_status": "Trace finished",
+                    "steps": [{"target": "lights", "status": "already_set"}]})
+        self.assertEqual(status, 200)
+        record.assert_called_once()
+        evidence = record.call_args.args[6]
+        self.assertIsInstance(evidence[0], RoutineActionEvidence)
+        self.assertIs(evidence[0].status, RoutineActionStatus.ALREADY_SET)
+        turn = server.history.recent()[0]
+        self.assertEqual(turn["outcome"], "finished_unverified")
+        self.assertEqual(turn["routine_status"], "Trace finished")
+        self.assertEqual(turn["action_results"], [{"target": "lights", "status": "already_set"}])
+
     def test_sexy_time_uses_ha_script_discovery_and_records_history(self):
         script = {"entity_id": "script.declan_sexy_time_controller",
                   "name": "Declan - Sexy Time Controller", "safe": True,

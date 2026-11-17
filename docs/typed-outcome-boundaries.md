@@ -151,7 +151,27 @@ Context preparation, retry state, general decoration and optional dinner-music
 feedback read typed fields without converting statuses to strings. Mixed injected
 legacy rows remain supported, including transfer to ordinary-list callers.
 
-Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes the final compatibility review of legacy adapters, fallback
-diagnostic projections and external routine-event inputs. Broader evidence status
-vocabulary must not be silently narrowed to verified `ActionStatus`.
+Fallback diagnostic rows use frozen `FallbackActionEvidence`, retaining verified
+action statuses and the AI-generated marker. Detail redaction is applied when the
+model is constructed, so disabled details are absent even before serialization.
+Typed accumulation retains these rows; ordinary lists and the public fallback
+triple receive the same plain diagnostic mappings as before. External routine
+history events retain typed parsed evidence until direct history serialization.
+
+## Compatibility audit
+
+| Boundary | Retained contract |
+| --- | --- |
+| Public music, timer, lighting, preview and information helpers | Original pair/triple or `None` adapters around typed cores |
+| Public mapped/discovered routine execution | Original reply/outcome/status triples |
+| Final HTTP responses and stored history | Plain outcome/status strings and existing extra metadata |
+| Legacy list evidence callers | Original mapping rows and order, including mixed injected rows |
+| Fallback diagnostics | AI-generated marker and opt-in detail field; no verification promotion |
+| External routine history events | Bounded external outcome/status text remains compatible; it is persisted rather than used as an internal execution decision |
+
+Issue #17 and its overall typed-outcome checklist remain open. The backend
+adapter review above covers the migrated command path. Remaining cross-component
+audit scope includes Home Assistant background routine-job and trace status
+internals (`routine_jobs.py`, `ha_audit.py`, `script_result_view.py`), which retain
+their own protocol/state vocabulary. Broader evidence statuses must not be
+silently narrowed to verified `ActionStatus`.

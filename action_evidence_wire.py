@@ -3,9 +3,10 @@ from execution_results import ActionResult
 from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
 from routine_action_evidence import RoutineActionEvidence
+from fallback_action_evidence import FallbackActionEvidence
 
 
-TYPED_EVIDENCE = (ActionResult, LightingActionEvidence, MovieActionEvidence, RoutineActionEvidence)
+TYPED_EVIDENCE = (ActionResult, LightingActionEvidence, MovieActionEvidence, RoutineActionEvidence, FallbackActionEvidence)
 
 
 def action_evidence_to_wire(rows):
