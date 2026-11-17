@@ -40,6 +40,9 @@ def main() -> int:
     if status not in (0, 1):
         print(f"Mypy inventory exited unexpectedly with status {status}", file=sys.stderr)
         return 1
+    if status == 0 and "error:" in log:
+        print("Mypy inventory reported errors despite a successful exit", file=sys.stderr)
+        return 1
     if status == 1 and "error:" not in log:
         print("Mypy inventory failed without diagnostics", file=sys.stderr)
         return 1
