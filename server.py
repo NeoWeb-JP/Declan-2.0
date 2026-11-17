@@ -57,6 +57,7 @@ from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses
 import routine_follow_on
+import response_composition
 import command_responses
 import command_registry
 import session_orchestration
@@ -2744,22 +2745,12 @@ class Handler(BaseHTTPRequestHandler):
                         action_results, guest=guest_mode != "off", visitor_present=visitor_present)
                     if music_note:
                         reply["reply"] += " " + music_note
-            if (outcome == "started" and routine_turn and not routine_turn[1]
-                    and routine_turn[0][1].get("_declan_background")):
-                if routine_turn[0][1].get("_declan_reply_category") == "morning":
-                    reply["reply"] = personality_policy.morning_request_reply(
-                        guest=guest_mode != "off", visitor_present=visitor_present)
-                elif routine_turn[0][1].get("_declan_reply_category") == "night":
-                    reply["reply"] = personality_policy.night_request_reply(
-                        guest=guest_mode != "off", visitor_present=visitor_present)
-                elif routine_turn[0][1].get("_declan_reply_category") == "sexy":
-                    reply["reply"] = personality_policy.sexy_request_reply(
-                        routine_turn[0][1].get("operation", "start"),
-                        guest=guest_mode != "off", visitor_present=visitor_present)
-                else:
-                    reply["reply"] = personality_policy.movie_request_reply(
-                        routine_turn[0][1].get("requested_action", routine_turn[0][1].get("operation", "toggle")),
-                        guest=guest_mode != "off", visitor_present=visitor_present)
+            background_reply = response_composition.background_reply(
+                outcome, routine_turn, guest=guest_mode != "off",
+                visitor_present=visitor_present, personality=personality_policy,
+            )
+            if background_reply is not None:
+                reply["reply"] = background_reply
             if (routine_turn
                     and outcome != "preview"
                     and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
