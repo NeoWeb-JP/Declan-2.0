@@ -38,6 +38,9 @@ jobs:
           # The blocking check above already rejects all available source-level
           # diagnostics. This separate check inventories imports unavailable in
           # the minimal audit environment (not production type regressions).
+          # Install the lightweight third-party libraries used by the integration
+          # so this inventory focuses on unavailable Home Assistant runtime APIs.
+          python -m pip install aiohttp==3.13.2 voluptuous==0.15.2 websocket-client==1.9.0
           # Preserve the advisory exit status while recording actionable counts.
           set +e
           python -m mypy --config-file mypy.ini --show-error-codes . > mypy-advisory.log 2>&1
