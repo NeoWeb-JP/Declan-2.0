@@ -15,6 +15,7 @@ INTEGRATION = ROOT / "custom_components/declan_two"
 spec = importlib.util.spec_from_file_location("ha_audit_under_test", INTEGRATION / "ha_audit.py")
 assert spec is not None and spec.loader is not None
 audit = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = audit
 spec.loader.exec_module(audit)
 review_spec = importlib.util.spec_from_file_location("audit_reviews_under_test", INTEGRATION / "audit_reviews.py")
 assert review_spec is not None and review_spec.loader is not None
@@ -23,6 +24,35 @@ review_spec.loader.exec_module(reviews)
 
 
 class AuditTests(unittest.TestCase):
+    def test_typed_trace_classification_preserves_precedence_and_bounds(self):
+        cases = [({"error": "secret", "state": "running"}, audit.TraceOutcome.FAILED),
+                 ({"script_execution": "error"}, audit.TraceOutcome.FAILED),
+                 ({"script_execution": "finished", "audit_steps": [{"status": "failed"}]}, audit.TraceOutcome.PARTIAL),
+                 ({"script_execution": "failed_conditions", "state": "running"}, audit.TraceOutcome.SKIPPED),
+                 ({"not_triggered": True}, audit.TraceOutcome.SKIPPED),
+                 ({"state": "running", "script_execution": "finished"}, audit.TraceOutcome.RUNNING),
+                 ({"script_execution": "finished"}, audit.TraceOutcome.FINISHED_UNVERIFIED),
+                 ({"script_execution": "cancelled"}, audit.TraceOutcome.CANCELLED),
+                 ({"script_execution": "new_status"}, audit.TraceOutcome.UNVERIFIED)]
+        for trace, expected in cases:
+            with self.subTest(trace=trace):
+                result = audit.classify_trace_typed(trace)
+                self.assertIs(result.status, expected)
+                self.assertIs(type(result.to_wire()["status"]), str)
+                self.assertNotIn("secret", str(result.to_wire()))
+        trace = {"audit_steps": [{"path": str(index), "status": "observed"} for index in range(101)]}
+        result = audit.classify_trace_typed(trace)
+        self.assertEqual(len(result.steps), 100)
+        self.assertTrue(result.steps_truncated)
+        wire = result.to_wire()
+        wire["steps"][0]["status"] = "failed"
+        self.assertEqual(result.to_wire()["steps"][0]["status"], "observed")
+        self.assertEqual(len(trace["audit_steps"]), 101)
+        with self.assertRaises(AttributeError):
+            result.status = audit.TraceOutcome.FAILED
+        with self.assertRaises(TypeError):
+            audit.TraceExecution("finished_unverified")
+
     def test_returned_step_action_labels_are_data_not_executable_services(self):
         report = self.report({"sequence": [
             {"action": "light.turn_on", "target": {"entity_id": "light.ok"}},
@@ -185,6 +215,7 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         discovery_spec.loader.exec_module(self.discovery_view)
         result_spec = importlib.util.spec_from_file_location("audit_fixture.script_result_view", INTEGRATION / "script_result_view.py")
         self.result_view = importlib.util.module_from_spec(result_spec)
+        sys.modules["audit_fixture.script_result_view"] = self.result_view
         result_spec.loader.exec_module(self.result_view)
         sys.modules["audit_fixture.script_discovery_view"] = self.discovery_view
         sys.modules["audit_fixture.script_result_view"] = self.result_view
@@ -493,11 +524,30 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "finished_unverified")
         self.assertEqual(result["run_id"], "run1")
         self.assertNotIn("secret", str(result))
+        typed = await self.result_view.lookup_result_typed(self.hass, "script.dinner", "context1")
+        self.assertIs(typed.status, audit.TraceOutcome.FINISHED_UNVERIFIED)
+        self.assertEqual(typed.to_wire(), result)
+        self.assertEqual(typed.to_job_wire(), {"outcome": "finished_unverified", "run_id": "run1",
+                                              "steps": [{"path": "sequence/0", "status": "observed"}]})
         unrelated = await self.result_view.lookup_result(self.hass, "script.dinner", "context2")
         self.assertEqual(unrelated["status"], "unverified")
         self.trace_rows.append({"run_id": "run2", "script_execution": "finished"})
         ambiguous = await self.result_view.lookup_result(self.hass, "script.dinner", "context1")
         self.assertEqual(ambiguous["status"], "unverified")
+        self.assertEqual(ambiguous, {"entity_id": "script.dinner", "context_id": "context1", "status": "unverified"})
+
+    async def test_script_result_endpoint_consumes_typed_lookup_and_handles_errors(self):
+        request = SimpleNamespace(query={"entity_id": "script.dinner", "context_id": "context1"},
+                                  app={"hass": self.hass}, get=lambda key: SimpleNamespace(is_admin=True))
+        with patch.object(self.result_view, "lookup_result", side_effect=AssertionError("legacy roundtrip")):
+            result, options = await self.result_view.DeclanScriptResultView().get(request)
+        self.assertEqual(result, {"entity_id": "script.dinner", "context_id": "context1", "status": "unverified"})
+        self.assertEqual(options["headers"], {"Cache-Control": "no-store"})
+        async def fail(*args):
+            raise TimeoutError("secret error")
+        with patch.object(self.result_view, "lookup_result_typed", fail):
+            failed, _ = await self.result_view.DeclanScriptResultView().get(request)
+        self.assertEqual(failed, result)
 
 
 if __name__ == "__main__":
