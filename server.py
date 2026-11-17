@@ -441,26 +441,26 @@ def select_routine_turn(phrase, origin):
 
 
 
-def preview_routine(phrase, origin=None):
+def preview_routine_result(phrase, origin=None):
     """Read-only preview of a Home Assistant script; never dispatch actions."""
     selection = select_routine_turn(phrase, origin)
     if not selection:
-        return "I couldn't find that script in Home Assistant. Nothing has been run.", "unresolved"
+        return ExecutionResult("I couldn't find that script in Home Assistant. Nothing has been run.", Outcome.UNRESOLVED)
     (kind, options), follow_on = selection
     if follow_on:
-        return "I cannot preview chained commands yet. Nothing has been run.", "unresolved"
+        return ExecutionResult("I cannot preview chained commands yet. Nothing has been run.", Outcome.UNRESOLVED)
     if kind == "auto_ambiguous":
-        return "Several Home Assistant scripts match. Nothing has been run.", "unresolved"
+        return ExecutionResult("Several Home Assistant scripts match. Nothing has been run.", Outcome.UNRESOLVED)
     if kind == "unconfigured_house_status":
-        return "I couldn't find a House Status script in Home Assistant. Nothing has been run.", "not_configured"
+        return ExecutionResult("I couldn't find a House Status script in Home Assistant. Nothing has been run.", Outcome.NOT_CONFIGURED)
     if not kind.startswith("auto:"):
-        return "I couldn't identify a Home Assistant script. Nothing has been run.", "unresolved"
+        return ExecutionResult("I couldn't identify a Home Assistant script. Nothing has been run.", Outcome.UNRESOLVED)
     script = kind[5:]
     variables = ", ".join(f"{key}={value}" for key, value in options.items())
     detail = f" with {variables}" if variables else ""
-    return (f"Preview: I would request Home Assistant script {script}{detail}. "
+    return ExecutionResult(f"Preview: I would request Home Assistant script {script}{detail}. "
             "The script's internal actions and final reply cannot be predicted without running it. "
-            "Simulated spoken response: Starting the routine. Nothing has been run.", "preview")
+            "Simulated spoken response: Starting the routine. Nothing has been run.", Outcome.PREVIEW)
 
 
 def execute_routine_result(selection, action_results, *, approved=False):
@@ -2599,10 +2599,10 @@ class Handler(BaseHTTPRequestHandler):
         if is_confirmed:
             phrase = confirmed_phrase
             effective_message = confirmed_phrase
-        routine_preview = routine_preview_dispatch.dispatch_preview(
+        routine_preview = routine_preview_dispatch.dispatch_preview_result(
             phrase, origin_device=origin_device, satellite=satellite,
             detect_phrase=routine_preview_detection.routine_preview_phrase,
-            preview_routine=preview_routine,
+            preview_routine=preview_routine_result,
         )
         timer_result = timer_command_dispatch.dispatch_timer(
             phrase, source=source, origin_device=origin_device, satellite=satellite,
@@ -2669,7 +2669,7 @@ class Handler(BaseHTTPRequestHandler):
                 registry_factory=command_registry.information_registry,
                 context_factory=command_registry.RequestContext,
                 matches=conditions.matches, follow_up=conditions.follow_up,
-                handle=conditions.handle, question_context=conditions.question_context,
+                handle=conditions.handle_result, question_context=conditions.question_context,
                 opener=opener, last_information=last_information,
                 decorate=add_sass, guest_mode=read_guest_mode,
             )
@@ -2716,7 +2716,7 @@ class Handler(BaseHTTPRequestHandler):
                     if lighting_result is not None:
                         routine_reply, outcome = lighting_result.result.reply, lighting_result.result.outcome
                         lighting_context = lighting_result.lighting_context
-                        light_result = (routine_reply, outcome)
+                        light_result = lighting_result.result
         fallback_result = fallback_orchestration.resolve_fallback_result(
             effective_message, routine_reply=routine_reply,
             light_result=light_result, body=body,
@@ -2912,6 +2912,11 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
     """Compatibility API retaining the reply/outcome/action-steps triple."""
     response = guarded_openai_fallback_result(message, source=source, exposed_entities=exposed_entities)
     return response.as_legacy_triple() if response is not None else None
+
+
+def preview_routine(phrase, origin=None):
+    """Compatibility API for read-only preview reply/outcome pairs."""
+    return preview_routine_result(phrase, origin).as_legacy_pair()
 
 if __name__ == "__main__":
     declan_logs.install()

@@ -101,8 +101,16 @@ training and history mutations in the returned typed response. Explicit wire
 adapters retain plain outcomes and extra metadata; original mapping-based
 composition and persistence APIs remain compatible.
 
+Information providers expose `home_temperatures_result()`,
+`forecast_reply_result()` and `handle_result()`. A frozen `InformationResult`
+retains typed execution and validated weather/time category through the registry,
+including action evidence during decoration. Routine previews expose typed core
+and dispatch entrypoints without executing routines. Their original public pair/
+triple APIs remain compatible. The active lighting-result marker now retains the
+lighting `ExecutionResult` instead of rebuilding a reply/outcome pair.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes information-provider and routine-preview outcomes and the
-lighting-result marker still represented as a reply/outcome pair. Structured action
+scope includes structured action-evidence provider and persistence contracts.
+Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.
