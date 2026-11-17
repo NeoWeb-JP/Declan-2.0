@@ -53,6 +53,7 @@ import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
 import stop_command_dispatch
+import information_command_dispatch
 import history
 import music
 import approved_media_players
@@ -2578,12 +2579,15 @@ class Handler(BaseHTTPRequestHandler):
                 lighting_context = chained.lighting_context
                 routine_voice_result = chained.routine_voice_result
         else:
-            information_result = command_registry.information_registry(
+            information_result = information_command_dispatch.dispatch_information(
+                phrase, source=source,
+                registry_factory=command_registry.information_registry,
+                context_factory=command_registry.RequestContext,
                 matches=conditions.matches, follow_up=conditions.follow_up,
                 handle=conditions.handle, question_context=conditions.question_context,
                 opener=opener, last_information=last_information,
                 decorate=add_sass, guest_mode=read_guest_mode,
-            ).dispatch(command_registry.RequestContext(phrase=phrase, source=source))
+            )
             if information_result:
                 routine_reply, outcome = information_result.result.as_legacy_pair()
                 information_context = information_result.information_context
