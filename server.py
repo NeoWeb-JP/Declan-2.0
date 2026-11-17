@@ -42,6 +42,7 @@ import turn_response_orchestration
 import turn_persistence_orchestration
 import request_origin
 import request_validation
+import session_context_retrieval
 import history
 import music
 import approved_media_players
@@ -2449,20 +2450,13 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"reply": "", "session_id": session_id or secrets.token_urlsafe(24),
                                      "outcome": "duplicate"})
                 return
-        last_lights = ()
-        last_device = None
-        last_information = None
         with SESSION_LOCK:
-            previous = SESSIONS.get(session_id)
-            if (scope is not None and previous and previous.get("device_status_scope") == scope
-                    and monotonic() - previous["at"] < IDLE_SECONDS):
-                last_device = previous.get("device_status_target")
-            if (scope is not None and previous and previous.get("lighting_scope") == scope
-                    and monotonic() - previous["at"] < IDLE_SECONDS):
-                last_lights = previous.get("lighting_context", ())
-            if (scope is not None and previous and previous.get("information_scope") == scope
-                    and monotonic() - previous["at"] < IDLE_SECONDS):
-                last_information = previous.get("information_context")
+            last_lights, last_device, last_information = (
+                session_context_retrieval.recent_context(
+                    SESSIONS.get(session_id), scope,
+                    now=monotonic(), idle_seconds=IDLE_SECONDS,
+                )
+            )
         lighting_context = None
         status_target = None
         information_context = None
