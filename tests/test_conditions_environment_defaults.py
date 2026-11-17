@@ -107,5 +107,62 @@ class WeatherEntityDefaultsTests(unittest.TestCase):
         self.assertEqual(urls, ["http://ha.local/api/states/weather.forecast_home"])
 
 
+
+class WeatherForecastEnvironmentDefaultsTests(unittest.TestCase):
+    def run_forecast(self, settings):
+        calls = []
+
+        def fake_read(_opener, url, _headers=None, timeout=3, **kwargs):
+            calls.append((url, kwargs.get("data")))
+            if url.endswith("/api/config"):
+                return {"time_zone": "Europe/London",
+                        "unit_system": {"temperature": "°C"}}
+            if "/api/states/" in url:
+                return {"state": "sunny",
+                        "attributes": {"temperature_unit": "°C"}}
+            if "/api/services/weather/get_forecasts" in url:
+                return {"service_response": {
+                    "weather.forecast_home": {"forecast": []},
+                    "weather.outdoor": {"forecast": []}}}
+            return {}
+
+        with patch.dict(os.environ, settings, clear=True), patch.object(
+                conditions, "ha_connection", return_value=("http://ha.local", {})), patch.object(
+                conditions, "read_json", side_effect=fake_read):
+            result = conditions.home_forecast(object())
+        return result, calls
+
+    def test_unset_entity_uses_default_for_state_and_service(self):
+        result, calls = self.run_forecast({})
+        self.assertEqual(result[2], "°C")
+        self.assertEqual([url for url, _ in calls], [
+            "http://ha.local/api/config",
+            "http://ha.local/api/states/weather.forecast_home",
+            "http://ha.local/api/services/weather/get_forecasts?return_response",
+        ])
+        self.assertEqual(__import__("json").loads(calls[-1][1]),
+                         {"entity_id": "weather.forecast_home", "type": "daily"})
+
+    def test_override_is_stripped_and_used_for_state_and_service(self):
+        _, calls = self.run_forecast({"DECLAN_WEATHER_ENTITY": " weather.outdoor "})
+        self.assertIn("/api/states/weather.outdoor", calls[1][0])
+        self.assertEqual(__import__("json").loads(calls[-1][1]),
+                         {"entity_id": "weather.outdoor", "type": "daily"})
+
+    def test_empty_and_invalid_entities_make_no_requests(self):
+        for value in ("", "sensor.room", "weather.outdoor?query=1"):
+            with self.subTest(value=value):
+                result, calls = self.run_forecast({"DECLAN_WEATHER_ENTITY": value})
+                self.assertEqual(result, ({}, None, None))
+                self.assertEqual(calls, [])
+
+    def test_missing_ha_connection_makes_no_requests(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(
+                conditions, "ha_connection", return_value=None), patch.object(
+                conditions, "read_json") as read:
+            self.assertEqual(conditions.home_forecast(object()), ({}, None, None))
+            read.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
