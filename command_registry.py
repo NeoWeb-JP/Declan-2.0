@@ -5,6 +5,7 @@ import re
 
 from execution_results import ExecutionResult, Outcome
 from music_provider_result import music_execution_result
+from local_outcome_contracts import timer_execution_result, routine_execution_result
 
 
 @dataclass(frozen=True)
@@ -174,8 +175,7 @@ def timer_registry(*, matches, handle, opener, guest_mode, decorate):
         )
         if result is None:
             raise ValueError("Matched timer command returned no result")
-        reply, outcome = result
-        typed = ExecutionResult(reply, outcome)
+        typed = timer_execution_result(result)
         if typed.outcome in {Outcome.TIMER_SET, Outcome.TIMER_ADJUSTED,
                              Outcome.TIMER_CANCELLED, Outcome.TIMER_STOPPED}:
             typed = ExecutionResult(decorate(typed.reply, typed.outcome.value, guest_mode()), typed.outcome)
@@ -228,10 +228,10 @@ def routine_registry(*, select, execute, action_results, origin):
     """Select and execute a HA routine, leaving chained follow-on work to the caller."""
     def run(context, selection):
         routine, follow_on = selection
-        reply, outcome, status = execute(routine, action_results)
-        return HandledCommand("routine", ExecutionResult(reply, outcome),
+        typed, status = routine_execution_result(execute(routine, action_results))
+        return HandledCommand("routine", typed,
                               routine_status=status, routine_follow_on=follow_on,
-                              routine_reply=reply, routine_selection=selection)
+                              routine_reply=typed.reply, routine_selection=selection)
 
     return HandlerRegistry((Handler("routine", 0,
         lambda context: select(context.phrase, origin), run),))
