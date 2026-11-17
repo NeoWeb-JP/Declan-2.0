@@ -1,6 +1,10 @@
 {
   "domain": "declan_two",
   "name": "Declan 2.0 Assist Bridge",
+  "after_dependencies": [
+    "ffmpeg",
+    "wyoming"
+  ],
   "codeowners": [
     "@NeoWeb-JP"
   ],
@@ -9,8 +13,6 @@
     "conversation",
     "stt",
     "tts",
-    "ffmpeg",
-    "wyoming",
     "frontend",
     "panel_custom",
     "http",
