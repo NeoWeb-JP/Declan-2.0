@@ -4,7 +4,7 @@ from movie_action_evidence import MovieActionEvidence
 from enum import StrEnum
 from execution_results import ActionResult, ActionStatus
 from fallback_action_evidence import FallbackActionEvidence
-from lighting_action_evidence import LightingActionEvidence
+from lighting_action_evidence import LightingActionEvidence, parse_lighting_reason
 from routine_action_evidence import RoutineActionEvidence
 
 
@@ -68,3 +68,10 @@ def evidence_has_field(row, name):
     if isinstance(row, dict):
         return name in row
     return evidence_value(row, name) is not None
+
+
+def evidence_lighting_reason(row):
+    """Retain typed lighting reasons and interpret legacy details at the boundary."""
+    if isinstance(row, LightingActionEvidence):
+        return row.reason
+    return parse_lighting_reason(evidence_value(row, "detail"))

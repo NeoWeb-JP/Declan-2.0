@@ -93,7 +93,7 @@ from routine_action_evidence import RoutineActionStatus, parse_routine_actions
 from script_provider_results import ScriptProviderResult, ScriptReportedOutcome
 from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
-from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
+from lighting_action_evidence import LightingActionEvidence, LightingActionStatus, LightingActionReason
 from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence
@@ -1590,23 +1590,23 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     conflicts = set()
     for target, matches, direction in resolved_targets:
         if not matches:
-            record_action(target, direction, LightingActionStatus.SKIPPED, detail="unresolved")
+            record_action(target, direction, LightingActionStatus.SKIPPED, detail=LightingActionReason.UNRESOLVED)
             skipped.append(ExecutionResult(f"I couldn't find a Home Assistant light called {target}.", Outcome.UNRESOLVED))
             continue
         if len(matches) > 1 and target not in room_targets:
-            record_action(target, direction, LightingActionStatus.SKIPPED, detail="ambiguous")
+            record_action(target, direction, LightingActionStatus.SKIPPED, detail=LightingActionReason.AMBIGUOUS)
             options = ", ".join(sorted(matches))
             skipped.append(ExecutionResult(f"More than one light matches {target}. Try one of these entity IDs: {options}.", Outcome.UNRESOLVED))
             continue
         for entity in sorted(matches):
             label, state = lights[entity]
             if state not in ("on", "off"):
-                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="unavailable")
+                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.UNAVAILABLE)
                 skipped.append(ExecutionResult(f"Home Assistant says {label} is unavailable.", Outcome.UNAVAILABLE))
                 continue
             relative = direction in ("darker", "brighter")
             if (brightness is not None or relative or direction == "very bright") and entity not in dimmable:
-                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="brightness unsupported")
+                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.BRIGHTNESS_UNSUPPORTED)
                 skipped.append(ExecutionResult(f"Home Assistant doesn't report brightness control for {label}.", Outcome.UNAVAILABLE))
                 continue
             percent = brightness
@@ -1616,7 +1616,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             elif relative:
                 level = levels.get(entity)
                 if state == "off" or not (isinstance(level, (int, float)) and 0 <= level <= 255):
-                    reason = "already off" if state == "off" else "current brightness unknown"
+                    reason = LightingActionReason.ALREADY_OFF if state == "off" else LightingActionReason.BRIGHTNESS_UNKNOWN
                     record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=reason)
                     skipped.append(ExecutionResult(f"I left {label} alone ({reason}).", Outcome.UNAVAILABLE))
                     continue
@@ -1628,7 +1628,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             if entity in selected and (selected[entity][2], target_levels[entity]) != (goal, percent):
                 del selected[entity]
                 conflicts.add(entity)
-                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="conflicting directions")
+                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.CONFLICTING_DIRECTIONS)
                 skipped.append(ExecutionResult(f"I heard conflicting settings for {label}. I left it alone.", Outcome.UNRESOLVED))
                 continue
             selected[entity] = (label, state, goal)
@@ -1656,7 +1656,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         return ExecutionResult(f"Preview: I would {'; '.join(plan)}.{skipped_details}", Outcome.PREVIEW)
     if require_all and skipped:
         for entity, (label, _, direction) in selected.items():
-            record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="incomplete correction")
+            record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.INCOMPLETE_CORRECTION)
         return ExecutionResult(f"I left the lights unchanged because I couldn't resolve the full correction.{skipped_details}", Outcome.UNRESOLVED)
     pending = {}
     verified = {(goal, target_levels[entity]): [] for entity, (_, _, goal) in selected.items()}
@@ -1688,7 +1688,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         remaining = dispatch_deadline - monotonic()
         if remaining <= 0:
             for entity in entity_ids:
-                record_action(selected[entity][0], direction, LightingActionStatus.SKIPPED, entity=entity, detail="dispatch time limit")
+                record_action(selected[entity][0], direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.DISPATCH_TIME_LIMIT)
             skipped.append(ExecutionResult(f"I ran out of time before sending the command for {labels}.", Outcome.UNVERIFIED))
             continue
         action = Request(
@@ -1707,7 +1707,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             continue
         except OSError:
             for entity in entity_ids:
-                record_action(selected[entity][0], direction, LightingActionStatus.UNVERIFIED, entity=entity, detail="no dispatch response")
+                record_action(selected[entity][0], direction, LightingActionStatus.UNVERIFIED, entity=entity, detail=LightingActionReason.NO_DISPATCH_RESPONSE)
             skipped.append(ExecutionResult(f"I didn't get a response for {labels}.", Outcome.UNVERIFIED))
             continue
         pending.update({entity: direction for entity in entity_ids})
