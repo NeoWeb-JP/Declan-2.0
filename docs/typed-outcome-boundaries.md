@@ -330,6 +330,14 @@ Malformed, mismatched or future receipt statuses remain unverified. Public
 execution tuples, acknowledgement wording and background job details are unchanged;
 acceptance never claims device completion.
 
+Response composition now evaluates completion from typed action/routine/lighting
+evidence properties and enum identities without comparing provider statuses to
+strings. Legacy mapping statuses are interpreted through a bounded enum at the
+compatibility boundary, retaining `completed` support. Movie launch acceptance,
+planned/requested actions and unknown statuses never enable completion decoration.
+Legacy lighting follow-up selection likewise parses its status enum before deciding;
+wire and history evidence remain unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

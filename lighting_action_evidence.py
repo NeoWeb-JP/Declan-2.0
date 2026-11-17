@@ -50,6 +50,10 @@ def confirmed_lighting_entities(steps):
             if step.completed and step.entity_id is not None:
                 entities.append(step.entity_id)
         elif isinstance(step, dict):
-            if step.get("status") in ("confirmed", "already_set") and isinstance(step.get("entity_id"), str):
+            try:
+                status = LightingActionStatus(step.get("status"))
+            except (ValueError, TypeError):
+                continue
+            if status in {LightingActionStatus.CONFIRMED, LightingActionStatus.ALREADY_SET} and isinstance(step.get("entity_id"), str):
                 entities.append(step["entity_id"])
     return tuple(dict.fromkeys(entities))

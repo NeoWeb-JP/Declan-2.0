@@ -5,6 +5,10 @@ from unittest.mock import Mock, patch
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence, evidence_value
 from action_evidence_wire import action_evidence_to_wire
 from execution_results import Outcome
+from execution_results import ActionResult, ActionStatus, MovieLaunchStatus
+from fallback_action_evidence import FallbackActionEvidence
+from movie_action_evidence import MovieActionEvidence
+from action_evidence_buffer import evidence_completed
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
 import personality_policy
@@ -15,6 +19,24 @@ import turn_context_preparation
 
 
 class TypedEvidenceAccumulationTests(unittest.TestCase):
+    def test_completion_gate_preserves_each_provider_vocabulary_and_legacy_rows(self):
+        rows = [(LightingActionEvidence("Study", "turn_on", status), status in
+                 {LightingActionStatus.CONFIRMED, LightingActionStatus.ALREADY_SET}) for status in LightingActionStatus]
+        rows.extend((RoutineActionEvidence("Routine", status), status in
+                     {RoutineActionStatus.CONFIRMED, RoutineActionStatus.ALREADY_SET}) for status in RoutineActionStatus)
+        for status in ActionStatus:
+            rows.extend(((ActionResult(0, "light.study", "turn_on", status), status is ActionStatus.CONFIRMED),
+                         (FallbackActionEvidence("light.study", "turn_on", status), status is ActionStatus.CONFIRMED)))
+        rows.extend((MovieActionEvidence("App", status, "media_player.tv", "receipt"), False) for status in MovieLaunchStatus)
+        for row, completed in rows:
+            with self.subTest(row=row), patch.object(type(row), "to_wire", side_effect=AssertionError("early projection")):
+                self.assertIs(evidence_completed(row), completed)
+        for status, completed in (("confirmed", True), ("already_set", True), ("completed", True),
+                                  ("sent", False), ("requested", False), ("planned", False),
+                                  ("CONFIRMED", False), ("future", False), ([], False), (None, False)):
+            self.assertIs(evidence_completed({"status": status}), completed)
+        self.assertFalse(evidence_completed(object()))
+
     def test_typed_sink_retains_identity_while_legacy_sink_gets_mappings(self):
         evidence = LightingActionEvidence("Study", "turn_on", "confirmed", "light.study")
         typed, legacy = ActionEvidenceBuffer(), []
