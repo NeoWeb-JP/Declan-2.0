@@ -148,9 +148,14 @@ def teach_phrase(phrase, target, *, automatic=False):
                for value in (phrase, target)) or phrase == target:
         raise ValueError("Enter a different command, up to 120 characters.")
     with database() as connection:
-        connection.execute(
-            "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) ON CONFLICT(phrase) " +
-            ("DO NOTHING" if automatic else "DO UPDATE SET target = excluded.target"), (phrase, target))
+        if automatic:
+            connection.execute(
+                "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) "
+                "ON CONFLICT(phrase) DO NOTHING", (phrase, target))
+        else:
+            connection.execute(
+                "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) "
+                "ON CONFLICT(phrase) DO UPDATE SET target = excluded.target", (phrase, target))
 
 
 def clear():
