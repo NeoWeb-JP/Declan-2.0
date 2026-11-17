@@ -18,7 +18,7 @@ class TrustedReleasesEnvironmentTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "posix", "Root-owned allow-list checks require POSIX")
     def test_unset_path_uses_fixed_administrator_location(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
-                updates.Path, "lstat", side_effect=FileNotFoundError) as inspect:
+                updates.Path, "lstat", autospec=True, side_effect=FileNotFoundError) as inspect:
             with self.assertRaises(FileNotFoundError):
                 updates.trusted_releases()
             self.assertEqual(str(inspect.call_args_list[0].args[0]), "/etc/declan/trusted-releases.json")
