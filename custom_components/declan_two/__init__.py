@@ -6,6 +6,7 @@ from datetime import datetime, time
 
 import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import config_validation as cv
 
 
 from .capabilities_view import DeclanCapabilitiesView
@@ -26,6 +27,7 @@ from .routine_jobs import DeclanRoutineJobsView
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["conversation", "stt", "tts"]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema("declan_two")
 
 
 async def async_setup(hass, config):
