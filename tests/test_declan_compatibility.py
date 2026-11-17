@@ -2,12 +2,12 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import sys
 
 
 MODULE = Path(__file__).resolve().parents[1] / "custom_components" / "declan_two" / "compatibility.py"
 spec = importlib.util.spec_from_file_location("declan_compatibility", MODULE)
 module = importlib.util.module_from_spec(spec)
-import sys
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 
