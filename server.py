@@ -38,6 +38,7 @@ import retry_learning
 import retry_training_persistence
 import conversation_persistence
 import turn_finalization
+import turn_response_orchestration
 import history
 import music
 import approved_media_players
@@ -2690,36 +2691,22 @@ class Handler(BaseHTTPRequestHandler):
             )
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
                              scope=scope, guest_mode=response_guest_mode)
-            reply["reply"] = response_composition.general_reply(
+            reply["reply"] = turn_response_orchestration.compose(
                 reply["reply"], outcome=outcome, routine_reply=routine_reply,
                 routine_turn=routine_turn, light_result=light_result,
                 phrase=phrase, action_results=action_results,
-                guest=guest_mode != "off", visitor_present=visitor_present,
+                guest=guest_mode != "off",
+                response_guest=response_guest_mode != "off",
+                visitor_present=visitor_present,
+                routine_voice_result=routine_voice_result,
                 personality=personality_policy,
                 lines=__import__("personality").LINES,
                 parse_music=music.parse, parse_music_control=music.parse_control,
-            )
-            background_reply = response_composition.background_reply(
-                outcome, routine_turn, guest=guest_mode != "off",
-                visitor_present=visitor_present, personality=personality_policy,
-            )
-            if background_reply is not None:
-                reply["reply"] = background_reply
-            reply["reply"] = response_composition.routine_reply(
-                reply["reply"], outcome=outcome, routine_turn=routine_turn,
-                routine_voice_result=routine_voice_result,
-                original_routine_reply=routine_reply, phrase=phrase,
-                action_results=action_results, guest=guest_mode != "off",
-                visitor_present=visitor_present, render=routine_responses.render,
-                personality=personality_policy,
-            )
-            reply["reply"] = response_composition.lighting_failure_reply(
-                reply["reply"], light_result=light_result, routine_turn=routine_turn,
-                outcome=outcome, phrase=phrase,
-                response_guest=response_guest_mode != "off",
+                render_routine=routine_responses.render,
                 response_category=lighting_intents.response_category,
                 parse_light_command=parse_light_command,
                 render_failure=command_responses.failure,
+                composition=response_composition,
             )
             turn_finalization.apply_outcome_metadata(
                 reply, outcome=outcome, routine_status=routine_status,
