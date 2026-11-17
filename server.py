@@ -2563,10 +2563,14 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = timer_result
             if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
                 routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
-        elif phrase in {"stop routine", "cancel routine", "stop the routine", "cancel the routine"}:
-            routine_reply, outcome, routine_status = stop_pending_routines()
-        elif phrase == "stop":
-            routine_reply, outcome, routine_status = stop_everywhere_output(ha_device_connection())
+        elif stop_result := command_registry.stop_registry(
+            stop_routines=stop_pending_routines, stop_everywhere=stop_everywhere_output,
+            connection=ha_device_connection,
+        ).dispatch(command_registry.RequestContext(
+            phrase=phrase, source=source, origin_device=origin_device, satellite=satellite,
+        )):
+            routine_reply, outcome = stop_result.result.as_legacy_pair()
+            routine_status = stop_result.routine_status
         elif (roast_target := roast.target(phrase)) is not None:
             roast_guest_mode = personality_policy.response_guest_mode(
                 read_guest_mode(), read_visitors_present()
