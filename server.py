@@ -90,6 +90,7 @@ import guarded_fallback
 import ha_dispatcher
 import routine_registry
 from routine_action_evidence import RoutineActionStatus, parse_routine_actions
+from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
@@ -1356,8 +1357,10 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
     except (OSError, ValueError):
         verified = False
     if action_results is not None:
-        action_results.append({"target": label, "entity_id": entity, "action": "turn_" + desired_state,
-                               "status": "confirmed" if verified else "unverified"})
+        evidence = LightingActionEvidence(label, "turn_" + desired_state,
+                                          LightingActionStatus.CONFIRMED if verified else LightingActionStatus.UNVERIFIED,
+                                          entity_id=entity)
+        action_results.append(evidence.to_wire())
     return ExecutionResult(f"{label} is {desired_state}." if verified else f"I couldn't verify {label} is {desired_state}.", Outcome.CONFIRMED if verified else Outcome.UNVERIFIED)
 
 
@@ -1549,35 +1552,31 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             percent = target_levels.get(entity, brightness)
             action_name = (f"set brightness to {percent}%" if percent is not None
                            else direction if direction in ("darker", "brighter", "very bright") else f"turn_{direction}")
-            step = {"target": target, "action": action_name, "status": status}
-            if entity is not None:
-                step["entity_id"] = entity
-            if detail is not None:
-                step["detail"] = detail
-            action_results.append(step)
+            evidence = LightingActionEvidence(target, action_name, status, entity_id=entity, detail=detail)
+            action_results.append(evidence.to_wire())
 
     selected = {}
     room_off_entities = set()
     conflicts = set()
     for target, matches, direction in resolved_targets:
         if not matches:
-            record_action(target, direction, "skipped", detail="unresolved")
+            record_action(target, direction, LightingActionStatus.SKIPPED, detail="unresolved")
             skipped.append((f"I couldn't find a Home Assistant light called {target}.", "unresolved"))
             continue
         if len(matches) > 1 and target not in room_targets:
-            record_action(target, direction, "skipped", detail="ambiguous")
+            record_action(target, direction, LightingActionStatus.SKIPPED, detail="ambiguous")
             options = ", ".join(sorted(matches))
             skipped.append((f"More than one light matches {target}. Try one of these entity IDs: {options}.", "unresolved"))
             continue
         for entity in sorted(matches):
             label, state = lights[entity]
             if state not in ("on", "off"):
-                record_action(label, direction, "skipped", entity=entity, detail="unavailable")
+                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="unavailable")
                 skipped.append((f"Home Assistant says {label} is unavailable.", "unavailable"))
                 continue
             relative = direction in ("darker", "brighter")
             if (brightness is not None or relative or direction == "very bright") and entity not in dimmable:
-                record_action(label, direction, "skipped", entity=entity, detail="brightness unsupported")
+                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="brightness unsupported")
                 skipped.append((f"Home Assistant doesn't report brightness control for {label}.", "unavailable"))
                 continue
             percent = brightness
@@ -1588,7 +1587,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 level = levels.get(entity)
                 if state == "off" or not (isinstance(level, (int, float)) and 0 <= level <= 255):
                     reason = "already off" if state == "off" else "current brightness unknown"
-                    record_action(label, direction, "skipped", entity=entity, detail=reason)
+                    record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=reason)
                     skipped.append((f"I left {label} alone ({reason}).", "unavailable"))
                     continue
                 change = -relative_step if direction == "darker" else relative_step
@@ -1599,7 +1598,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             if entity in selected and (selected[entity][2], target_levels[entity]) != (goal, percent):
                 del selected[entity]
                 conflicts.add(entity)
-                record_action(label, direction, "skipped", entity=entity, detail="conflicting directions")
+                record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="conflicting directions")
                 skipped.append((f"I heard conflicting settings for {label}. I left it alone.", "unresolved"))
                 continue
             selected[entity] = (label, state, goal)
@@ -1618,7 +1617,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         ))
     if preview:
         for entity, (label, _, direction) in selected.items():
-            record_action(label, direction, "planned", entity=entity)
+            record_action(label, direction, LightingActionStatus.PLANNED, entity=entity)
         groups = {}
         for entity, (label, _, direction) in selected.items():
             groups.setdefault((direction, target_levels[entity]), []).append(label)
@@ -1628,7 +1627,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         return ExecutionResult(f"Preview: I would {'; '.join(plan)}.{skipped_details}", Outcome.PREVIEW)
     if require_all and skipped:
         for entity, (label, _, direction) in selected.items():
-            record_action(label, direction, "skipped", entity=entity, detail="incomplete correction")
+            record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="incomplete correction")
         return ExecutionResult(f"I left the lights unchanged because I couldn't resolve the full correction.{skipped_details}", Outcome.UNRESOLVED)
     pending = {}
     verified = {(goal, target_levels[entity]): [] for entity, (_, _, goal) in selected.items()}
@@ -1644,7 +1643,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         # Reassert an explicit room shutdown even if HA already reports the lights off.
         if entity not in room_off_entities and matches_goal(state, direction, levels.get(entity), target_levels[entity]):
             already_set.add(entity)
-            record_action(label, direction, "already_set", entity=entity)
+            record_action(label, direction, LightingActionStatus.ALREADY_SET, entity=entity)
     dispatch_deadline = monotonic() + 1.75
     for direction, percent in verified:
         entity_ids = [entity for entity, (_, _, goal) in selected.items()
@@ -1660,7 +1659,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         remaining = dispatch_deadline - monotonic()
         if remaining <= 0:
             for entity in entity_ids:
-                record_action(selected[entity][0], direction, "skipped", entity=entity, detail="dispatch time limit")
+                record_action(selected[entity][0], direction, LightingActionStatus.SKIPPED, entity=entity, detail="dispatch time limit")
             skipped.append((f"I ran out of time before sending the command for {labels}.", "unverified"))
             continue
         action = Request(
@@ -1674,12 +1673,12 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         except HTTPError as error:
             error.close()
             for entity in entity_ids:
-                record_action(selected[entity][0], direction, "failed", entity=entity, detail=f"HTTP {error.code}")
+                record_action(selected[entity][0], direction, LightingActionStatus.FAILED, entity=entity, detail=f"HTTP {error.code}")
             skipped.append((f"Home Assistant returned HTTP {error.code} for {labels}.", "action_error"))
             continue
         except OSError:
             for entity in entity_ids:
-                record_action(selected[entity][0], direction, "unverified", entity=entity, detail="no dispatch response")
+                record_action(selected[entity][0], direction, LightingActionStatus.UNVERIFIED, entity=entity, detail="no dispatch response")
             skipped.append((f"I didn't get a response for {labels}.", "unverified"))
             continue
         pending.update({entity: direction for entity in entity_ids})
@@ -1704,7 +1703,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                     ) else state
                     if matches_goal(state, direction, level, percent):
                         verified[direction, percent].append(selected[entity][0])
-                        record_action(selected[entity][0], direction, "confirmed", entity=entity)
+                        record_action(selected[entity][0], direction, LightingActionStatus.CONFIRMED, entity=entity)
                         del pending[entity]
             except HTTPError as error:
                 error.close()
@@ -1715,7 +1714,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     for entity, direction in pending.items():
         label = selected[entity][0]
         state = last_reported.get(entity, "no state reported")
-        record_action(label, direction, "unverified", entity=entity, detail=str(state))
+        record_action(label, direction, LightingActionStatus.UNVERIFIED, entity=entity, detail=str(state))
         percent = target_levels[entity]
         goal = f"at {percent}%" if percent is not None else direction
         skipped.append((f"I couldn't confirm {label} is {goal} ({state}).", "unverified"))

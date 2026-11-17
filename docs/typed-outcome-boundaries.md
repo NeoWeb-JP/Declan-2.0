@@ -127,7 +127,15 @@ preserves existing required-flag/non-list behavior. The provider consumes this
 typed report before emitting plain action mappings; unknown required statuses
 cannot verify reported success. Explicit outcome mappings also use enums.
 
+Lighting and switch-as-light providers construct frozen `LightingActionEvidence`
+with a dedicated six-status enum, explicitly projecting ordinary mappings into
+their existing action-results sinks. Planned, skipped and uncertain evidence
+remain distinct from confirmed/already-set completion. Lighting context and
+routine follow-on entity selection accept typed or legacy evidence with stable
+deduplication; scope, preview and count guards remain in place. Existing text and
+optional-field output are preserved without introducing new truncation limits.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes lighting/provider evidence production and shared response/history
-evidence persistence. Their broader
+scope includes other provider evidence and shared response/history evidence
+persistence. Their broader
 status vocabulary must not be silently narrowed to verified `ActionStatus`.
