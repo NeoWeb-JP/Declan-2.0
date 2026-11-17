@@ -1857,8 +1857,13 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
 
 
 @diagnostics.timed("ha_transcription")
+def traced_transcribe_result(*args, **kwargs):
+    return web_stt.transcribe_result(*args, **kwargs)
+
+
 def traced_transcribe(*args, **kwargs):
-    return web_stt.transcribe(*args, **kwargs)
+    """Compatibility API retaining the transcript string and timing stage."""
+    return traced_transcribe_result(*args, **kwargs).text
 
 class Handler(BaseHTTPRequestHandler):
     timeout = 5
@@ -2198,7 +2203,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "The microphone recording was incomplete."})
             return
         try:
-            text = traced_transcribe(connection[0], os.environ["DECLAN_HA_TOKEN"].strip(), audio,
+            result = traced_transcribe_result(connection[0], os.environ["DECLAN_HA_TOKEN"].strip(), audio,
                                       pipeline=configuration.get("DECLAN_WEB_ASSIST_PIPELINE", "").strip())
         except ImportError:
             self.send_json(503, {"error": "Install requirements-web-voice.txt to enable the Assist microphone."})
@@ -2211,7 +2216,7 @@ class Handler(BaseHTTPRequestHandler):
             print(f"Web Assist connection or protocol failure: {type(error).__name__}", flush=True)
             self.send_json(502, {"error": "Home Assistant couldn't transcribe that recording."})
             return
-        self.send_json(200, {"text": text})
+        self.send_json(200, {"text": result.text})
 
     def do_POST(self):
         if self.path not in {"/api/chat", "/api/assist", "/api/stt", "/api/tts", "/api/assist/history"}:

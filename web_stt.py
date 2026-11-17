@@ -2,11 +2,35 @@
 
 import json
 import re
+from dataclasses import dataclass
+from enum import StrEnum
 from time import monotonic
 from urllib.parse import urlsplit, urlunsplit
 
 
 MAX_AUDIO_BYTES = 20 * 16000 * 2
+
+
+class TranscriptionStatus(StrEnum):
+    TRANSCRIBED = "transcribed"
+    NO_TEXT = "no_text"
+
+
+@dataclass(frozen=True)
+class TranscriptionResult:
+    status: TranscriptionStatus
+    text: str
+
+    def __post_init__(self):
+        if not isinstance(self.status, TranscriptionStatus) or not isinstance(self.text, str):
+            raise TypeError("transcription requires an enum status and text")
+        if (self.status is TranscriptionStatus.TRANSCRIBED) != bool(self.text.strip()):
+            raise ValueError("transcription status must agree with its text")
+
+    @classmethod
+    def from_text(cls, value) -> 'TranscriptionResult':
+        text = value.strip() if isinstance(value, str) else ""
+        return cls(TranscriptionStatus.TRANSCRIBED if text else TranscriptionStatus.NO_TEXT, text)
 
 
 class AssistSpeechError(ValueError):
@@ -16,6 +40,11 @@ class AssistSpeechError(ValueError):
 
 
 def transcribe(url, token, audio, *, pipeline=None):
+    """Compatibility API returning transcript text, including an empty result."""
+    return transcribe_result(url, token, audio, pipeline=pipeline).text
+
+
+def transcribe_result(url, token, audio, *, pipeline=None) -> TranscriptionResult:
     import websocket
 
     address = urlsplit(url)
@@ -24,7 +53,7 @@ def transcribe(url, token, audio, *, pipeline=None):
     try:
         socket = websocket.create_connection(endpoint, timeout=5, redirect_limit=0)
         try:
-            return run_stt(socket, token, audio, pipeline)
+            return run_stt_result(socket, token, audio, pipeline)
         finally:
             socket.close(timeout=0)
     except websocket.WebSocketException as error:
@@ -32,6 +61,11 @@ def transcribe(url, token, audio, *, pipeline=None):
 
 
 def run_stt(socket, token, audio, pipeline):
+    """Compatibility API for callers expecting the original transcript string."""
+    return run_stt_result(socket, token, audio, pipeline).text
+
+
+def run_stt_result(socket, token, audio, pipeline) -> TranscriptionResult:
     deadline = monotonic() + 25
 
     def receive():
@@ -74,8 +108,8 @@ def run_stt(socket, token, audio, pipeline):
             socket.send_binary(prefix)
         elif kind == "stt-end":
             text = (data.get("stt_output") or {}).get("text")
-            return text.strip() if isinstance(text, str) else ""
+            return TranscriptionResult.from_text(text)
         elif kind == "error":
             raise AssistSpeechError(data.get("code"))
         elif kind == "run-end":
-            return ""
+            return TranscriptionResult.from_text(None)

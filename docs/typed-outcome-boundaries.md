@@ -307,6 +307,15 @@ combined outcomes, typed evidence serialization, and identical plain values in
 HTTP replies and stored history. Public legacy timer callers retain their
 existing pair/`None` API.
 
+The wider provider audit now includes browser speech recognition. The Assist STT
+decoder and transport return frozen `TranscriptionResult` values with explicit
+transcribed/no-text statuses rather than using an empty transcript as an implicit
+internal result. Existing `run_stt`, `transcribe` and traced-transcription APIs
+retain their string adapters. The active HTTP path consumes the typed transport;
+its `text` payload, empty-text success response, exception behavior, pipeline
+selection, audio framing, deadlines and socket cleanup remain compatible. These
+recognition statuses are separate from household execution outcomes.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
