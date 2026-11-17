@@ -137,6 +137,11 @@ def playback_sources(destinations, players):
 
 
 def feedback(command, connection, read_inventory):
+    """Legacy reply/outcome API backed by a validated typed provider result."""
+    return music_execution_result(_feedback_provider(command, connection, read_inventory)).as_legacy_pair()
+
+
+def _feedback_provider(command, connection, read_inventory):
     phrase, room = command
     if connection is None or not HANDOFF.acquire(blocking=False):
         return "I couldn't check the current music. Try again in a moment.", "unavailable"
@@ -404,6 +409,11 @@ def parse_control(phrase):
 
 @diagnostics.timed("music_control")
 def control(command, connection, read_inventory, *, origin=None, read_areas=None, assist=False):
+    """Legacy reply/outcome API backed by a validated typed provider result."""
+    return music_execution_result(_control_provider(command, connection, read_inventory, origin=origin, read_areas=read_areas, assist=assist)).as_legacy_pair()
+
+
+def _control_provider(command, connection, read_inventory, *, origin=None, read_areas=None, assist=False):
     action, room = command
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
@@ -651,6 +661,11 @@ def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
 
 @diagnostics.timed("music_playback")
 def play(command, connection, read_inventory, *, origin=None):
+    """Legacy reply/outcome API backed by a validated typed provider result."""
+    return music_execution_result(_play_provider(command, connection, read_inventory, origin=origin)).as_legacy_pair()
+
+
+def _play_provider(command, connection, read_inventory, *, origin=None):
     room, title, provider = command
     if connection is None:
         return "The Home Assistant connection isn't configured.", "not_configured"
