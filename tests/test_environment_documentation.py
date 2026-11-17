@@ -33,6 +33,7 @@ BACKEND_MODULES = (
     "custom_components/declan_two/script_discovery_view.py",
     "custom_components/declan_two/script_result_view.py",
     "custom_components/declan_two/capabilities_view.py",
+    "custom_components/declan_two/config_flow.py",
 )
 ENV_READ = re.compile(
     r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.get\s*\(\s*|\[\s*))['"](DECLAN_[A-Z0-9_]+)['"]"""
@@ -63,6 +64,25 @@ class EnvironmentDocumentationTests(unittest.TestCase):
             if undocumented:
                 missing[filename] = undocumented
         self.assertEqual(missing, {}, "Document runtime environment reads in docs/environment.md")
+
+    def test_audit_scope_includes_all_modules_reading_documented_environment_keys(self):
+        """Flag newly added modules with environment reads for audit expansion."""
+        scoped = set(BACKEND_MODULES)
+        candidates = sorted(ROOT.glob("*.py")) + sorted(
+            (ROOT / "custom_components" / "declan_two").glob("*.py")
+        )
+        unaudited = {}
+        for file in candidates:
+            relative = file.relative_to(ROOT).as_posix()
+            if relative in scoped:
+                continue
+            keys = sorted(set(ENV_READ.findall(file.read_text(encoding="utf-8"))))
+            if keys:
+                unaudited[relative] = keys
+        self.assertEqual(
+            unaudited, {},
+            "Add modules with runtime DECLAN_* reads to BACKEND_MODULES and document new keys",
+        )
 
     def test_example_environment_keys_are_documented(self):
         documented = set(DOCUMENTED.findall((ROOT / "docs/environment.md").read_text(encoding="utf-8")))
