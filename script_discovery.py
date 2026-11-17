@@ -1,6 +1,7 @@
 """Discover and run Home Assistant scripts without per-script approval."""
 from execution_results import ExecutionResult, Outcome
 from script_action_evidence import parse_script_actions
+from action_evidence_buffer import extend_action_evidence
 import json
 import re
 import secrets
@@ -307,7 +308,7 @@ def _execute_provider(connection, item, *, parameters=None, expect_response=Fals
                        "unknown": "could not be verified", "started": "started but not completed",
                        "busy": "is already in progress"}[outcome]
         if action_results is not None:
-            action_results.extend(step.to_wire() for step in evidence.steps)
+            extend_action_evidence(action_results, evidence.steps)
         return ExecutionResult(current["name"] + " " + description + ".", Outcome(statuses[outcome])), None
     for key in ("speech", "reply", "message", "response", "summary"):
         value = data.get(key)

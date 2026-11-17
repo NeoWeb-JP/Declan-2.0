@@ -1,5 +1,6 @@
 """Pure routing of successful background routine acknowledgements to persona replies."""
 from execution_results import ExecutionResult
+from action_evidence_buffer import evidence_value
 
 
 def background_reply(outcome, routine_turn, *, guest, visitor_present, personality):
@@ -67,7 +68,7 @@ def general_reply(reply, *, outcome, routine_reply, routine_turn, light_result,
     if not (outcome in ("confirmed", "reported_success", "execution_completed")
             and not existing_lines and light_result is None and routine_reply is not None
             and (verified or completed or parse_music(phrase) or parse_music_control(phrase)
-                 or (action_results and all(step.get("status") in
+                 or (action_results and all(evidence_value(step, "status") in
                      {"confirmed", "already_set", "completed"} for step in action_results)))
             and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
             and not any(word in phrase.casefold() for word in (

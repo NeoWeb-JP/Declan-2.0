@@ -143,8 +143,15 @@ Mixed batches preserve legacy JSON rows and extra fields; legacy-only containers
 retain their existing behavior. Conversion does not mutate typed input rows.
 History failures retain their existing nonfatal response behavior.
 
+Active requests and lighting follow-ons use `ActionEvidenceBuffer`. Provider
+append/extend adapters retain typed evidence in that accumulator while ordinary
+list callers continue receiving legacy mappings. Mapped/discovered routines,
+lighting, switches and movie evidence remain typed until explicit serialization.
+Context preparation, retry state, general decoration and optional dinner-music
+feedback read typed fields without converting statuses to strings. Mixed injected
+legacy rows remain supported, including transfer to ordinary-list callers.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes keeping typed evidence through shared action-results accumulation
-and downstream consumers rather than projecting provider rows immediately, plus
-an exhaustive compatibility audit of remaining adapters. Broader evidence status
+scope includes the final compatibility review of legacy adapters, fallback
+diagnostic projections and external routine-event inputs. Broader evidence status
 vocabulary must not be silently narrowed to verified `ActionStatus`.

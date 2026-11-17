@@ -6,6 +6,7 @@ from collections import deque
 from datetime import datetime, time
 from random import SystemRandom
 from threading import Lock
+from action_evidence_buffer import evidence_value
 
 _RANDOM = SystemRandom()
 _LOCK = Lock()
@@ -190,12 +191,12 @@ _SAFE_OUTCOMES = frozenset({
 
 def dinner_music_feedback(steps, *, guest=False, visitor_present=False):
     """Describe optional handoff evidence without claiming playback started."""
-    music = [step for step in steps if isinstance(step, dict)
-             and step.get("target") == "dinner_music" and step.get("action") == "request_playback"
-             and step.get("required") is False]
+    music = [step for step in steps
+             if evidence_value(step, "target") == "dinner_music" and evidence_value(step, "action") == "request_playback"
+             and evidence_value(step, "required") is False]
     if not music:
         return ""
-    status = music[-1].get("status")
+    status = evidence_value(music[-1], "status")
     if status in {"requested", "already_requested"}:
         prefix = "I've requested the music." if status == "requested" else "The music request is already in progress."
         if guest or visitor_present is not False:
