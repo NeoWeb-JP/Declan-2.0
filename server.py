@@ -1252,16 +1252,16 @@ def stop_origin_result(connection, satellite, device):
     area = origin.get("declan_area") if origin else None
     if not isinstance(area, str) or not area.strip():
         return ExecutionResult("", Outcome.UNRESOLVED), "No playback output or area could be resolved for the satellite."
-    reply, outcome = music.control(
+    music_result = music.control_result(
         ("media_stop", music.room_key(area)), connection,
         lambda _: (inventory, None),
     )
-    if outcome == "confirmed" and satellite:
+    if music_result.outcome is Outcome.CONFIRMED and satellite:
         try:
             timers.stop_due(satellite)
         except (OSError, sqlite3.Error):
             return ExecutionResult("", Outcome.PARTIAL), "Playback stopped, but the local timer alarm could not be acknowledged."
-    return ExecutionResult("", outcome), reply
+    return ExecutionResult("", music_result.outcome), music_result.reply
 
 
 def read_ha_areas(connection, origin=None):
