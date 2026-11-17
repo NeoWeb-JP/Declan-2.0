@@ -59,6 +59,7 @@ import lighting_command_dispatch
 import lighting_context_finalization
 import fallback_entity_authorization
 import guarded_fallback_dispatch
+import response_persona_context
 import history
 import music
 import approved_media_players
@@ -2645,13 +2646,11 @@ class Handler(BaseHTTPRequestHandler):
             if fallback_result is not None:
                 routine_reply, outcome = fallback_result
         chat_kind = effective_message.casefold().strip(" .?!")
-        guest_mode = read_guest_mode()
-        visitor_present = read_visitors_present()
-        # Presence affects the persona, never Guest Mode authority.
-        # Guest authority and visitor presence are independent: an explicit
-        # Guest Mode must remain polite even if the visitor sensor is off.
-        # Unknown visitor state also fails closed for privacy.
-        response_guest_mode = personality_policy.response_guest_mode(guest_mode, visitor_present)
+        guest_mode, visitor_present, response_guest_mode = (
+            response_persona_context.resolve_response_persona(
+                read_guest_mode, read_visitors_present, personality_policy,
+            )
+        )
         if routine_reply is None and CHAT_COMMANDS.get(chat_kind) == "time":
             information_context = ("time", None, None)
         with SESSION_LOCK:
