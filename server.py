@@ -2623,9 +2623,9 @@ class Handler(BaseHTTPRequestHandler):
                     parse_status=device_status.parse, describe_status=device_status.describe,
                     connection=ha_device_connection, inventory=read_ha_inventory,
                     decorate=add_sass, guest_mode_entity=GUEST_MODE_ENTITY,
-                    parse_feedback=music.parse_feedback, feedback=music.feedback,
-                    parse_control=music.parse_control, control=music.control,
-                    parse_music=music.parse, play=music.play,
+                    parse_feedback=music.parse_feedback, feedback=music.feedback_result,
+                    parse_control=music.parse_control, control=music.control_result,
+                    parse_music=music.parse, play=music.play_result,
                     music_inventory=read_music_inventory, areas=read_ha_areas,
                     search_media=search_media,
                 )
