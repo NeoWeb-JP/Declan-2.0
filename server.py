@@ -2872,12 +2872,10 @@ def main():
             with opener.open(url + "/health", timeout=3) as response:
                 if json.load(response) != {"status": "ok"}:
                     raise ValueError("Unexpected health response.")
-            print(f"Declan 2.0 is ready at {url}/", flush=True)
             DECLAN_EVENT_LOG.info("Declan backend started and health check passed (port %d)", server.server_port)
             while worker.is_alive():
                 worker.join(timeout=0.5)
                 if updates.RESTART.is_set():
-                    print("Restarting Declan to activate the selected release.", flush=True)
                     DECLAN_EVENT_LOG.info("Restarting Declan to activate selected release")
                     raise SystemExit(75)
                 try:
@@ -2899,7 +2897,7 @@ def main():
         except (URLError, TimeoutError, ValueError) as error:
             parser.exit(1, f"Declan bound {url} but its local health check failed: {error}\n")
         except KeyboardInterrupt:
-            print("Declan 2.0 stopped.")
+            DECLAN_EVENT_LOG.info("Declan backend stopped by keyboard interrupt")
         finally:
             server.shutdown()
             worker.join()
