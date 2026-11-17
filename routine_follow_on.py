@@ -34,9 +34,10 @@ def execute(follow_on, *, routine_reply, routine_outcome, routine_status,
             follow_on, action_results=light_steps, last_lights=last_lights,
             origin_device=origin,
         )
-        follow_result = ExecutionResult(*(lighting_result or (
-            "I couldn't understand the lighting command after the routine.", "unresolved"
-        )))
+        follow_result = (lighting_result if isinstance(lighting_result, ExecutionResult)
+                         else ExecutionResult(*(lighting_result or (
+                             "I couldn't understand the lighting command after the routine.", "unresolved"
+                         ))))
         follow_reply, follow_outcome = follow_result.as_legacy_pair()
     action_results.extend(light_steps)
     lighting_context = ()
