@@ -177,7 +177,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
         values = {**current, **(user_input or {})}
         schema = {
             vol.Required("openai_stt_enabled", default=values.get("openai_stt_enabled", False)): bool,
-            vol.Required("openai_stt_model", default=values.get("openai_stt_model", "gpt-transcribe")):
+            vol.Required("openai_stt_model", default=values.get("openai_stt_model", "gpt-4o-mini-transcribe")):
                 vol.In(["gpt-transcribe", "gpt-4o-mini-transcribe"]),
             vol.Optional("openai_stt_api_key"): selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
