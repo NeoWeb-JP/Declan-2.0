@@ -2751,27 +2751,14 @@ class Handler(BaseHTTPRequestHandler):
             )
             if background_reply is not None:
                 reply["reply"] = background_reply
-            if (routine_turn
-                    and outcome != "preview"
-                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
-                    and not any(word in phrase.casefold() for word in
-                                ("smoke", "fire alarm", "carbon monoxide", "security alert",
-                                 "emergency", "intruder", "panic alarm"))):
-                if routine_voice_result:
-                    original, routine_outcome = routine_voice_result
-                    reply["reply"] = routine_responses.render(
-                        routine_turn[0], routine_outcome, original,
-                        guest=guest_mode != "off" or visitor_present is not False) + routine_reply[len(original):]
-                else:
-                    reply["reply"] = routine_responses.render(
-                        routine_turn[0], outcome, reply["reply"],
-                        guest=guest_mode != "off" or visitor_present is not False)
-                if (outcome in {"confirmed", "reported_success", "execution_completed"}
-                        and routine_turn[0][1].get("_declan_reply_category") == "dinner"):
-                    music_note = personality_policy.dinner_music_feedback(
-                        action_results, guest=guest_mode != "off", visitor_present=visitor_present)
-                    if music_note and music_note not in reply["reply"]:
-                        reply["reply"] += " " + music_note
+            reply["reply"] = response_composition.routine_reply(
+                reply["reply"], outcome=outcome, routine_turn=routine_turn,
+                routine_voice_result=routine_voice_result,
+                original_routine_reply=routine_reply, phrase=phrase,
+                action_results=action_results, guest=guest_mode != "off",
+                visitor_present=visitor_present, render=routine_responses.render,
+                personality=personality_policy,
+            )
             if (light_result is not None and routine_turn is None
                     and outcome not in {"confirmed", "preview"}
                     and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)):
