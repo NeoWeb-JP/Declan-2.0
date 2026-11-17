@@ -30,8 +30,7 @@ jobs:
       - name: Mypy type-checking baseline
         continue-on-error: true
         run: python -m mypy --config-file mypy.ini .
-      - name: Bandit security baseline
-        continue-on-error: true
+      - name: Bandit security scan
         run: bandit -r . -x ./tests,./.git -q
       - name: Audit tracked requirements files
         shell: bash
