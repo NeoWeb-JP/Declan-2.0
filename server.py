@@ -40,6 +40,7 @@ import conversation_persistence
 import turn_finalization
 import turn_response_orchestration
 import turn_persistence_orchestration
+import request_origin
 import history
 import music
 import approved_media_players
@@ -2436,25 +2437,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.send_json(200, {"history_saved": True})
             return
-        source = "assist" if self.path == "/api/assist" else (
-            "browser_voice" if body.get("source") == "voice" else "browser_keyboard"
+        source, scope, origin_device, satellite = request_origin.request_context(
+            self.path, body,
         )
         routine_reply = outcome = routine_status = None
         action_results = []
         light_result = None
-        scope = source
-        origin_device = None
-        satellite = body.get("satellite_id") if source == "assist" else None
-        if (not isinstance(satellite, str) or len(satellite) > 128
-                or not re.fullmatch(r"assist_satellite\.[a-z0-9_]+", satellite)):
-            satellite = None
-        if source == "assist":
-            device_id = body.get("device_id")
-            user_id = body.get("user_id")
-            origin = tuple(value if isinstance(value, str) and 0 < len(value) <= 128 else None
-                           for value in (device_id, user_id))
-            origin_device = origin[0]
-            scope = (source, *origin, satellite) if any(origin) or satellite else None
         if source == "assist":
             speaker = body.get("speaker")
             speaker_name = (speaker.get("name") if isinstance(speaker, dict)
