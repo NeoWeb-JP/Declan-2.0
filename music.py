@@ -6,6 +6,7 @@ import ha_inventory
 import approved_media_players
 from execution_results import ExecutionResult, Outcome
 from music_provider_result import music_execution_result
+from music_provider_result import PlayerAvailability, PlayerAvailabilityResult
 import os
 import re
 import sqlite3
@@ -365,14 +366,20 @@ def request(connection, path, data=None, *, timeout=None):
             raise
 
 
-def player_available(entity, state):
+def player_availability_result(entity, state) -> PlayerAvailabilityResult:
     """Record the selected player even when no service can be dispatched."""
-    available = state not in (None, "unknown", "unavailable")
+    result = PlayerAvailabilityResult(PlayerAvailability.UNAVAILABLE if state in
+        (None, "unknown", "unavailable") else PlayerAvailability.AVAILABLE)
     with diagnostics.stage("music_player") as entry:
         if isinstance(entity, str) and re.fullmatch(r"media_player\.[a-z0-9_]{1,100}", entity):
             entry["player_entity_id"] = entity
-        entry["outcome"] = "available" if available else "unavailable"
-    return available
+        entry["outcome"] = result.status.value
+    return result
+
+
+def player_available(entity, state):
+    """Compatibility API retaining the original boolean availability result."""
+    return player_availability_result(entity, state).available
 
 
 def _request(connection, path, data=None, *, timeout=None):
@@ -492,7 +499,7 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         player = players.get(entity, {})
         state = player.get("state")
-        if not player_available(entity, state):
+        if player_availability_result(entity, state).status is PlayerAvailability.UNAVAILABLE:
             return ExecutionResult(f"The music player {location} is unavailable.", Outcome.UNAVAILABLE)
         if entity != group and entity in members:
             return ExecutionResult("That player is part of Everywhere. Say Everywhere to control the group.", Outcome.UNRESOLVED)
@@ -707,7 +714,7 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             destination = destinations.get(room)
         if destination is None:
             return ExecutionResult(f"No approved Music Assistant player is configured for {room}, or its registration is missing.", Outcome.UNRESOLVED)
-        if not player_available(destination, players.get(destination, {}).get("state")):
+        if player_availability_result(destination, players.get(destination, {}).get("state")).status is PlayerAvailability.UNAVAILABLE:
             return ExecutionResult(f"The Music Assistant player {location} is unavailable.", Outcome.UNAVAILABLE)
         previous_state = players[destination]["state"]
         previous_track = (players[destination].get("attributes") or {}).get("media_content_id")

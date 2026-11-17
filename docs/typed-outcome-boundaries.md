@@ -377,6 +377,12 @@ Only history/API adapters emit plain outcome strings. Allow/confirmed/unknown
 decisions still produce no blocking response; prompt/cancel/deny wording and
 nonfatal history-save behavior remain unchanged.
 
+Music player availability now returns frozen `PlayerAvailabilityResult` values
+to playback/control dispatch, with enum-based decisions. The public boolean helper
+remains an adapter. Diagnostic stages still serialize plain available/unavailable
+strings and validated player IDs; state interpretation, recovery on a later
+request and the absence of dispatch/search for unavailable players are unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

@@ -462,8 +462,11 @@ class MusicTests(unittest.TestCase):
         mapping = {"bedroom": self.bedroom, "kitchen": self.kitchen}
         self.players[self.bedroom]["state"] = "unavailable"
         with patch.object(music.approved_media_players, "load", return_value=mapping), \
+             patch.object(music, "player_available", side_effect=AssertionError("legacy availability roundtrip")), \
              patch.object(music.diagnostics, "persist"):
             with music.diagnostics.request("/api/assist") as trace:
+                control_reply, control_outcome = self.control("pause music in the bedroom")
+                self.assertEqual(control_outcome, "unavailable", control_reply)
                 reply, outcome = self.play("play islands in the stream in the bedroom")
                 self.assertEqual(music.diagnostics.current_id(), trace["id"])
             self.assertEqual(outcome, "unavailable", reply)
