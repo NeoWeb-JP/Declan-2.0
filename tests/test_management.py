@@ -19,7 +19,6 @@ import wave
 import configuration
 import diagnostics
 import history
-import music
 import server
 import state_backup
 import voice_profiles
