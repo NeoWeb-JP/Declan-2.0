@@ -49,8 +49,17 @@ dispatch adapts its typed result at the existing response boundary. All original
 public status/detail or reply/outcome APIs retain plain strings and unmatched
 switch results remain `None`.
 
+Stop, information and device response orchestration use a frozen `CommandResponse`
+that preserves the original `ExecutionResult`, including action evidence, plus
+routine status, information context or device target. Their earlier response
+helpers remain compatibility entrypoints. Early preview/timer selection retains
+typed results and preview precedence; legacy previews are validated on entry.
+Session success vocabulary uses `Outcome` members while accepting existing string
+callers. HTTP outcome metadata and history persistence explicitly convert enum
+values to plain strings at those external boundaries.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes
-response/session orchestration that still uses legacy tuples. Structured action
+scope includes routine follow-on, lighting response, fallback and other session/
+final-response orchestration that still uses legacy tuples. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.

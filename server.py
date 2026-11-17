@@ -2616,11 +2616,11 @@ class Handler(BaseHTTPRequestHandler):
         )
         routine_turn = None
         routine_voice_result = None
-        early_result = early_command_result.early_command_result(
+        early_result = early_command_result.select_early_result(
             routine_preview, timer_result,
         )
         if early_result is not None:
-            routine_reply, outcome = early_result
+            routine_reply, outcome = early_result.reply, early_result.outcome
         elif stop_result := stop_command_dispatch.dispatch_stop(
             phrase, source=source, origin_device=origin_device, satellite=satellite,
             registry_factory=command_registry.stop_registry,
@@ -2629,9 +2629,9 @@ class Handler(BaseHTTPRequestHandler):
             stop_everywhere=stop_everywhere_result,
             connection=ha_device_connection,
         ):
-            routine_reply, outcome, routine_status = (
-                stop_result_response.stop_result_response(stop_result)
-            )
+            response = stop_result_response.stop_response(stop_result)
+            routine_reply, outcome = response.result.reply, response.result.outcome
+            routine_status = response.routine_status
         elif (roast_guest_result := roast_guest_dispatch.dispatch_roast_or_guest(
             phrase, roast_target=roast.target,
             respond_to_roast=roast_command_dispatch.respond_to_roast,
@@ -2675,11 +2675,9 @@ class Handler(BaseHTTPRequestHandler):
                 decorate=add_sass, guest_mode=read_guest_mode,
             )
             if information_result:
-                routine_reply, outcome, information_context = (
-                    information_result_response.information_result_response(
-                        information_result,
-                    )
-                )
+                response = information_result_response.information_response(information_result)
+                routine_reply, outcome = response.result.reply, response.result.outcome
+                information_context = response.information_context
             else:
                 local = device_command_dispatch.dispatch_device(
                     phrase, source=source, last_device=last_device,
@@ -2697,9 +2695,9 @@ class Handler(BaseHTTPRequestHandler):
                     search_media=search_media_result,
                 )
                 if local is not None:
-                    routine_reply, outcome, status_target = (
-                        device_result_response.device_result_response(local)
-                    )
+                    response = device_result_response.device_response(local)
+                    routine_reply, outcome = response.result.reply, response.result.outcome
+                    status_target = response.status_target
                 else:
                     lighting_result = lighting_result_dispatch.dispatch_lighting_result(
                         phrase, source=source, origin_device=origin_device,

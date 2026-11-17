@@ -1,5 +1,6 @@
 """Conversation history persistence boundary for completed assistant turns."""
 import sqlite3
+from execution_results import Outcome
 
 
 def save_turn(reply, *, source, message, outcome, routine_status,
@@ -7,7 +8,8 @@ def save_turn(reply, *, source, message, outcome, routine_status,
               diagnostic_id, log_error):
     """Record the spoken exchange and preserve existing failure semantics."""
     try:
-        record(reply["session_id"], source, message, reply["reply"], outcome,
+        stored_outcome = outcome.value if isinstance(outcome, Outcome) else outcome
+        record(reply["session_id"], source, message, reply["reply"], stored_outcome,
                routine_status, action_results, phrase_suggestion,
                speaker=speaker if source == "assist" else None,
                diagnostic_id=diagnostic_id())
