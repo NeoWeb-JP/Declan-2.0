@@ -35,12 +35,12 @@ class BindAddressEnvironmentTests(unittest.TestCase):
         self.assertEqual(addresses, [("127.0.0.1", 8765)])
 
     def test_lan_defaults_to_all_ipv4_interfaces(self):
-        addresses, _ = self.launch(assist_lan=True, environment={
+        addresses, _, _ = self.launch(assist_lan=True, environment={
             "DECLAN_ASSIST_TOKEN": "a" * 32})
         self.assertEqual(addresses, [("0.0.0.0", server.ASSIST_PORT)])
 
     def test_lan_accepts_explicit_ipv4_override(self):
-        addresses, _ = self.launch(assist_lan=True, environment={
+        addresses, _, _ = self.launch(assist_lan=True, environment={
             "DECLAN_ASSIST_TOKEN": "a" * 32,
             "DECLAN_BIND_ADDRESS": "192.168.1.10"})
         self.assertEqual(addresses, [("192.168.1.10", server.ASSIST_PORT)])
@@ -58,7 +58,7 @@ class BindAddressEnvironmentTests(unittest.TestCase):
     def test_lan_requires_sufficient_assist_token_before_socket(self):
         for token in ("", "short", "a" * 31):
             with self.subTest(token=token):
-                addresses, error = self.launch(assist_lan=True, environment={
+                addresses, code, error = self.launch(assist_lan=True, environment={
                     "DECLAN_ASSIST_TOKEN": token})
                 self.assertEqual(addresses, [])
                 self.assertIn("at least 32 characters", error)
