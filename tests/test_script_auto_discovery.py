@@ -66,7 +66,7 @@ class ScriptSafetyTests(unittest.TestCase):
         opener.open.return_value.__enter__.return_value.status = 200
         script = {"entity_id": "script.declan_movie_time", "name": "Declan - Movie Time",
                   "safe": True, "fields": ["operation", "room"]}
-        with patch.object(script_discovery, "discover", return_value=([script], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([script]), None)):
             result = script_discovery.execute(
                 ("http://ha", {}, opener), script,
                 parameters={"operation": "end", "room": "bedroom", "secret": "never"})
@@ -77,7 +77,7 @@ class ScriptSafetyTests(unittest.TestCase):
         self.assertEqual(payload, {"operation": "end", "room": "bedroom"})
 
     def test_execution_rejects_script_removed_from_ha(self):
-        with patch.object(script_discovery, "discover", return_value=([], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([]), None)):
             result = script_discovery.execute(("url", {}, object()), {"entity_id": "script.house_status"})
         self.assertEqual(result[1], "unresolved")
 
@@ -86,8 +86,7 @@ class ScriptSafetyTests(unittest.TestCase):
         opener = MagicMock()
         response = opener.open.return_value.__enter__.return_value
         response.status = 200
-        with patch.object(script_discovery, "discover", return_value=(
-            [{"entity_id": "script.house_status", "name": "House Status", "safe": False}], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([{"entity_id": "script.house_status", "name": "House Status", "safe": False}]), None)):
             result = script_discovery.execute(("http://ha", {}, opener), {"entity_id": "script.house_status"})
         self.assertEqual(result[1], "unverified")
         self.assertIn("did not return a valid script result", result[0])

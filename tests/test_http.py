@@ -55,7 +55,7 @@ class APITests(TestCase):
     def test_routine_response_editor_reads_saves_and_rejects_stale_edits_without_execution(self):
         item = {"entity_id": "script.good_morning", "name": "Declan - Good Morning", "safe": False}
         headers = {"Origin": self.origin, "Content-Type": "application/json"}
-        with patch.object(server.script_discovery, "discover", return_value=([item], None)), \
+        with patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([item]), None)), \
              patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("editor executed a script")), \
              patch.object(server.script_discovery, "_enqueue_provider", side_effect=AssertionError("editor queued a script")):
             code, payload = self.request('/api/native/routine-responses', headers=headers)
@@ -94,10 +94,10 @@ class APITests(TestCase):
 
     def test_response_editor_reports_missing_routines_and_inspection_failure(self):
         headers = {"Origin": self.origin, "Content-Type": "application/json"}
-        with patch.object(server.script_discovery, 'discover', return_value=([], None)):
+        with patch.object(server.script_discovery, 'discover_result', return_value=server.script_discovery.DiscoveryResult(tuple([]), None)):
             code, _ = self.request('/api/native/routine-responses', body={'entity_id': 'script.deleted'}, headers=headers)
             self.assertEqual(code, 400)
-        with patch.object(server.script_discovery, 'discover', return_value=([], 'unavailable')):
+        with patch.object(server.script_discovery, 'discover_result', return_value=server.script_discovery.DiscoveryResult(tuple([]), server.script_discovery.DiscoveryError.INSPECTION_UNAVAILABLE)):
             code, payload = self.request('/api/native/routine-responses', headers=headers)
             self.assertEqual(code, 200)
             catalog = json.loads(payload)
@@ -402,7 +402,7 @@ class APITests(TestCase):
                   "fields": ["operation"]}
         connection = ("http://ha.invalid", {}, Mock())
         with patch.object(server, "ha_device_connection", return_value=connection), \
-             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)), \
              patch.object(server.script_discovery, "_enqueue_provider",
                           return_value=("Routine requested.", "started", "Background job j")) as enqueue:
             for phrase, operation in server.SEXY_TIME_COMMANDS.items():
@@ -417,7 +417,7 @@ class APITests(TestCase):
                   "name": "Declan - Dinner Is Served", "safe": True,
                   "fields": ["dinner_message"]}
         with patch.object(server, "ha_device_connection", return_value=("http://ha.invalid", {}, Mock())), \
-             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)), \
              patch.object(server.script_discovery, "_execute_provider",
                           return_value=("Dinner ready.", "requested", None)) as execute:
             for phrase in {*server.DINNER_PHRASES, "it's dinner time"}:
@@ -448,7 +448,7 @@ class APITests(TestCase):
                   "name": "Declan - Sexy Time Controller", "safe": True,
                   "fields": ["operation"]}
         with patch.object(server, "ha_device_connection", return_value=("http://ha.invalid", {}, Mock())), \
-             patch.object(server.script_discovery, "discover", return_value=([script], None)), \
+             patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)), \
              patch.object(server.script_discovery, "_enqueue_provider",
                           return_value=("Routine requested.", "started", "Background job j")) as routine:
             self.assertEqual(self.ask("Finish bedroom session.", path="/api/assist")["reply"], server.UNMATCHED_REPLY)

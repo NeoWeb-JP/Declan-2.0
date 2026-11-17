@@ -34,7 +34,7 @@ class CustomRoutineTests(unittest.TestCase):
     def test_voice_selection(self):
         script = {"entity_id": "script.make_tea", "name": "Make Tea", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
-             patch.object(server.script_discovery, "discover", return_value=([script], None)):
+             patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
             self.assertEqual(server.select_routine("make tea", None), ("auto:script.make_tea", {}))
 
     def test_verified_response_requires_matching_ids(self):

@@ -6,6 +6,8 @@ from script_provider_results import ScriptProviderResult, ScriptReportedOutcome,
 import json
 import re
 import secrets
+from dataclasses import dataclass
+from enum import StrEnum
 from threading import Lock
 from time import monotonic
 from urllib.error import HTTPError
@@ -15,6 +17,60 @@ from urllib.parse import urlencode
 _CACHE: dict = {}
 _CACHE_LOCK = Lock()
 CACHE_SECONDS = 30
+
+
+class DiscoveryError(StrEnum):
+    NOT_CONNECTED = "not_connected"
+    INSPECTION_UNAVAILABLE = "inspection_unavailable"
+    INVALID = "invalid"
+
+
+@dataclass(frozen=True)
+class DiscoveryResult:
+    scripts: tuple[dict, ...] = ()
+    error: DiscoveryError | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.scripts, tuple) or any(not isinstance(row, dict) for row in self.scripts):
+            raise TypeError("scripts must be a tuple of mappings")
+        if self.error is not None and not isinstance(self.error, DiscoveryError):
+            raise TypeError("error must be a DiscoveryError or None")
+
+    def as_legacy_pair(self):
+        return list(self.scripts), self.error.value if self.error is not None else None
+
+
+class ScriptMatchStatus(StrEnum):
+    MATCHED = "matched"
+    AMBIGUOUS = "ambiguous"
+    NO_MATCH = "no_match"
+
+
+@dataclass(frozen=True)
+class ScriptMatchResult:
+    status: ScriptMatchStatus
+    candidates: tuple[dict, ...] = ()
+
+    def __post_init__(self):
+        if (not isinstance(self.status, ScriptMatchStatus) or not isinstance(self.candidates, tuple)
+                or any(not isinstance(row, dict) for row in self.candidates)):
+            raise TypeError("match requires an enum status and tuple of candidates")
+        expected = len(self.candidates)
+        if ((self.status is ScriptMatchStatus.MATCHED and expected != 1)
+                or (self.status is ScriptMatchStatus.AMBIGUOUS and expected < 2)
+                or (self.status is ScriptMatchStatus.NO_MATCH and expected != 0)):
+            raise ValueError("match status does not agree with candidates")
+
+    @property
+    def selected(self) -> dict:
+        if self.status is not ScriptMatchStatus.MATCHED:
+            raise ValueError("only an unambiguous match has a selected script")
+        return self.candidates[0]
+
+    def as_legacy_result(self):
+        if self.status is ScriptMatchStatus.NO_MATCH:
+            return None
+        return self.status.value, self.selected if self.status is ScriptMatchStatus.MATCHED else list(self.candidates)
 
 
 def normalise(value):
@@ -56,25 +112,25 @@ def phrases(item):
     return result
 
 
-def discover(connection, *, fresh=False):
+def discover_result(connection, *, fresh=False) -> DiscoveryResult:
     if connection is None:
-        return [], "not_connected"
+        return DiscoveryResult(error=DiscoveryError.NOT_CONNECTED)
     url, headers, opener = connection
     if opener is None or not hasattr(opener, "open"):
-        return [], "inspection_unavailable"
+        return DiscoveryResult(error=DiscoveryError.INSPECTION_UNAVAILABLE)
     if not fresh:
         with _CACHE_LOCK:
             cached = _CACHE.get(url)
             if cached and monotonic() - cached[0] < CACHE_SECONDS:
-                return cached[1], None
+                return cached[1]
     try:
         with opener.open(Request(url + "/api/declan_two/script-discovery", headers=headers), timeout=5) as response:
             payload = json.loads(response.read(512 * 1024))
         if not isinstance(payload, dict) or payload.get("inspection") != "complete":
-            return [], "inspection_unavailable"
+            return DiscoveryResult(error=DiscoveryError.INSPECTION_UNAVAILABLE)
         rows = payload.get("scripts")
         if not isinstance(rows, list) or len(rows) > 20000:
-            return [], "invalid"
+            return DiscoveryResult(error=DiscoveryError.INVALID)
         valid = []
         for item in rows:
             if (isinstance(item, dict) and isinstance(item.get("name"), str)
@@ -84,20 +140,25 @@ def discover(connection, *, fresh=False):
                     type(item.get("safe")) is bool):
                 valid.append(item)
         if len(valid) != len(rows):
-            return [], "invalid"
+            return DiscoveryResult(error=DiscoveryError.INVALID)
+        result = DiscoveryResult(tuple(valid))
         with _CACHE_LOCK:
-            _CACHE[url] = (monotonic(), valid)
-        return valid, None
+            _CACHE[url] = (monotonic(), result)
+        return result
     except (OSError, ValueError, TypeError, HTTPError):
-        return [], "inspection_unavailable"
+        return DiscoveryResult(error=DiscoveryError.INSPECTION_UNAVAILABLE)
 
 
-def match(phrase, scripts):
+def discover(connection, *, fresh=False):
+    return discover_result(connection, fresh=fresh).as_legacy_pair()
+
+
+def match_result(phrase, scripts) -> ScriptMatchResult:
     phrase = normalise(phrase)
     phrase = re.sub(r"^(?:please |run |start |execute |activate )", "", phrase)
     matches = [item for item in scripts if phrase in phrases(item)]
     if not matches:
-        return None
+        return ScriptMatchResult(ScriptMatchStatus.NO_MATCH)
     # Prefer the one HA script explicitly designed to return Declan's
     # correlated completion result. Other similarly named scripts may be
     # legacy wrappers or duplicates. This is capability-based, not a
@@ -109,10 +170,14 @@ def match(phrase, scripts):
             and {"request_id", "routine_id"}.issubset(item["fields"])
         ]
         if len(response_capable) == 1:
-            return "matched", response_capable[0]
-        return "ambiguous", matches
+            return ScriptMatchResult(ScriptMatchStatus.MATCHED, (response_capable[0],))
+        return ScriptMatchResult(ScriptMatchStatus.AMBIGUOUS, tuple(matches))
     item = matches[0]
-    return "matched", item
+    return ScriptMatchResult(ScriptMatchStatus.MATCHED, (item,))
+
+
+def match(phrase, scripts):
+    return match_result(phrase, scripts).as_legacy_result()
 
 
 def completion_from_trace_result(connection, current, result):
@@ -199,10 +264,10 @@ def _enqueue_provider(connection, entity_id, parameters):
 
 def _execute_provider(connection, item, *, parameters=None, expect_response=False, action_results=None):
     """Verify the live HA script and send only parameters it declares."""
-    scripts, error = discover(connection, fresh=True)
-    if error:
+    discovery = discover_result(connection, fresh=True)
+    if discovery.error is not None:
         return ExecutionResult("I couldn't verify that script exists in Home Assistant. Nothing was run.", Outcome.UNVERIFIED), None
-    current = next((row for row in scripts if row["entity_id"] == item["entity_id"]), None)
+    current = next((row for row in discovery.scripts if row["entity_id"] == item["entity_id"]), None)
     if not current:
         return ExecutionResult("That script is no longer available in Home Assistant.", Outcome.UNRESOLVED), None
     url, headers, opener = connection

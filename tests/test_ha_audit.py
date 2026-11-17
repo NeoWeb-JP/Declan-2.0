@@ -351,7 +351,7 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
                 "routine_id": body["routine_id"], "steps": [{"target": "screen", "status": "confirmed", "required": True}]}}).encode())
             response.status = 200
             return response
-        with patch.object(script_discovery, "discover", return_value=([item], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
             result = script_discovery.execute(("http://ha", {}, SimpleNamespace(open=open_request)), item,
                                               parameters={"requested_action": "toggle"})
         self.assertEqual(result[1], "reported_success")

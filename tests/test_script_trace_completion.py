@@ -43,7 +43,7 @@ class TraceCompletionTests(unittest.TestCase):
             response.status = 200
             return response
         opener = Mock(open=open_request)
-        with patch.object(script_discovery, "discover", return_value=([script], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([script]), None)):
             result = script_discovery.execute(("http://ha", {}, opener), script, expect_response=expect_response)
         return result, calls
 
