@@ -2544,7 +2544,7 @@ class Handler(BaseHTTPRequestHandler):
         early_result = early_command_result.early_command_result(
             routine_preview, timer_result,
         )
-        if early_result:
+        if early_result is not None:
             routine_reply, outcome = early_result
         elif stop_result := stop_command_dispatch.dispatch_stop(
             phrase, source=source, origin_device=origin_device, satellite=satellite,
