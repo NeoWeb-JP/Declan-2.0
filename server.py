@@ -62,6 +62,7 @@ import guarded_fallback_dispatch
 import response_persona_context
 import turn_context_preparation
 import turn_response_composition
+import turn_persistence_dispatch
 import history
 import music
 import approved_media_players
@@ -2680,9 +2681,10 @@ class Handler(BaseHTTPRequestHandler):
                 render_failure=command_responses.failure,
                 composition=response_composition,
             )
-            session = SESSIONS[reply["session_id"]]
-            turn_persistence_orchestration.finalize_turn(
-                reply, session=session, message=message, phrase=phrase,
+            turn_persistence_dispatch.persist_turn(
+                reply, sessions=SESSIONS,
+                finalize=turn_persistence_orchestration.finalize_turn,
+                message=message, phrase=phrase,
                 outcome=outcome, scope=scope, status_target=status_target,
                 information_context=information_context,
                 light_result=light_result, action_results=action_results,
