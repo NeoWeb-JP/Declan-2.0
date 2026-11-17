@@ -18,4 +18,4 @@ Declan 2.0 is a proprietary household voice assistant with a standalone backend 
 
 ## Licensing
 
-Declan 2.0 is proprietary. All rights reserved. No open-source licence is granted by this repository.
+Declan 2.0 is proprietary. All rights reserved. No open-source licence is granted by this repository. See the [proprietary notice](LICENSE).
