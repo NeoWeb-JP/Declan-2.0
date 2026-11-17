@@ -1,6 +1,8 @@
 import io
 import json
+import os
 import unittest
+from unittest.mock import patch
 
 from openai_planner import request_plan
 
@@ -68,6 +70,30 @@ class OpenAIPlannerTests(unittest.TestCase):
             request_plan("turn on kitchen", ["light.kitchen"], opener=opener,
                          model="gpt-5-mini", api_key="test",
                          max_cost_micro_usd=1)
+        self.assertIsNone(opener.request)
+
+    def test_environment_model_and_key_are_used_when_not_explicitly_passed(self):
+        opener = FakeOpener(response({"actions": []}))
+        with patch.dict(os.environ, {"DECLAN_OPENAI_MODEL": "gpt-5-mini",
+                                     "OPENAI_API_KEY": "environment-test-key"}):
+            self.assertEqual(request_plan("lights on", [], opener=opener), ())
+        self.assertEqual(json.loads(opener.request.data)["model"], "gpt-5-mini")
+        self.assertEqual(opener.request.get_header("Authorization"), "Bearer environment-test-key")
+
+    def test_explicit_model_and_key_override_environment(self):
+        opener = FakeOpener(response({"actions": []}))
+        with patch.dict(os.environ, {"DECLAN_OPENAI_MODEL": "invalid model",
+                                     "OPENAI_API_KEY": ""}):
+            self.assertEqual(request_plan("lights on", [], opener=opener,
+                                          model="gpt-5-mini", api_key="explicit-key"), ())
+        self.assertEqual(json.loads(opener.request.data)["model"], "gpt-5-mini")
+        self.assertEqual(opener.request.get_header("Authorization"), "Bearer explicit-key")
+
+    def test_unset_environment_configuration_fails_before_network(self):
+        opener = FakeOpener(response({"actions": []}))
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(ValueError, "Configure a supported OpenAI model"):
+                request_plan("lights on", [], opener=opener)
         self.assertIsNone(opener.request)
 
     def test_missing_credentials_fail_closed(self):
