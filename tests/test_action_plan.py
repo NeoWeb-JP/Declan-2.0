@@ -2,9 +2,27 @@ import unittest
 
 from action_plan import validate_plan, execution_order
 from action_plan import execution_order_result, ActionReadiness
+from action_plan import OrderedActionResult
 
 
 class PlanValidationTests(unittest.TestCase):
+    def test_ordered_action_model_rejects_string_statuses_and_malformed_metadata(self):
+        action = validate_plan({"actions": [{"entity_id": "light.kitchen", "service": "turn_on"}]},
+                               {"light.kitchen"})[0]
+        for status in ("pending", "skipped_dependency", None, [], "future_status"):
+            with self.subTest(status=status), self.assertRaises(TypeError):
+                OrderedActionResult(0, action, status)
+        for index in (-1, True, "0", None):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                OrderedActionResult(index, action, ActionReadiness.PENDING)
+        with self.assertRaises(TypeError):
+            OrderedActionResult(0, {"entity_id": "light.kitchen"}, ActionReadiness.PENDING)
+        for status in ActionReadiness:
+            result = OrderedActionResult(0, action, status)
+            self.assertIs(result.status, status)
+            self.assertEqual(result.as_legacy_tuple(), (0, action, status.value))
+            self.assertIs(type(result.as_legacy_tuple()[2]), str)
+
     def test_typed_dependency_decisions_observe_live_verified_outcomes(self):
         actions = validate_plan({"actions": [
             {"entity_id": "light.kitchen", "service": "turn_on"},

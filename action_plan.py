@@ -68,6 +68,14 @@ class OrderedActionResult:
     action: CandidateAction
     status: ActionReadiness
 
+    def __post_init__(self):
+        if type(self.index) is not int or self.index < 0:
+            raise ValueError("Ordered action index must be a nonnegative integer")
+        if not isinstance(self.action, CandidateAction):
+            raise TypeError("Ordered action requires a candidate action")
+        if not isinstance(self.status, ActionReadiness):
+            raise TypeError("Ordered action status must be an ActionReadiness")
+
     def as_legacy_tuple(self):
         return self.index, self.action, self.status.value
 
