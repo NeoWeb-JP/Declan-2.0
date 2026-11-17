@@ -723,7 +723,6 @@ def run_routine_result(period, *, action_results=None, movie_action=None, movie_
         return ExecutionResult(f"{salutation} The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED), None
     url, headers, opener = connection
     movie_prefix = "DECLAN_BEDROOM_MOVIE" if movie_room == "bedroom" else "DECLAN_MOVIE"
-    setting = f"{movie_prefix}_SCRIPT" if movie_action else f"DECLAN_GOOD_{period.upper()}_SCRIPT"
     routine_key = ("movie_bedroom" if movie_room == "bedroom" else "movie") if movie_action else period
     try:
         mapped = routine_registry.load().get(routine_key)
@@ -2580,7 +2579,6 @@ class Handler(BaseHTTPRequestHandler):
         opener = build_opener(ProxyHandler({}), NoRedirect())
         # HA owns script permissions. Guest assignment is a separate privileged
         # action and retains its existing voice confirmation protection.
-        routine_approved = True
         confirmation = sensitive_confirmation_turn.confirmation_turn_result(
             message, phrase, session_id, source=source,
             satellite=satellite, origin_device=origin_device,
