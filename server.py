@@ -57,6 +57,7 @@ import roast_guest_dispatch
 import routine_registry_dispatch
 import routine_follow_on_dispatch
 import information_result_response
+import device_result_response
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2627,8 +2628,9 @@ class Handler(BaseHTTPRequestHandler):
                     search_media=search_media,
                 )
                 if local is not None:
-                    routine_reply, outcome = local.result.as_legacy_pair()
-                    status_target = local.status_target
+                    routine_reply, outcome, status_target = (
+                        device_result_response.device_result_response(local)
+                    )
                 else:
                     lighting_dispatch = lighting_command_dispatch.dispatch_lighting(
                         phrase, source=source, origin_device=origin_device, satellite=satellite,
