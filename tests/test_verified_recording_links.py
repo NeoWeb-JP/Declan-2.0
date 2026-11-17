@@ -1,5 +1,4 @@
 """Regression tests for explicit voice-recording teaching links."""
-import json
 import tempfile
 import unittest
 from email.message import Message
