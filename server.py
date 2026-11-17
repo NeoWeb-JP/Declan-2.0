@@ -39,6 +39,7 @@ import retry_training_persistence
 import conversation_persistence
 import turn_finalization
 import turn_response_orchestration
+import turn_persistence_orchestration
 import history
 import music
 import approved_media_players
@@ -2712,27 +2713,24 @@ class Handler(BaseHTTPRequestHandler):
                 reply, outcome=outcome, routine_status=routine_status,
             )
             session = SESSIONS[reply["session_id"]]
-            retry_succeeded = session_turn_state.update_turn(
-                session, reply, message=message, phrase=phrase, outcome=outcome,
-                scope=scope, status_target=status_target,
-                information_context=information_context, light_result=light_result,
-                action_results=action_results, actions=actions,
-                unmatched_reply=UNMATCHED_REPLY, now=monotonic(),
-            )
-            retry_training_persistence.save_retry_training(
-                reply, pending_retry=pending_retry,
-                retry_succeeded=retry_succeeded, message=message,
+            turn_persistence_orchestration.finalize_turn(
+                reply, session=session, message=message, phrase=phrase,
+                outcome=outcome, scope=scope, status_target=status_target,
+                information_context=information_context,
+                light_result=light_result, action_results=action_results,
+                actions=actions, unmatched_reply=UNMATCHED_REPLY,
+                now=monotonic(), pending_retry=pending_retry,
                 effective_message=effective_message,
                 similar=retry_learning.similar,
                 normalize_phrase=history.normalize_phrase,
-                teach_phrase=history.teach_phrase, log_error=self.log_error,
-            )
-            conversation_persistence.save_turn(
-                reply, source=source, message=message, outcome=outcome,
-                routine_status=routine_status, action_results=action_results,
-                phrase_suggestion=phrase_suggestion, speaker=body.get("speaker"),
-                record=history.record, diagnostic_id=diagnostics.current_id,
-                log_error=self.log_error,
+                teach_phrase=history.teach_phrase, source=source,
+                routine_status=routine_status,
+                phrase_suggestion=phrase_suggestion,
+                speaker=body.get("speaker"), record=history.record,
+                diagnostic_id=diagnostics.current_id,
+                log_error=self.log_error, state_module=session_turn_state,
+                training_module=retry_training_persistence,
+                history_module=conversation_persistence,
             )
         self.send_json(200, reply)
 
