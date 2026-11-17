@@ -2690,61 +2690,15 @@ class Handler(BaseHTTPRequestHandler):
                 phrase_suggestion = failed_phrase["text"]
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
                              scope=scope, guest_mode=response_guest_mode)
-            # Decorate successful normal replies exactly once. Keep errors,
-            # ambiguous requests, safety notices and routine diagnostics clear.
-            existing_lines = (
-                any(
-                    line in reply["reply"]
-                    for variants in __import__("personality").LINES.values()
-                    for group in variants for line in group
-                )
-                or any(line in reply["reply"] for line in (
-                    *personality_policy._SAVAGE, *personality_policy._GUEST,
-                    *personality_policy._DINNER_HOME, *personality_policy._DINNER_GUEST
-                ))
+            reply["reply"] = response_composition.general_reply(
+                reply["reply"], outcome=outcome, routine_reply=routine_reply,
+                routine_turn=routine_turn, light_result=light_result,
+                phrase=phrase, action_results=action_results,
+                guest=guest_mode != "off", visitor_present=visitor_present,
+                personality=personality_policy,
+                lines=__import__("personality").LINES,
+                parse_music=music.parse, parse_music_control=music.parse_control,
             )
-            # A returned HA script outcome is verified only when the script
-            # explicitly reports success. Do not roast on "requested", partial,
-            # unknown, or missing responses.
-            verified_routine = (outcome == "reported_success"
-                                and routine_reply is not None
-                                and routine_turn is not None)
-            completed_routine = (outcome == "execution_completed"
-                                 and routine_reply is not None and routine_turn is not None)
-            if (outcome in ("confirmed", "reported_success", "execution_completed") and not existing_lines
-                    and light_result is None
-                    and routine_reply is not None
-                    and (verified_routine or completed_routine or light_result is not None
-                         or music.parse(phrase) or music.parse_control(phrase)
-                         or (action_results and all(
-                             step.get("status") in {"confirmed", "already_set", "completed"}
-                             for step in action_results
-                         )))
-                    and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
-                    and not any(word in phrase.casefold() for word in
-                                ("smoke", "fire alarm", "carbon monoxide", "security alert",
-                                 "emergency", "intruder", "panic alarm"))):
-                # The structured routine_status/outcome remain available to
-                # callers; the user-facing reply should be Declan's personality,
-                # not a technical HA script title or completion boilerplate.
-                spoken_reply = ("Sorted." if verified_routine else reply["reply"])
-                dinner_reply = (routine_turn is not None
-                                and (verified_routine or completed_routine)
-                                and routine_turn[0][1].get("_declan_reply_category") == "dinner")
-                if dinner_reply and not routine_turn[1]:
-                    spoken_reply = ""
-                reply["reply"] = personality_policy.decorate(
-                    spoken_reply, outcome="confirmed" if verified_routine or completed_routine else outcome,
-                    guest=guest_mode != "off",
-                    visitor_present=visitor_present,
-                    category="dinner" if dinner_reply else "music" if music.parse(phrase) or music.parse_control(phrase)
-                    else "general",
-                )
-                if dinner_reply:
-                    music_note = personality_policy.dinner_music_feedback(
-                        action_results, guest=guest_mode != "off", visitor_present=visitor_present)
-                    if music_note:
-                        reply["reply"] += " " + music_note
             background_reply = response_composition.background_reply(
                 outcome, routine_turn, guest=guest_mode != "off",
                 visitor_present=visitor_present, personality=personality_policy,
