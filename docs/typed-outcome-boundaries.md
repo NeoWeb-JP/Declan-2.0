@@ -169,9 +169,15 @@ history events retain typed parsed evidence until direct history serialization.
 | Fallback diagnostics | AI-generated marker and opt-in detail field; no verification promotion |
 | External routine history events | Bounded external outcome/status text remains compatible; it is persisted rather than used as an internal execution decision |
 
-Issue #17 and its overall typed-outcome checklist remain open. The backend
-adapter review above covers the migrated command path. Remaining cross-component
-audit scope includes Home Assistant background routine-job and trace status
-internals (`routine_jobs.py`, `ha_audit.py`, `script_result_view.py`), which retain
-their own protocol/state vocabulary. Broader evidence statuses must not be
-silently narrowed to verified `ActionStatus`.
+Home Assistant background jobs now use `RoutineJobOutcome` for state transitions
+and frozen `RoutineJobSummary` values for script-response summaries. The active
+dispatch path consumes the typed summary directly; `summarize_result` remains a
+mapping adapter. Storage and HTTP boundaries retain plain strings, bounded step
+projections, correlation failures, reason filtering, and interrupted-job behavior.
+Reported script success is still distinct from verified device execution.
+
+Issue #17 and its overall typed-outcome checklist remain open. Remaining
+cross-component audit scope includes trace classification and lookup
+(`ha_audit.py`, `script_result_view.py`) and their fallback into background jobs.
+Those components retain their own protocol/state vocabulary. Broader evidence
+statuses must not be silently narrowed to verified `ActionStatus`.

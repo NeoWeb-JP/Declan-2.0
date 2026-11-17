@@ -58,6 +58,38 @@ class BackgroundDispatchTests(unittest.TestCase):
 
 
 class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
+    def test_typed_summary_preserves_protocol_and_filters_evidence(self):
+        job = {"job_id": "job", "entity_id": "script.movie_time"}
+        for external, expected in (("success", "reported_success"), ("partial", "partial"),
+                ("failed", "failed"), ("cancelled", "cancelled"), ("busy", "busy"),
+                ("unknown", "unverified"), ("started", "unverified"), ([], "unverified")):
+            with self.subTest(external=external):
+                raw = {"outcome": external, "steps": [{"status": "confirmed", "secret": "hidden"}],
+                       "reason_code": "safe_reason"}
+                summary = self.jobs_view.summarize_result_typed(raw, job, {})
+                self.assertIsInstance(summary.outcome, self.jobs_view.RoutineJobOutcome)
+                self.assertEqual(summary.outcome.value, expected)
+                wire = summary.to_wire()
+                self.assertIs(type(wire["outcome"]), str)
+                self.assertEqual(wire, self.jobs_view.summarize_result(raw, job, {}))
+                self.assertEqual(wire["steps"], [{"status": "confirmed", "required": True}])
+                wire["steps"][0]["status"] = "mutated"
+                self.assertEqual(summary.to_wire()["steps"][0]["status"], "confirmed")
+                with self.assertRaises(AttributeError):
+                    summary.outcome = self.jobs_view.RoutineJobOutcome.FAILED
+
+    def test_typed_summary_rejects_uncorrelated_or_malformed_success(self):
+        job = {"job_id": "job", "entity_id": "script.movie_time"}
+        for raw, fields, reason in (({"outcome": "success"}, {"request_id": {}}, "result_correlation_failed"),
+                ({"outcome": "success", "steps": {}}, {}, "invalid_steps"),
+                ({"outcome": "success", "steps": [{}], "reason_code": "secret text"}, {}, None)):
+            summary = self.jobs_view.summarize_result_typed(raw, job, fields)
+            self.assertIs(summary.outcome, self.jobs_view.RoutineJobOutcome.UNVERIFIED)
+            self.assertEqual(summary.reason, reason)
+        self.assertIsNone(self.jobs_view.summarize_result_typed({}, job, {}))
+        with self.assertRaises(TypeError):
+            self.jobs_view.RoutineJobSummary("success")
+
     # Reuse loaded HA interfaces, not their tests.
     def setUp(self):
         audit_tests.AuditViewTests.setUp(self)
@@ -103,7 +135,8 @@ class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(payload["status"], "accepted")
         self.assertEqual(len(self.pending), 1)
-        await self.pending[0]
+        with patch.object(self.jobs_view, "summarize_result", side_effect=AssertionError("legacy roundtrip")):
+            await self.pending[0]
         state = await self.jobs_view.job_state(self.hass)
         job = state["jobs"][payload["job_id"]]
         self.assertEqual(job["outcome"], "partial")

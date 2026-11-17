@@ -1,7 +1,9 @@
 """Accepted HA routine jobs: immediate receipt, durable result, no automatic replay."""
 import asyncio
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import StrEnum
 import logging
 import re
 
@@ -11,7 +13,36 @@ from homeassistant.components.http import HomeAssistantView
 from .script_discovery_view import declared_script_fields
 
 _LOGGER = logging.getLogger(__name__)
-ACTIVE = {"queued", "running"}
+class RoutineJobOutcome(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    REPORTED_SUCCESS = "reported_success"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    BUSY = "busy"
+    UNVERIFIED = "unverified"
+    FINISHED_UNVERIFIED = "finished_unverified"
+
+
+@dataclass(frozen=True)
+class RoutineJobSummary:
+    outcome: RoutineJobOutcome
+    steps: tuple[dict, ...] = ()
+    reason: str | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.outcome, RoutineJobOutcome):
+            raise TypeError("outcome must be a RoutineJobOutcome")
+
+    def to_wire(self) -> dict:
+        summary: dict[str, object] = {"outcome": self.outcome.value, "steps": [dict(step) for step in self.steps]}
+        if self.reason is not None:
+            summary["reason"] = self.reason
+        return summary
+
+
+ACTIVE = frozenset({RoutineJobOutcome.QUEUED, RoutineJobOutcome.RUNNING})
 
 
 def timestamp():
@@ -33,7 +64,7 @@ async def job_state(hass):
             recovered = False
             for job in state["jobs"].values():
                 if job.get("outcome") in ACTIVE:
-                    job.update(outcome="unverified", reason="interrupted", updated_at=timestamp())
+                    job.update(outcome=RoutineJobOutcome.UNVERIFIED.value, reason="interrupted", updated_at=timestamp())
                     recovered = True
             if recovered:
                 await state["store"].async_save({"jobs": state["jobs"]})
@@ -52,55 +83,61 @@ async def save_job(state, job):
         state["jobs"] = jobs
 
 
-def summarize_result(result, job, fields):
+def summarize_result_typed(result, job, fields) -> RoutineJobSummary | None:
     """Retain bounded result evidence, never script inputs or raw error text."""
     if not isinstance(result, Mapping) or "outcome" not in result:
         return None
     if (("request_id" in fields and result.get("request_id") != job["job_id"])
             or ("routine_id" in fields and result.get("routine_id") != job["entity_id"])):
-        return {"outcome": "unverified", "reason": "result_correlation_failed", "steps": []}
+        return RoutineJobSummary(RoutineJobOutcome.UNVERIFIED, reason="result_correlation_failed")
     value = result["outcome"]
-    outcome = {"success": "reported_success", "partial": "partial", "failed": "failed",
-               "cancelled": "cancelled", "busy": "busy", "unknown": "unverified", "started": "unverified"}.get(value, "unverified") if isinstance(value, str) else "unverified"
+    outcome = {"success": RoutineJobOutcome.REPORTED_SUCCESS, "partial": RoutineJobOutcome.PARTIAL,
+               "failed": RoutineJobOutcome.FAILED, "cancelled": RoutineJobOutcome.CANCELLED,
+               "busy": RoutineJobOutcome.BUSY}.get(value, RoutineJobOutcome.UNVERIFIED) if isinstance(value, str) else RoutineJobOutcome.UNVERIFIED
     raw = result.get("steps", [])
     if not isinstance(raw, list) or len(raw) > 200:
-        return {"outcome": "unverified", "reason": "invalid_steps", "steps": []}
-    if outcome == "reported_success" and any(not isinstance(step, Mapping) or
+        return RoutineJobSummary(RoutineJobOutcome.UNVERIFIED, reason="invalid_steps")
+    if outcome is RoutineJobOutcome.REPORTED_SUCCESS and any(not isinstance(step, Mapping) or
             (step.get("required", True) and step.get("status") not in ("confirmed", "already_set")) for step in raw):
-        outcome = "unverified"
+        outcome = RoutineJobOutcome.UNVERIFIED
     steps = [{**{key: step[key][:240] for key in ("target", "action", "entity_id", "status") if isinstance(step.get(key), str)},
               "required": step.get("required", True) is not False} for step in raw if isinstance(step, Mapping)]
-    summary = {"outcome": outcome, "steps": steps}
     reason = result.get("reason_code")
-    if isinstance(reason, str) and re.fullmatch(r"[a-z0-9_]{1,80}", reason):
-        summary["reason"] = reason
-    return summary
+    safe_reason = reason if isinstance(reason, str) and re.fullmatch(r"[a-z0-9_]{1,80}", reason) else None
+    return RoutineJobSummary(outcome, tuple(steps), safe_reason)
+
+
+def summarize_result(result, job, fields):
+    summary = summarize_result_typed(result, job, fields)
+    return summary.to_wire() if summary is not None else None
 
 
 async def run_job(hass, state, job, service, parameters, fields, context):
-    final = {**job, "outcome": "running", "updated_at": timestamp()}
+    final = {**job, "outcome": RoutineJobOutcome.RUNNING.value, "updated_at": timestamp()}
     try:
         await save_job(state, final)
         result = await hass.services.async_call("script", service, parameters,
                                                 blocking=True, return_response=True, context=context)
-        summary = summarize_result(result, job, fields)
-        if summary is None:
+        typed_summary = summarize_result_typed(result, job, fields)
+        if typed_summary is None:
             from .script_result_view import lookup_result
             evidence = await lookup_result(hass, job["entity_id"], context.id)
             summary = {"outcome": evidence["status"], "steps": evidence.get("steps", []), "run_id": evidence.get("run_id")}
+        else:
+            summary = typed_summary.to_wire()
         final.update(summary)
     except asyncio.CancelledError:
-        final.update(outcome="unverified", reason="interrupted")
+        final.update(outcome=RoutineJobOutcome.UNVERIFIED.value, reason="interrupted")
         raise
     except Exception as error:
-        final.update(outcome="failed", reason=type(error).__name__)
+        final.update(outcome=RoutineJobOutcome.FAILED.value, reason=type(error).__name__)
     finally:
         final["updated_at"] = timestamp()
         try:
             await asyncio.shield(save_job(state, final))
         except Exception:
             _LOGGER.warning("Declan background result could not be saved for %s", job["job_id"])
-        log = _LOGGER.warning if final["outcome"] not in {"reported_success", "finished_unverified"} else _LOGGER.info
+        log = _LOGGER.warning if final["outcome"] not in {RoutineJobOutcome.REPORTED_SUCCESS, RoutineJobOutcome.FINISHED_UNVERIFIED} else _LOGGER.info
         log("Declan background routine %s job %s: %s", job["entity_id"], job["job_id"], final["outcome"])
 
 
@@ -161,7 +198,7 @@ class DeclanRoutineJobsView(HomeAssistantView):
                 return web.json_response({"error": "already_running"}, status=409)
             if sum(row["outcome"] in ACTIVE for row in state["jobs"].values()) >= 4:
                 return web.json_response({"error": "queue_full"}, status=429)
-            job = {"job_id": body["job_id"], "entity_id": body["entity_id"], "outcome": "queued",
+            job = {"job_id": body["job_id"], "entity_id": body["entity_id"], "outcome": RoutineJobOutcome.QUEUED.value,
                    "created_at": timestamp(), "updated_at": timestamp(), "steps": []}
             jobs = {**state["jobs"], body["job_id"]: job}
             try:
@@ -174,7 +211,7 @@ class DeclanRoutineJobsView(HomeAssistantView):
             hass.async_create_background_task(work, "declan-routine-" + body["job_id"], eager_start=False)
         except Exception:
             work.close()
-            await save_job(state, {**job, "outcome": "failed", "reason": "scheduling_failed", "updated_at": timestamp()})
+            await save_job(state, {**job, "outcome": RoutineJobOutcome.FAILED.value, "reason": "scheduling_failed", "updated_at": timestamp()})
             return web.json_response({"error": "scheduling_failed"}, status=503)
         return web.json_response({"status": "accepted", "job_id": body["job_id"], "entity_id": body["entity_id"]},
                                  status=202, headers={"Cache-Control": "no-store"})
