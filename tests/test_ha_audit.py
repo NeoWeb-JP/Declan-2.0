@@ -29,6 +29,38 @@ review_spec.loader.exec_module(reviews)
 
 
 class AuditTests(unittest.TestCase):
+    def test_typed_findings_preserve_review_identifiers_and_plain_wire_fields(self):
+        routine = {"entity_id": "script.test", "config": {"sequence": []}}
+        findings = [audit.AuditFinding(severity, "test_code", "action/0", "Review in HA")
+                    for severity in audit.AuditSeverity]
+        legacy = [row.to_wire() for row in findings]
+        self.assertEqual(audit.review_fingerprint(routine, findings, []), audit.review_fingerprint(routine, legacy, []))
+        self.assertEqual(audit.review_evidence(routine, findings, []), audit.review_evidence(routine, legacy, []))
+        for row in findings:
+            self.assertIs(type(row.to_wire()["severity"]), str)
+            with self.assertRaises(AttributeError):
+                row.severity = audit.AuditSeverity.ERROR
+        with self.assertRaises(TypeError):
+            audit.AuditFinding("error", "code", "path", "Review")
+
+    def test_active_report_passes_typed_findings_to_review_and_keeps_summary_counts(self):
+        original = audit.review_evidence
+        captured = []
+
+        def observe(routine, findings, execution):
+            self.assertTrue(all(isinstance(row, audit.AuditFinding) for row in findings))
+            captured.extend(findings)
+            return original(routine, findings, execution)
+
+        with patch.object(audit, "review_evidence", side_effect=observe):
+            report = self.report({"sequence": [{"action": "light.turn_on",
+                "target": {"entity_id": ["light.missing", "light.offline"]}}]})
+        self.assertTrue(captured)
+        for severity in audit.AuditSeverity:
+            self.assertEqual(report["summary"][severity.value], sum(row.severity is severity for row in captured))
+        self.assertTrue(all(type(row["severity"]) is str for row in report["routines"][0]["findings"]))
+        json.dumps(report)
+
     def test_stored_job_review_decisions_preserve_identifiers_and_unknown_values(self):
         for outcome in (*job_results.RoutineJobOutcome, "future_status", None, ["failed"]):
             with self.subTest(outcome=outcome):
