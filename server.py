@@ -37,6 +37,7 @@ import device_status
 import retry_learning
 import retry_training_persistence
 import conversation_persistence
+import turn_finalization
 import history
 import music
 import approved_media_players
@@ -2682,15 +2683,11 @@ class Handler(BaseHTTPRequestHandler):
             information_context = ("time", None, None)
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
-            failed_phrase = previous.get("failed_light_phrase") if previous else None
             actions = {step["action"] for step in action_results if "action" in step}
-            phrase_suggestion = None
-            if (light_result and outcome == "confirmed" and actions and scope is not None
-                    and failed_phrase and failed_phrase["scope"] == scope
-                    and monotonic() - previous["at"] <= 30
-                    and actions & failed_phrase["actions"]
-                    and failed_phrase["text"].casefold() != message.casefold()):
-                phrase_suggestion = failed_phrase["text"]
+            phrase_suggestion = turn_finalization.lighting_phrase_suggestion(
+                previous, light_result=light_result, outcome=outcome,
+                actions=actions, scope=scope, message=message, now=monotonic(),
+            )
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
                              scope=scope, guest_mode=response_guest_mode)
             reply["reply"] = response_composition.general_reply(
@@ -2724,10 +2721,9 @@ class Handler(BaseHTTPRequestHandler):
                 parse_light_command=parse_light_command,
                 render_failure=command_responses.failure,
             )
-            if outcome:
-                reply["outcome"] = outcome
-            if routine_status:
-                reply["routine_status"] = routine_status
+            turn_finalization.apply_outcome_metadata(
+                reply, outcome=outcome, routine_status=routine_status,
+            )
             session = SESSIONS[reply["session_id"]]
             retry_succeeded = session_turn_state.update_turn(
                 session, reply, message=message, phrase=phrase, outcome=outcome,
