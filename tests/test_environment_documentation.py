@@ -15,12 +15,25 @@ BACKEND_MODULES = (
     "diagnostics.py", "voice_profiles.py", "lighting_intents.py",
 )
 ENV_READ = re.compile(
-    r"""(?:\bos\.getenv|\bgetenv|\bos\.environ\.get|\benviron\.get)\s*\(\s*['"](DECLAN_[A-Z0-9_]+)['"]"""
+    r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.get\s*\(\s*|\[\s*))['"](DECLAN_[A-Z0-9_]+)['"]"""
 )
 DOCUMENTED = re.compile(r"`(DECLAN_[A-Z0-9_]+)`")
 
 
 class EnvironmentDocumentationTests(unittest.TestCase):
+    def test_detects_supported_environment_read_forms(self):
+        examples = (
+            'os.getenv("DECLAN_EXAMPLE")',
+            'getenv("DECLAN_EXAMPLE")',
+            'os.environ.get("DECLAN_EXAMPLE", "default")',
+            'environ.get("DECLAN_EXAMPLE")',
+            'os.environ["DECLAN_EXAMPLE"]',
+            'environ["DECLAN_EXAMPLE"]',
+        )
+        for expression in examples:
+            with self.subTest(expression=expression):
+                self.assertEqual(ENV_READ.findall(expression), ["DECLAN_EXAMPLE"])
+
     def test_backend_environment_reads_are_documented(self):
         documented = set(DOCUMENTED.findall((ROOT / "docs/environment.md").read_text(encoding="utf-8")))
         missing = {}
