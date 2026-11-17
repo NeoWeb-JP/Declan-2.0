@@ -15,7 +15,6 @@ from urllib.request import Request, urlopen
 
 import server
 from declan_ingress import proxy
-from personality import LINES
 
 READ_VISITORS_PRESENT = server.read_visitors_present
 
