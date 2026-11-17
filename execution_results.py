@@ -22,6 +22,8 @@ class Outcome(StrEnum):
     NO_TIMER = "no_timer"
     ACTION_ERROR = "action_error"
     PREVIEW = "preview"
+    STARTED = "started"
+    REQUESTED = "requested"
 
 
 class ActionStatus(StrEnum):
