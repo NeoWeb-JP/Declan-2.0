@@ -144,18 +144,18 @@ def feedback(command, connection, read_inventory):
 def _feedback_provider(command, connection, read_inventory):
     phrase, room = command
     if connection is None or not HANDOFF.acquire(blocking=False):
-        return "I couldn't check the current music. Try again in a moment.", "unavailable"
+        return music_execution_result(("I couldn't check the current music. Try again in a moment.", "unavailable"))
     try:
         inventory, error = read_inventory(connection)
         if error:
-            return "I couldn't check what's playing.", error
+            return music_execution_result(("I couldn't check what's playing.", error))
         destinations, players = music_players(inventory)
         active = playback_sources(destinations, players)
         if room:
             entity = destinations.get(room_key(room))
             active = {entity: active[entity]} if entity in active else {}
         if len(active) != 1:
-            return "Tell me which active music player you mean.", "unresolved"
+            return music_execution_result(("Tell me which active music player you mean.", "unresolved"))
         entity, player = next(iter(active.items()))
         attrs = player.get("attributes") or {}
         playlist = "playlist" in phrase
@@ -164,18 +164,18 @@ def _feedback_provider(command, connection, read_inventory):
                     if isinstance(value, str) and media_key(value).startswith(f"spotify://{kind}/")
                     and SPOTIFY_REFERENCE.fullmatch(value)), None)
         if not uri:
-            return f"I couldn't identify the current Spotify {kind}.", "unresolved"
+            return music_execution_result((f"I couldn't identify the current Spotify {kind}.", "unresolved"))
         ban = phrase.startswith("never") or "don't like" in phrase
         with preference_db() as db:
             if not ban and db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0", (uri,)).fetchone():
-                return "That song is on your do-not-play list.", "unresolved"
+                return music_execution_result(("That song is on your do-not-play list.", "unresolved"))
             db.execute("INSERT INTO preferences VALUES (?, ?) ON CONFLICT(uri) DO UPDATE SET weight = "
                        "CASE WHEN excluded.weight = 0 THEN 0 ELSE min(5, max(1, weight) + 1) END",
                        (uri, 0 if ban else 3))
         label = (attrs.get("media_playlist") or "this playlist") if playlist else (attrs.get("media_title") or "this song")
-        return (f"Blocked {label}. I'll skip it when it comes up." if ban else f"Saved {label} as a favourite."), "music_feedback"
+        return music_execution_result(((f"Blocked {label}. I'll skip it when it comes up." if ban else f"Saved {label} as a favourite."), "music_feedback"))
     except (OSError, ValueError, sqlite3.Error):
-        return "I couldn't save that music preference.", "unavailable"
+        return music_execution_result(("I couldn't save that music preference.", "unavailable"))
     finally:
         HANDOFF.release()
 
