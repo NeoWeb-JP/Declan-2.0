@@ -136,6 +136,18 @@ def layout():
     return None
 
 
+def configured_release_version():
+    """Resolve the configured version, preferring a valid installed marker."""
+    configured = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
+    fallback = (
+        configured
+        if re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", configured)
+        and len(configured) <= 40
+        else None
+    )
+    return installed_version(fallback)
+
+
 def installed_version(fallback):
     try:
         version = (APP / ".declan-release").read_text(encoding="ascii").strip()
