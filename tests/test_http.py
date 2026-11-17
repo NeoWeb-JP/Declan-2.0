@@ -329,7 +329,7 @@ class APITests(TestCase):
 
     def test_status_and_assets(self):
         with patch.object(server, "RELEASE_VERSION", "v1.2.3"), patch.object(
-            server, "home_assistant_status", return_value="disconnected"
+            server, "home_assistant_status_result", return_value=server.HomeAssistantStatusResult(server.HomeAssistantStatus.DISCONNECTED)
         ):
             status, data = self.request("/api/ha-status")
         self.assertEqual((status, json.loads(data)), (200, {"status": "disconnected", "release_version": "v1.2.3"}))

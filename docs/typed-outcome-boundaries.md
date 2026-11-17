@@ -288,6 +288,16 @@ metadata. Legacy selection/turn APIs, injected tuple selectors/executors,
 follow-on parsing and reply wording remain compatible. Selection options are
 detached at construction and when exposed through legacy adapters.
 
+The Home Assistant connection-status provider now returns frozen
+`HomeAssistantStatusResult` values with a dedicated five-state
+`HomeAssistantStatus` enum. Connection health remains separate from household
+execution outcomes: recent Assist activity is not promoted to a verified live
+connection. Credential/URL checks, exact health-response verification, bounded
+requests, authentication-failure handling and recent-Assist fallback remain
+unchanged. `/api/ha-status` and `home_assistant_status()` retain their original
+plain status strings. Remaining conditional lighting/bedroom result construction
+also uses enum members directly rather than building strings to reparse.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
