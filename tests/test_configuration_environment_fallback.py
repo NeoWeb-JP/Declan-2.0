@@ -40,5 +40,43 @@ class ConfigurationEnvironmentFallbackTests(unittest.TestCase):
                 self.assertEqual(configuration.get("DECLAN_GOOD_MORNING_SCRIPT"), "script.morning")
 
 
+    def test_saved_nonempty_setting_overrides_environment(self):
+        from contextlib import contextmanager
+
+        class FakeDatabase:
+            def execute(self, statement, params=None):
+                return self
+
+            def fetchone(self):
+                return ("script.saved_morning",)
+
+        @contextmanager
+        def database():
+            yield FakeDatabase()
+
+        with patch.dict(os.environ, {"DECLAN_GOOD_MORNING_SCRIPT": "script.environment"}):
+            with patch.object(configuration.history, "database", database):
+                self.assertEqual(configuration.get("DECLAN_GOOD_MORNING_SCRIPT"), "script.saved_morning")
+
+    def test_saved_empty_setting_uses_environment_or_supplied_default(self):
+        from contextlib import contextmanager
+
+        class FakeDatabase:
+            def execute(self, statement, params=None):
+                return self
+
+            def fetchone(self):
+                return ("",)
+
+        @contextmanager
+        def database():
+            yield FakeDatabase()
+
+        with patch.object(configuration.history, "database", database):
+            with patch.dict(os.environ, {"DECLAN_GOOD_MORNING_SCRIPT": "script.environment"}):
+                self.assertEqual(configuration.get("DECLAN_GOOD_MORNING_SCRIPT"), "script.environment")
+            with patch.dict(os.environ, {}, clear=True):
+                self.assertEqual(configuration.get("DECLAN_GOOD_MORNING_SCRIPT", "script.default"), "script.default")
+
 if __name__ == "__main__":
     unittest.main()
