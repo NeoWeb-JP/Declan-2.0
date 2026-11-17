@@ -26,4 +26,5 @@ class StopEverywhereTests(unittest.TestCase):
              patch.object(server.music,"wait_for",return_value=False):
             self.assertEqual(server.stop_everywhere_output(("url",{},None))[1],"unverified")
 
-if __name__=="__main__": unittest.main()
+if __name__=="__main__":
+    unittest.main()

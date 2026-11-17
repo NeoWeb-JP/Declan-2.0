@@ -544,7 +544,7 @@ class StartupTests(TestCase):
         ring = self.enterContext(patch.object(server.timers, "ring_due", side_effect=OSError()))
         prune = self.enterContext(patch.object(server.history, "prune", side_effect=OSError()))
         self.enterContext(patch("sys.argv", ["server.py"]))
-        stdout = self.enterContext(patch("sys.stdout", new_callable=io.StringIO))
+        self.enterContext(patch("sys.stdout", new_callable=io.StringIO))
         with self.assertLogs(level="ERROR") as logs:
             server.main()
         http.assert_called_once_with(("127.0.0.1", 8765), server.Handler)

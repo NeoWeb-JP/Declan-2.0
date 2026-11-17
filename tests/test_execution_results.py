@@ -115,7 +115,8 @@ class TypedPipelineTests(TestCase):
 
     def test_real_readback_dispatch_and_legacy_pipeline_have_identical_public_results(self):
         action=self.plan[0]
-        args=lambda:("http://ha.local",{},Opener(["on"]))
+        def args():
+            return ("http://ha.local", {}, Opener(["on"]))
         typed=dispatch_result(action,args(),authorised=lambda _:True)
         legacy=dispatch_verified(action,args(),authorised=lambda _:True)
         self.assertIsInstance(typed,DispatchResult)
