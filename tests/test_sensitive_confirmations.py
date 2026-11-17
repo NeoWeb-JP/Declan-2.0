@@ -76,7 +76,8 @@ class SensitiveConfirmationTests(unittest.TestCase):
         self.assertIn("confirmation_response(", turn)
         self.assertIn("confirmations.evaluate(", decision)
         self.assertIn("candidate, None, guest_commands, {}, set()", decision)
-        self.assertIn("script_discovery.execute(", server)
+        self.assertIn("script_discovery.execute_result(", server)
+        self.assertIn("script_discovery.enqueue_result(", server)
 
 
 if __name__=="__main__": unittest.main()
