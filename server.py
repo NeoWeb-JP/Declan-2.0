@@ -53,6 +53,7 @@ import routine_preview_detection
 import routine_preview_dispatch
 import early_command_result
 import stop_result_response
+import roast_guest_dispatch
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2558,17 +2559,17 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome, routine_status = (
                 stop_result_response.stop_result_response(stop_result)
             )
-        elif (roast_target := roast.target(phrase)) is not None:
-            routine_reply, outcome = roast_command_dispatch.respond_to_roast(
-                roast_target, guest_mode=read_guest_mode,
-                visitors_present=read_visitors_present,
-                response_guest_mode=personality_policy.response_guest_mode,
-                respond=roast.respond,
-            )
-        elif (guest_action := guest_assignment_command.assignment_action(
-            phrase, GUEST_COMMANDS
+        elif (roast_guest_result := roast_guest_dispatch.dispatch_roast_or_guest(
+            phrase, roast_target=roast.target,
+            respond_to_roast=roast_command_dispatch.respond_to_roast,
+            guest_mode=read_guest_mode, visitors_present=read_visitors_present,
+            response_guest_mode=personality_policy.response_guest_mode,
+            roast_respond=roast.respond,
+            assignment_action=guest_assignment_command.assignment_action,
+            guest_commands=GUEST_COMMANDS, guest_assignment=guest_assignment,
+            connection=ha_device_connection,
         )) is not None:
-            routine_reply, outcome = guest_assignment(guest_action, ha_device_connection())
+            routine_reply, outcome = roast_guest_result
         elif routine_dispatch := command_registry.routine_registry(
             select=select_routine_turn, execute=execute_routine,
             action_results=action_results, origin=origin_device or satellite,
