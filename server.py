@@ -60,6 +60,7 @@ import lighting_context_finalization
 import fallback_entity_authorization
 import guarded_fallback_dispatch
 import response_persona_context
+import turn_context_preparation
 import history
 import music
 import approved_media_players
@@ -2655,10 +2656,10 @@ class Handler(BaseHTTPRequestHandler):
             information_context = ("time", None, None)
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
-            actions = {step["action"] for step in action_results if "action" in step}
-            phrase_suggestion = turn_finalization.lighting_phrase_suggestion(
-                previous, light_result=light_result, outcome=outcome,
-                actions=actions, scope=scope, message=message, now=monotonic(),
+            actions, phrase_suggestion = turn_context_preparation.prepare_turn_context(
+                previous, action_results=action_results, light_result=light_result,
+                outcome=outcome, scope=scope, message=message, now=monotonic(),
+                suggestion_factory=turn_finalization.lighting_phrase_suggestion,
             )
             reply = converse(effective_message, session_id, routine_reply, lighting_context=lighting_context,
                              scope=scope, guest_mode=response_guest_mode)
