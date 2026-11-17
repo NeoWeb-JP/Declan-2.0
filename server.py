@@ -2594,6 +2594,7 @@ class Handler(BaseHTTPRequestHandler):
             lighting_context = ()
             routine_reply, outcome = routine_dispatch.result.as_legacy_pair()
             routine_status = routine_dispatch.routine_status
+            routine_turn = routine_dispatch.routine_selection
             follow_on = routine_dispatch.routine_follow_on
             if follow_on:
                 routine_voice_result = (routine_reply, outcome)
