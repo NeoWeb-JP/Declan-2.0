@@ -35,6 +35,7 @@ import voice_profiles
 import voicepipeline
 import device_status
 import retry_learning
+import retry_training_persistence
 import history
 import music
 import approved_media_players
@@ -2734,14 +2735,14 @@ class Handler(BaseHTTPRequestHandler):
                 action_results=action_results, actions=actions,
                 unmatched_reply=UNMATCHED_REPLY, now=monotonic(),
             )
-            if (pending_retry and retry_succeeded
-                    and retry_learning.similar(pending_retry["text"], message)
-                    and history.normalize_phrase(pending_retry["text"]) != history.normalize_phrase(effective_message)):
-                try:
-                    history.teach_phrase(pending_retry["text"], effective_message, automatic=True)
-                    reply["learned_from_retry"] = True
-                except (ValueError, OSError, sqlite3.Error):
-                    self.log_error("Could not save successful retry training.")
+            retry_training_persistence.save_retry_training(
+                reply, pending_retry=pending_retry,
+                retry_succeeded=retry_succeeded, message=message,
+                effective_message=effective_message,
+                similar=retry_learning.similar,
+                normalize_phrase=history.normalize_phrase,
+                teach_phrase=history.teach_phrase, log_error=self.log_error,
+            )
             try:
                 history.record(reply["session_id"], source, message, reply["reply"], outcome, routine_status,
                                action_results, phrase_suggestion, speaker=body.get("speaker") if source == "assist" else None,
