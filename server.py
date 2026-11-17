@@ -7,7 +7,7 @@ import os
 import re
 import secrets
 import sqlite3
-import subprocess
+import subprocess  # nosec B404 - used by the controlled update/restart paths
 from collections import OrderedDict
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
