@@ -313,6 +313,44 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertEqual(await flow.async_step_user({"url": "http://declan.invalid", "token": "x" * 32}),
                          {"base": "cannot_connect"})
 
+    async def test_reauth_validates_token_before_updating_entry(self):
+        flow = self.config.DeclanTwoConfigFlow()
+        flow.hass = SimpleNamespace()
+        flow._get_reauth_entry = Mock(return_value=self.entry)
+        flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
+        flow.async_update_reload_and_abort = Mock(return_value={"type": "abort"})
+        self.session.get.return_value = MagicMock()
+        probe = self.session.get.return_value.__aenter__.return_value
+        probe.status = 401
+        self.assertEqual(await flow.async_step_reauth_confirm({"token": "n" * 32}),
+                         {"base": "invalid_auth"})
+        flow.async_update_reload_and_abort.assert_not_called()
+        probe.status = 503
+        self.assertEqual(await flow.async_step_reauth_confirm({"token": "n" * 32}),
+                         {"base": "cannot_connect"})
+        probe.status = 200
+        self.assertEqual(await flow.async_step_reauth_confirm({"token": "n" * 32}),
+                         {"type": "abort"})
+        flow.async_update_reload_and_abort.assert_called_once_with(
+            self.entry, data_updates={"token": "n" * 32},
+        )
+
+    async def test_reconfigure_preserves_token_and_rejects_invalid_url(self):
+        flow = self.config.DeclanTwoConfigFlow()
+        flow.hass = SimpleNamespace()
+        flow._get_reconfigure_entry = Mock(return_value=self.entry)
+        flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
+        flow.async_update_reload_and_abort = Mock(return_value={"type": "abort"})
+        self.session.get.return_value = MagicMock()
+        self.session.get.return_value.__aenter__.return_value.status = 200
+        self.assertEqual(await flow.async_step_reconfigure({"url": "ftp://invalid", "token": ""}),
+                         {"url": "invalid_url"})
+        self.assertEqual(await flow.async_step_reconfigure({"url": "http://declan.invalid/", "token": ""}),
+                         {"type": "abort"})
+        flow.async_update_reload_and_abort.assert_called_once_with(
+            self.entry, data_updates={"url": "http://declan.invalid", "token": "x" * 32},
+        )
+
     async def test_openai_options_require_and_preserve_the_key(self):
         flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
         flow.config_entry = SimpleNamespace(options={})
