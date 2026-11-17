@@ -7,6 +7,8 @@ from datetime import datetime, time
 from random import SystemRandom
 from threading import Lock
 from action_evidence_buffer import evidence_value
+from execution_results import Outcome, parse_outcome
+from routine_action_evidence import RoutineActionStatus
 
 _RANDOM = SystemRandom()
 _LOCK = Lock()
@@ -196,9 +198,13 @@ def dinner_music_feedback(steps, *, guest=False, visitor_present=False):
              and evidence_value(step, "required") is False]
     if not music:
         return ""
-    status = evidence_value(music[-1], "status")
-    if status in {"requested", "already_requested"}:
-        prefix = "I've requested the music." if status == "requested" else "The music request is already in progress."
+    status: RoutineActionStatus | None
+    try:
+        status = RoutineActionStatus(evidence_value(music[-1], "status"))
+    except (ValueError, TypeError):
+        status = None
+    if status in {RoutineActionStatus.REQUESTED, RoutineActionStatus.ALREADY_REQUESTED}:
+        prefix = "I've requested the music." if status is RoutineActionStatus.REQUESTED else "The music request is already in progress."
         if guest or visitor_present is not False:
             return prefix + " Spotify works on its own timetable and doesn't like to be hurried. Who knows when it'll join the party."
         return prefix + " Spotify works on its own bloody timetable and doesn't like to be hurried, so God knows when it'll join the party."
@@ -296,7 +302,7 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
         return reply
     # Unknown and future outcomes must never be treated as verified success.
     # This is deliberately an allowlist, not a denylist of known failures.
-    if safety or outcome != "confirmed" or already_decorated:
+    if safety or parse_outcome(outcome) is not Outcome.CONFIRMED or already_decorated:
         return reply
     # Replies can arrive pre-decorated from a handler. Do not append a second
     # roast, including when the handler used a different personality category.

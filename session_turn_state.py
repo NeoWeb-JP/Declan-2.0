@@ -1,6 +1,6 @@
 """Bounded conversational retry state, independent of HTTP transport."""
 import re
-from execution_results import Outcome
+from execution_results import Outcome, parse_outcome
 from action_evidence_buffer import evidence_value
 
 SUCCESS_OUTCOMES = frozenset({
@@ -19,7 +19,8 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
     session["information_context"] = information_context
     session["information_scope"] = scope
     session.pop("failed_light_phrase", None)
-    if (light_result and outcome == "unresolved" and scope is not None
+    decision_outcome = parse_outcome(outcome)
+    if (light_result and decision_outcome is Outcome.UNRESOLVED and scope is not None
             and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
             and any(evidence_value(step, "detail") == "unresolved" for step in action_results)):
         session["failed_light_phrase"] = {
@@ -30,4 +31,4 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
     reply["follow_up_timeout"] = 10 if needs_retry else 0
     if needs_retry and scope is not None:
         session["pending_retry"] = {"text": message, "scope": scope, "at": now}
-    return outcome in SUCCESS_OUTCOMES or outcome is None and not needs_retry
+    return decision_outcome in SUCCESS_OUTCOMES or outcome is None and not needs_retry

@@ -34,9 +34,9 @@ class RoutineResultTests(unittest.TestCase):
     def test_personality_only_after_verified_completion(self):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "response_composition.py").read_text()
-        self.assertIn('outcome == "reported_success"', source)
+        self.assertIn('decision_outcome is Outcome.REPORTED_SUCCESS', source)
         self.assertIn('verified or completed or parse_music(phrase)', source)
-        self.assertIn('outcome="confirmed" if verified or completed else outcome', source)
+        self.assertIn('outcome=Outcome.CONFIRMED.value if verified or completed else outcome', source)
         self.assertIn('spoken = "Sorted." if verified else reply', source)
         self.assertIn('decorated = personality.decorate(', source)
         import personality_policy

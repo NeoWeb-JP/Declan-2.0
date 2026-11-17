@@ -2,9 +2,24 @@
 import unittest
 from unittest.mock import Mock
 from response_composition import general_reply
+from execution_results import Outcome
 
 
 class GeneralReplyTests(unittest.TestCase):
+    def test_typed_and_legacy_outcomes_have_identical_decoration_gates(self):
+        for outcome in Outcome:
+            with self.subTest(outcome=outcome):
+                self.personality.reset_mock()
+                legacy = self.reply(outcome=outcome.value)
+                legacy_calls = self.personality.mock_calls
+                self.personality.reset_mock()
+                self.assertEqual(self.reply(outcome=outcome), legacy)
+                self.assertEqual(self.personality.mock_calls, legacy_calls)
+        for outcome in ("future_outcome", [], None):
+            self.personality.reset_mock()
+            self.assertEqual(self.reply(outcome=outcome), "Routine done.")
+            self.personality.decorate.assert_not_called()
+
     def setUp(self):
         self.personality = Mock()
         self.personality.decorate.return_value = "Sassy reply."

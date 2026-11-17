@@ -220,8 +220,18 @@ Legacy `discover` list/error pairs and `match` pairs/`None` remain explicit
 adapters. Inventory validation, capability-based tie-breaking, candidate order,
 and no-execution behavior on missing/ambiguous routines remain compatible.
 
+Response composition, routine response phases, persona verification, session
+retry success and lighting context/correction finalization now interpret legacy
+inputs with `parse_outcome` and use enum decisions internally. Routine response
+phases have a dedicated `ResponsePhase` enum; stored response-library phase keys
+and callbacks retain plain strings. Unknown outcomes remain ineligible for
+verified-success decoration/training, while an actual absent chat outcome retains
+its previous training behavior. Dinner music evidence uses its existing status
+enum. Routine rendering also consumes the typed discovery cache directly so live
+script metadata remains available after discovery.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining source
-audit scope includes outcome comparisons in response composition/decorators
-(`response_composition.py`, `routine_responses.py`) and session/finalization
-helpers. Broader evidence statuses must not be silently narrowed to verified
-`ActionStatus`.
+audit scope includes residual lighting-provider aggregation in `server.py`,
+timer provider construction through legacy pair adapters, and diagnostic trace
+outcomes, which have an independent vocabulary. Broader evidence statuses must
+not be silently narrowed to verified `ActionStatus`.

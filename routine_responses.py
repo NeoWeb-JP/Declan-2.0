@@ -1,9 +1,11 @@
 """Per-script defaults and rendering; shared storage is in response_library."""
 import re
 import sqlite3
+from enum import StrEnum
 
 import history
 import response_library
+from execution_results import Outcome, parse_outcome
 
 ENTITY = re.compile(r"script\.[a-z0-9_]{1,200}\Z")
 PHASES = response_library.PHASES
@@ -12,6 +14,24 @@ ACTIONS = response_library.ACTIONS
 validate = response_library.validate
 revision = response_library.revision
 _table = response_library._table
+
+
+class ResponsePhase(StrEnum):
+    REQUESTED = "requested"
+    COMPLETED = "completed"
+    FAILURE = "failure"
+
+
+def response_phase(outcome) -> ResponsePhase | None:
+    outcome = parse_outcome(outcome)
+    if outcome is Outcome.STARTED:
+        return ResponsePhase.REQUESTED
+    if outcome in {Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED}:
+        return ResponsePhase.COMPLETED
+    if outcome in {Outcome.FAILED, Outcome.PARTIAL, Outcome.UNVERIFIED,
+                   Outcome.UNRESOLVED, Outcome.NOT_CONFIGURED, Outcome.CANCELLED}:
+        return ResponsePhase.FAILURE
+    return None
 
 
 def defaults(item):
@@ -64,9 +84,7 @@ def render(selection, outcome, original, *, guest=False):
     kind, options = selection
     if not kind.startswith("auto:"):
         return original
-    phase = ("requested" if outcome == "started" else "completed" if outcome in
-             {"confirmed", "reported_success", "execution_completed"} else
-             "failure" if outcome in {"failed", "partial", "unverified", "unresolved", "not_configured", "cancelled"} else None)
+    phase = response_phase(outcome)
     if phase is None:
         return original
     entity = kind[5:]
@@ -74,8 +92,8 @@ def render(selection, outcome, original, *, guest=False):
     # Runtime uses the same live name/capabilities as the editor when available.
     import script_discovery
     with script_discovery._CACHE_LOCK:
-        for _, rows in script_discovery._CACHE.values():
-            found = next((row for row in rows if row['entity_id'] == entity), None)
+        for _, discovery in script_discovery._CACHE.values():
+            found = next((row for row in discovery.scripts if row['entity_id'] == entity), None)
             if found:
                 item = found
                 break
@@ -89,9 +107,9 @@ def render(selection, outcome, original, *, guest=False):
                 saved = db.execute("SELECT 1 FROM routine_responses WHERE entity=?", (entity,)).fetchone()
             if not saved:
                 return original
-        line = select(item, phase, guest, action)
+        line = select(item, phase.value, guest, action)
     except (OSError, ValueError, sqlite3.Error):
         return original
-    if phase == "failure":
+    if phase is ResponsePhase.FAILURE:
         return (line + " " if line else "") + original
-    return line or ("Routine requested." if phase == "requested" else "Routine finished.")
+    return line or ("Routine requested." if phase is ResponsePhase.REQUESTED else "Routine finished.")

@@ -1,11 +1,11 @@
 """Pure routing of successful background routine acknowledgements to persona replies."""
-from execution_results import ExecutionResult
+from execution_results import ExecutionResult, Outcome, parse_outcome
 from action_evidence_buffer import evidence_value
 
 
 def background_reply(outcome, routine_turn, *, guest, visitor_present, personality):
     """Return a background routine acknowledgement, or None if not applicable."""
-    if not (outcome == "started" and routine_turn and not routine_turn[1]
+    if not (parse_outcome(outcome) is Outcome.STARTED and routine_turn and not routine_turn[1]
             and routine_turn[0][1].get("_declan_background")):
         return None
     options = routine_turn[0][1]
@@ -26,7 +26,8 @@ def routine_reply(reply, *, outcome, routine_turn, routine_voice_result,
                   guest, visitor_present, render, personality):
     """Apply editable routine response text without overriding previews or safety replies."""
     import re
-    if not (routine_turn and outcome != "preview"
+    decision_outcome = parse_outcome(outcome)
+    if not (routine_turn and decision_outcome is not Outcome.PREVIEW
             and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
             and not any(word in phrase.casefold() for word in (
                 "smoke", "fire alarm", "carbon monoxide", "security alert",
@@ -42,7 +43,7 @@ def routine_reply(reply, *, outcome, routine_turn, routine_voice_result,
     else:
         reply = render(routine_turn[0], outcome, reply,
                        guest=guest or visitor_present is not False)
-    if (outcome in {"confirmed", "reported_success", "execution_completed"}
+    if (decision_outcome in {Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED}
             and routine_turn[0][1].get("_declan_reply_category") == "dinner"):
         note = personality.dinner_music_feedback(
             action_results, guest=guest, visitor_present=visitor_present)
@@ -63,9 +64,10 @@ def general_reply(reply, *, outcome, routine_reply, routine_turn, light_result,
             *personality._SAVAGE, *personality._GUEST,
             *personality._DINNER_HOME, *personality._DINNER_GUEST))
     )
-    verified = outcome == "reported_success" and routine_reply is not None and routine_turn is not None
-    completed = outcome == "execution_completed" and routine_reply is not None and routine_turn is not None
-    if not (outcome in ("confirmed", "reported_success", "execution_completed")
+    decision_outcome = parse_outcome(outcome)
+    verified = decision_outcome is Outcome.REPORTED_SUCCESS and routine_reply is not None and routine_turn is not None
+    completed = decision_outcome is Outcome.EXECUTION_COMPLETED and routine_reply is not None and routine_turn is not None
+    if not (decision_outcome in (Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED)
             and not existing_lines and light_result is None and routine_reply is not None
             and (verified or completed or parse_music(phrase) or parse_music_control(phrase)
                  or (action_results and all(evidence_value(step, "status") in
@@ -81,7 +83,7 @@ def general_reply(reply, *, outcome, routine_reply, routine_turn, light_result,
     if dinner and not routine_turn[1]:
         spoken = ""
     decorated = personality.decorate(
-        spoken, outcome="confirmed" if verified or completed else outcome,
+        spoken, outcome=Outcome.CONFIRMED.value if verified or completed else outcome,
         guest=guest, visitor_present=visitor_present,
         category="dinner" if dinner else "music" if parse_music(phrase) or parse_music_control(phrase)
         else "general",
@@ -100,7 +102,7 @@ def lighting_failure_reply(reply, *, light_result, routine_turn, outcome, phrase
     """Use editable lighting failure text only for non-routine, non-preview failures."""
     import re
     if (light_result is None or routine_turn is not None
-            or outcome in {"confirmed", "preview"}
+            or parse_outcome(outcome) in {Outcome.CONFIRMED, Outcome.PREVIEW}
             or re.match(r"^(?:preview|dry[ -]run)\b", phrase)):
         return reply
     category = response_category(phrase, parse_light_command)
