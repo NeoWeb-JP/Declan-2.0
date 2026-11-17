@@ -68,7 +68,7 @@ class TypedScriptActionEvidenceTests(unittest.TestCase):
         opener = Mock()
         opener.open.return_value = response
         actions = []
-        with patch.object(script_discovery, "discover", return_value=([script], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([script]), None)):
             result, _ = script_discovery.execute_result(("http://ha", {}, opener), script, action_results=actions)
         opener.open.assert_called_once()
         return result, actions

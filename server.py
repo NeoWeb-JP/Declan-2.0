@@ -370,8 +370,8 @@ def select_routine(phrase, origin):
     connection = ha_device_connection()
     if connection is None:
         return ("unconfigured_house_status", {}) if is_house_status else None
-    scripts, error = script_discovery.discover(connection)
-    if error:
+    discovery = script_discovery.discover_result(connection)
+    if discovery.error is not None:
         return ("unconfigured_house_status", {}) if is_house_status else None
     candidates = [phrase]
     if is_house_status:
@@ -392,11 +392,11 @@ def select_routine(phrase, origin):
         if room:
             candidates.insert(1, f"{direction} movie time {room}")
     for candidate in dict.fromkeys(candidates):
-        found = script_discovery.match(candidate, scripts)
-        if found:
-            kind, item = found
-            if kind == "ambiguous":
+        found = script_discovery.match_result(candidate, discovery.scripts)
+        if found.status is not script_discovery.ScriptMatchStatus.NO_MATCH:
+            if found.status is script_discovery.ScriptMatchStatus.AMBIGUOUS:
                 return "auto_ambiguous", {}
+            item = found.selected
             # Generic Movie Time is valid for start/end only if HA declares
             # an operation/action field that can distinguish the direction.
             if movie and movie[0] != "toggle" and candidate == "movie time":
@@ -2027,12 +2027,12 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Settings document unavailable."})
         elif self.path == "/api/native/routine-responses":
-            scripts, error = script_discovery.discover(ha_device_connection(), fresh=True)
-            if error:
+            discovery = script_discovery.discover_result(ha_device_connection(), fresh=True)
+            if discovery.error is not None:
                 self.send_json(200, {"commands": command_responses.catalog(), "routines": [],
                                      "routine_error": "Home Assistant routines unavailable. Try again."})
             else:
-                self.send_json(200, {"commands": command_responses.catalog(), "routines": [{"entity_id": row["entity_id"], "name": row["name"]} for row in scripts]})
+                self.send_json(200, {"commands": command_responses.catalog(), "routines": [{"entity_id": row["entity_id"], "name": row["name"]} for row in discovery.scripts]})
         elif self.path == "/api/native/routines":
             self.send_json(410, {"error": "Routine mappings are retired. Home Assistant scripts are the source of truth."})
         elif self.path == "/api/native/intents":
@@ -2389,11 +2389,11 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         if not isinstance(entity, str) or not routine_responses.ENTITY.fullmatch(entity):
                             raise ValueError("Select a routine or command")
-                        scripts, discovery_error = script_discovery.discover(ha_device_connection(), fresh=True)
-                        if discovery_error:
+                        discovery = script_discovery.discover_result(ha_device_connection(), fresh=True)
+                        if discovery.error is not None:
                             self.send_json(503, {"error": "Home Assistant routines unavailable. Try again."})
                             return
-                        item = next((row for row in scripts if row['entity_id'] == entity), None)
+                        item = next((row for row in discovery.scripts if row['entity_id'] == entity), None)
                         if item is None:
                             raise ValueError("That routine is no longer available. Reload routines.")
                         manager = routine_responses

@@ -20,7 +20,7 @@ class CoreTests(TestCase):
         script = {"entity_id": "script.movie_time", "name": "Movie Time",
                   "fields": ["operation", "room"], "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, None)), \
-             patch.object(server.script_discovery, "discover", return_value=([script], None)):
+             patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
             self.assertEqual(server.select_routine("movie time", "satellite")[1]["room"], "lounge")
             selection = server.select_routine("movie time in the lounge", "satellite")
             self.assertEqual(selection[1]["room"], "lounge")

@@ -44,7 +44,7 @@ class RoutineTests(TestCase):
         scripts = [{"entity_id": "script.wake_the_house", "name": "Wake The House", "safe": True},
                    {"entity_id": "script.bedroom_cinema", "name": "Bedroom Cinema", "safe": True}]
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
-             patch.object(server.script_discovery, "discover", return_value=(scripts, None)):
+             patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple(scripts), None)):
             self.assertEqual(server.select_routine("wake the house", None),
                              ("auto:script.wake_the_house", {}))
             self.assertEqual(server.select_routine("bedroom cinema", None),

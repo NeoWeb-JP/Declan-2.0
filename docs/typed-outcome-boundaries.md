@@ -211,10 +211,17 @@ legacy result triples remain unchanged. Correlated trace lookup similarly parses
 the independent trace-provider vocabulary before selecting an execution result;
 unknown or malformed trace statuses never establish completion.
 
-Issue #17 and its overall typed-outcome checklist remain open. The wider source
-audit identified remaining string contracts in script discovery/matching
-(`discover`, `match`, and their selection consumers), plus outcome comparisons in
-response composition/decorators (`response_composition.py`,
-`routine_responses.py`) and session/finalization helpers. These remain explicit
-follow-up scope. Broader evidence statuses must not be silently narrowed to
-verified `ActionStatus`.
+Script discovery now returns frozen `DiscoveryResult` values with a dedicated
+`DiscoveryError` enum; matching returns frozen `ScriptMatchResult` values with
+explicit matched, ambiguous and no-match states. Selection, fresh execution
+verification, and routine-editor listing/saving consume the typed APIs directly.
+The cache retains typed discovery values, and `fresh=True` still bypasses it.
+Legacy `discover` list/error pairs and `match` pairs/`None` remain explicit
+adapters. Inventory validation, capability-based tie-breaking, candidate order,
+and no-execution behavior on missing/ambiguous routines remain compatible.
+
+Issue #17 and its overall typed-outcome checklist remain open. Remaining source
+audit scope includes outcome comparisons in response composition/decorators
+(`response_composition.py`, `routine_responses.py`) and session/finalization
+helpers. Broader evidence statuses must not be silently narrowed to verified
+`ActionStatus`.

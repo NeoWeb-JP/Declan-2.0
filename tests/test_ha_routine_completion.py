@@ -28,7 +28,7 @@ class RoutineResultTests(unittest.TestCase):
             return response
         opener = Mock()
         opener.open.side_effect = open_request
-        with patch.object(script_discovery, "discover", return_value=([item], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
             return script_discovery.execute(("http://ha", {}, opener), item, action_results=recorded)
 
     def test_personality_only_after_verified_completion(self):
@@ -66,7 +66,7 @@ class RoutineResultTests(unittest.TestCase):
             return response
         opener = Mock()
         opener.open.side_effect = open_request
-        with patch.object(script_discovery, "discover", return_value=([item], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
             reply, outcome, _ = script_discovery.execute(("http://ha", {}, opener), item)
         self.assertEqual(len(calls), 2)
         self.assertEqual(outcome, "unverified")
@@ -79,7 +79,7 @@ class RoutineResultTests(unittest.TestCase):
         opener.open.side_effect = HTTPError(
             "http://ha", 400, "Bad Request", {},
             BytesIO(b'{"message":"extra keys not allowed @ data"}'))
-        with patch.object(script_discovery, "discover", return_value=([item], None)):
+        with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
             reply, outcome, _ = script_discovery.execute(("http://ha", {}, opener), item)
         self.assertEqual(opener.open.call_count, 1)
         self.assertEqual(outcome, "failed")
@@ -107,7 +107,7 @@ class RoutineResultTests(unittest.TestCase):
         import server
         item = {"entity_id": "script.whatever_ha_calls_it", "name": "Declan - Dinner Is Served", "fields": [], "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-             patch.object(script_discovery, "discover", return_value=([item], None)):
+             patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
             for phrase in ("dinner time", "announce dinner", "run dinner is served"):
                 kind, parameters = server.select_routine(phrase, None)
                 self.assertEqual(kind, "auto:" + item["entity_id"])

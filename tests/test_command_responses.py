@@ -51,7 +51,7 @@ class CommandResponseTests(TestCase):
         return handler.send_json.call_args.args
 
     def test_catalog_stays_editable_without_ha_and_rejects_remote_without_token(self):
-        with patch.object(server.script_discovery, "discover", return_value=([], "unavailable")):
+        with patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([]), server.script_discovery.DiscoveryError.INSPECTION_UNAVAILABLE)):
             status, catalog = self.handler("GET", remote=True)
         self.assertEqual(status, 200)
         self.assertIn(self.row["entity_id"], {row["entity_id"] for row in catalog["commands"]})
@@ -61,7 +61,7 @@ class CommandResponseTests(TestCase):
         self.assertEqual(self.handler("POST", self.row, authorised=False, remote=True)[0], 403)
 
     def test_authenticated_edits_persist_without_discovery_or_action_dispatch(self):
-        with patch.object(server.script_discovery, "discover", side_effect=AssertionError("Must not need HA")), patch.object(server, "set_lights") as dispatch:
+        with patch.object(server.script_discovery, "discover_result", side_effect=AssertionError("Must not need HA")), patch.object(server, "set_lights") as dispatch:
             status, state = self.handler("POST", self.row, remote=True)
             self.assertEqual(status, 200)
             state["profile"]["completed"]["sass"]["default"] = ["Custom one", "Custom two"]
