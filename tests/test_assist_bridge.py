@@ -214,6 +214,21 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         await handler(SimpleNamespace(data={"message": "good morning", "reply": "Morning", "outcome": "partial"}))
         self.assertTrue(self.session.post.call_args.args[0].endswith("/api/assist/history"))
         self.assertEqual(self.session.post.call_args.kwargs["json"]["outcome"], "partial")
+        self.session.post.reset_mock()
+        for bad_event in (
+            {"message": "hello", "reply": "ok", "session_id": {"unexpected": "object"}},
+            {"message": "hello", "reply": "ok", "outcome": "x" * 129},
+            {"message": "hello", "reply": "ok", "routine_status": 42},
+            {"message": "hello", "reply": "ok", "steps": {"unexpected": "object"}},
+            {"message": "hello", "reply": "ok", "steps": ["x"] * 51},
+            {"message": "hello", "reply": "ok", "steps": [None]},
+        ):
+            with self.subTest(event=bad_event):
+                await handler(SimpleNamespace(data=bad_event))
+                self.session.post.assert_not_called()
+        await handler(SimpleNamespace(data={"message": "hello", "reply": "ok",
+                                            "session_id": "session-1", "steps": ["step"]}))
+        self.assertEqual(self.session.post.call_args.kwargs["json"]["steps"], ["step"])
         self.assertTrue(await self.component.async_unload_entry(hass, self.entry))
 
     async def test_duplicate_and_stop_finish_without_setting_empty_speech(self):
