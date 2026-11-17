@@ -458,6 +458,14 @@ def preview_routine(phrase, origin=None):
             "Simulated spoken response: Starting the routine. Nothing has been run.", "preview")
 
 
+def execute_routine_result(selection, action_results, *, approved=False):
+    """Typed execution result for local routine selection with optional status."""
+    from local_outcome_contracts import routine_execution_result
+    return routine_execution_result(
+        execute_routine(selection, action_results, approved=approved)
+    )
+
+
 def execute_routine(selection, action_results, *, approved=False):
     period, options = selection
     if period == "auto_ambiguous":
