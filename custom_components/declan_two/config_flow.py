@@ -1,6 +1,9 @@
 """Configure the address and shared secret for the Declan test service."""
 import re
 
+import aiohttp
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import tts
@@ -29,6 +32,28 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
             elif len(user_input["token"]) < 32:
                 errors["token"] = "invalid_token"  # nosec B105 - HA validation error key, not a password
             else:
+                try:
+                    async with async_get_clientsession(self.hass).get(
+                        url + "/api/capabilities",
+                        headers={"Authorization": f"Bearer {user_input['token']}"},
+                        timeout=aiohttp.ClientTimeout(total=5),
+                        allow_redirects=False,
+                    ) as response:
+                        if response.status in {401, 403}:
+                            errors["base"] = "invalid_auth"
+                        elif response.status != 200:
+                            errors["base"] = "cannot_connect"
+                except (aiohttp.ClientError, TimeoutError):
+                    errors["base"] = "cannot_connect"
+                if errors:
+                    return self.async_show_form(
+                        step_id="user", data_schema=vol.Schema({
+                            vol.Required("url", default=url): str,
+                            vol.Required("token"): selector.TextSelector(
+                                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                            ),
+                        }), errors=errors,
+                    )
                 await self.async_set_unique_id(url)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(

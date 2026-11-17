@@ -292,6 +292,9 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
 
     async def test_configuration_rejects_bad_address_and_weak_token(self):
         flow = self.config.DeclanTwoConfigFlow()
+        flow.hass = SimpleNamespace()
+        self.session.get.return_value = MagicMock()
+        self.session.get.return_value.__aenter__.return_value.status = 200
         flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = Mock()
@@ -303,6 +306,12 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                          {"token": "invalid_token"})
         self.assertEqual((await flow.async_step_user({"url": "http://declan.invalid/", "token": "x" * 32}))["url"],
                          "http://declan.invalid")
+        self.session.get.return_value.__aenter__.return_value.status = 401
+        self.assertEqual(await flow.async_step_user({"url": "http://declan.invalid", "token": "x" * 32}),
+                         {"base": "invalid_auth"})
+        self.session.get.return_value.__aenter__.return_value.status = 503
+        self.assertEqual(await flow.async_step_user({"url": "http://declan.invalid", "token": "x" * 32}),
+                         {"base": "cannot_connect"})
 
     async def test_openai_options_require_and_preserve_the_key(self):
         flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
