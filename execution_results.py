@@ -14,6 +14,12 @@ class Outcome(StrEnum):
     BUSY = "busy"
     MUSIC_FEEDBACK = "music_feedback"
     SEARCH_RESULT = "search_result"
+    TIMER_SET = "timer_set"
+    TIMER_ADJUSTED = "timer_adjusted"
+    TIMER_CANCELLED = "timer_cancelled"
+    TIMER_STOPPED = "timer_stopped"
+    TIMER_STATUS = "timer_status"
+    NO_TIMER = "no_timer"
 
 
 class ActionStatus(StrEnum):

@@ -164,6 +164,18 @@ def describe(timer, now):
     return f"{label}, expired and awaiting acknowledgement"
 
 
+def matches(phrase):
+    """Pure recognition of timer requests, including ambiguous timer commands."""
+    creation_text = phrase.rpartition(" in ")[0] if phrase.startswith("set ") and " in " in phrase else phrase
+    creation = re.fullmatch(r"set (?:a |an )?(?:(.+?) )?timer for (.+)", creation_text)
+    duration_first = re.fullmatch(r"set (?:a |an )?(.+?) timer", creation_text) if not creation else None
+    return bool(creation or duration_first
+                or re.fullmatch(r"how much time is (?:left )?on " + TARGET, phrase)
+                or re.fullmatch(r"(cancel|stop|acknowledge) " + TARGET, phrase)
+                or re.fullmatch(r"(increase|decrease) (?:the time on )?" + TARGET + r" by (?P<amount>.+)", phrase)
+                or phrase in {"what timers are running", "list timers", "list my timers"})
+
+
 def handle(phrase, opener, *, satellite=None, device=None, browser=False):
     creation_text = phrase
     destination = None

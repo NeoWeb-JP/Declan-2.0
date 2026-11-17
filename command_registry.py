@@ -155,3 +155,24 @@ def stop_registry(*, stop_routines, stop_everywhere, connection):
                                                     "stop the routine", "cancel the routine"}, run_routines),
         Handler("stop_everywhere", 2, lambda context: context.phrase == "stop", run_everywhere),
     ))
+
+
+def timer_registry(*, matches, handle, opener, guest_mode, decorate):
+    """Timer requests own their outcome before Stop and routine dispatch."""
+    def run(context, phrase):
+        result = handle(
+            phrase, opener, satellite=context.satellite if isinstance(context.satellite, str)
+            and len(context.satellite) <= 128 else None,
+            device=context.origin_device, browser=context.source != "assist",
+        )
+        if result is None:
+            raise ValueError("Matched timer command returned no result")
+        reply, outcome = result
+        typed = ExecutionResult(reply, outcome)
+        if typed.outcome in {Outcome.TIMER_SET, Outcome.TIMER_ADJUSTED,
+                             Outcome.TIMER_CANCELLED, Outcome.TIMER_STOPPED}:
+            typed = ExecutionResult(decorate(typed.reply, typed.outcome.value, guest_mode()), typed.outcome)
+        return HandledCommand("timer", typed)
+
+    return HandlerRegistry((Handler("timer", 0,
+        lambda context: context.phrase if matches(context.phrase) else None, run),))
