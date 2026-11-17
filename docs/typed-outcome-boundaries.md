@@ -23,9 +23,16 @@ providers. Incoming Home Assistant outcome strings are validated at the boundary
 external protocol values such as script `success` and trace `finished_unverified`
 remain external vocabulary and map to the existing internal outcomes.
 
+Mapped routine execution also exposes `run_custom_routine_result()`,
+`run_routine_result()`, `routine_completion_result()` and `run_sexy_time_result()`.
+These produce typed execution results plus optional status detail. Their original
+entrypoints preserve plain-string triples. The bedroom routine consumes typed
+music playback/control directly; mapped execution consumes typed correlated
+completion directly. `chained_outcome_result()` validates and combines enums,
+with `chained_outcome()` retaining its plain-string compatibility contract.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes older mapped-routine helpers (`run_custom_routine`, `run_routine`,
-`format_routine_result`, `run_sexy_time`), auxiliary media/device providers, and
+scope includes auxiliary media/device providers and
 response/session orchestration that still uses legacy tuples. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.

@@ -493,22 +493,22 @@ def execute_routine(selection, action_results, *, approved=False):
     return _routine_legacy_triple(*execute_routine_result(selection, action_results, approved=approved))
 
 
-def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
+def run_custom_routine_result(name, action_results=None, *, approved=False, parameters=None):
     """Run a legacy mapped HA script; no per-script approval required."""
     try:
         item = routine_registry.load().get(name)
     except (ValueError, OSError, sqlite3.Error):
-        return "Routine configuration is unavailable.", "unverified", None
+        return ExecutionResult("Routine configuration is unavailable.", Outcome.UNVERIFIED), None
     if not item:
-        return "That routine is not configured.", "not_configured", None
+        return ExecutionResult("That routine is not configured.", Outcome.NOT_CONFIGURED), None
     connection = ha_device_connection()
     if connection is None:
-        return "Home Assistant is not connected.", "not_configured", None
+        return ExecutionResult("Home Assistant is not connected.", Outcome.NOT_CONFIGURED), None
     url, headers, opener = connection
     if parameters and "room" in parameters:
         areas = read_ha_areas(connection)
         if parameters["room"] not in areas:
-            return "I could not match that room to a Home Assistant area.", "unresolved", None
+            return ExecutionResult("I could not match that room to a Home Assistant area.", Outcome.UNRESOLVED), None
     script = item["script"]
     # Preserve legacy script parameters for existing installations.
     request_id = "declan-" + secrets.token_hex(16)
@@ -522,39 +522,43 @@ def run_custom_routine(name, action_results=None, *, approved=False, parameters=
         except HTTPError as error:
             code = error.code
             error.close()
-            return f"Home Assistant rejected {name} (HTTP {code}).", "failed", None
+            return ExecutionResult(f"Home Assistant rejected {name} (HTTP {code}).", Outcome.FAILED), None
         except (OSError, ValueError):
-            return f"I couldn't verify {name}. Check its Home Assistant trace.", "unverified", None
+            return ExecutionResult(f"I couldn't verify {name}. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
         value = result.get("service_response") if isinstance(result, dict) else None
         if isinstance(value, dict) and set(value) == {script}:
             value = value[script]
         if not isinstance(value, dict) or value.get("request_id") != request_id or value.get("routine_id") != script:
-            return f"{name} was requested, but completion was not verified.", "unverified", None
+            return ExecutionResult(f"{name} was requested, but completion was not verified.", Outcome.UNVERIFIED), None
         status = value.get("outcome")
         if status not in {"started", "success", "partial", "failed", "cancelled"}:
-            return f"{name} returned no verified completion outcome.", "unverified", None
+            return ExecutionResult(f"{name} returned no verified completion outcome.", Outcome.UNVERIFIED), None
         if action_results is not None:
             action_results.extend(routine_action_results(value.get("steps")))
         steps = routine_action_results(value.get("steps"))
         required = [step for step in steps if step.get("required", True)]
         if status == "success" and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(step["status"] not in {"confirmed", "already_set"} for step in required)):
-            return f"{name} was started, but required steps were not verified.", "unverified", None
-        outcome = {"started": "started", "success": "reported_success", "partial": "partial", "failed": "failed", "cancelled": "cancelled"}[status]
-        return f"{name} {status}.", outcome, None
+            return ExecutionResult(f"{name} was started, but required steps were not verified.", Outcome.UNVERIFIED), None
+        outcome = {"started": Outcome.STARTED, "success": Outcome.REPORTED_SUCCESS,
+                   "partial": Outcome.PARTIAL, "failed": Outcome.FAILED,
+                   "cancelled": Outcome.CANCELLED}[status]
+        return ExecutionResult(f"{name} {status}.", outcome), None
 
 
 def chained_outcome(routine, lighting):
-    if routine == "started" and lighting == "confirmed":
-        return "started"
-    if routine == "execution_completed" and lighting == "confirmed":
-        return "execution_completed"
-    if routine == "reported_success" and lighting == "confirmed":
-        return "reported_success"
-    if routine in {"reported_success", "execution_completed", "partial"} or lighting in {"confirmed", "partial"}:
-        return "partial"
-    if "unverified" in (routine, lighting):
-        return "unverified"
-    return routine if routine == lighting else "failed"
+    """Compatibility API for plain outcome strings."""
+    return chained_outcome_result(routine, lighting).value
+
+
+def chained_outcome_result(routine, lighting):
+    routine, lighting = Outcome(routine), Outcome(lighting)
+    if routine in {Outcome.STARTED, Outcome.EXECUTION_COMPLETED, Outcome.REPORTED_SUCCESS} and lighting is Outcome.CONFIRMED:
+        return routine
+    if routine in {Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED, Outcome.PARTIAL} or lighting in {Outcome.CONFIRMED, Outcome.PARTIAL}:
+        return Outcome.PARTIAL
+    if Outcome.UNVERIFIED in (routine, lighting):
+        return Outcome.UNVERIFIED
+    return routine if routine is lighting else Outcome.FAILED
 
 
 def search_media(phrase):
@@ -705,13 +709,13 @@ def verify_legacy_lounge_start(connection, script):
 
 
 @diagnostics.timed("ha_routine")
-def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None, approved=False):
+def run_routine_result(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None, approved=False):
     """Call the configured Home Assistant routine once and read its result."""
     salutation = "Movie Time." if movie_action else f"Good {period}."
     lock = ROUTINE_LOCKS["movie_bedroom" if movie_action and movie_room == "bedroom" else period]
     connection = ha_device_connection()
     if connection is None:
-        return f"{salutation} The Home Assistant connection isn't configured.", "not_configured", None
+        return ExecutionResult(f"{salutation} The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED), None
     url, headers, opener = connection
     movie_prefix = "DECLAN_BEDROOM_MOVIE" if movie_room == "bedroom" else "DECLAN_MOVIE"
     setting = f"{movie_prefix}_SCRIPT" if movie_action else f"DECLAN_GOOD_{period.upper()}_SCRIPT"
@@ -719,24 +723,24 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
     try:
         mapped = routine_registry.load().get(routine_key)
     except (OSError, ValueError, sqlite3.Error):
-        return f"{salutation} Routine configuration is unavailable.", "not_configured", None
+        return ExecutionResult(f"{salutation} Routine configuration is unavailable.", Outcome.NOT_CONFIGURED), None
     if not mapped:
-        return f"{salutation} Map a Home Assistant script for {routine_key} in Declan Settings.", "not_configured", None
+        return ExecutionResult(f"{salutation} Map a Home Assistant script for {routine_key} in Declan Settings.", Outcome.NOT_CONFIGURED), None
     if mapped["sensitive"] and not approved:
-        return f"{salutation} This routine needs explicit confirmation.", "unresolved", None
+        return ExecutionResult(f"{salutation} This routine needs explicit confirmation.", Outcome.UNRESOLVED), None
     script = mapped["script"]
     remote = mapped.get("remote", "").strip() if movie_app else ""
     if movie_app and not re.fullmatch(r"remote\.[a-z0-9_]+", remote):
-        return f"I don't have a compatible app remote configured for the {movie_room}.", "not_configured", None
+        return ExecutionResult(f"I don't have a compatible app remote configured for the {movie_room}.", Outcome.NOT_CONFIGURED), None
     if not re.fullmatch(r"script\.[a-z0-9_]+", script):
-        return f"{salutation} The routine script isn't configured.", "not_configured", None
+        return ExecutionResult(f"{salutation} The routine script isn't configured.", Outcome.NOT_CONFIGURED), None
     if not lock.acquire(blocking=False):
-        return f"The {period} routine request is already in progress.", "busy", None
+        return ExecutionResult(f"The {period} routine request is already in progress.", Outcome.BUSY), None
     try:
         attempt_key = (period, movie_room, movie_action) if movie_action else period
         last_attempt = routine_last_attempts.get(attempt_key)
         if last_attempt is not None and monotonic() - last_attempt < 30:
-            return f"I already sent a {period} request. I haven't sent another.", "duplicate", None
+            return ExecutionResult(f"I already sent a {period} request. I haven't sent another.", Outcome.DUPLICATE), None
         routine_last_attempts[attempt_key] = monotonic()
         service = script.split(".", 1)[1]
         request_id = "declan-" + secrets.token_hex(16)
@@ -757,17 +761,18 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
             code = error.code
             error.close()
             if code in {401, 403, 404}:
-                return f"{salutation} Home Assistant couldn't accept the configured routine.", "rejected", None
-            return f"{salutation} I couldn't confirm the routine completed. Check its Home Assistant trace.", "unverified", None
+                return ExecutionResult(f"{salutation} Home Assistant couldn't accept the configured routine.", Outcome.REJECTED), None
+            return ExecutionResult(f"{salutation} I couldn't confirm the routine completed. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
         except (OSError, ValueError):
-            return f"{salutation} I couldn't confirm the routine completed. Check its Home Assistant trace.", "unverified", None
+            return ExecutionResult(f"{salutation} I couldn't confirm the routine completed. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
         result = payload.get("service_response") if isinstance(payload, dict) else None
         if movie_action and isinstance(result, dict) and set(result) == {script}:
             result = result[script]
         if movie_action or (isinstance(result, dict) and "schema_version" in result):
-            reply, outcome, detail = format_routine_result(result, request_id, script, period, movie_action, action_results)
+            execution, detail = routine_completion_result(result, request_id, script, period, movie_action, action_results)
+            outcome = execution.outcome
             if movie_app:
-                if outcome == "reported_success":
+                if outcome is Outcome.REPORTED_SUCCESS:
                     sleep(7)
                     status, note = launch_movie_app(connection, remote, movie_app)
                 else:
@@ -777,26 +782,26 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
                         "target": movie_app[0], "action": "open_app", "status": status, "entity_id": remote,
                         "detail": f"{note} Remote: {remote}. Command: app:{movie_app[1]}.",
                     })
-            return reply, outcome, detail
-        return f"{salutation} Home Assistant did not return a correlated completion result.", "unverified", None
+            return execution, detail
+        return ExecutionResult(f"{salutation} Home Assistant did not return a correlated completion result.", Outcome.UNVERIFIED), None
     finally:
         lock.release()
 
 
-def format_routine_result(result, request_id, routine_id, period, movie_action, action_results):
+def routine_completion_result(result, request_id, routine_id, period, movie_action, action_results):
     salutation = "Movie Time." if movie_action else f"Good {period}."
     if (not isinstance(result, dict) or result.get("schema_version") != 1
             or result.get("request_id") != request_id or result.get("routine_id") != routine_id):
         if movie_action:
             detail = "Home Assistant didn't return a Movie Time result that matched this request."
-            return f"{salutation} {detail}", "unverified", detail
-        return f"{salutation} I couldn't verify the result of this run.", "unverified", None
+            return ExecutionResult(f"{salutation} {detail}", Outcome.UNVERIFIED), detail
+        return ExecutionResult(f"{salutation} I couldn't verify the result of this run.", Outcome.UNVERIFIED), None
     outcome = result.get("outcome")
     resolved = result.get("resolved_action")
     if movie_action and outcome in ("success", "partial"):
         expected = ("start", "end") if movie_action == "toggle" else (movie_action,)
         if resolved not in expected:
-            return "Movie Time. I couldn't verify that the result matched the requested direction.", "unverified", None
+            return ExecutionResult("Movie Time. I couldn't verify that the result matched the requested direction.", Outcome.UNVERIFIED), None
     raw_steps = result.get("steps")
     steps = routine_action_results(raw_steps)
     if action_results is not None:
@@ -828,9 +833,9 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
                 reply += f" It's {temperature:g} degrees indoors and the heating isn't running."
         detail = ("Home Assistant reports all lights are off." if period == "night"
                   else "Home Assistant confirmed the required steps.")
-        return reply, "reported_success", detail
+        return ExecutionResult(reply, Outcome.REPORTED_SUCCESS), detail
     if outcome == "busy":
-        return f"{salutation} The routine is already in progress.", "busy", None
+        return ExecutionResult(f"{salutation} The routine is already in progress.", Outcome.BUSY), None
     verified = [step["target"].replace("_", " ") for step in required if step["status"] in completed]
     failed = [step["target"].replace("_", " ") for step in required if step["status"] == "failed"]
     incomplete = [step["target"].replace("_", " ") for step in required
@@ -848,7 +853,7 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
     if movie_action and outcome == "partial" and resolved in ("start", "end"):
         intro = "Starting Movie Time." if resolved == "start" else "Ending Movie Time."
         reply = add_sass(intro, f"movie_{resolved}", result.get("guest_mode"))
-    return reply, outcome if outcome in ("partial", "failed") else "unverified", detail
+    return ExecutionResult(reply, Outcome(outcome if outcome in ("partial", "failed") else "unverified")), detail
 
 
 def parse_light_command(phrase):
@@ -920,28 +925,28 @@ def ha_device_connection():
 
 
 @diagnostics.timed("bedroom_routine")
-def run_sexy_time(operation, connection, *, approved=False):
+def run_sexy_time_result(operation, connection, *, approved=False):
     if connection is None:
-        return "The Home Assistant connection isn't configured.", "not_configured", None
+        return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED), None
     try:
         sexy_mapping = routine_registry.load().get("sexy_time")
     except (OSError, ValueError, sqlite3.Error):
         sexy_mapping = None
     if not sexy_mapping:
-        return "Map the Sexy Time script in Declan Settings.", "not_configured", None
+        return ExecutionResult("Map the Sexy Time script in Declan Settings.", Outcome.NOT_CONFIGURED), None
     if sexy_mapping["sensitive"] and not approved:
-        return "Sexy Time requires explicit confirmation.", "unresolved", None
+        return ExecutionResult("Sexy Time requires explicit confirmation.", Outcome.UNRESOLVED), None
     sexy_script = sexy_mapping["script"]
     if not SEXY_TIME_LOCK.acquire(blocking=False):
-        return "I'm still handling the previous Sexy Time request.", "busy", None
+        return ExecutionResult("I'm still handling the previous Sexy Time request.", Outcome.BUSY), None
     try:
         inventory, inventory_error = read_music_inventory(connection)
         if inventory_error:
-            return "I couldn't discover the bedroom music player.", inventory_error, None
+            return ExecutionResult("I couldn't discover the bedroom music player.", Outcome(inventory_error)), None
         destinations, _ = music.music_players(inventory)
         player = destinations.get("bedroom")
         if not player:
-            return "I couldn't identify one available bedroom satellite speaker. Check its Home Assistant device and area.", "unresolved", None
+            return ExecutionResult("I couldn't identify one available bedroom satellite speaker. Check its Home Assistant device and area.", Outcome.UNRESOLVED), None
         url, headers, opener = connection
         request_id = "declan-" + secrets.token_hex(16)
         request = Request(
@@ -953,44 +958,45 @@ def run_sexy_time(operation, connection, *, approved=False):
                 payload = json.loads(response.read(65536))
         except HTTPError as error:
             error.close()
-            return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified", None
+            return ExecutionResult("I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
         except (OSError, ValueError):
-            return "I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", "unverified", None
+            return ExecutionResult("I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
 
         result = payload.get("service_response") if isinstance(payload, dict) else None
         if isinstance(result, dict) and set(result) == {sexy_script}:
             result = result[sexy_script]
         if (not isinstance(result, dict) or result.get("operation") != operation
                 or result.get("request_id") != request_id or result.get("routine_id") != sexy_script):
-            return "I couldn't verify the bedroom routine's result.", "unverified", None
+            return ExecutionResult("I couldn't verify the bedroom routine's result.", Outcome.UNVERIFIED), None
 
         lighting_ok = result.get("lighting_ok") is True
         if operation == "end":
-            _, music_outcome = music.control(
+            music_result = music.control_result(
                 ("media_stop", "bedroom"), connection, lambda _: (inventory, None),
             )
-            music_ok = music_outcome == "confirmed"
+            music_ok = music_result.outcome is Outcome.CONFIRMED
             if lighting_ok:
                 detail = None if music_ok else "Bedroom lights restored. Bedroom music stop could not be verified."
-                return choose_line("sexy_time_end", read_guest_mode()), "confirmed" if music_ok else "partial", detail
+                return ExecutionResult(choose_line("sexy_time_end", read_guest_mode()), Outcome("confirmed" if music_ok else "partial")), detail
             playback = "The music has stopped." if music_ok else "I couldn't verify that the bedroom music stopped."
-            return f"I couldn't verify the bedroom lights. {playback}", "partial" if music_ok else "unverified", None
+            return ExecutionResult(f"I couldn't verify the bedroom lights. {playback}", Outcome("partial" if music_ok else "unverified")), None
 
         if not lighting_ok:
-            return "I couldn't verify the bedroom lights, so I held off on the playlist.", "unverified", None
+            return ExecutionResult("I couldn't verify the bedroom lights, so I held off on the playlist.", Outcome.UNVERIFIED), None
         volume_ok = True
         try:
             music.request(connection, "/api/services/media_player/volume_set",
                           {"entity_id": player, "volume_level": 0.2})
         except (OSError, ValueError):
             volume_ok = False
-        reply, outcome = music.play(("bedroom", "sexy time music", "spotify"), connection,
+        music_result = music.play_result(("bedroom", "sexy time music", "spotify"), connection,
                                     lambda _: (inventory, None))
+        reply, outcome = music_result.reply, music_result.outcome
         spoken = choose_line("sexy_time_start", read_guest_mode())
-        if outcome == "confirmed" and volume_ok:
-            return spoken, "confirmed", None
+        if outcome is Outcome.CONFIRMED and volume_ok:
+            return ExecutionResult(spoken, Outcome.CONFIRMED), None
         volume_detail = "" if volume_ok else " Bedroom music volume could not be set."
-        return spoken, "partial", f"Bedroom lights set. {reply}{volume_detail}"
+        return ExecutionResult(spoken, Outcome.PARTIAL), f"Bedroom lights set. {reply}{volume_detail}"
     finally:
         SEXY_TIME_LOCK.release()
 
@@ -2649,7 +2655,7 @@ class Handler(BaseHTTPRequestHandler):
                     connection=ha_device_connection,
                     music_inventory=read_music_inventory,
                     handle_lighting=handle_light_request_result,
-                    last_lights=last_lights, chained_outcome=chained_outcome,
+                    last_lights=last_lights, chained_outcome=chained_outcome_result,
                 )
             )
         else:
@@ -2846,6 +2852,31 @@ def main():
         finally:
             server.shutdown()
             worker.join()
+
+
+
+def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
+    """Compatibility API for mapped routine reply/outcome/status triples."""
+    return _routine_legacy_triple(*run_custom_routine_result(
+        name, action_results, approved=approved, parameters=parameters))
+
+
+def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None, approved=False):
+    """Compatibility API for mapped routine execution."""
+    return _routine_legacy_triple(*run_routine_result(
+        period, action_results=action_results, movie_action=movie_action,
+        movie_room=movie_room, movie_app=movie_app, approved=approved))
+
+
+def format_routine_result(result, request_id, routine_id, period, movie_action, action_results):
+    """Compatibility API for correlated routine completion replies."""
+    return _routine_legacy_triple(*routine_completion_result(
+        result, request_id, routine_id, period, movie_action, action_results))
+
+
+def run_sexy_time(operation, connection, *, approved=False):
+    """Compatibility API for the mapped bedroom routine."""
+    return _routine_legacy_triple(*run_sexy_time_result(operation, connection, approved=approved))
 
 
 if __name__ == "__main__":
