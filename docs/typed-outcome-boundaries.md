@@ -424,6 +424,12 @@ fields still serialize exact plain strings; arbitrary provider/state detail text
 is retained without inventing a reason. Legacy evidence is interpreted at the
 boundary, and only the exact unresolved reason creates correction context.
 
+Backend trace completion now consumes frozen `CorrelatedTraceResult` values
+after provider-boundary validation of entity, context, evidence marker and run ID.
+Typed statuses and bounded trace detail stay together through completion decisions.
+Unknown statuses remain non-completing; mismatched metadata is rejected. Existing
+execution outcomes, reply text and the device-results-not-verified caveat remain.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

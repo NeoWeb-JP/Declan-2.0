@@ -2,7 +2,7 @@
 from execution_results import ExecutionResult, Outcome
 from script_action_evidence import parse_script_actions
 from action_evidence_buffer import extend_action_evidence
-from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
+from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, CorrelatedTraceResult
 from script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
 from script_provider_results import ScriptReason
 import json
@@ -204,12 +204,10 @@ def completion_from_trace_result(connection, current, result):
         return None
     except (OSError, ValueError, TypeError):
         return None
-    if (not isinstance(evidence, dict) or evidence.get("entity_id") != current["entity_id"]
-            or evidence.get("context_id") != context_id or evidence.get("evidence") != "ha_trace"
-            or not isinstance(evidence.get("run_id"), str) or not evidence["run_id"]):
+    trace = CorrelatedTraceResult.parse(evidence, entity_id=current["entity_id"], context_id=context_id)
+    if trace is None:
         return None
-    status = parse_trace_outcome(evidence.get("status"))
-    detail = "HA trace " + evidence["run_id"][:128] + "; device results not verified."
+    status, detail = trace.status, trace.detail
     if status is TraceProviderOutcome.FINISHED_UNVERIFIED:
         return ExecutionResult("Routine finished.", Outcome.EXECUTION_COMPLETED), detail
     if status is TraceProviderOutcome.PARTIAL:

@@ -105,3 +105,27 @@ def parse_trace_outcome(value) -> TraceProviderOutcome | None:
         return TraceProviderOutcome(value)
     except ValueError:
         return None
+
+
+@dataclass(frozen=True)
+class CorrelatedTraceResult:
+    status: TraceProviderOutcome | None
+    run_id: str
+
+    def __post_init__(self):
+        if self.status is not None and not isinstance(self.status, TraceProviderOutcome):
+            raise TypeError("status must be a TraceProviderOutcome or None")
+        if not isinstance(self.run_id, str) or not self.run_id:
+            raise ValueError("Correlated trace requires a run ID")
+
+    @classmethod
+    def parse(cls, evidence, *, entity_id, context_id) -> "CorrelatedTraceResult | None":
+        if (not isinstance(evidence, dict) or evidence.get("entity_id") != entity_id
+                or evidence.get("context_id") != context_id or evidence.get("evidence") != "ha_trace"
+                or not isinstance(evidence.get("run_id"), str) or not evidence["run_id"]):
+            return None
+        return cls(parse_trace_outcome(evidence.get("status")), evidence["run_id"])
+
+    @property
+    def detail(self) -> str:
+        return "HA trace " + self.run_id[:128] + "; device results not verified."

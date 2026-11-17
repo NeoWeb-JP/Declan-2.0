@@ -6,9 +6,28 @@ import server
 from execution_results import Outcome
 from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
 from script_provider_results import ScriptReason
+from script_provider_results import CorrelatedTraceResult
 
 
 class ScriptProviderResultTests(unittest.TestCase):
+    def test_correlated_trace_results_preserve_statuses_and_metadata_guards(self):
+        evidence = {"entity_id": "script.tea", "context_id": "context", "evidence": "ha_trace", "run_id": "r" * 200}
+        for status in (*TraceProviderOutcome, "future", "FINISHED_UNVERIFIED", None, []):
+            with self.subTest(status=status):
+                result = CorrelatedTraceResult.parse({**evidence, "status": status},
+                    entity_id="script.tea", context_id="context")
+                self.assertIs(result.status, status if isinstance(status, TraceProviderOutcome) else None)
+                self.assertEqual(result.detail, "HA trace " + "r" * 128 + "; device results not verified.")
+                with self.assertRaises(AttributeError):
+                    setattr(result, "status", TraceProviderOutcome.FAILED)
+        for key, value in (("entity_id", "script.other"), ("context_id", "other"), ("evidence", "other"),
+                           ("run_id", ""), ("run_id", 1), ("run_id", None)):
+            with self.subTest(key=key, value=value):
+                self.assertIsNone(CorrelatedTraceResult.parse({**evidence, key: value},
+                    entity_id="script.tea", context_id="context"))
+        for payload in (None, [], "ha_trace", {}):
+            self.assertIsNone(CorrelatedTraceResult.parse(payload, entity_id="script.tea", context_id="context"))
+
     def test_reason_codes_are_typed_exact_and_cannot_override_other_outcomes(self):
         for reason in ScriptReason:
             for outcome in ScriptReportedOutcome:
