@@ -17,12 +17,15 @@ def timer_execution_result(value):
 
 def routine_execution_result(value):
     """Return a typed result and the routine status for legacy or typed providers."""
-    if not isinstance(value, (tuple, list)) or len(value) != 3:
-        raise ValueError("Routine provider must return reply, outcome and status")
-    reply, outcome, status = value
+    if not isinstance(value, (tuple, list)):
+        raise ValueError("Routine provider must return a typed result or legacy triple")
+    if len(value) == 2 and isinstance(value[0], ExecutionResult):
+        result, status = value
+    elif len(value) == 3:
+        reply, outcome, status = value
+        result = ExecutionResult(reply, outcome)
+    else:
+        raise ValueError("Routine provider must return a typed result or legacy triple")
     if status is not None and not isinstance(status, str):
         raise ValueError("Routine status must be text or None")
-    result = reply if isinstance(reply, ExecutionResult) else ExecutionResult(reply, outcome)
-    if isinstance(reply, ExecutionResult) and result.outcome != outcome:
-        raise ValueError("Routine typed outcome disagrees with legacy outcome")
     return result, status
