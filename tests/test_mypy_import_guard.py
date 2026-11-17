@@ -80,6 +80,29 @@ class MypyImportGuardTests(unittest.TestCase):
         code, output = self.run_guard("Success: no issues found\n", status=0)
         self.assertEqual(code, 0, output)
 
+    def test_missing_exit_status_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workdir = Path(directory)
+            (workdir / "mypy-advisory.log").write_text("Success: no issues found\n", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(GUARD)], cwd=workdir,
+                capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Missing mypy advisory exit status", result.stderr)
+
+    def test_invalid_exit_status_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workdir = Path(directory)
+            (workdir / "mypy-advisory.log").write_text("Success: no issues found\n", encoding="utf-8")
+            (workdir / "mypy-advisory.exitcode").write_text("invalid", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(GUARD)], cwd=workdir,
+                capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Invalid mypy advisory exit status", result.stderr)
+
     def test_missing_inventory_is_rejected(self):
         code, output = self.run_guard(None)
         self.assertNotEqual(code, 0)
