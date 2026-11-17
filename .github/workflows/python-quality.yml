@@ -46,6 +46,7 @@ jobs:
           set +e
           python -m mypy --config-file mypy.ini --show-error-codes . > mypy-advisory.log 2>&1
           result=$?
+          printf '%s\n' "$result" > mypy-advisory.exitcode
           cat mypy-advisory.log
           missing=$(grep -c '\[import-not-found\]' mypy-advisory.log || true)
           other=$(grep 'error: ' mypy-advisory.log | grep -vc '\[import-not-found\]' || true)

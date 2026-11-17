@@ -11,11 +11,15 @@ GUARD = ROOT / "scripts" / "check_mypy_imports.py"
 
 
 class MypyImportGuardTests(unittest.TestCase):
-    def run_guard(self, log):
+    def run_guard(self, log, status=None):
         with tempfile.TemporaryDirectory() as directory:
             workdir = Path(directory)
             if log is not None:
                 (workdir / "mypy-advisory.log").write_text(log, encoding="utf-8")
+                (workdir / "mypy-advisory.exitcode").write_text(
+                    str(status if status is not None else (1 if "error:" in log else 0)),
+                    encoding="utf-8",
+                )
             result = subprocess.run(
                 [sys.executable, str(GUARD)], cwd=workdir,
                 capture_output=True, text=True, check=False,
@@ -48,6 +52,15 @@ class MypyImportGuardTests(unittest.TestCase):
         )
         self.assertNotEqual(code, 0)
         self.assertIn("missing dependency", output)
+
+    def test_inventory_crash_without_diagnostics_is_rejected(self):
+        code, output = self.run_guard("mypy: internal failure\n", status=2)
+        self.assertNotEqual(code, 0)
+        self.assertIn("failed without diagnostics", output)
+
+    def test_successful_empty_inventory_is_allowed(self):
+        code, output = self.run_guard("Success: no issues found\n", status=0)
+        self.assertEqual(code, 0, output)
 
     def test_missing_inventory_is_rejected(self):
         code, output = self.run_guard(None)

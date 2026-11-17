@@ -27,7 +27,20 @@ def main() -> int:
     if not path.is_file():
         print("Missing mypy advisory inventory", file=sys.stderr)
         return 1
-    unexpected = unexpected_imports(path.read_text(encoding="utf-8"))
+    status_file = Path("mypy-advisory.exitcode")
+    if not status_file.is_file():
+        print("Missing mypy advisory exit status", file=sys.stderr)
+        return 1
+    try:
+        status = int(status_file.read_text(encoding="utf-8").strip())
+    except ValueError:
+        print("Invalid mypy advisory exit status", file=sys.stderr)
+        return 1
+    log = path.read_text(encoding="utf-8")
+    if status != 0 and "error:" not in log:
+        print("Mypy inventory failed without diagnostics", file=sys.stderr)
+        return 1
+    unexpected = unexpected_imports(log)
     if unexpected:
         print("Unexpected non-Home Assistant missing imports", file=sys.stderr)
         print("\n".join(unexpected), file=sys.stderr)
