@@ -133,7 +133,7 @@ async def run_job(hass, state, job, service, parameters, fields, context):
 
 async def latest_results_typed(hass) -> dict[str, StoredRoutineJob]:
     state = await job_state(hass)
-    latest = {}
+    latest: dict[str, dict] = {}
     for job in state["jobs"].values():
         entity_id = job["entity_id"]
         if entity_id not in latest or job["created_at"] > latest[entity_id]["created_at"]:
