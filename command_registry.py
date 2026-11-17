@@ -150,8 +150,8 @@ def registry(deps):
 def stop_registry(*, stop_routines, stop_everywhere, connection):
     """Higher-priority stop commands; run after timer parsing to preserve timer ownership."""
     def run_routines(context, match):
-        reply, outcome, status = stop_routines()
-        return HandledCommand("stop_routine", ExecutionResult(reply, outcome), routine_status=status)
+        typed, status = routine_execution_result(stop_routines())
+        return HandledCommand("stop_routine", typed, routine_status=status)
 
     def run_everywhere(context, match):
         reply, outcome, status = stop_everywhere(connection())
