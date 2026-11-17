@@ -269,6 +269,16 @@ Music retry decisions use enum identity; shared inventory callbacks used by
 mapped routines and origin-specific Stop retain typed values. Consumer row lists
 retain their existing shape without serializing outcome enums internally.
 
+Home Assistant script-response summaries now retain frozen
+`RoutineJobStepEvidence` values with a dedicated `RoutineJobStepStatus` enum.
+Required-step verification uses typed completion evidence. Unknown or malformed
+statuses never count as completed; unknown textual values still retain their
+bounded wire projection. Field filtering, 200-step limits, non-mapping row
+behavior and the original distinction between required-step truthiness and the
+projected boolean flag remain compatible. Public summary mappings and durable
+job payloads still contain the original plain strings and booleans. Direct legacy
+summary construction with mapping rows remains supported at serialization.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
