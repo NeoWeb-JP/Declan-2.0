@@ -668,20 +668,20 @@ def play(command, connection, read_inventory, *, origin=None):
 def _play_provider(command, connection, read_inventory, *, origin=None):
     room, title, provider = command
     if connection is None:
-        return "The Home Assistant connection isn't configured.", "not_configured"
+        return music_execution_result(("The Home Assistant connection isn't configured.", "not_configured"))
     if not HANDOFF.acquire(blocking=False):
-        return "A music request is already in progress.", "busy"
+        return music_execution_result(("A music request is already in progress.", "busy"))
     stopped = False
     try:
         inventory, error = read_inventory(connection)
         if error:
-            return "I couldn't check which players are active.", error
+            return music_execution_result(("I couldn't check which players are active.", error))
         if room is None:
             areas = {room_key(row["declan_area"]) for row in inventory
                      if origin and (row.get("entity_id") == origin or row.get("declan_device") == origin)
                      and isinstance(row.get("declan_area"), str) and row["declan_area"].strip()}
             if len(areas) != 1:
-                return "Which room should I play the music in?", "unresolved"
+                return music_execution_result(("Which room should I play the music in?", "unresolved"))
             room = areas.pop()
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         destinations, players = music_players(inventory, origin=origin) if origin else music_players(inventory)
@@ -692,16 +692,16 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             if (not re.fullmatch(r'media_player\.[a-z0-9_]+', room)
                     or players.get(room, {}).get('declan_music_assistant') is not True
                     or (approved_media_players.load() is not None and room not in destinations.values())):
-                return "That target is not a registered Music Assistant player. I haven't changed playback.", "unresolved"
+                return music_execution_result(("That target is not a registered Music Assistant player. I haven't changed playback.", "unresolved"))
             destination = room
             label = (players[destination].get('attributes') or {}).get('friendly_name')
             location = 'on ' + (label if isinstance(label, str) and label.strip() else destination)
         else:
             destination = destinations.get(room)
         if destination is None:
-            return f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"
+            return music_execution_result((f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"))
         if not player_available(destination, players.get(destination, {}).get("state")):
-            return f"The Music Assistant player {location} is unavailable.", "unavailable"
+            return music_execution_result((f"The Music Assistant player {location} is unavailable.", "unavailable"))
         previous_state = players[destination]["state"]
         previous_track = (players[destination].get("attributes") or {}).get("media_content_id")
         streams = {entity: player for entity, player in players.items()
@@ -713,7 +713,7 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
                 if entity != group and entity in members and spotify_id(streams[entity]) == spotify_id(streams[group]):
                     del streams[entity]
         if len(streams) > 1:
-            return "I found more than one active Spotify queue and couldn't tell which one to move.", "unverified"
+            return music_execution_result(("I found more than one active Spotify queue and couldn't tell which one to move.", "unverified"))
         source = next(iter(streams), None)
         artist = ""
         if title and provider == "spotify" and " by " in title:
@@ -723,18 +723,18 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             with preference_db() as db:
                 if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0",
                               (media_key(saved[0]),)).fetchone():
-                    return "That track is on your do-not-play list.", "unavailable"
+                    return music_execution_result(("That track is on your do-not-play list.", "unavailable"))
         same_track = source and (
             media_key(spotify_id(streams[source])) == media_key(saved[0]) if saved
             else title and matches_track(streams[source], title, artist)
         )
         move = provider == "spotify" and (title is None or same_track)
         if provider != "spotify" and title is None:
-            return "Tell me which radio station to play.", "unavailable"
+            return music_execution_result(("Tell me which radio station to play.", "unavailable"))
         if title is None and source is None:
-            return "I couldn't find an active Spotify queue. Tell me what to play.", "unavailable"
+            return music_execution_result(("I couldn't find an active Spotify queue. Tell me what to play.", "unavailable"))
         if move and source == destination and streams[source]["state"] == "playing":
-            return f"Spotify is already playing {location}.", "confirmed"
+            return music_execution_result((f"Spotify is already playing {location}.", "confirmed"))
         if move:
             if source == destination:
                 path = "/api/services/media_player/media_play"
@@ -748,33 +748,33 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             except SpotifyNotConfigured:
                 selection = SPOTIFY_PLAYLIST_FALLBACKS.get(title) if not artist else None
                 if selection is None:
-                    return "Spotify search isn't configured. Saved Spotify links can still play.", "not_configured"
+                    return music_execution_result(("Spotify search isn't configured. Saved Spotify links can still play.", "not_configured"))
                 if PREFERENCES.exists():
                     with preference_db() as db:
                         if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0",
                                       (media_key(selection[0]),)).fetchone():
-                            return "The saved playlist is on your do-not-play list.", "unavailable"
+                            return music_execution_result(("The saved playlist is on your do-not-play list.", "unavailable"))
             except HTTPError as error:
                 if provider != "spotify":
                     raise
                 error.close()
                 detail = ("Spotify search is being rate limited." if error.code == 429
                           else f"Spotify search returned HTTP {error.code}.")
-                return f"{detail} I haven't changed playback.", "unverified"
+                return music_execution_result((f"{detail} I haven't changed playback.", "unverified"))
             except TimeoutError:
-                return "The search took too long. I haven't changed playback.", "unverified"
+                return music_execution_result(("The search took too long. I haven't changed playback.", "unverified"))
             if selection is None:
                 source_name = {"spotify": "Spotify", "radio": "radio", "tunein": "TuneIn"}[provider]
-                return f"I couldn't find {title} on {source_name}.", "unavailable"
+                return music_execution_result((f"I couldn't find {title} on {source_name}.", "unavailable"))
             uri, kind, selected_name = selection
             if provider == "spotify" and PREFERENCES.exists():
                 with preference_db() as db:
                     if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0", (media_key(uri),)).fetchone():
-                        return "That Spotify item is on your disliked list. I won't play it.", "unavailable"
+                        return music_execution_result(("That Spotify item is on your disliked list. I won't play it.", "unavailable"))
             if provider == "spotify" and source:
                 request(connection, "/api/services/media_player/media_stop", {"entity_id": source})
                 if not wait_for(connection, source, lambda player: player.get("state") in STOPPED):
-                    return "I couldn't confirm Spotify stopped on the previous player. I didn't start another stream.", "unverified"
+                    return music_execution_result(("I couldn't confirm Spotify stopped on the previous player. I didn't start another stream.", "unverified"))
                 stopped = True
                 if source == destination:
                     previous_state = "idle"
@@ -821,17 +821,17 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         if verified:
             if not move and kind == "artist":
                 prefix = "I stopped the previous Spotify stream. " if stopped else ""
-                return f"{prefix}{selected_name} is playing {location}.", "confirmed"
+                return music_execution_result((f"{prefix}{selected_name} is playing {location}.", "confirmed"))
             if stopped:
-                return f"I stopped the previous Spotify stream and started {title} {location}.", "confirmed"
-            return f"{playback_source} is playing {location}.", "confirmed"
+                return music_execution_result((f"I stopped the previous Spotify stream and started {title} {location}.", "confirmed"))
+            return music_execution_result((f"{playback_source} is playing {location}.", "confirmed"))
         prefix = "I stopped the previous Spotify stream. " if stopped else ""
         if observed_playback:
-            return (f"{prefix}{playback_source} started playing {location}, but I couldn't verify the requested selection.",
-                    "partial")
+            return music_execution_result((f"{prefix}{playback_source} started playing {location}, but I couldn't verify the requested selection.",
+                    "partial"))
         if timed_out:
-            return f"{prefix}Home Assistant took too long to respond, and I couldn't verify playback {location}.", "unverified"
-        return f"{prefix}I sent the music request {location}, but couldn't verify playback.", "unverified"
+            return music_execution_result((f"{prefix}Home Assistant took too long to respond, and I couldn't verify playback {location}.", "unverified"))
+        return music_execution_result((f"{prefix}I sent the music request {location}, but couldn't verify playback.", "unverified"))
     except HTTPError as error:
         error.close()
         if error.code == 429:
@@ -840,10 +840,10 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             detail = "Home Assistant's music service is temporarily unavailable. I couldn't verify playback."
         else:
             detail = "Home Assistant returned an error for the music request."
-        return ("I stopped the previous stream. " if stopped else "") + detail, "unverified"
+        return music_execution_result((("I stopped the previous stream. " if stopped else "") + detail, "unverified"))
     except (OSError, ValueError, sqlite3.Error):
-        return ("I stopped the previous Spotify stream, but couldn't verify the new request." if stopped
-                else "I couldn't verify the music request."), "unverified"
+        return music_execution_result((("I stopped the previous Spotify stream, but couldn't verify the new request." if stopped
+                else "I couldn't verify the music request."), "unverified"))
     finally:
         HANDOFF.release()
 
