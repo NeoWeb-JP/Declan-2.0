@@ -94,12 +94,13 @@ def apply(document, expected):
     document = validate(document)
     with history.database() as db:
         state = _state(db)
-        if not isinstance(expected, str) or expected != _fingerprint({'state': state, 'document': document, 'environment': _environment_snapshot()}):
+        environment = _environment_snapshot()
+        if not isinstance(expected, str) or expected != _fingerprint({'state': state, 'document': document, 'environment': environment}):
             raise ValueError('Settings changed since preview. Preview the file again.')
         # Recovery data and all imported changes commit together, or none do.
         db.execute('CREATE TABLE IF NOT EXISTS settings_recovery (id INTEGER PRIMARY KEY, document TEXT)')
         previous = {'format': 'declan-settings', 'schema_version': 1,
-                    'settings': {key: (state['settings'].get(key) or os.environ.get(key, '')) for key in FIELDS},
+                    'settings': {key: (state['settings'].get(key) or environment[key]) for key in FIELDS},
                     'learned_intents': state['learned_intents']}
         db.execute('INSERT OR REPLACE INTO settings_recovery VALUES (1, ?)', (json.dumps(previous),))
         db.executemany('INSERT OR REPLACE INTO server_settings VALUES (?, ?)', document['settings'].items())
