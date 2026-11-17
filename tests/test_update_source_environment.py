@@ -42,5 +42,17 @@ class UpdateSourceEnvironmentTests(unittest.TestCase):
                         run.assert_not_called()
                         self.assertEqual(updates.status()["state"], "failed")
 
+    def test_unset_or_empty_update_root_disables_native_layout(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIsNone(updates.layout())
+        with patch.dict(os.environ, {"DECLAN_UPDATE_ROOT": ""}):
+            self.assertIsNone(updates.layout())
+
+    def test_relative_or_missing_update_root_is_rejected(self):
+        for value in ("relative/install", "/definitely/nonexistent/declan-update-root"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"DECLAN_UPDATE_ROOT": value}):
+                    self.assertIsNone(updates.layout())
+
 if __name__ == "__main__":
     unittest.main()
