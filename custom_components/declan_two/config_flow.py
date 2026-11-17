@@ -68,6 +68,44 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
 
+    async def async_step_reconfigure(self, user_input=None):
+        """Allow updating the existing server URL and token without removing the entry."""
+        entry = self._get_reconfigure_entry()
+        errors = {}
+        if user_input is not None:
+            url = user_input["url"].strip().rstrip("/")
+            token = user_input.get("token", "").strip() or entry.data["token"]
+            if not valid_declan_origin(url):
+                errors["url"] = "invalid_url"
+            elif len(token) < 32:
+                errors["token"] = "invalid_token"  # nosec B105 - HA form error key, not a credential
+            else:
+                try:
+                    async with async_get_clientsession(self.hass).get(
+                        url + "/api/capabilities",
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=aiohttp.ClientTimeout(total=5),
+                        allow_redirects=False,
+                    ) as response:
+                        if response.status in {401, 403}:
+                            errors["base"] = "invalid_auth"
+                        elif response.status != 200:
+                            errors["base"] = "cannot_connect"
+                except (aiohttp.ClientError, TimeoutError):
+                    errors["base"] = "cannot_connect"
+                if not errors:
+                    return self.async_update_reload_and_abort(
+                        entry, data_updates={"url": url, "token": token},
+                    )
+        schema = vol.Schema({
+            vol.Required("url", default=(user_input or {}).get("url", entry.data["url"])): str,
+            vol.Optional("token"): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+            ),
+        })
+        return self.async_show_form(step_id="reconfigure", data_schema=schema, errors=errors)
+
+
 class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
     async def async_step_init(self, user_input=None):
         current = self.config_entry.options
