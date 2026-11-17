@@ -27,7 +27,7 @@ class EnvironmentReferenceTests(unittest.TestCase):
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
         documented = set(re.findall(r"^\\| `([A-Z][A-Z0-9_]*)` \\|", reference, re.MULTILINE))
         example_names = set(re.findall(
-            r"^\\s*#?\\s*(DECLAN_[A-Z0-9_]+)\\s*=", example, re.MULTILINE
+            r"^\s*#?\s*(DECLAN_[A-Z0-9_]+)\s*=", example, re.MULTILINE
         ))
         self.assertTrue(example_names, "Expected environment variables in .env.example")
         self.assertEqual(set(), example_names - documented)
