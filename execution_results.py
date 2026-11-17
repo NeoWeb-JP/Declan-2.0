@@ -20,6 +20,8 @@ class Outcome(StrEnum):
     TIMER_STOPPED = "timer_stopped"
     TIMER_STATUS = "timer_status"
     NO_TIMER = "no_timer"
+    ACTION_ERROR = "action_error"
+    PREVIEW = "preview"
 
 
 class ActionStatus(StrEnum):

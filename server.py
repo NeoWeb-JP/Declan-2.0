@@ -2645,8 +2645,15 @@ class Handler(BaseHTTPRequestHandler):
                     routine_reply, outcome = local.result.as_legacy_pair()
                     status_target = local.status_target
                 else:
-                    light_result = handle_light_request(phrase, action_results=action_results,
-                                                        last_lights=last_lights, origin_device=origin_device)
+                    lighting_dispatch = command_registry.lighting_registry(
+                        matches=lighting_intents.matches, parse_light_command=parse_light_command,
+                        handle_light_request=handle_light_request, action_results=action_results,
+                        last_lights=last_lights, origin_device=origin_device,
+                    ).dispatch(command_registry.RequestContext(
+                        phrase=phrase, source=source, origin_device=origin_device, satellite=satellite,
+                    ))
+                    if lighting_dispatch is not None:
+                        light_result = lighting_dispatch.result.as_legacy_pair()
             if light_result:
                 routine_reply, outcome = light_result
                 if not re.match(r"^(?:preview|dry[ -]run)\b", phrase):

@@ -56,6 +56,8 @@ class HandlerRegistry:
                 # A match owns the command, including failure/clarification.
                 # Never try another executor after an uncertain side effect.
                 result = handler.execute(context, match)
+                if result is None and handler.name == "lighting":
+                    return None
                 if not isinstance(result, HandledCommand) or result.handler != handler.name:
                     raise ValueError("Invalid command handler result")
                 return result
@@ -199,3 +201,20 @@ def information_registry(*, matches, follow_up, handle, question_context,
 
     return HandlerRegistry((Handler("information", 0,
         lambda context: context.phrase if matches(context.phrase, last_information) else None, run),))
+
+
+def lighting_registry(*, matches, parse_light_command, handle_light_request,
+                      action_results, last_lights, origin_device):
+    """Lighting command ownership with injected action/history dependencies."""
+    def run(context, phrase):
+        result = handle_light_request(
+            phrase, action_results=action_results, last_lights=last_lights,
+            origin_device=origin_device,
+        )
+        if result is None:
+            return None
+        return HandledCommand("lighting", ExecutionResult(*result))
+
+    return HandlerRegistry((Handler("lighting", 0,
+        lambda context: context.phrase if matches(context.phrase, parse_light_command) else None,
+        run),))
