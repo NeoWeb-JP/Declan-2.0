@@ -1159,6 +1159,12 @@ def read_music_inventory(connection):
     return ha_inventory.read(connection, music=True)
 
 
+def stop_everywhere_result(connection):
+    """Typed stop-all result, preserving playback diagnostics."""
+    from local_outcome_contracts import routine_execution_result
+    return routine_execution_result(stop_everywhere_output(connection))
+
+
 def stop_everywhere_output(connection):
     """Stop all active approved Music Assistant destinations, including Everywhere."""
     if connection is None:
@@ -2583,7 +2589,7 @@ class Handler(BaseHTTPRequestHandler):
             registry_factory=command_registry.stop_registry,
             context_factory=command_registry.RequestContext,
             stop_routines=stop_pending_routines,
-            stop_everywhere=stop_everywhere_output,
+            stop_everywhere=stop_everywhere_result,
             connection=ha_device_connection,
         ):
             routine_reply, outcome, routine_status = (
