@@ -51,6 +51,7 @@ import sensitive_confirmation_decision
 import routine_preview_detection
 import guest_assignment_command
 import roast_command_dispatch
+import timer_command_dispatch
 import history
 import music
 import approved_media_players
@@ -2515,12 +2516,14 @@ class Handler(BaseHTTPRequestHandler):
             preview_routine(preview_phrase, origin_device or satellite)
             if preview_phrase else None
         )
-        timer_result = None if routine_preview else command_registry.timer_registry(
+        timer_result = timer_command_dispatch.dispatch_timer(
+            phrase, source=source, origin_device=origin_device, satellite=satellite,
+            routine_preview=routine_preview,
+            registry_factory=command_registry.timer_registry,
+            context_factory=command_registry.RequestContext,
             matches=timers.matches, handle=timers.handle, opener=opener,
             guest_mode=read_guest_mode, decorate=add_sass,
-        ).dispatch(command_registry.RequestContext(
-            phrase=phrase, source=source, origin_device=origin_device, satellite=satellite,
-        ))
+        )
         routine_turn = None
         routine_voice_result = None
         if routine_preview:
