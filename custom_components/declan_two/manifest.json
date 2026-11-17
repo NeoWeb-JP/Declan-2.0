@@ -13,7 +13,8 @@
     "wyoming",
     "frontend",
     "panel_custom",
-    "http"
+    "http",
+    "trace"
   ],
   "documentation": "https://github.com/NeoWeb-JP/Declan-2.0",
   "iot_class": "local_polling",
