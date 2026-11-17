@@ -1207,8 +1207,16 @@ def _stop_everywhere_typed_core(connection):
 
 
 def stop_origin_output(connection, satellite, device):
+    """Preserve legacy triple response for callers of origin-specific Stop."""
+    result, status = stop_origin_result(connection, satellite, device)
+    return result.reply, result.outcome.value, status
+
+
+def stop_origin_result(connection, satellite, device):
+    """Typed stop result for playback on the originating device."""
+    from execution_results import ExecutionResult, Outcome
     if connection is None or not (satellite or device):
-        return "", "unresolved", "Stop needs an identifiable Assist satellite or device."
+        return ExecutionResult("", Outcome.UNRESOLVED), "Stop needs an identifiable Assist satellite or device."
     inventory, error = read_music_inventory(connection)
     if error:
         return "", error, "Could not discover the originating satellite's outputs."
@@ -1224,18 +1232,18 @@ def stop_origin_output(connection, satellite, device):
               and row.get("declan_music_assistant") is False
               and row.get("state") not in (None, "unknown", "unavailable")]
     if len(direct) > 1:
-        return "", "unresolved", "More than one playback output belongs to the originating device."
+        return ExecutionResult("", Outcome.UNRESOLVED), "More than one playback output belongs to the originating device."
     if len(direct) == 1:
         target = direct[0]["entity_id"]
         members = (direct[0].get("attributes") or {}).get("group_members") or []
         if len(members) > 1:
-            return "", "unresolved", "The device output is grouped; Stop left the shared group alone."
+            return ExecutionResult("", Outcome.UNRESOLVED), "The device output is grouped; Stop left the shared group alone."
         try:
             music.request(connection, "/api/services/media_player/media_stop", {"entity_id": target}, timeout=2)
             if music.wait_for(connection, target, lambda row: row.get("state") in music.STOPPED):
                 if satellite:
                     timers.stop_due(satellite)
-                return "", "confirmed", f"Stopped {target}."
+                return ExecutionResult("", Outcome.CONFIRMED), f"Stopped {target}."
         except HTTPError as error:
             error.close()
         except (OSError, ValueError, sqlite3.Error):
@@ -1243,7 +1251,7 @@ def stop_origin_output(connection, satellite, device):
         return "", "unverified", f"Could not verify Stop on {target}."
     area = origin.get("declan_area") if origin else None
     if not isinstance(area, str) or not area.strip():
-        return "", "unresolved", "No playback output or area could be resolved for the satellite."
+        return ExecutionResult("", Outcome.UNRESOLVED), "No playback output or area could be resolved for the satellite."
     reply, outcome = music.control(
         ("media_stop", music.room_key(area)), connection,
         lambda _: (inventory, None),
@@ -1252,8 +1260,8 @@ def stop_origin_output(connection, satellite, device):
         try:
             timers.stop_due(satellite)
         except (OSError, sqlite3.Error):
-            return "", "partial", "Playback stopped, but the local timer alarm could not be acknowledged."
-    return "", outcome, reply
+            return ExecutionResult("", Outcome.PARTIAL), "Playback stopped, but the local timer alarm could not be acknowledged."
+    return ExecutionResult("", outcome), reply
 
 
 def read_ha_areas(connection, origin=None):
