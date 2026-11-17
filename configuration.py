@@ -40,6 +40,11 @@ def _fingerprint(state):
     return hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()
 
 
+def _environment_snapshot():
+    """Bind preview tokens to environment defaults used by imports and recovery."""
+    return {key: os.environ.get(key, '') for key in FIELDS}
+
+
 def export(include_learning=False):
     with history.database() as db:
         state = _state(db)
@@ -78,7 +83,7 @@ def preview(document):
     document = validate(document)
     with history.database() as db:
         state = _state(db)
-    return {'expected': _fingerprint({'state': state, 'document': document}), 'settings': document['settings'],
+    return {'expected': _fingerprint({'state': state, 'document': document, 'environment': _environment_snapshot()}), 'settings': document['settings'],
             'learning_count': len(document.get('learned_intents', {})),
             'replaces_learning': 'learned_intents' in document,
             'notice': 'Check entity IDs for this home. Non-empty imported settings override server environment defaults; empty values use those defaults. '
@@ -89,7 +94,7 @@ def apply(document, expected):
     document = validate(document)
     with history.database() as db:
         state = _state(db)
-        if not isinstance(expected, str) or expected != _fingerprint({'state': state, 'document': document}):
+        if not isinstance(expected, str) or expected != _fingerprint({'state': state, 'document': document, 'environment': _environment_snapshot()}):
             raise ValueError('Settings changed since preview. Preview the file again.')
         # Recovery data and all imported changes commit together, or none do.
         db.execute('CREATE TABLE IF NOT EXISTS settings_recovery (id INTEGER PRIMARY KEY, document TEXT)')
