@@ -1,19 +1,22 @@
 """Execute guarded AI fallback after local command handlers have declined."""
 from dataclasses import dataclass
 from execution_results import ExecutionResult
+from fallback_action_evidence import FallbackActionEvidence
+from action_evidence_wire import action_evidence_to_wire
+from action_evidence_buffer import extend_action_evidence
 
 
 @dataclass(frozen=True)
 class FallbackResponse:
     result: ExecutionResult
-    action_steps: tuple[dict, ...] = ()
+    action_steps: tuple[dict | FallbackActionEvidence, ...] = ()
 
     def __post_init__(self):
         if not isinstance(self.result, ExecutionResult):
             raise ValueError("Fallback response requires a typed execution result")
         if not isinstance(self.action_steps, tuple) or any(
-                not isinstance(step, dict) for step in self.action_steps):
-            raise ValueError("Fallback action steps must be a tuple of mappings")
+                not isinstance(step, (dict, FallbackActionEvidence)) for step in self.action_steps):
+            raise ValueError("Fallback action steps must be typed evidence or mappings")
 
     @classmethod
     def coerce(cls, value):
@@ -27,7 +30,7 @@ class FallbackResponse:
         return cls(ExecutionResult(reply, outcome), tuple(steps))
 
     def as_legacy_triple(self):
-        return self.result.reply, self.result.outcome.value, list(self.action_steps)
+        return self.result.reply, self.result.outcome.value, list(action_evidence_to_wire(self.action_steps))
 
 
 def dispatch_fallback_result(message, *, source, exposed_entities, fallback_handler, action_results):
@@ -36,7 +39,7 @@ def dispatch_fallback_result(message, *, source, exposed_entities, fallback_hand
     if fallback is None:
         return None
     response = FallbackResponse.coerce(fallback)
-    action_results.extend(response.action_steps)
+    extend_action_evidence(action_results, response.action_steps)
     return response.result
 
 
