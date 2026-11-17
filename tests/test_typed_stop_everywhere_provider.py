@@ -1,15 +1,15 @@
-"""Stop-all provider exposes typed outcomes without changing legacy callers."""
+"""Stop-all provider uses typed core while preserving legacy public responses."""
 import unittest
 from unittest.mock import patch
 
 import server
-from execution_results import Outcome
+from execution_results import ExecutionResult, Outcome
 
 
 class TypedStopEverywhereProviderTests(unittest.TestCase):
     def test_typed_stop_result_preserves_diagnostics(self):
-        with patch.object(server, "stop_everywhere_output",
-                          return_value=("", "partial", "One player still active")):
+        with patch.object(server, "_stop_everywhere_typed_core",
+                          return_value=(ExecutionResult("", Outcome.PARTIAL), "One player still active")):
             typed, status = server.stop_everywhere_result(None)
         self.assertIs(typed.outcome, Outcome.PARTIAL)
         self.assertEqual(status, "One player still active")
@@ -20,10 +20,14 @@ class TypedStopEverywhereProviderTests(unittest.TestCase):
         self.assertEqual(status, "Home Assistant is not configured.")
 
     def test_invalid_provider_outcome_is_rejected(self):
-        with patch.object(server, "stop_everywhere_output",
-                          return_value=("", "not_an_outcome", None)):
+        with patch.object(server, "read_music_inventory",
+                          return_value=([], "not_an_outcome")):
             with self.assertRaises(ValueError):
-                server.stop_everywhere_result(None)
+                server.stop_everywhere_result("connection")
+
+    def test_legacy_public_response_remains_triple(self):
+        self.assertEqual(server.stop_everywhere_output(None),
+                         ("", "not_configured", "Home Assistant is not configured."))
 
 
 if __name__ == "__main__":
