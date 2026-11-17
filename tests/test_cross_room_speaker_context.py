@@ -20,4 +20,5 @@ class SatelliteContextTests(unittest.TestCase):
         self.assertIn("session_context_retrieval.recent_context(", source)
         self.assertIn('IDLE_SECONDS = 300', source)
 
-if __name__=="__main__": unittest.main()
+if __name__=="__main__":
+    unittest.main()
