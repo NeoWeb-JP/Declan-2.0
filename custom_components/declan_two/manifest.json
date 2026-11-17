@@ -1,6 +1,10 @@
 {
   "domain": "declan_two",
   "name": "Declan 2.0 Assist Bridge",
+  "after_dependencies": [
+    "ffmpeg",
+    "wyoming"
+  ],
   "codeowners": [
     "@NeoWeb-JP"
   ],
@@ -17,9 +21,5 @@
   "documentation": "https://github.com/NeoWeb-JP/Declan-2.0",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/NeoWeb-JP/Declan-2.0/issues",
-  "version": "0.2.4",
-  "after_dependencies": [
-    "ffmpeg",
-    "wyoming"
-  ]
+  "version": "0.2.4"
 }
