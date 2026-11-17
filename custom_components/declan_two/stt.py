@@ -17,8 +17,8 @@ _LOGGER = logging.getLogger(__name__)
 ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
 MAX_AUDIO_BYTES = 16_000 * 2 * 60  # one minute of 16 kHz, 16-bit mono PCM
 PROMPT = (
-    "Home Assistant voice commands. Declan, Jaco, Edd, fairy lights, "
-    "dining room, kitchen spotlights, sexy time, braai music, Spotify."
+    "Home Assistant voice commands, room names, lighting, timers, routines, "
+    "media playback and music requests."
 )
 
 
