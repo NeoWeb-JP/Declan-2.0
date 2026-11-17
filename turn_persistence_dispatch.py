@@ -1,4 +1,17 @@
 """Dispatch finalized turn data to the existing persistence orchestration."""
+from dataclasses import replace
+from turn_response import TurnResponse
+
+
+def persist_turn_result(response, *, apply_outcome_metadata, **dependencies):
+    """Use the typed response as the authoritative outcome for persistence."""
+    if not isinstance(response, TurnResponse):
+        raise ValueError("Turn persistence requires a typed turn response")
+    reply = response.to_wire(apply_outcome_metadata)
+    dependencies["outcome"] = response.outcome
+    dependencies["routine_status"] = response.routine_status
+    persist_turn(reply, **dependencies)
+    return replace(response, session_response=reply)
 
 
 def persist_turn(reply, *, sessions, finalize, message, phrase, outcome,
