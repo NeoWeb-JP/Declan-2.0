@@ -47,6 +47,20 @@ class CustomRoutineTests(unittest.TestCase):
             self.assertEqual(server.run_custom_routine("tea")[1], "reported_success")
         self.assertEqual(opener.payload["strength"], "strong")
 
+    def test_mapped_provider_vocabulary_is_parsed_before_completion_decisions(self):
+        for outcome, expected in (("success", "reported_success"), ("started", "started"),
+                ("partial", "partial"), ("failed", "failed"), ("cancelled", "cancelled"),
+                ("busy", "unverified"), ("SUCCESS", "unverified"), ([], "unverified")):
+            with self.subTest(outcome=outcome):
+                class Opener:
+                    def open(self, request, timeout):
+                        payload = json.loads(request.data)
+                        result = {"request_id": payload["request_id"], "routine_id": payload["routine_id"],
+                                  "outcome": outcome, "steps": [{"target": "tea", "status": "confirmed"}]}
+                        return io.BytesIO(json.dumps({"service_response": result}).encode())
+                with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Opener())):
+                    self.assertEqual(server.run_custom_routine("tea")[1], expected)
+
     def test_stop_reports_request_not_completed_rollback(self):
         class Opener:
             def open(self, request, timeout):
