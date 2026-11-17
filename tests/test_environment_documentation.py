@@ -36,12 +36,13 @@ BACKEND_MODULES = (
     "custom_components/declan_two/config_flow.py",
     "approved_media_players.py",
     "openai_planner.py",
+    "ai_credentials.py",
     "spotify_playlists.py",
 )
 ENV_READ = re.compile(
-    r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.get\s*\(\s*|\[\s*))['"](DECLAN_[A-Z0-9_]+)['"]"""
+    r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.get\s*\(\s*|\[\s*))['"]((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))['"]"""
 )
-DOCUMENTED = re.compile(r"^\|\s*\`(DECLAN_[A-Z0-9_]+)\`\s*\|", re.MULTILINE)
+DOCUMENTED = re.compile(r"^\|\s*\`((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))\`\s*\|", re.MULTILINE)
 
 
 class EnvironmentDocumentationTests(unittest.TestCase):
@@ -53,10 +54,13 @@ class EnvironmentDocumentationTests(unittest.TestCase):
             'environ.get("DECLAN_EXAMPLE")',
             'os.environ["DECLAN_EXAMPLE"]',
             'environ["DECLAN_EXAMPLE"]',
+            'os.environ.get("OPENAI_API_KEY")',
         )
         for expression in examples:
             with self.subTest(expression=expression):
-                self.assertEqual(ENV_READ.findall(expression), ["DECLAN_EXAMPLE"])
+                self.assertEqual(ENV_READ.findall(expression), [
+                    "OPENAI_API_KEY" if "OPENAI_API_KEY" in expression else "DECLAN_EXAMPLE"
+                ])
 
     def test_backend_environment_reads_are_documented(self):
         documented = set(DOCUMENTED.findall((ROOT / "docs/environment.md").read_text(encoding="utf-8")))
@@ -86,7 +90,7 @@ class EnvironmentDocumentationTests(unittest.TestCase):
                 unaudited[relative] = keys
         self.assertEqual(
             unaudited, {},
-            "Add modules with runtime DECLAN_* reads to BACKEND_MODULES and document new keys",
+            "Add modules with runtime environment reads to BACKEND_MODULES and document new keys",
         )
 
     def test_environment_inventory_has_unique_described_entries(self):
@@ -109,7 +113,7 @@ class EnvironmentDocumentationTests(unittest.TestCase):
     def test_example_environment_keys_are_documented(self):
         documented = set(DOCUMENTED.findall((ROOT / "docs/environment.md").read_text(encoding="utf-8")))
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
-        example_keys = set(re.findall(r"^\s*#?\s*(DECLAN_[A-Z0-9_]+)\s*=", example, re.MULTILINE))
+        example_keys = set(re.findall(r"^\s*#?\s*((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))\s*=", example, re.MULTILINE))
         self.assertEqual(sorted(example_keys - documented), [], "Document .env.example keys")
 
 
