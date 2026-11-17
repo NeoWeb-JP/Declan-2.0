@@ -6,6 +6,7 @@ import re
 from execution_results import ExecutionResult, Outcome
 from music_provider_result import music_execution_result
 from local_outcome_contracts import timer_execution_result, routine_execution_result
+from device_status import DeviceStatusResult
 
 
 @dataclass(frozen=True)
@@ -103,8 +104,9 @@ def registry(deps):
             if error:
                 reply, outcome = "I couldn't read device states from Home Assistant.", error
             else:
-                reply, outcome, target = deps.describe_status(*query, inventory)
-                if outcome == Outcome.CONFIRMED:
+                described = DeviceStatusResult.coerce(deps.describe_status(*query, inventory))
+                reply, outcome, target = described.result.reply, described.result.outcome, described.target
+                if outcome is Outcome.CONFIRMED:
                     guest = next((row.get("state") for row in inventory if isinstance(row, dict)
                                   and row.get("entity_id") == deps.guest_mode_entity), None)
                     reply = deps.decorate(reply, "device_status", guest)
@@ -131,8 +133,8 @@ def registry(deps):
         return HandledCommand("music_play", music_execution_result(result))
 
     def media_search(context, phrase):
-        reply, outcome = deps.search_media(phrase)
-        return HandledCommand("media_search", ExecutionResult(reply, outcome))
+        result = deps.search_media(phrase)
+        return HandledCommand("media_search", result if isinstance(result, ExecutionResult) else ExecutionResult(*result))
 
     return HandlerRegistry((
         Handler("device_status", 10, lambda context: deps.parse_status(context.phrase, context.last_device), status),

@@ -562,6 +562,12 @@ def chained_outcome_result(routine, lighting):
 
 
 def search_media(phrase):
+    """Compatibility API retaining plain reply/outcome pairs."""
+    result = search_media_result(phrase)
+    return result.as_legacy_pair() if result is not None else None
+
+
+def search_media_result(phrase):
     match = re.fullmatch(
         r"(?:where can i (?:watch|stream|find)|(?:search|look) for|find (?:the )?(?:movie|film|show)|"
         r"start (?:movie time|cinema time|cinema mode) and play(?: the (?:movie|film|show))?) (.+)",
@@ -571,13 +577,13 @@ def search_media(phrase):
         return None
     title = match[1].strip()
     if len(title) > 200 or re.search(r"\b(?:and|then)\s+(?:turn|switch|dim|brighten|set|start|stop|unlock|lock|open|play)\b", title):
-        return "Please ask for the film or show separately from any device commands.", "unresolved"
+        return ExecutionResult("Please ask for the film or show separately from any device commands.", Outcome.UNRESOLVED)
     agent = configuration.get("DECLAN_MEDIA_SEARCH_AGENT", "").strip()
     if agent and not re.fullmatch(r"conversation\.[a-z0-9_]+", agent):
-        return "The Declan Local media search agent isn't configured.", "not_configured"
+        return ExecutionResult("The Declan Local media search agent isn't configured.", Outcome.NOT_CONFIGURED)
     connection = ha_device_connection()
     if connection is None:
-        return "The Home Assistant connection isn't configured.", "not_configured"
+        return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
     url, headers, opener = connection
     if not re.fullmatch(r"conversation\.(?:declan_local|jarvis_local)(?:_[a-z0-9]+)*", agent):
         template = (
@@ -595,18 +601,18 @@ def search_media(phrase):
         except (OSError, ValueError) as error:
             if isinstance(error, HTTPError):
                 error.close()
-            return "I couldn't check Home Assistant for the Declan Local media search agent.", "unavailable"
+            return ExecutionResult("I couldn't check Home Assistant for the Declan Local media search agent.", Outcome.UNAVAILABLE)
         candidates = {
             entity for entity in entities if isinstance(entity, str)
             and re.fullmatch(r"conversation\.[a-z0-9_]+", entity)
         }
         if agent and agent not in candidates:
-            return "The configured media search agent isn't available in Declan Local.", "not_configured"
+            return ExecutionResult("The configured media search agent isn't available in Declan Local.", Outcome.NOT_CONFIGURED)
         if not agent:
             if not candidates:
-                return "I couldn't find an active Declan Local conversation agent in Home Assistant.", "not_configured"
+                return ExecutionResult("I couldn't find an active Declan Local conversation agent in Home Assistant.", Outcome.NOT_CONFIGURED)
             if len(candidates) > 1:
-                return "I found multiple Declan Local agents. Set DECLAN_MEDIA_SEARCH_AGENT to the one you use for media search.", "not_configured"
+                return ExecutionResult("I found multiple Declan Local agents. Set DECLAN_MEDIA_SEARCH_AGENT to the one you use for media search.", Outcome.NOT_CONFIGURED)
             agent = candidates.pop()
     try:
         request = Request(f"{url}/api/services/conversation/process?return_response",
@@ -616,12 +622,12 @@ def search_media(phrase):
             payload = json.loads(response.read(1024 * 1024))["service_response"]["response"]
         reply = payload["speech"]["plain"]["speech"]
         if isinstance(reply, str) and reply.strip() and payload.get("response_type") != "error":
-            return reply.strip(), "search_result"
+            return ExecutionResult(reply.strip(), Outcome.SEARCH_RESULT)
     except HTTPError as error:
         error.close()
     except (OSError, ValueError, KeyError, TypeError):
         pass
-    return "I couldn't get a title search result from Declan Local.", "unverified"
+    return ExecutionResult("I couldn't get a title search result from Declan Local.", Outcome.UNVERIFIED)
 
 
 def launch_movie_app(connection, remote, app):
@@ -2681,14 +2687,14 @@ class Handler(BaseHTTPRequestHandler):
                     registry_factory=command_registry.registry,
                     dependencies_factory=command_registry.Dependencies,
                     context_factory=command_registry.RequestContext,
-                    parse_status=device_status.parse, describe_status=device_status.describe,
+                    parse_status=device_status.parse, describe_status=device_status.describe_result,
                     connection=ha_device_connection, inventory=read_ha_inventory,
                     decorate=add_sass, guest_mode_entity=GUEST_MODE_ENTITY,
                     parse_feedback=music.parse_feedback, feedback=music.feedback_result,
                     parse_control=music.parse_control, control=music.control_result,
                     parse_music=music.parse, play=music.play_result,
                     music_inventory=read_music_inventory, areas=read_ha_areas,
-                    search_media=search_media,
+                    search_media=search_media_result,
                 )
                 if local is not None:
                     routine_reply, outcome, status_target = (

@@ -31,8 +31,17 @@ music playback/control directly; mapped execution consumes typed correlated
 completion directly. `chained_outcome_result()` validates and combines enums,
 with `chained_outcome()` retaining its plain-string compatibility contract.
 
+Device status exposes `describe_result()` with a frozen `DeviceStatusResult`
+containing an `ExecutionResult` and optional follow-up target. The registry
+accepts this model and validates legacy injected triples. `describe()` retains
+its original string triple. Media search exposes `search_media_result()` through
+the active registry, preserving typed result identity; `search_media()` retains
+its original pair/None contract. Provider resolution, search routing and response
+decoration retain their previous behavior.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes auxiliary media/device providers and
+scope includes auxiliary action providers (movie launch, announcements, guest
+assignment and switch-as-light fallback) and
 response/session orchestration that still uses legacy tuples. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.

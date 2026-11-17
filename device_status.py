@@ -1,6 +1,8 @@
 """Resolve and describe live Home Assistant device states without changing them."""
 
 import re
+from dataclasses import dataclass
+from execution_results import ExecutionResult, Outcome
 
 
 DOMAINS = {"binary_sensor", "climate", "cover", "fan", "light", "media_player", "switch"}
@@ -27,9 +29,38 @@ def parse(phrase, previous):
     return name, requested
 
 
+@dataclass(frozen=True)
+class DeviceStatusResult:
+    result: ExecutionResult
+    target: str | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.result, ExecutionResult):
+            raise ValueError("Device status requires a typed execution result")
+        if self.target is not None and not isinstance(self.target, str):
+            raise ValueError("Device status target must be text or None")
+
+    @classmethod
+    def coerce(cls, value):
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, (tuple, list)) or len(value) != 3:
+            raise ValueError("Device status requires a typed result or legacy triple")
+        reply, outcome, target = value
+        return cls(ExecutionResult(reply, outcome), target)
+
+    def as_legacy_triple(self):
+        return self.result.reply, self.result.outcome.value, self.target
+
+
 def describe(name, requested, inventory):
+    """Compatibility API retaining plain reply/outcome/target triples."""
+    return describe_result(name, requested, inventory).as_legacy_triple()
+
+
+def describe_result(name, requested, inventory):
     if not name:
-        return "Which device should I check?", "unresolved", None
+        return DeviceStatusResult(ExecutionResult("Which device should I check?", Outcome.UNRESOLVED), None)
     candidates = {}
     devices = {}
     for item in inventory:
@@ -53,7 +84,7 @@ def describe(name, requested, inventory):
         if fallback in devices:
             candidates[fallback] = name.capitalize()
     if not candidates:
-        return f"I couldn't find a Home Assistant device called {name}.", "unresolved", None
+        return DeviceStatusResult(ExecutionResult(f"I couldn't find a Home Assistant device called {name}.", Outcome.UNRESOLVED), None)
     if name in candidates:
         candidates = {name: candidates[name]}
     elif requested in {"on", "off"}:
@@ -66,14 +97,14 @@ def describe(name, requested, inventory):
             reply = f"Which device did you mean? More than one is named {labels[0]}. Which room?"
         else:
             reply = f"Which device did you mean? I found {', '.join(labels)}."
-        return reply, "unresolved", None
+        return DeviceStatusResult(ExecutionResult(reply, Outcome.UNRESOLVED), None)
     entity = next(iter(candidates))
     _, state, attrs = devices[entity]
     label = candidates[entity]
     if entity == PROJECTOR:
         label = "Projector"
     if not isinstance(state, str) or state in {"", "unknown", "unavailable"}:
-        return f"I couldn't verify {label}'s current state.", "unavailable", entity
+        return DeviceStatusResult(ExecutionResult(f"I couldn't verify {label}'s current state.", Outcome.UNAVAILABLE), entity)
 
     if entity == SCREEN and requested in {"up", "down"} and state in {"open", "closed"}:
         position = attrs.get("current_position")
@@ -84,5 +115,5 @@ def describe(name, requested, inventory):
         elif type(position) in (int, float) and 5 < position < 80:
             state = f"partway down at {position:g} percent"
         else:
-            return f"{label} reports it's open. I couldn't verify how far down it is.", "partial", entity
-    return f"{label} is {state.replace('_', ' ')}.", "confirmed", entity
+            return DeviceStatusResult(ExecutionResult(f"{label} reports it's open. I couldn't verify how far down it is.", Outcome.PARTIAL), entity)
+    return DeviceStatusResult(ExecutionResult(f"{label} is {state.replace('_', ' ')}.", Outcome.CONFIRMED), entity)
