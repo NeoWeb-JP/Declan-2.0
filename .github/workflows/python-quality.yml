@@ -38,7 +38,20 @@ jobs:
           # The blocking check above already rejects all available source-level
           # diagnostics. This separate check inventories imports unavailable in
           # the minimal audit environment (not production type regressions).
-          python -m mypy --config-file mypy.ini --show-error-codes .
+          # Preserve the advisory exit status while recording actionable counts.
+          set +e
+          python -m mypy --config-file mypy.ini --show-error-codes . > mypy-advisory.log 2>&1
+          result=$?
+          cat mypy-advisory.log
+          missing=$(grep -c '\[import-not-found\]' mypy-advisory.log || true)
+          other=$(grep 'error: ' mypy-advisory.log | grep -vc '\[import-not-found\]' || true)
+          {
+            echo "### Advisory mypy inventory"
+            echo "- Missing runtime imports: ${missing}"
+            echo "- Other type diagnostics: ${other}"
+            echo "- Exit status: ${result} (advisory; blocking check runs above)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$result"
       - name: Bandit security scan
         run: bandit -r . -x ./tests,./.git -q
       - name: Audit tracked requirements files
