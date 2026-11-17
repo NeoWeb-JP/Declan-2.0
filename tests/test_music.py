@@ -232,7 +232,7 @@ class MusicTests(unittest.TestCase):
 
         self.search_results = {"playlists": [{"name": "Sexy Time", "id": "A" * 22}]}
         with patch.object(self, "open", side_effect=open_request), patch.object(
-            server, "read_music_inventory", side_effect=lambda _: (list(self.players.values()), None)
+            server, 'read_music_inventory_result', side_effect=lambda _: (list(self.players.values()), None)
         ), patch.object(server, "read_guest_mode", return_value="off"), patch.object(
             server.routine_registry, "load", return_value={"sexy_time": {"script": "script.declan_sexy_time_controller", "sensitive": False}}
         ):

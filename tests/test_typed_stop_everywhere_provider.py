@@ -20,7 +20,7 @@ class TypedStopEverywhereProviderTests(unittest.TestCase):
         self.assertEqual(status, "Home Assistant is not configured.")
 
     def test_invalid_provider_outcome_is_rejected(self):
-        with patch.object(server, "read_music_inventory",
+        with patch.object(server, 'read_music_inventory_result',
                           return_value=([], "not_an_outcome")):
             with self.assertRaises(ValueError):
                 server.stop_everywhere_result("connection")

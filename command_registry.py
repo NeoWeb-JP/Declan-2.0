@@ -1,6 +1,7 @@
 """Prioritized local handlers, with pure matching and injected execution dependencies."""
 from collections.abc import Callable
 from dataclasses import dataclass
+import ha_inventory
 import re
 
 from execution_results import ExecutionResult, Outcome
@@ -101,7 +102,8 @@ def registry(deps):
         if connection is None:
             reply, outcome = "The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED
         else:
-            inventory, error = deps.inventory(connection)
+            inventory_result = ha_inventory.InventoryResult.coerce(deps.inventory(connection))
+            inventory, error = inventory_result.inventory, inventory_result.error
             if error:
                 reply, outcome = "I couldn't read device states from Home Assistant.", error
             else:

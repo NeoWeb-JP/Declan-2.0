@@ -69,7 +69,7 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
         opener.open.side_effect = respond
         mapping = {"sexy_time": {"script": "script.bedroom", "sensitive": False}}
         with patch.object(server.routine_registry, "load", return_value=mapping), \
-             patch.object(server, "read_music_inventory", return_value=([], None)), \
+             patch.object(server, 'read_music_inventory_result', return_value=([], None)), \
              patch.object(server.music, "music_players", return_value=({"bedroom": "media_player.bedroom"}, {})), \
              patch.object(server.music, "control", side_effect=AssertionError("legacy music")), \
              patch.object(server.music, "control_result", return_value=ExecutionResult("Cannot verify", Outcome.UNVERIFIED)) as stop, \

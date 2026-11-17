@@ -255,8 +255,22 @@ replies now construct enum-backed execution results directly. The remaining
 `_lighting_result` calls adapt injected executors; public pair/triple adapters and
 external protocol/state comparisons are intentional compatibility boundaries.
 
-Issue #17 and its overall typed-outcome checklist remain open. The audit found
-one further shared provider contract: `ha_inventory.read` returns inventory/error
-pairs consumed by lighting and music inventory readers. That transport/result
-boundary still requires a typed core and compatibility adapters. Broader evidence
-statuses must not be silently narrowed to verified `ActionStatus`.
+The shared inventory transport now returns frozen `InventoryResult` values from
+`ha_inventory.read_result`. Production failures use `Outcome.UNAVAILABLE` and
+discard incomplete inventory; successful empty inventories remain distinct from
+failures. Page/byte/deadline bounds, registry-change detection and duplicate checks
+remain unchanged. `read`, `read_ha_inventory` and `read_music_inventory` retain
+their original list/error pairs, including `None` on transport failure.
+
+Active server, lighting, music, device-status, fallback and settings paths use
+typed inventory readers. Music providers and the registry accept typed inventory
+callbacks directly and coerce legacy callbacks only at injection boundaries.
+Music retry decisions use enum identity; shared inventory callbacks used by
+mapped routines and origin-specific Stop retain typed values. Consumer row lists
+retain their existing shape without serializing outcome enums internally.
+
+Issue #17 and its overall typed-outcome checklist remain open as requested. The
+identified inventory/provider/dispatch follow-ups above are implemented; this
+scoped audit does not claim that every unrelated subsystem or external protocol
+has completed the wider outcome migration. Broader evidence statuses must not be
+silently narrowed to verified `ActionStatus`.
