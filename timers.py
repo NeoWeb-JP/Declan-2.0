@@ -279,7 +279,7 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
                 return timer_execution_result((f"{timer['name']} is still running. Say cancel the {named_timer} to cancel it.", "unresolved"))
             db.execute("DELETE FROM timers WHERE id = ?", (timer["id"],))
             verb = "Cancelled" if not expired else "Stopped the alarm for"
-            return f"{verb} {timer['name']}.", "timer_cancelled" if not expired else "timer_stopped"
+            return timer_execution_result((f"{verb} {timer['name']}.", "timer_cancelled" if not expired else "timer_stopped"))
     except (OSError, ValueError, sqlite3.Error):
         return timer_execution_result(("I couldn't complete that timer request.", "unavailable"))
 
