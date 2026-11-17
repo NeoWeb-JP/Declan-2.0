@@ -13,9 +13,11 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "custom_components/declan_two"
 spec = importlib.util.spec_from_file_location("ha_audit_under_test", INTEGRATION / "ha_audit.py")
+assert spec is not None and spec.loader is not None
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 review_spec = importlib.util.spec_from_file_location("audit_reviews_under_test", INTEGRATION / "audit_reviews.py")
+assert review_spec is not None and review_spec.loader is not None
 reviews = importlib.util.module_from_spec(review_spec)
 review_spec.loader.exec_module(reviews)
 
