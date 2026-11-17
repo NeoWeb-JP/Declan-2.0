@@ -30,6 +30,9 @@ class Outcome(StrEnum):
     REJECTED = "rejected"
     DUPLICATE = "duplicate"
     SKIPPED = "skipped"
+    CONFIRMATION_PROMPT = "confirmation_prompt"
+    CONFIRMATION_CANCELLED = "confirmation_cancelled"
+    CONFIRMATION_DENIED = "confirmation_denied"
 
 
 class MovieLaunchStatus(StrEnum):

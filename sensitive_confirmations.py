@@ -3,6 +3,7 @@ import os
 import sqlite3
 from threading import Lock
 from time import monotonic
+from confirmation_results import ConfirmationDecision, ConfirmationEvaluation
 
 YES = {"yes", "yes confirm", "confirm", "go ahead", "do it"}
 NO = {"no", "cancel", "never mind", "don't", "stop"}
@@ -82,7 +83,12 @@ class ConfirmationGate:
         self.pending = {}
 
     def evaluate(self, *, session, origin, phrase, group, speaker):
-        """Return (decision, phrase): allow, prompt, confirmed, cancelled, denied."""
+        """Compatibility API retaining plain decision/phrase pairs."""
+        result = self.evaluate_result(session=session, origin=origin, phrase=phrase, group=group, speaker=speaker)
+        return result.decision.value, result.approved_phrase
+
+    def evaluate_result(self, *, session, origin, phrase, group, speaker):
+        """Return a typed one-shot decision bound to session and origin."""
         now = self.clock()
         with self.lock:
             for key, item in list(self.pending.items()):
@@ -93,13 +99,13 @@ class ConfirmationGate:
             if existing and phrase in YES | NO:
                 del self.pending[key]
                 if phrase in NO:
-                    return "cancelled", None
-                return "confirmed", existing["phrase"]
+                    return ConfirmationEvaluation(ConfirmationDecision.CANCELLED)
+                return ConfirmationEvaluation(ConfirmationDecision.CONFIRMED, existing["phrase"])
             if phrase in YES | NO:
-                return "allow", None
+                return ConfirmationEvaluation(ConfirmationDecision.ALLOW)
             if not group or (not group.startswith("custom:") and group not in groups()):
-                return "allow", None
+                return ConfirmationEvaluation(ConfirmationDecision.ALLOW)
             if not session or not origin:
-                return "denied", None
+                return ConfirmationEvaluation(ConfirmationDecision.DENIED)
             self.pending[key] = {"phrase": phrase, "expires": now + TTL_SECONDS}
-            return "prompt", None
+            return ConfirmationEvaluation(ConfirmationDecision.PROMPT)
