@@ -78,7 +78,7 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
             if not valid_declan_origin(url):
                 errors["url"] = "invalid_url"
             elif len(token) < 32:
-                errors["token"] = "invalid_token"
+                errors["token"] = "invalid_token"  # nosec B105 - HA form error key, not a credential
             else:
                 try:
                     async with async_get_clientsession(self.hass).get(
