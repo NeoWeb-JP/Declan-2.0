@@ -65,7 +65,7 @@ def general_reply(reply, *, outcome, routine_reply, routine_turn, light_result,
             and (verified or completed or parse_music(phrase) or parse_music_control(phrase)
                  or (action_results and all(step.get("status") in
                      {"confirmed", "already_set", "completed"} for step in action_results)))
-            and not re.match(r"^(?:preview|dry[ -]run)\\b", phrase)
+            and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
             and not any(word in phrase.casefold() for word in (
                 "smoke", "fire alarm", "carbon monoxide", "security alert",
                 "emergency", "intruder", "panic alarm"))):
