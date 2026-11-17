@@ -21,6 +21,7 @@ class SettingsTransactionRollbackTests(unittest.TestCase):
         @contextmanager
         def database():
             try:
+                self.db.execute("BEGIN")
                 with self.db:
                     yield self.db
             except BaseException:
