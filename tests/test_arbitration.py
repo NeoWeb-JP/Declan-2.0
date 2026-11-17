@@ -9,6 +9,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 _spec = spec_from_file_location("declan_capture_level", Path(__file__).resolve().parents[1] / "custom_components/declan_two/capture_level.py")
+assert _spec is not None and _spec.loader is not None
 _capture = module_from_spec(_spec)
 _spec.loader.exec_module(_capture)
 CaptureLevel = _capture.CaptureLevel
