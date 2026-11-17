@@ -89,6 +89,7 @@ import ai_intent_gate
 import guarded_fallback
 import ha_dispatcher
 import routine_registry
+from routine_action_evidence import RoutineActionStatus, parse_routine_actions
 import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
@@ -305,20 +306,13 @@ def read_visitors_present():
 
 
 def routine_action_results(steps):
-    if isinstance(steps, dict):
-        steps = [{"target": target, "status": status} for target, status in steps.items()]
-    if not isinstance(steps, list):
-        return []
-    return [
-        {
-            **{key: step[key][:240] for key in ("target", "status", "action", "entity_id", "detail", "evidence", "observed_at")
-               if isinstance(step.get(key), str)},
-            **({"required": step["required"]} if type(step.get("required")) is bool else {}),
-        }
-        for step in steps[:200]
-        if isinstance(step, dict) and isinstance(step.get("target"), str)
-        and step.get("status") in ("confirmed", "already_set", "skipped", "failed", "unverified", "planned", "requested", "already_requested", "not_requested", "not_configured")
-    ]
+    """Compatibility API retaining bounded plain-string evidence mappings."""
+    return [step.to_wire() for step in routine_action_results_typed(steps)]
+
+
+def routine_action_results_typed(steps):
+    """Read validated typed evidence from the mapped routine provider."""
+    return parse_routine_actions(steps)
 
 
 MOVIE_APPS = {
@@ -536,11 +530,11 @@ def run_custom_routine_result(name, action_results=None, *, approved=False, para
         status = value.get("outcome")
         if status not in {"started", "success", "partial", "failed", "cancelled"}:
             return ExecutionResult(f"{name} returned no verified completion outcome.", Outcome.UNVERIFIED), None
+        steps = routine_action_results_typed(value.get("steps"))
         if action_results is not None:
-            action_results.extend(routine_action_results(value.get("steps")))
-        steps = routine_action_results(value.get("steps"))
-        required = [step for step in steps if step.get("required", True)]
-        if status == "success" and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(step["status"] not in {"confirmed", "already_set"} for step in required)):
+            action_results.extend(step.to_wire() for step in steps)
+        required = [step for step in steps if step.required is not False]
+        if status == "success" and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(not step.completed for step in required)):
             return ExecutionResult(f"{name} was started, but required steps were not verified.", Outcome.UNVERIFIED), None
         outcome = {"started": Outcome.STARTED, "success": Outcome.REPORTED_SUCCESS,
                    "partial": Outcome.PARTIAL, "failed": Outcome.FAILED,
@@ -811,14 +805,13 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
         if resolved not in expected:
             return ExecutionResult("Movie Time. I couldn't verify that the result matched the requested direction.", Outcome.UNVERIFIED), None
     raw_steps = result.get("steps")
-    steps = routine_action_results(raw_steps)
+    steps = routine_action_results_typed(raw_steps)
     if action_results is not None:
-        action_results.extend(steps)
-    completed = {"confirmed", "already_set"}
-    required = [step for step in steps if step.get("required", True)]
-    confirmed = any(step["status"] in completed for step in required)
+        action_results.extend(step.to_wire() for step in steps)
+    required = [step for step in steps if step.required is not False]
+    confirmed = any(step.completed for step in required)
     if outcome == "success" and (not required or len(steps) != len(raw_steps)
-                                 or any(step["status"] not in completed for step in required)):
+                                 or any(not step.completed for step in required)):
         outcome = "partial" if confirmed else "unknown"
     elif outcome == "partial" and not confirmed:
         outcome = "unknown"
@@ -844,10 +837,10 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
         return ExecutionResult(reply, Outcome.REPORTED_SUCCESS), detail
     if outcome == "busy":
         return ExecutionResult(f"{salutation} The routine is already in progress.", Outcome.BUSY), None
-    verified = [step["target"].replace("_", " ") for step in required if step["status"] in completed]
-    failed = [step["target"].replace("_", " ") for step in required if step["status"] == "failed"]
-    incomplete = [step["target"].replace("_", " ") for step in required
-                  if step["status"] not in completed and step["status"] != "failed"]
+    verified = [step.target.replace("_", " ") for step in required if step.completed]
+    failed = [step.target.replace("_", " ") for step in required if step.status is RoutineActionStatus.FAILED]
+    incomplete = [step.target.replace("_", " ") for step in required
+                  if not step.completed and step.status is not RoutineActionStatus.FAILED]
     details = []
     if verified:
         details.append("Home Assistant confirmed " + ", ".join(verified[:8]) + ".")
