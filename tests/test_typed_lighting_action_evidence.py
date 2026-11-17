@@ -4,13 +4,33 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-from execution_results import Outcome
+from execution_results import ExecutionResult, Outcome
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus, confirmed_lighting_entities
 from lighting_context_finalization import confirmed_lighting_context
 import server
 
 
 class TypedLightingActionEvidenceTests(unittest.TestCase):
+    def test_skipped_lighting_aggregation_retains_typed_outcomes_and_order(self):
+        inventory = [{"entity_id": "light.study", "state": "on", "attributes": {"friendly_name": "Study"}},
+                     {"entity_id": "light.hall", "state": "unavailable", "attributes": {"friendly_name": "Hall"}}]
+        for name, expected in (("missing and hall", Outcome.UNRESOLVED),
+                ("hall and missing", Outcome.UNAVAILABLE), ("study and missing", Outcome.PARTIAL),
+                ("study", Outcome.CONFIRMED)):
+            with self.subTest(name=name), \
+                 patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
+                 patch.object(server, "read_ha_inventory", return_value=(inventory, None)), \
+                 patch.object(server, "read_ha_areas", return_value={}), \
+                 patch.object(server, "set_switch_as_light_result", return_value=None), \
+                 patch.object(server, "add_sass", side_effect=lambda reply, *_: reply), \
+                 patch.object(server, "ExecutionResult", wraps=ExecutionResult) as model:
+                result = server.set_lights_result(name, "on")
+            self.assertIs(result.outcome, expected)
+            self.assertTrue(all(isinstance(call.args[1], Outcome) for call in model.call_args_list))
+            if "missing" in name:
+                self.assertIn("couldn't find", result.reply)
+            self.assertIs(type(result.as_legacy_pair()[1]), str)
+
     def test_all_six_statuses_roundtrip_without_promoting_planned_actions(self):
         for status in LightingActionStatus:
             evidence = LightingActionEvidence("Study", "turn_on", status, "light.study", "detail")
