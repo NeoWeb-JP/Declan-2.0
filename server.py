@@ -1219,7 +1219,7 @@ def stop_origin_result(connection, satellite, device):
         return ExecutionResult("", Outcome.UNRESOLVED), "Stop needs an identifiable Assist satellite or device."
     inventory, error = read_music_inventory(connection)
     if error:
-        return "", error, "Could not discover the originating satellite's outputs."
+        return ExecutionResult("", error), "Could not discover the originating satellite's outputs."
     origin = next((row for row in inventory if row.get("entity_id") == satellite), None)
     origin_device = (origin.get("declan_device") if origin else None) or device
     if not origin and device:
