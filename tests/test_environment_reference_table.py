@@ -11,8 +11,8 @@ class EnvironmentReferenceTests(unittest.TestCase):
     def test_environment_variables_remain_in_one_table(self):
         content = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         section = content.split("## Variables documented for operators", 1)[1].split(
-            "The added HA, Assist", 1
-        )[0]
+            "\n## ", 1
+        )[0].split("\n\n", 1)[0]
         rows = [line for line in section.splitlines() if line.startswith("|")]
         self.assertGreater(len(rows), 20)
         self.assertEqual(rows[0], "| Variable | Purpose | Example |")
@@ -25,8 +25,8 @@ class EnvironmentReferenceTests(unittest.TestCase):
     def test_every_operator_variable_has_purpose_and_example(self):
         content = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         section = content.split("## Variables documented for operators", 1)[1].split(
-            "The added HA, Assist", 1
-        )[0]
+            "\n## ", 1
+        )[0].split("\n\n", 1)[0]
         rows = [line for line in section.splitlines() if line.startswith("|")][2:]
         self.assertTrue(rows, "Expected documented operator variables")
         for row in rows:
