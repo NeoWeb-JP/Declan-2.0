@@ -58,6 +58,7 @@ import device_command_dispatch
 import lighting_command_dispatch
 import lighting_context_finalization
 import fallback_entity_authorization
+import guarded_fallback_dispatch
 import history
 import music
 import approved_media_players
@@ -2636,11 +2637,13 @@ class Handler(BaseHTTPRequestHandler):
                 body, self.headers.get("Authorization", ""),
                 os.environ.get("DECLAN_ASSIST_TOKEN", ""),
             )
-            fallback = guarded_openai_fallback(
-                effective_message, source=source, exposed_entities=exposed)
-            if fallback is not None:
-                routine_reply, outcome, fallback_steps = fallback
-                action_results.extend(fallback_steps)
+            fallback_result = guarded_fallback_dispatch.dispatch_fallback(
+                effective_message, source=source, exposed_entities=exposed,
+                fallback_handler=guarded_openai_fallback,
+                action_results=action_results,
+            )
+            if fallback_result is not None:
+                routine_reply, outcome = fallback_result
         chat_kind = effective_message.casefold().strip(" .?!")
         guest_mode = read_guest_mode()
         visitor_present = read_visitors_present()
