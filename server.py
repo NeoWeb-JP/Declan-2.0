@@ -46,6 +46,7 @@ import session_context_retrieval
 import retry_context
 import retry_cancellation
 import learned_intent_resolution
+import sensitive_confirmation_response
 import history
 import music
 import approved_media_players
@@ -2497,22 +2498,13 @@ class Handler(BaseHTTPRequestHandler):
             decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate(
                 session=session_id, origin=satellite or origin_device,
                 phrase=candidate, group=group, speaker=body.get("speaker"))
-            if decision in {"prompt", "cancelled", "denied"}:
-                response = {
-                    "prompt": "Please confirm or cancel this action within 30 seconds.",
-                    "cancelled": "Cancelled. Nothing has been run.",
-                    "denied": "I can't identify the originating satellite for that action.",
-                }[decision]
-                result = {"reply": response, "session_id": session_id,
-                          "outcome": "confirmation_" + decision,
-                          "continue_conversation": decision == "prompt"}
-                try:
-                    history.record(session_id, source, message, response, result["outcome"],
-                                   speaker=body.get("speaker"), diagnostic_id=diagnostics.current_id())
-                except (OSError, sqlite3.Error):
-                    result["history_saved"] = False
-                    self.log_error("Could not save conversation history.")
-                self.send_json(200, result)
+            confirmation_reply = sensitive_confirmation_response.confirmation_response(
+                decision, session_id, source=source, message=message,
+                speaker=body.get("speaker"), record=history.record,
+                diagnostic_id=diagnostics.current_id, log_error=self.log_error,
+            )
+            if confirmation_reply is not None:
+                self.send_json(200, confirmation_reply)
                 return
             if decision == "confirmed":
                 phrase = approved_phrase
