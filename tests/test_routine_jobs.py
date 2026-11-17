@@ -58,6 +58,44 @@ class BackgroundDispatchTests(unittest.TestCase):
 
 
 class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
+    def test_step_evidence_is_typed_bounded_and_preserves_unknown_wire_statuses(self):
+        models = audit_tests.job_results
+        job = {"job_id": "job", "entity_id": "script.movie_time"}
+        for status in (*models.RoutineJobStepStatus, "future_status", "", None, ["confirmed"]):
+            with self.subTest(status=status):
+                raw = {"outcome": "partial", "steps": [{"target": "t" * 300, "status": status,
+                        "action": "a" * 300, "entity_id": "e" * 300, "secret": "hidden"}]}
+                summary = self.jobs_view.summarize_result_typed(raw, job, {})
+                evidence = summary.steps[0]
+                self.assertIsInstance(evidence, models.RoutineJobStepEvidence)
+                self.assertIs(evidence.status, status if isinstance(status, models.RoutineJobStepStatus) else None)
+                expected = {"target": "t" * 240, "action": "a" * 240, "entity_id": "e" * 240, "required": True}
+                if isinstance(status, str):
+                    expected["status"] = str(status)
+                self.assertEqual(summary.to_wire()["steps"], [expected])
+                self.assertNotIn("hidden", str(evidence))
+                with self.assertRaises(AttributeError):
+                    evidence.status = None
+
+    def test_step_verification_preserves_required_flags_and_malformed_row_behavior(self):
+        models = audit_tests.job_results
+        job = {"job_id": "job", "entity_id": "script.movie_time"}
+        for required, accepted, projected in ((True, False, True), (False, True, False),
+                (0, True, True), (None, True, True), ("yes", False, True)):
+            with self.subTest(required=required):
+                summary = self.jobs_view.summarize_result_typed(
+                    {"outcome": "success", "steps": [{"status": "requested", "required": required}]}, job, {})
+                expected = self.jobs_view.RoutineJobOutcome.REPORTED_SUCCESS if accepted else self.jobs_view.RoutineJobOutcome.UNVERIFIED
+                self.assertIs(summary.outcome, expected)
+                self.assertIs(summary.to_wire()["steps"][0]["required"], projected)
+        for steps, expected in (([], "reported_success"), ([None], "unverified"),
+                ([{"status": "confirmed"}, {"status": "already_set"}], "reported_success"),
+                ([{"status": "confirmed"}, {"status": "future_status"}], "unverified")):
+            summary = self.jobs_view.summarize_result_typed({"outcome": "success", "steps": steps}, job, {})
+            self.assertEqual(summary.outcome.value, expected)
+        with self.assertRaises(TypeError):
+            models.RoutineJobStepEvidence("confirmed", (), True, True)
+
     async def test_stored_job_readback_keeps_typed_outcomes_and_wire_compatibility(self):
         state = await self.jobs_view.job_state(self.hass)
         for index, outcome in enumerate((*self.jobs_view.RoutineJobOutcome, "future_status")):

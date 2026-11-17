@@ -20,6 +20,58 @@ class RoutineJobOutcome(StrEnum):
     SKIPPED = "skipped"
 
 
+class RoutineJobStepStatus(StrEnum):
+    CONFIRMED = "confirmed"
+    ALREADY_SET = "already_set"
+    FAILED = "failed"
+    UNVERIFIED = "unverified"
+    UNAVAILABLE = "unavailable"
+    SKIPPED = "skipped"
+    PLANNED = "planned"
+    REQUESTED = "requested"
+    ALREADY_REQUESTED = "already_requested"
+    NOT_REQUESTED = "not_requested"
+    NOT_CONFIGURED = "not_configured"
+    OBSERVED = "observed"
+
+
+@dataclass(frozen=True)
+class RoutineJobStepEvidence:
+    status: RoutineJobStepStatus | None
+    fields: tuple[tuple[str, str], ...]
+    required: bool
+    requires_completion: bool
+
+    def __post_init__(self):
+        if self.status is not None and not isinstance(self.status, RoutineJobStepStatus):
+            raise TypeError('step status must be a RoutineJobStepStatus or None')
+        if not isinstance(self.fields, tuple) or any(
+                not isinstance(pair, tuple) or len(pair) != 2
+                or pair[0] not in {'target', 'action', 'entity_id', 'status'}
+                or not isinstance(pair[1], str) or len(pair[1]) > 240 for pair in self.fields):
+            raise ValueError('step fields must be bounded projected text')
+        if type(self.required) is not bool or type(self.requires_completion) is not bool:
+            raise TypeError('step required flags must be booleans')
+
+    @classmethod
+    def from_mapping(cls, step) -> 'RoutineJobStepEvidence':
+        value = step.get('status')
+        try:
+            status = RoutineJobStepStatus(value) if isinstance(value, str) else None
+        except ValueError:
+            status = None
+        fields = tuple((key, step[key][:240]) for key in ('target', 'action', 'entity_id', 'status')
+                       if isinstance(step.get(key), str))
+        return cls(status, fields, step.get('required', True) is not False, bool(step.get('required', True)))
+
+    @property
+    def completed(self) -> bool:
+        return self.status in {RoutineJobStepStatus.CONFIRMED, RoutineJobStepStatus.ALREADY_SET}
+
+    def to_wire(self) -> dict:
+        return {**dict(self.fields), 'required': self.required}
+
+
 def job_outcome(value) -> RoutineJobOutcome | None:
     if not isinstance(value, str):
         return None

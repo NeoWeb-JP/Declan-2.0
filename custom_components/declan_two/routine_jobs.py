@@ -10,7 +10,7 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 
 from .script_discovery_view import declared_script_fields
-from .routine_job_results import RoutineJobOutcome, StoredRoutineJob, job_outcome
+from .routine_job_results import RoutineJobOutcome, RoutineJobStepEvidence, StoredRoutineJob, job_outcome
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class RoutineJobSummary:
     outcome: RoutineJobOutcome
-    steps: tuple[dict, ...] = ()
+    steps: tuple[RoutineJobStepEvidence | dict, ...] = ()
     reason: str | None = None
 
     def __post_init__(self):
@@ -26,7 +26,8 @@ class RoutineJobSummary:
             raise TypeError("outcome must be a RoutineJobOutcome")
 
     def to_wire(self) -> dict:
-        summary: dict[str, object] = {"outcome": self.outcome.value, "steps": [dict(step) for step in self.steps]}
+        summary: dict[str, object] = {"outcome": self.outcome.value, "steps": [
+            step.to_wire() if isinstance(step, RoutineJobStepEvidence) else dict(step) for step in self.steps]}
         if self.reason is not None:
             summary["reason"] = self.reason
         return summary
@@ -87,14 +88,13 @@ def summarize_result_typed(result, job, fields) -> RoutineJobSummary | None:
     raw = result.get("steps", [])
     if not isinstance(raw, list) or len(raw) > 200:
         return RoutineJobSummary(RoutineJobOutcome.UNVERIFIED, reason="invalid_steps")
-    if outcome is RoutineJobOutcome.REPORTED_SUCCESS and any(not isinstance(step, Mapping) or
-            (step.get("required", True) and step.get("status") not in ("confirmed", "already_set")) for step in raw):
+    steps = tuple(RoutineJobStepEvidence.from_mapping(step) for step in raw if isinstance(step, Mapping))
+    if outcome is RoutineJobOutcome.REPORTED_SUCCESS and (len(steps) != len(raw) or any(
+            step.requires_completion and not step.completed for step in steps)):
         outcome = RoutineJobOutcome.UNVERIFIED
-    steps = [{**{key: step[key][:240] for key in ("target", "action", "entity_id", "status") if isinstance(step.get(key), str)},
-              "required": step.get("required", True) is not False} for step in raw if isinstance(step, Mapping)]
     reason = result.get("reason_code")
     safe_reason = reason if isinstance(reason, str) and re.fullmatch(r"[a-z0-9_]{1,80}", reason) else None
-    return RoutineJobSummary(outcome, tuple(steps), safe_reason)
+    return RoutineJobSummary(outcome, steps, safe_reason)
 
 
 def summarize_result(result, job, fields):
