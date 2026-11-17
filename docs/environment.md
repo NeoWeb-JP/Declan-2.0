@@ -42,6 +42,9 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_WEATHER_ENTITY` | Home Assistant weather entity for contextual conditions | `weather.forecast_home` |
 | `DECLAN_INDOOR_TEMPERATURE_ENTITY` | Home Assistant indoor temperature/climate entity | `climate.home` |
 | `DECLAN_DEFAULT_COUNTRY` | Default country for contextual information lookups | `GB` |
+| `DECLAN_APPROVED_MEDIA_PLAYERS_FILE` | Optional path for per-area approved media player configuration; defaults to `.data/approved-media-players.json` beside `approved_media_players.py` | Leave unset |
+| `DECLAN_SPOTIFY_PLAYLISTS_FILE` | Optional path for Spotify playlist catalogue; defaults to `.data/spotify-playlists.json` beside `spotify_playlists.py` | Leave unset |
+| `DECLAN_OPENAI_MODEL` | Optional OpenAI planner model override; defaults to an empty string when unset | Leave unset unless configuring the planner |
 
 The added HA, Assist, bind-address and release-version names were verified against `server.py` on 17 November 2026. This inventory covers names verified in the backend modules listed by the environment documentation regression test, including `updates.py` and `sensitive_confirmations.py`; additional modules may define more settings. Configuration keys in `configuration.py` are stored as named configuration entries and should not be assumed to be read directly from the process environment. Confirm each value's source in the deployment before relying on an environment override.
 

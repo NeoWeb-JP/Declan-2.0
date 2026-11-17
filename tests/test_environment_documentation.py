@@ -34,11 +34,14 @@ BACKEND_MODULES = (
     "custom_components/declan_two/script_result_view.py",
     "custom_components/declan_two/capabilities_view.py",
     "custom_components/declan_two/config_flow.py",
+    "approved_media_players.py",
+    "openai_planner.py",
+    "spotify_playlists.py",
 )
 ENV_READ = re.compile(
     r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.get\s*\(\s*|\[\s*))['"](DECLAN_[A-Z0-9_]+)['"]"""
 )
-DOCUMENTED = re.compile(r"`(DECLAN_[A-Z0-9_]+)`")
+DOCUMENTED = re.compile(r"^\|\s*\`(DECLAN_[A-Z0-9_]+)\`\s*\|", re.MULTILINE)
 
 
 class EnvironmentDocumentationTests(unittest.TestCase):
