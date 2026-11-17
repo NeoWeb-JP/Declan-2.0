@@ -54,41 +54,41 @@ async def async_setup(hass, config):
 
 async def _forward_assist_history(hass, entry, data):
     """Forward validated reply data; callable without publishing a global bus event."""
-        message = data.get("message")
-        reply = data.get("reply")
-        if not all(isinstance(value, str) and 0 < len(value.strip()) <= 1000 for value in (message, reply)):
-            return
-        # Bus events can be emitted by other integrations and automations.
-        # Reject malformed or oversized metadata before forwarding to history.
-        session_id = data.get("session_id")
-        outcome = data.get("outcome")
-        routine_status = data.get("routine_status")
-        steps = data.get("steps")
-        if any(value is not None and (not isinstance(value, str) or len(value) > 128)
-               for value in (session_id, outcome, routine_status)):
-            return
-        if steps is not None and (not isinstance(steps, list) or len(steps) > 50
-                                  or any(not isinstance(step, str) or len(step) > 256 for step in steps)):
-            return
-        try:
-            async with async_get_clientsession(hass).post(
-                entry.data["url"] + "/api/assist/history",
-                json={
-                    "message": message,
-                    "reply": reply,
-                    "session_id": session_id,
-                    "outcome": outcome,
-                    "routine_status": routine_status,
-                    "steps": steps,
-                },
-                headers={"Authorization": f"Bearer {entry.data['token']}"},
-                allow_redirects=False,
-                timeout=aiohttp.ClientTimeout(total=3),
-            ) as response:
-                if response.status != 200:
-                    _LOGGER.warning("Declan could not save a Home Assistant sentence reply (HTTP %s)", response.status)
-        except (aiohttp.ClientError, TimeoutError):
-            _LOGGER.warning("Declan could not save a Home Assistant sentence reply")
+    message = data.get("message")
+    reply = data.get("reply")
+    if not all(isinstance(value, str) and 0 < len(value.strip()) <= 1000 for value in (message, reply)):
+        return
+    # Bus events can be emitted by other integrations and automations.
+    # Reject malformed or oversized metadata before forwarding to history.
+    session_id = data.get("session_id")
+    outcome = data.get("outcome")
+    routine_status = data.get("routine_status")
+    steps = data.get("steps")
+    if any(value is not None and (not isinstance(value, str) or len(value) > 128)
+           for value in (session_id, outcome, routine_status)):
+        return
+    if steps is not None and (not isinstance(steps, list) or len(steps) > 50
+                              or any(not isinstance(step, str) or len(step) > 256 for step in steps)):
+        return
+    try:
+        async with async_get_clientsession(hass).post(
+            entry.data["url"] + "/api/assist/history",
+            json={
+                "message": message,
+                "reply": reply,
+                "session_id": session_id,
+                "outcome": outcome,
+                "routine_status": routine_status,
+                "steps": steps,
+            },
+            headers={"Authorization": f"Bearer {entry.data['token']}"},
+            allow_redirects=False,
+            timeout=aiohttp.ClientTimeout(total=3),
+        ) as response:
+            if response.status != 200:
+                _LOGGER.warning("Declan could not save a Home Assistant sentence reply (HTTP %s)", response.status)
+    except (aiohttp.ClientError, TimeoutError):
+        _LOGGER.warning("Declan could not save a Home Assistant sentence reply")
 
 
 async def async_setup_entry(hass, entry):
