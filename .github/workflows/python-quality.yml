@@ -31,7 +31,9 @@ jobs:
           python -m mypy --config-file mypy.ini --disable-error-code import-not-found \
             server.py music.py script_discovery.py personality.py response_library.py \
             updates.py sensitive_confirmations.py declan_logs.py configuration.py \
-            command_responses.py routine_responses.py
+            command_responses.py routine_responses.py \
+            tests/test_quiet_speech.py tests/test_ha_audit.py \
+            tests/test_declan_compatibility.py tests/test_arbitration.py
       - name: Mypy full-repository baseline (advisory)
         continue-on-error: true
         run: python -m mypy --config-file mypy.ini .
