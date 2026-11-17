@@ -161,9 +161,13 @@ def stop_pending_routines_result():
 
 IDLE_SECONDS = 300
 ASSIST_PORT = 52737
-RELEASE_VERSION: str | None = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
-if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION) or len(RELEASE_VERSION) > 40:
-    RELEASE_VERSION = None
+configured_release_version = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
+RELEASE_VERSION: str | None = (
+    configured_release_version
+    if re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", configured_release_version)
+    and len(configured_release_version) <= 40
+    else None
+)
 RELEASE_VERSION = updates.installed_version(RELEASE_VERSION)
 SEXY_TIME_COMMANDS = {
     **{phrase: "start" for name in ("sexy time", "sixty time", "60 time", "bedroom mood", "romance mode")
