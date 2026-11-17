@@ -45,7 +45,7 @@ class ProviderDispatchOutcomeTests(unittest.TestCase):
     def test_lighting_read_only_status_and_legacy_strings(self):
         inventory = [{"entity_id": "light.kitchen", "state": "on", "attributes": {}}]
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-             patch.object(server, "read_ha_inventory", return_value=(inventory, None)), \
+             patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
              patch.object(server, "add_sass", side_effect=lambda reply, *_: reply):
             typed = server.set_lights_result("", None)
             legacy = server.set_lights("", None)
@@ -55,7 +55,7 @@ class ProviderDispatchOutcomeTests(unittest.TestCase):
 
     def test_lighting_inventory_error_is_validated(self):
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-             patch.object(server, "read_ha_inventory", return_value=([], "invalid")):
+             patch.object(server, 'read_ha_inventory_result', return_value=([], "invalid")):
             with self.assertRaises(ValueError):
                 server.set_lights_result("kitchen", "on")
 

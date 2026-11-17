@@ -19,7 +19,7 @@ class TypedLightingActionEvidenceTests(unittest.TestCase):
                 ("study", Outcome.CONFIRMED)):
             with self.subTest(name=name), \
                  patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-                 patch.object(server, "read_ha_inventory", return_value=(inventory, None)), \
+                 patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
                  patch.object(server, "read_ha_areas", return_value={}), \
                  patch.object(server, "set_switch_as_light_result", return_value=None), \
                  patch.object(server, "add_sass", side_effect=lambda reply, *_: reply), \
@@ -77,7 +77,7 @@ class TypedLightingActionEvidenceTests(unittest.TestCase):
             opener = Mock()
             steps = []
             with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
-                 patch.object(server, "read_ha_inventory", return_value=(inventory, None)), \
+                 patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
                  patch.object(server, "read_ha_areas", return_value={}), \
                  patch.object(server, "add_sass", side_effect=lambda reply, *_: reply), \
                  patch.object(server, "LightingActionEvidence", wraps=LightingActionEvidence) as model:
@@ -91,7 +91,7 @@ class TypedLightingActionEvidenceTests(unittest.TestCase):
         inventory = [{"entity_id": "light.study", "state": "off", "attributes": {}}]
         steps = [{"status": "planned"}] * 200
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-             patch.object(server, "read_ha_inventory", return_value=(inventory, None)), \
+             patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
              patch.object(server, "LightingActionEvidence", wraps=LightingActionEvidence) as model:
             server.set_lights_result("study", "on", preview=True, action_results=steps)
         self.assertEqual(len(steps), 200)

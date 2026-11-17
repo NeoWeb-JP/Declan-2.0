@@ -2,6 +2,7 @@
 
 import json
 import diagnostics
+import ha_inventory
 import approved_media_players
 from execution_results import ExecutionResult, Outcome
 from music_provider_result import music_execution_result
@@ -147,9 +148,10 @@ def _feedback_provider(command, connection, read_inventory):
     if connection is None or not HANDOFF.acquire(blocking=False):
         return ExecutionResult("I couldn't check the current music. Try again in a moment.", Outcome.UNAVAILABLE)
     try:
-        inventory, error = read_inventory(connection)
+        inventory_result = ha_inventory.InventoryResult.coerce(read_inventory(connection))
+        inventory, error = inventory_result.inventory, inventory_result.error
         if error:
-            return ExecutionResult("I couldn't check what's playing.", Outcome(error))
+            return ExecutionResult("I couldn't check what's playing.", error)
         destinations, players = music_players(inventory)
         active = playback_sources(destinations, players)
         if room:
@@ -189,7 +191,8 @@ def skip_blocked_tracks(connection, read_inventory):
             blocked = {uri for (uri,) in db.execute("SELECT uri FROM preferences WHERE weight = 0")}
         if not blocked:
             return
-        inventory, error = read_inventory(connection)
+        inventory_result = ha_inventory.InventoryResult.coerce(read_inventory(connection))
+        inventory, error = inventory_result.inventory, inventory_result.error
         if error:
             return
         now = monotonic()
@@ -422,11 +425,13 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
         return ExecutionResult("A music request is already in progress.", Outcome.BUSY)
     location = "on the music player"
     try:
-        inventory, error = read_inventory(connection)
-        if error == "unavailable":
-            inventory, error = read_inventory(connection)
+        inventory_result = ha_inventory.InventoryResult.coerce(read_inventory(connection))
+        inventory, error = inventory_result.inventory, inventory_result.error
+        if error is Outcome.UNAVAILABLE:
+            inventory_result = ha_inventory.InventoryResult.coerce(read_inventory(connection))
+            inventory, error = inventory_result.inventory, inventory_result.error
         if error:
-            return ExecutionResult("I couldn't check the music players.", Outcome(error))
+            return ExecutionResult("I couldn't check the music players.", error)
         destinations, players = music_players(inventory)
         # Unqualified Stop is household-wide, regardless of the originating room.
         # Only approved Music Assistant destinations may receive commands.
@@ -674,9 +679,10 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         return ExecutionResult("A music request is already in progress.", Outcome.BUSY)
     stopped = False
     try:
-        inventory, error = read_inventory(connection)
+        inventory_result = ha_inventory.InventoryResult.coerce(read_inventory(connection))
+        inventory, error = inventory_result.inventory, inventory_result.error
         if error:
-            return ExecutionResult("I couldn't check which players are active.", Outcome(error))
+            return ExecutionResult("I couldn't check which players are active.", error)
         if room is None:
             areas = {room_key(row["declan_area"]) for row in inventory
                      if origin and (row.get("entity_id") == origin or row.get("declan_device") == origin)

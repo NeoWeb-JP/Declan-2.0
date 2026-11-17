@@ -82,7 +82,7 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
     def test_lighting_fallback_bypasses_legacy_switch_provider(self):
         expected = ExecutionResult("Already on", Outcome.CONFIRMED)
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-             patch.object(server, "read_ha_inventory", return_value=([], None)), \
+             patch.object(server, 'read_ha_inventory_result', return_value=([], None)), \
              patch.object(server, "read_ha_areas", return_value={}), \
              patch.object(server, "set_switch_as_light", side_effect=AssertionError("legacy switch")), \
              patch.object(server, "set_switch_as_light_result", return_value=expected) as switch:

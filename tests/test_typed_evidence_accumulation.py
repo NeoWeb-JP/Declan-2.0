@@ -41,7 +41,7 @@ class TypedEvidenceAccumulationTests(unittest.TestCase):
         steps = ActionEvidenceBuffer()
         inventory = [{"entity_id": "light.study", "state": "off", "attributes": {}}]
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-             patch.object(server, "read_ha_inventory", return_value=(inventory, None)), \
+             patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
              patch.object(LightingActionEvidence, "to_wire", side_effect=AssertionError("early projection")):
             result = server.set_lights_result("study", "on", preview=True, action_results=steps)
         self.assertIs(result.outcome, Outcome.PREVIEW)

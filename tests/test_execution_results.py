@@ -143,7 +143,7 @@ class TypedPipelineTests(TestCase):
         connection=("http://ha.local",{},Opener(["on","on"]))
         with patch.object(server.ai_settings,"read",return_value=settings), \
              patch.object(server,"ha_device_connection",return_value=connection), \
-             patch.object(server,"read_ha_inventory",return_value=(self.inventory,None)), \
+             patch.object(server,'read_ha_inventory_result',return_value=(self.inventory,None)), \
              patch.object(server,"_bounded_ai_plan",return_value=self.plan), \
              patch.object(server.ai_pricing,"charge",return_value=10):
             for diagnostics in (True,False):

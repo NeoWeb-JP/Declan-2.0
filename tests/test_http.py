@@ -286,7 +286,7 @@ class APITests(TestCase):
             result = self.ask("Play country music.", path="/api/assist", device="utility-device")
             self.assertEqual(result["outcome"], "confirmed")
             play.assert_called_once_with((None, "country music", "spotify"), None,
-                                         server.read_music_inventory, origin="utility-device")
+                                         server.read_music_inventory_result, origin="utility-device")
 
     def test_stop_everywhere_replies_silently(self):
         rows = [
@@ -296,7 +296,7 @@ class APITests(TestCase):
         destinations = {"everywhere": "media_player.everywhere", "kitchen": "media_player.kitchen"}
         players = {row["entity_id"]: row for row in rows}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), patch.object(
-            server, "read_music_inventory", return_value=(rows, None)
+            server, 'read_music_inventory_result', return_value=(rows, None)
         ), patch.object(server.music, "music_players", return_value=(destinations, players)), patch.object(
             server.music, "request") as request, patch.object(
             server.music, "wait_for", return_value=True
@@ -521,7 +521,7 @@ class APITests(TestCase):
         states = [{"entity_id": "light.fairy_lights", "state": "on",
                    "attributes": {"friendly_name": "Fairy Lights"}}]
         with patch.object(server, "ha_device_connection", return_value=("url", {}, None)), patch.object(
-            server, "read_ha_inventory", return_value=(states, None)
+            server, 'read_ha_inventory_result', return_value=(states, None)
         ):
             turn = self.ask("Is the fairy lights on?")
             self.assertEqual(turn["outcome"], "confirmed")

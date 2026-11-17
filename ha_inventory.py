@@ -1,5 +1,7 @@
 """Read command-relevant state fields in bounded HA template pages."""
 import json
+from dataclasses import dataclass
+from execution_results import Outcome
 from time import monotonic
 from urllib.error import HTTPError
 from urllib.request import Request
@@ -13,11 +15,43 @@ DEVICE_FIELDS = ('friendly_name', 'current_position', 'brightness', 'supported_c
 MUSIC_FIELDS = ('friendly_name', 'media_title', 'media_artist', 'media_content_id', 'group_members')
 
 
+@dataclass(frozen=True)
+class InventoryResult:
+    rows: tuple[dict, ...] | None
+    error: Outcome | None = None
+
+    def __post_init__(self):
+        if self.rows is not None and not isinstance(self.rows, tuple):
+            raise TypeError('inventory rows must be a tuple or None')
+        if self.error is not None and not isinstance(self.error, Outcome):
+            raise TypeError('inventory error must be an Outcome or None')
+
+    @property
+    def inventory(self):
+        return list(self.rows) if self.rows is not None else None
+
+    def as_legacy_pair(self):
+        return self.inventory, self.error.value if self.error is not None else None
+
+    @classmethod
+    def coerce(cls, value) -> 'InventoryResult':
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, (tuple, list)) or len(value) != 2:
+            raise ValueError('inventory provider must return a typed result or inventory/error pair')
+        rows, error = value
+        return cls(tuple(rows) if rows is not None else None, Outcome(error) if error else None)
+
+
 def read(connection, *, music=False):
+    return read_result(connection, music=music).as_legacy_pair()
+
+
+def read_result(connection, *, music=False) -> InventoryResult:
     url, headers, opener = connection
     domains = ('media_player', 'assist_satellite') if music else DEVICE_DOMAINS
     fields = MUSIC_FIELDS if music else DEVICE_FIELDS
-    inventory = []
+    inventory: list[dict] = []
     total = None
     deadline = monotonic() + 10
     try:
@@ -74,9 +108,9 @@ def read(connection, *, music=False):
             if len(inventory) == total:
                 if len({row['entity_id'] for row in inventory}) != total:
                     raise ValueError('Duplicate inventory entities')
-                return inventory, None
+                return InventoryResult(tuple(inventory))
     except HTTPError as error:
         error.close()
     except (OSError, ValueError, TypeError):
         pass
-    return None, 'unavailable'
+    return InventoryResult(None, Outcome.UNAVAILABLE)

@@ -10,7 +10,7 @@ class OriginStopTypedMusicTests(unittest.TestCase):
     def _stop(self, music_result, *, satellite=None):
         inventory = [{"entity_id": "assist_satellite.kitchen",
                       "declan_area": "Kitchen", "declan_device": "kitchen"}]
-        with patch.object(server, "read_music_inventory", return_value=(inventory, None)), \
+        with patch.object(server, 'read_music_inventory_result', return_value=(inventory, None)), \
              patch.object(server.music, "control_result", return_value=music_result) as control:
             result, status = server.stop_origin_result("connection", satellite or "assist_satellite.kitchen", None)
         control.assert_called_once()
@@ -33,7 +33,7 @@ class OriginStopTypedMusicTests(unittest.TestCase):
     def test_legacy_wrapper_preserves_music_stop_response(self):
         inventory = [{"entity_id": "assist_satellite.kitchen", "declan_area": "Kitchen",
                       "declan_device": "kitchen"}]
-        with patch.object(server, "read_music_inventory", return_value=(inventory, None)), \
+        with patch.object(server, 'read_music_inventory_result', return_value=(inventory, None)), \
              patch.object(server.music, "control_result",
                           return_value=ExecutionResult("Stopped.", Outcome.CONFIRMED)), \
              patch.object(server.timers, "stop_due"):

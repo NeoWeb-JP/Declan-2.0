@@ -653,7 +653,8 @@ def launch_movie_app_result(connection, remote, app):
 
 
 def discover_movie_entities(connection, room, *, script, remote, needs_remote):
-    inventory, error = read_ha_inventory(connection)
+    inventory_result = ha_inventory.InventoryResult.coerce(read_ha_inventory_result(connection))
+    inventory, error = inventory_result.inventory, inventory_result.error
     if error:
         return script, remote, "I couldn't read the Home Assistant entity list."
     room_names = {"lounge": ("lounge", "living room"), "bedroom": ("bedroom", "master bedroom")}
@@ -704,7 +705,8 @@ def discover_movie_entities(connection, room, *, script, remote, needs_remote):
 
 
 def verify_legacy_lounge_start(connection, script):
-    inventory, error = read_ha_inventory(connection)
+    inventory_result = ha_inventory.InventoryResult.coerce(read_ha_inventory_result(connection))
+    inventory, error = inventory_result.inventory, inventory_result.error
     if error:
         return "Home Assistant didn't return the lounge device states."
     entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
@@ -946,9 +948,10 @@ def run_sexy_time_result(operation, connection, *, approved=False):
     if not SEXY_TIME_LOCK.acquire(blocking=False):
         return ExecutionResult("I'm still handling the previous Sexy Time request.", Outcome.BUSY), None
     try:
-        inventory, inventory_error = read_music_inventory(connection)
+        inventory_result = ha_inventory.InventoryResult.coerce(read_music_inventory_result(connection))
+        inventory, inventory_error = inventory_result.inventory, inventory_result.error
         if inventory_error:
-            return ExecutionResult("I couldn't discover the bedroom music player.", Outcome(inventory_error)), None
+            return ExecutionResult("I couldn't discover the bedroom music player.", inventory_error), None
         destinations, _ = music.music_players(inventory)
         player = destinations.get("bedroom")
         if not player:
@@ -978,7 +981,7 @@ def run_sexy_time_result(operation, connection, *, approved=False):
         lighting_ok = result.get("lighting_ok") is True
         if operation == "end":
             music_result = music.control_result(
-                ("media_stop", "bedroom"), connection, lambda _: (inventory, None),
+                ("media_stop", "bedroom"), connection, lambda _: inventory_result,
             )
             music_ok = music_result.outcome is Outcome.CONFIRMED
             if lighting_ok:
@@ -996,7 +999,7 @@ def run_sexy_time_result(operation, connection, *, approved=False):
         except (OSError, ValueError):
             volume_ok = False
         music_result = music.play_result(("bedroom", "sexy time music", "spotify"), connection,
-                                    lambda _: (inventory, None))
+                                    lambda _: inventory_result)
         reply, outcome = music_result.reply, music_result.outcome
         spoken = choose_line("sexy_time_start", read_guest_mode())
         if outcome is Outcome.CONFIRMED and volume_ok:
@@ -1165,11 +1168,19 @@ def approved_area_labels(areas):
 
 
 def read_ha_inventory(connection):
-    return ha_inventory.read(connection)
+    return read_ha_inventory_result(connection).as_legacy_pair()
+
+
+def read_ha_inventory_result(connection) -> ha_inventory.InventoryResult:
+    return ha_inventory.read_result(connection)
 
 
 def read_music_inventory(connection):
-    return ha_inventory.read(connection, music=True)
+    return read_music_inventory_result(connection).as_legacy_pair()
+
+
+def read_music_inventory_result(connection) -> ha_inventory.InventoryResult:
+    return ha_inventory.read_result(connection, music=True)
 
 
 def stop_everywhere_result(connection):
@@ -1188,7 +1199,8 @@ def _stop_everywhere_typed_core(connection):
     """Stop all active approved Music Assistant destinations, including Everywhere."""
     if connection is None:
         return ExecutionResult("", Outcome.NOT_CONFIGURED), "Home Assistant is not configured."
-    inventory, error = read_music_inventory(connection)
+    inventory_result = ha_inventory.InventoryResult.coerce(read_music_inventory_result(connection))
+    inventory, error = inventory_result.inventory, inventory_result.error
     if error:
         return ExecutionResult("", error), "Could not discover the approved music players."
     destinations, players = music.music_players(inventory)
@@ -1230,7 +1242,8 @@ def stop_origin_result(connection, satellite, device):
     from execution_results import ExecutionResult, Outcome
     if connection is None or not (satellite or device):
         return ExecutionResult("", Outcome.UNRESOLVED), "Stop needs an identifiable Assist satellite or device."
-    inventory, error = read_music_inventory(connection)
+    inventory_result = ha_inventory.InventoryResult.coerce(read_music_inventory_result(connection))
+    inventory, error = inventory_result.inventory, inventory_result.error
     if error:
         return ExecutionResult("", error), "Could not discover the originating satellite's outputs."
     origin = next((row for row in inventory if row.get("entity_id") == satellite), None)
@@ -1267,7 +1280,7 @@ def stop_origin_result(connection, satellite, device):
         return ExecutionResult("", Outcome.UNRESOLVED), "No playback output or area could be resolved for the satellite."
     music_result = music.control_result(
         ("media_stop", music.room_key(area)), connection,
-        lambda _: (inventory, None),
+        lambda _: inventory_result,
     )
     if music_result.outcome is Outcome.CONFIRMED and satellite:
         try:
@@ -1385,9 +1398,10 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     if connection is None:
         return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
     url, headers, opener = connection
-    inventory, error = read_ha_inventory(connection)
+    inventory_result = ha_inventory.InventoryResult.coerce(read_ha_inventory_result(connection))
+    inventory, error = inventory_result.inventory, inventory_result.error
     if error:
-        return ExecutionResult("I couldn't read the lights from Home Assistant.", Outcome(error))
+        return ExecutionResult("I couldn't read the lights from Home Assistant.", error)
 
     guest_mode = next(
         (item.get("state") for item in inventory
@@ -1768,7 +1782,8 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=()):
     connection = ha_device_connection()
     if connection is None:
         return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("Home Assistant is unavailable.", Outcome.UNAVAILABLE))
-    inventory, error = read_ha_inventory(connection)
+    inventory_result = ha_inventory.InventoryResult.coerce(read_ha_inventory_result(connection))
+    inventory, error = inventory_result.inventory, inventory_result.error
     if error or inventory is None:
         return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("I couldn't verify Home Assistant devices.", Outcome.UNAVAILABLE))
     # Only the authenticated HA integration supplies its effective Assist
@@ -1899,7 +1914,8 @@ class Handler(BaseHTTPRequestHandler):
         if connection is None:
             self.send_json(503, {"error": "Home Assistant is not configured."})
             return
-        inventory, error = read_music_inventory(connection)
+        inventory_result = ha_inventory.InventoryResult.coerce(read_music_inventory_result(connection))
+        inventory, error = inventory_result.inventory, inventory_result.error
         if error:
             self.send_json(503, {"error": "Home Assistant media inventory is unavailable."})
             return
@@ -2654,7 +2670,7 @@ class Handler(BaseHTTPRequestHandler):
                 scope=scope, execute=routine_follow_on.execute_result,
                 parse_music=music.parse, play_music=music.play_result,
                 connection=ha_device_connection,
-                music_inventory=read_music_inventory,
+                music_inventory=read_music_inventory_result,
                 handle_lighting=handle_light_request_result,
                 last_lights=last_lights, chained_outcome=chained_outcome_result,
             )
@@ -2683,12 +2699,12 @@ class Handler(BaseHTTPRequestHandler):
                     dependencies_factory=command_registry.Dependencies,
                     context_factory=command_registry.RequestContext,
                     parse_status=device_status.parse, describe_status=device_status.describe_result,
-                    connection=ha_device_connection, inventory=read_ha_inventory,
+                    connection=ha_device_connection, inventory=read_ha_inventory_result,
                     decorate=add_sass, guest_mode_entity=GUEST_MODE_ENTITY,
                     parse_feedback=music.parse_feedback, feedback=music.feedback_result,
                     parse_control=music.parse_control, control=music.control_result,
                     parse_music=music.parse, play=music.play_result,
-                    music_inventory=read_music_inventory, areas=read_ha_areas,
+                    music_inventory=read_music_inventory_result, areas=read_ha_areas,
                     search_media=search_media_result,
                 )
                 if local is not None:
@@ -2841,7 +2857,7 @@ def main():
                 if monotonic() >= next_music_check:
                     next_music_check = monotonic() + 5
                     try:
-                        music.skip_blocked_tracks(ha_device_connection(), read_music_inventory)
+                        music.skip_blocked_tracks(ha_device_connection(), read_music_inventory_result)
                     except Exception:
                         logging.exception("Blocked music could not be checked.")
                 if monotonic() >= next_prune:

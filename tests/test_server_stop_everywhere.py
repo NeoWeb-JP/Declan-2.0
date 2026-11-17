@@ -22,7 +22,7 @@ class ServerStopEverywhereTests(unittest.TestCase):
             calls.append(data["entity_id"])
             players[data["entity_id"]]["state"] = "idle"
 
-        with patch.object(server, "read_music_inventory", return_value=([], None)), \
+        with patch.object(server, 'read_music_inventory_result', return_value=([], None)), \
              patch.object(server.music, "music_players", return_value=(destinations, players)), \
              patch.object(server.music, "request", side_effect=dispatch), \
              patch.object(server.music, "wait_for",
@@ -43,7 +43,7 @@ class ServerStopEverywhereTests(unittest.TestCase):
             calls.append(data["entity_id"])
             players[data["entity_id"]]["state"] = "idle"
 
-        with patch.object(server, "read_music_inventory", return_value=([], None)), \
+        with patch.object(server, 'read_music_inventory_result', return_value=([], None)), \
              patch.object(server.music, "music_players",
                           return_value=({"kitchen": approved}, players)), \
              patch.object(server.music, "request", side_effect=dispatch), \

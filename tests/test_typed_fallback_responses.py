@@ -68,7 +68,7 @@ class TypedFallbackResponseTests(unittest.TestCase):
                  patch.object(server.ai_settings, "read", return_value=settings), \
                  patch.object(server.ai_intent_gate, "is_action_request", return_value=True), \
                  patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-                 patch.object(server, "read_ha_inventory", return_value=(inventory, None)), \
+                 patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
                  patch.object(server.ai_context, "select", return_value=inventory), \
                  patch.object(server.history, "database", return_value=MagicMock()), \
                  patch.object(server.guarded_fallback, "run_guarded_result", return_value=self.execution) as run, \
