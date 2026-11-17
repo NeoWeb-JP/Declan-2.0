@@ -25,7 +25,7 @@ def routine_reply(reply, *, outcome, routine_turn, routine_voice_result,
     """Apply editable routine response text without overriding previews or safety replies."""
     import re
     if not (routine_turn and outcome != "preview"
-            and not re.match(r"^(?:preview|dry[ -]run)\\b", phrase)
+            and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
             and not any(word in phrase.casefold() for word in (
                 "smoke", "fire alarm", "carbon monoxide", "security alert",
                 "emergency", "intruder", "panic alarm"))):
