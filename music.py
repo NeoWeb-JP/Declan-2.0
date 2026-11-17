@@ -857,7 +857,7 @@ def feedback_result(command, connection, read_inventory):
 def control_result(command, connection, read_inventory, *, origin=None,
                    read_areas=None, assist=False):
     """Typed Music Assistant control result with existing locking semantics."""
-    return music_execution_result(control(
+    return music_execution_result(_control_provider(
         command, connection, read_inventory, origin=origin,
         read_areas=read_areas, assist=assist,
     ))

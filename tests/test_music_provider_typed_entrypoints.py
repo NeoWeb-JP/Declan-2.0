@@ -16,12 +16,12 @@ class MusicProviderTypedTests(unittest.TestCase):
         legacy.assert_called_once()
 
     def test_control_preserves_origin_and_assist(self):
-        with patch.object(music, "control", return_value=("Stopped", "confirmed")) as legacy:
+        with patch.object(music, "_control_provider", return_value=ExecutionResult("Stopped", Outcome.CONFIRMED)) as provider:
             result = music.control_result(("media_stop", None), "ha", Mock(),
                                           origin="kitchen", read_areas=None, assist=True)
         self.assertIs(result.outcome, Outcome.CONFIRMED)
-        self.assertEqual(legacy.call_args.kwargs["origin"], "kitchen")
-        self.assertTrue(legacy.call_args.kwargs["assist"])
+        self.assertEqual(provider.call_args.kwargs["origin"], "kitchen")
+        self.assertTrue(provider.call_args.kwargs["assist"])
 
     def test_play_preserves_origin(self):
         with patch.object(music, "play", return_value=("Playing", "confirmed")) as legacy:
@@ -36,7 +36,7 @@ class MusicProviderTypedTests(unittest.TestCase):
                 music.play_result(("kitchen", "country", "spotify"), "ha", Mock())
 
     def test_typed_provider_preserves_unverified(self):
-        with patch.object(music, "control", return_value=("Cannot verify", "unverified")):
+        with patch.object(music, "_control_provider", return_value=ExecutionResult("Cannot verify", Outcome.UNVERIFIED)):
             result = music.control_result(("media_stop", None), "ha", Mock())
         self.assertIs(result.outcome, Outcome.UNVERIFIED)
 
