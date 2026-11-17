@@ -14,7 +14,6 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_INGRESS_TOKEN` | Separate bearer token used by the Home Assistant Ingress proxy | Generate with `openssl rand -hex 32` |
 | `DECLAN_VOICEPIPELINE_URL` | Optional URL of the VoicePipeline management API | `http://127.0.0.1:8000` |
 | `DECLAN_VOICEPIPELINE_TOKEN` | Optional VoicePipeline API bearer token, if authentication is enabled | Leave empty when not required |
-
 | `DECLAN_ALLOW_UNCONFIGURED_MA` | Allows the Music Assistant path without its usual configuration guard when set to `1` | Leave unset unless deliberately testing |
 | `DECLAN_SPOTIFY_CLIENT_ID` | Spotify API application client ID | Keep secret where applicable |
 | `DECLAN_SPOTIFY_CLIENT_SECRET` | Spotify API application client secret | Keep secret |
