@@ -1,6 +1,7 @@
 """Validated internal contracts for origin-bound sensitive confirmations."""
 from dataclasses import dataclass
 from enum import StrEnum
+from execution_results import Outcome
 
 
 class ConfirmationDecision(StrEnum):
@@ -9,6 +10,23 @@ class ConfirmationDecision(StrEnum):
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
     DENIED = "denied"
+
+
+@dataclass(frozen=True)
+class ConfirmationReplyResult:
+    reply: str
+    outcome: Outcome
+    continue_conversation: bool
+
+    def __post_init__(self):
+        if not isinstance(self.reply, str) or not isinstance(self.outcome, Outcome):
+            raise TypeError("Confirmation reply requires text and a typed outcome")
+        if type(self.continue_conversation) is not bool:
+            raise TypeError("Conversation continuation must be a boolean")
+
+    def to_wire(self, session_id):
+        return {"reply": self.reply, "session_id": session_id,
+                "outcome": self.outcome.value, "continue_conversation": self.continue_conversation}
 
 
 @dataclass(frozen=True)

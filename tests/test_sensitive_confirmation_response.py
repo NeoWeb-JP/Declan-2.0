@@ -3,9 +3,34 @@ import sqlite3
 import unittest
 from unittest.mock import Mock
 from sensitive_confirmation_response import confirmation_response
+from sensitive_confirmation_response import confirmation_reply_result
+from confirmation_results import ConfirmationDecision
+from execution_results import Outcome
 
 
 class ConfirmationResponseTests(unittest.TestCase):
+    def test_reply_results_retain_typed_outcomes_until_serialization(self):
+        expected = {ConfirmationDecision.PROMPT: Outcome.CONFIRMATION_PROMPT,
+                    ConfirmationDecision.CANCELLED: Outcome.CONFIRMATION_CANCELLED,
+                    ConfirmationDecision.DENIED: Outcome.CONFIRMATION_DENIED}
+        for decision in ConfirmationDecision:
+            with self.subTest(decision=decision):
+                result = confirmation_reply_result(decision)
+                self.assertEqual(result, confirmation_reply_result(decision.value))
+                if decision not in expected:
+                    self.assertIsNone(result)
+                    continue
+                self.assertIs(result.outcome, expected[decision])
+                self.assertIs(result.continue_conversation, decision is ConfirmationDecision.PROMPT)
+                with self.assertRaises(AttributeError):
+                    setattr(result, "outcome", Outcome.CONFIRMED)
+                wire = result.to_wire("session-1")
+                self.assertIs(type(wire["outcome"]), str)
+                self.assertEqual(self.response(decision), wire)
+                self.assertIs(type(self.record.call_args.args[4]), str)
+        for decision in (None, [], {}, "PROMPT", " prompt", "future"):
+            self.assertIsNone(confirmation_reply_result(decision))
+
     def setUp(self):
         self.record = Mock()
         self.diagnostic_id = Mock(return_value="trace-1")
