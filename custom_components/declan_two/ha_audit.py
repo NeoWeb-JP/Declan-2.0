@@ -18,6 +18,34 @@ IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]*\.[a-z0-9_]+\Z")
 SELECTORS = {"entity_id": "entity", "device_id": "device", "area_id": "area"}
 
 
+class AuditSeverity(StrEnum):
+    ERROR = "error"
+    WARNING = "warning"
+    UNVERIFIED = "unverified"
+
+
+@dataclass(frozen=True)
+class AuditFinding:
+    severity: AuditSeverity
+    code: str
+    path: str
+    recommendation: str
+
+    def __post_init__(self):
+        if not isinstance(self.severity, AuditSeverity):
+            raise TypeError("severity must be an AuditSeverity")
+        if any(not isinstance(value, str) for value in (self.code, self.path, self.recommendation)):
+            raise TypeError("Audit finding fields must be text")
+
+    def to_wire(self) -> dict:
+        return {"severity": self.severity.value, "code": self.code,
+                "path": self.path, "recommendation": self.recommendation}
+
+
+def finding_value(finding, key):
+    return getattr(finding, key) if isinstance(finding, AuditFinding) else finding[key]
+
+
 class TraceOutcome(StrEnum):
     FAILED = "failed"
     PARTIAL = "partial"
@@ -119,7 +147,9 @@ def review_fingerprint(routine, findings, execution):
     relevant = {"entity_id": routine["entity_id"], "config": routine.get("config"),
                 "disabled": routine.get("disabled", False),
                 "references": {kind: sorted(values, key=str) for kind, values in routine.get("references", {}).items()},
-                "findings": sorted([row for row in findings if row["path"] != "execution"], key=lambda row: json.dumps(row, sort_keys=True))}
+                "findings": sorted([row.to_wire() if isinstance(row, AuditFinding) else row
+                                    for row in findings if finding_value(row, "path") != "execution"],
+                                   key=lambda row: json.dumps(row, sort_keys=True))}
     if execution and execution_value(execution[0], "status") in {TraceOutcome.FAILED, TraceOutcome.PARTIAL}:
         relevant["latest_failure"] = {key: execution_value(execution[0], key) for key in ("run_id", "status")}
     background = stored_job(routine.get("background_result"))
@@ -147,8 +177,8 @@ def trace_steps(trace):
 def review_evidence(routine, findings, execution):
     """Separate unchanged source from issues a human has already assessed."""
     source = review_fingerprint({**routine, "background_result": None}, [], [])
-    issues = [["finding", row["severity"], row["code"], row["path"]]
-              for row in findings if row["path"] != "execution"]
+    issues = [["finding", finding_value(row, "severity"), finding_value(row, "code"), finding_value(row, "path")]
+              for row in findings if finding_value(row, "path") != "execution"]
     issues.extend(["trace", execution_value(row, "run_id"), execution_value(row, "status")] for row in execution
                   if execution_value(row, "status") in {TraceOutcome.FAILED, TraceOutcome.PARTIAL})
     background = stored_job(routine.get("background_result"))
@@ -162,47 +192,47 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
     """Analyze a fresh snapshot; inputs are not modified or persisted."""
     known = set(states) | set(registry)
     items = []
+    severity_counts = {severity: 0 for severity in AuditSeverity}
     for routine in sorted(routines, key=lambda row: row["entity_id"]):
         entity_id = routine["entity_id"]
-        findings = []
+        findings: list[AuditFinding] = []
         dependencies = set()
 
         def finding(severity, code, path, recommendation):
-            row = {"severity": severity, "code": code, "path": path,
-                   "recommendation": recommendation}
+            row = AuditFinding(severity, code, path, recommendation)
             if row not in findings:
                 findings.append(row)
 
         def reference(kind, value, path):
             if not isinstance(value, str) or any(token in value for token in ("{{", "{%", "{#")):
-                finding("unverified", "dynamic_reference", path,
+                finding(AuditSeverity.UNVERIFIED, "dynamic_reference", path,
                         "Review this template in Home Assistant; the audit does not evaluate it.")
                 return
             for target in value.split(",") if kind == "entity" else [value]:
                 target = target.strip()
                 if target in {"all", "none"}:
-                    finding("unverified", "broad_target", path,
+                    finding(AuditSeverity.UNVERIFIED, "broad_target", path,
                             "Review the targets selected at execution time in Home Assistant.")
                     continue
                 dependencies.add((kind, target))
                 inventory = known if kind == "entity" else devices if kind == "device" else areas
                 if target not in inventory:
-                    finding("error", "missing_" + kind, path,
+                    finding(AuditSeverity.ERROR, "missing_" + kind, path,
                             f"Review missing {kind} {target} in Home Assistant and correct the reference.")
                 elif kind == "entity":
                     if registry.get(target, {}).get("disabled"):
-                        finding("warning", "disabled_entity", path,
+                        finding(AuditSeverity.WARNING, "disabled_entity", path,
                                 f"Review whether {target} should be enabled or removed from this routine.")
                     elif target not in states:
-                        finding("warning", "entity_without_state", path,
+                        finding(AuditSeverity.WARNING, "entity_without_state", path,
                                 f"Check why {target} has no current state in Home Assistant.")
                     elif states[target].get("state") in {"unavailable", "unknown"}:
-                        finding("warning", "unavailable_entity", path,
+                        finding(AuditSeverity.WARNING, "unavailable_entity", path,
                                 f"Check the integration and availability of {target}.")
 
         def walk(value, path="config", depth=0, inspect_dependencies=True):
             if depth > 40:
-                finding("unverified", "inspection_depth", path,
+                finding(AuditSeverity.UNVERIFIED, "inspection_depth", path,
                         "Inspect deeply nested configuration in Home Assistant.")
                 return
             if isinstance(value, Mapping):
@@ -217,15 +247,15 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                         if IDENTIFIER.fullmatch(child):
                             dependencies.add(("service", child))
                             if child not in services:
-                                finding("error", "missing_service", child_path,
+                                finding(AuditSeverity.ERROR, "missing_service", child_path,
                                         f"Check that service {child} is registered in Home Assistant.")
                             if child.startswith("script.") and child not in {"script.turn_on", "script.turn_off", "script.toggle", "script.reload"}:
                                 reference("entity", child, child_path)
                         else:
-                            finding("unverified", "dynamic_service", child_path,
+                            finding(AuditSeverity.UNVERIFIED, "dynamic_service", child_path,
                                     "Review the service selected at runtime in Home Assistant.")
                     elif isinstance(child, str) and any(token in child for token in ("{{", "{%", "{#")):
-                        finding("unverified", "template_not_evaluated", child_path,
+                        finding(AuditSeverity.UNVERIFIED, "template_not_evaluated", child_path,
                                 "Review template dependencies and execution traces in Home Assistant.")
                     else:
                         # Variable payloads describe data, including returned step
@@ -240,27 +270,30 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
         if isinstance(config, Mapping):
             walk(config)
         else:
-            finding("unverified", "configuration_unavailable", "config",
+            finding(AuditSeverity.UNVERIFIED, "configuration_unavailable", "config",
                     "Check the loaded configuration in Home Assistant; dependency inspection is incomplete.")
         for kind, values in routine.get("references", {}).items():
             for value in values:
                 reference(kind, value, "loaded_references." + kind)
         if routine.get("state") in {"unavailable", "unknown"}:
-            finding("warning", "routine_unavailable", "state", "Check this routine's integration in Home Assistant.")
+            finding(AuditSeverity.WARNING, "routine_unavailable", "state", "Check this routine's integration in Home Assistant.")
         if routine.get("disabled"):
-            finding("warning", "routine_disabled", "state", "Review whether this routine should remain disabled.")
+            finding(AuditSeverity.WARNING, "routine_disabled", "state", "Review whether this routine should remain disabled.")
         execution = []
         for trace in traces.get(entity_id, []):
             execution.append(classify_trace_typed(trace))
         execution.sort(key=lambda row: row.start or "", reverse=True)
         execution = execution[:5]
         if not execution:
-            finding("unverified", "no_trace", "execution",
+            finding(AuditSeverity.UNVERIFIED, "no_trace", "execution",
                     "No retained trace is available. Review a future normal run in Home Assistant.")
         elif any(row.status in {TraceOutcome.FAILED, TraceOutcome.PARTIAL} for row in execution):
-            finding("error", "execution_failed", "execution",
+            finding(AuditSeverity.ERROR, "execution_failed", "execution",
                     "Open the corresponding run in Home Assistant Traces to inspect the failing action.")
         review_source, review_issues = review_evidence(routine, findings, execution)
+        if not routine.get("stale"):
+            for row in findings:
+                severity_counts[row.severity] += 1
         items.append({"entity_id": entity_id, "name": routine.get("name") or entity_id,
                       "review_source": review_source, "review_issues": review_issues,
                       "background_result": stored_job(routine["background_result"]).to_wire()
@@ -271,7 +304,7 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                       "fingerprint": review_fingerprint(routine, findings, execution),
                       "state": routine.get("state"), "disabled": bool(routine.get("disabled")),
                       "dependencies": [{"kind": kind, "id": target} for kind, target in sorted(dependencies)],
-                      "findings": findings, "executions": [row.to_wire() for row in execution]})
+                      "findings": [row.to_wire() for row in findings], "executions": [row.to_wire() for row in execution]})
     stale_ids = {row["entity_id"] for row in items if row["stale"]}
     entities = [{"entity_id": key, "name": states.get(key, {}).get("name") or key,
                  "stale": key in stale_ids,
@@ -286,5 +319,4 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
                         "automations": sum(r["entity_id"].startswith("automation.") and not r["stale"] for r in items),
                         "stale": len(stale_ids),
                         "entities": len(entities),
-                        **{severity: sum(f["severity"] == severity for r in items if not r["stale"] for f in r["findings"])
-                           for severity in ("error", "warning", "unverified")}}}
+                        **{severity.value: count for severity, count in severity_counts.items()}}}

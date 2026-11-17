@@ -412,6 +412,12 @@ at their respective boundaries; they are not interchangeable execution outcomes.
 Compatibility adapters intentionally accept legacy strings and emit the original
 wire vocabulary. This audit does not propose replacing those external protocols.
 
+HA audit finding severities now remain `AuditSeverity` enums in frozen
+`AuditFinding` values through collection, deduplication, review evidence and
+summary counting. Report JSON still contains the original finding mappings and
+plain severity strings. Canonical fingerprint inputs and review issue hashes
+match legacy mappings, preserving existing review identities and stale counts.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
