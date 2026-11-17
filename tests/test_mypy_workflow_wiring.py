@@ -1,6 +1,5 @@
 """Ensure CI continues to enforce the mypy inventory guard."""
 from pathlib import Path
-import re
 import unittest
 
 
