@@ -192,7 +192,7 @@ class HTTPRegistryTests(TestCase):
     def test_actual_music_handler_keeps_failure_in_history_and_does_not_fallback(self):
         with patch.object(server.music,"parse_feedback",return_value=("like","track")), \
              patch.object(server.music,"_feedback_provider",return_value=("Music unavailable.","unavailable")) as feedback, \
-             patch.object(server,"guarded_openai_fallback") as cloud, \
+             patch.object(server,"guarded_openai_fallback_result") as cloud, \
              patch.object(server,"handle_light_request_result") as lighting:
             result=self.ask("like this track")
         self.assertEqual(result["outcome"],"unavailable")

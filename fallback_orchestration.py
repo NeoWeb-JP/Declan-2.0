@@ -1,4 +1,20 @@
 """Gate guarded AI fallback behind local command results and HA authorization."""
+from execution_results import ExecutionResult
+
+
+def resolve_fallback_result(message, *, routine_reply, light_result, body,
+                            authorization, bridge_token, source, action_results,
+                            exposed_entities, dispatch_fallback, fallback_handler):
+    """Retain typed fallback results behind the existing eligibility/auth gate."""
+    result = resolve_fallback(
+        message, routine_reply=routine_reply, light_result=light_result, body=body,
+        authorization=authorization, bridge_token=bridge_token, source=source,
+        action_results=action_results, exposed_entities=exposed_entities,
+        dispatch_fallback=dispatch_fallback, fallback_handler=fallback_handler,
+    )
+    if result is not None and not isinstance(result, ExecutionResult):
+        raise ValueError("Fallback dispatch requires a typed execution result")
+    return result
 
 
 def resolve_fallback(message, *, routine_reply, light_result, body,

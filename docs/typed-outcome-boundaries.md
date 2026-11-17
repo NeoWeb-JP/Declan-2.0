@@ -67,8 +67,17 @@ result while still accepting legacy pairs. Lighting response dispatch exposes
 `dispatch_lighting_response()` and retains typed execution identity and scoped
 follow-up context. Existing follow-on and lighting tuple APIs remain available.
 
+Guarded fallback exposes `guarded_openai_fallback_result()` with a frozen
+`FallbackResponse`: the original typed execution plus separately redacted
+diagnostic action steps. `dispatch_fallback_result()` and
+`resolve_fallback_result()` preserve execution identity through authorization and
+eligibility gating, appending validated steps once. Legacy provider triples are
+validated before appending actions. The public server fallback triple and older
+dispatch/orchestration entrypoints remain compatible. Accepted local results,
+including empty replies, still block fallback before authorization is evaluated.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes fallback and other session/
+scope includes other session/
 final-response orchestration that still uses legacy tuples. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.

@@ -57,7 +57,7 @@ class NativeAISettingsContractTests(unittest.TestCase):
 
     def test_fallback_local_first_and_allowlist(self):
         self.assertIn("if routine_reply is not None or light_result is not None:", FALLBACK)
-        self.assertIn("fallback_orchestration.resolve_fallback(", BACKEND)
+        self.assertIn("fallback_orchestration.resolve_fallback_result(", BACKEND)
         self.assertIn('exposed_entities=fallback_entity_authorization.exposed_entities', BACKEND)
         self.assertIn('exposed = exposed_entities(body, authorization, bridge_token)', FALLBACK)
         self.assertIn('ai_exposed_entities', AUTHORIZATION)

@@ -23,7 +23,7 @@ class AIExposureContractTests(unittest.TestCase):
         self.assertIn('"ai_exposed_entities": exposed_for_declan(hass)', CHAT)
 
     def test_backend_rejects_untrusted_exposure(self):
-        self.assertIn('fallback_orchestration.resolve_fallback(', SERVER)
+        self.assertIn('fallback_orchestration.resolve_fallback_result(', SERVER)
         self.assertIn('exposed_entities=fallback_entity_authorization.exposed_entities', SERVER)
         self.assertIn('exposed = exposed_entities(body, authorization, bridge_token)', FALLBACK)
         self.assertIn('if authenticated_ha else ()', AUTHORIZATION)
