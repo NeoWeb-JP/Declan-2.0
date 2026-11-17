@@ -6,7 +6,12 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BACKEND_MODULES = ("server.py", "configuration.py", "music.py", "voicepipeline.py")
+BACKEND_MODULES = (
+    "server.py", "configuration.py", "music.py", "voicepipeline.py",
+    "updates.py", "sensitive_confirmations.py", "declan_logs.py",
+    "command_responses.py", "routine_responses.py", "script_discovery.py",
+    "personality.py", "response_library.py", "arbitration.py",
+)
 ENV_READ = re.compile(
     r"""(?:\bos\.getenv|\bgetenv|\bos\.environ\.get|\benviron\.get)\s*\(\s*['"](DECLAN_[A-Z0-9_]+)['"]"""
 )
