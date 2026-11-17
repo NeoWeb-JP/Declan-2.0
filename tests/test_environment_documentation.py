@@ -13,6 +13,16 @@ BACKEND_MODULES = (
     "personality.py", "response_library.py", "arbitration.py",
     "history.py", "timers.py", "conditions.py", "web_stt.py",
     "diagnostics.py", "voice_profiles.py", "lighting_intents.py",
+    "custom_components/declan_two/conversation.py",
+    "custom_components/declan_two/stt.py",
+    "custom_components/declan_two/tts.py",
+    "custom_components/declan_two/voice_defaults.py",
+    "custom_components/declan_two/routine_jobs.py",
+    "custom_components/declan_two/updates_view.py",
+    "custom_components/declan_two/management_view.py",
+    "custom_components/declan_two/microphone_view.py",
+    "custom_components/declan_two/ha_audit_view.py",
+    "custom_components/declan_two/__init__.py",
 )
 ENV_READ = re.compile(
     r"""(?:\b(?:os\.)?getenv\s*\(\s*|\b(?:os\.)?environ(?:\.get\s*\(\s*|\[\s*))['"](DECLAN_[A-Z0-9_]+)['"]"""
