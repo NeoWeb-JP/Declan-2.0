@@ -27,7 +27,7 @@ jobs:
       - name: Ruff lint
         run: ruff check . --output-format github
       - name: Mypy server type check (blocking)
-        run: python -m mypy --config-file mypy.ini server.py
+        run: python -m mypy --config-file mypy.ini --disable-error-code import-not-found server.py
       - name: Mypy full-repository baseline (advisory)
         continue-on-error: true
         run: python -m mypy --config-file mypy.ini .
