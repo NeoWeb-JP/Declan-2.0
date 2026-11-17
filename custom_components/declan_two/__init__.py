@@ -60,16 +60,28 @@ async def async_setup_entry(hass, entry):
         reply = event.data.get("reply")
         if not all(isinstance(value, str) and 0 < len(value.strip()) <= 1000 for value in (message, reply)):
             return
+        # Bus events can be emitted by other integrations and automations.
+        # Reject malformed or oversized metadata before forwarding to history.
+        session_id = event.data.get("session_id")
+        outcome = event.data.get("outcome")
+        routine_status = event.data.get("routine_status")
+        steps = event.data.get("steps")
+        if any(value is not None and (not isinstance(value, str) or len(value) > 128)
+               for value in (session_id, outcome, routine_status)):
+            return
+        if steps is not None and (not isinstance(steps, list) or len(steps) > 50
+                                  or any(not isinstance(step, str) or len(step) > 256 for step in steps)):
+            return
         try:
             async with async_get_clientsession(hass).post(
                 entry.data["url"] + "/api/assist/history",
                 json={
                     "message": message,
                     "reply": reply,
-                    "session_id": event.data.get("session_id"),
-                    "outcome": event.data.get("outcome"),
-                    "routine_status": event.data.get("routine_status"),
-                    "steps": event.data.get("steps"),
+                    "session_id": session_id,
+                    "outcome": outcome,
+                    "routine_status": routine_status,
+                    "steps": steps,
                 },
                 headers={"Authorization": f"Bearer {entry.data['token']}"},
                 allow_redirects=False,
