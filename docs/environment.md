@@ -36,6 +36,12 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_UPDATE_SUPERVISED` | Set to `1` only for the supervised updater process | Leave unset |
 | `DECLAN_SENSITIVE_ROUTINES` | Legacy sensitive routine categories; current configured confirmation policy takes precedence | `night,guest` |
 | `DECLAN_TRUSTED_SPEAKERS` | Comma-separated trusted speaker labels used by legacy confirmation checks; voice identity is not authentication | Leave empty |
+| `DECLAN_HISTORY_RETENTION_DAYS` | Voice and transcript history retention in days; accepts 1–30 | `30` |
+| `DECLAN_BROWSER_TIMER_SATELLITE` | Optional satellite identifier for browser timer announcements | Leave empty |
+| `DECLAN_TIMER_ALARM_MEDIA_ID` | Optional media identifier used for timer alarm playback | Leave empty |
+| `DECLAN_WEATHER_ENTITY` | Home Assistant weather entity for contextual conditions | `weather.forecast_home` |
+| `DECLAN_INDOOR_TEMPERATURE_ENTITY` | Home Assistant indoor temperature/climate entity | `climate.home` |
+| `DECLAN_DEFAULT_COUNTRY` | Default country for contextual information lookups | `GB` |
 
 The added HA, Assist, bind-address and release-version names were verified against `server.py` on 17 November 2026. This inventory covers names verified in the backend modules listed by the environment documentation regression test, including `updates.py` and `sensitive_confirmations.py`; additional modules may define more settings. Configuration keys in `configuration.py` are stored as named configuration entries and should not be assumed to be read directly from the process environment. Confirm each value's source in the deployment before relying on an environment override.
 
