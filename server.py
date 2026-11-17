@@ -92,6 +92,7 @@ import routine_registry
 from routine_action_evidence import RoutineActionStatus, parse_routine_actions
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from movie_action_evidence import MovieActionEvidence
+from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
@@ -534,7 +535,7 @@ def run_custom_routine_result(name, action_results=None, *, approved=False, para
             return ExecutionResult(f"{name} returned no verified completion outcome.", Outcome.UNVERIFIED), None
         steps = routine_action_results_typed(value.get("steps"))
         if action_results is not None:
-            action_results.extend(step.to_wire() for step in steps)
+            extend_action_evidence(action_results, steps)
         required = [step for step in steps if step.required is not False]
         if status == "success" and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(not step.completed for step in required)):
             return ExecutionResult(f"{name} was started, but required steps were not verified.", Outcome.UNVERIFIED), None
@@ -784,7 +785,7 @@ def run_routine_result(period, *, action_results=None, movie_action=None, movie_
                 if action_results is not None:
                     evidence = MovieActionEvidence(movie_app[0], status, remote,
                                                    f"{note} Remote: {remote}. Command: app:{movie_app[1]}.")
-                    action_results.append(evidence.to_wire())
+                    append_action_evidence(action_results, evidence)
             return execution, detail
         return ExecutionResult(f"{salutation} Home Assistant did not return a correlated completion result.", Outcome.UNVERIFIED), None
     finally:
@@ -808,7 +809,7 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
     raw_steps = result.get("steps")
     steps = routine_action_results_typed(raw_steps)
     if action_results is not None:
-        action_results.extend(step.to_wire() for step in steps)
+        extend_action_evidence(action_results, steps)
     required = [step for step in steps if step.required is not False]
     confirmed = any(step.completed for step in required)
     if outcome == "success" and (not required or len(steps) != len(raw_steps)
@@ -1360,7 +1361,7 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
         evidence = LightingActionEvidence(label, "turn_" + desired_state,
                                           LightingActionStatus.CONFIRMED if verified else LightingActionStatus.UNVERIFIED,
                                           entity_id=entity)
-        action_results.append(evidence.to_wire())
+        append_action_evidence(action_results, evidence)
     return ExecutionResult(f"{label} is {desired_state}." if verified else f"I couldn't verify {label} is {desired_state}.", Outcome.CONFIRMED if verified else Outcome.UNVERIFIED)
 
 
@@ -1553,7 +1554,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             action_name = (f"set brightness to {percent}%" if percent is not None
                            else direction if direction in ("darker", "brighter", "very bright") else f"turn_{direction}")
             evidence = LightingActionEvidence(target, action_name, status, entity_id=entity, detail=detail)
-            action_results.append(evidence.to_wire())
+            append_action_evidence(action_results, evidence)
 
     selected = {}
     room_off_entities = set()
@@ -2529,7 +2530,7 @@ class Handler(BaseHTTPRequestHandler):
             self.path, body,
         )
         routine_reply = outcome = routine_status = None
-        action_results = []
+        action_results = ActionEvidenceBuffer()
         light_result = None
         if source == "assist":
             speaker = body.get("speaker")
