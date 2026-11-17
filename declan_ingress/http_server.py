@@ -4,7 +4,7 @@ from threading import BoundedSemaphore
 if __package__:
     from .security import BadTokenLimiter
 else:
-    from security import BadTokenLimiter
+    from security import BadTokenLimiter  # type: ignore[no-redef]
 
 
 class BoundedHTTPServer(ThreadingHTTPServer):
