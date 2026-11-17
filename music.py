@@ -582,7 +582,7 @@ def search_media(connection, destination, title, artist, provider):
             options = [(uri, uri.split("/")[-2], "a favourite") for uri, weight in weights.items() if weight > 1]
             if not options:
                 return None
-            uri, kind, name = choices(options, weights=[weights[item[0]] for item in options])[0]
+            uri, kind, name = choices(options, weights=[weights[item[0]] for item in options])[0]  # nosec B311 - weighted playlist selection, not security randomness
             return uri.replace("spotify://", "https://open.spotify.com/", 1), kind, name
         # Curated category playlists take precedence over generic Spotify search.
         # The catalogue is owned by Declan 2.0, not the retired HA integration.
@@ -598,7 +598,7 @@ def search_media(connection, destination, title, artist, provider):
                 for count in range(len(recent), -1, -1):
                     pool = [uri for uri in available if media_key(uri) not in recent[:count]]
                     if pool:
-                        selected = choices(pool, weights=[weights.get(media_key(uri), 1) for uri in pool])[0]
+                        selected = choices(pool, weights=[weights.get(media_key(uri), 1) for uri in pool])[0]  # nosec B311 - weighted playlist selection, not security randomness
                         return selected.replace("spotify://", "https://open.spotify.com/", 1), "playlist", title
         types = (("track",) if artist else ("playlist",) if title.endswith(" music")
                  else ("track", "album", "artist", "playlist"))
@@ -608,7 +608,7 @@ def search_media(connection, destination, title, artist, provider):
             for count in range(len(recent), -1, -1):
                 pool = [item for item in options if media_key(item[0]) not in recent[:count]]
                 if pool:
-                    return choices(pool, weights=[weights.get(media_key(item[0]), 1) for item in pool])[0]
+                    return choices(pool, weights=[weights.get(media_key(item[0]), 1) for item in pool])[0]  # nosec B311 - weighted playlist selection, not security randomness
         return next((item for item in options if item[2].casefold() == title.casefold()),
                     options[0] if options else None)
     entry = request(connection, "/api/template", {
