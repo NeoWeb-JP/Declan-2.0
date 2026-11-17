@@ -68,8 +68,10 @@ class EnvironmentDocumentationTests(unittest.TestCase):
     def test_audit_scope_includes_all_modules_reading_documented_environment_keys(self):
         """Flag newly added modules with environment reads for audit expansion."""
         scoped = set(BACKEND_MODULES)
-        candidates = sorted(ROOT.glob("*.py")) + sorted(
-            (ROOT / "custom_components" / "declan_two").glob("*.py")
+        candidates = sorted(
+            file for file in ROOT.rglob("*.py")
+            if not any(part in {"tests", ".git", ".venv", "venv", "node_modules"}
+                       for part in file.relative_to(ROOT).parts)
         )
         unaudited = {}
         for file in candidates:
