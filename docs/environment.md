@@ -6,11 +6,16 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 
 | Variable | Purpose | Example |
 | --- | --- | --- |
+| `DECLAN_HA_URL` | Home Assistant API base URL used by the standalone backend | Set to your HA URL |
+| `DECLAN_HA_TOKEN` | Home Assistant API access token | Keep secret |
+| `DECLAN_ASSIST_TOKEN` | Bearer token for the Assist bridge; server requires at least 32 characters for LAN Assist | Generate a separate long random secret |
+| `DECLAN_BIND_ADDRESS` | Optional server bind address override | Configure for your network |
+| `DECLAN_RELEASE_VERSION` | Optional release version override for server reporting | Leave unset unless needed |
 | `DECLAN_INGRESS_TOKEN` | Separate bearer token used by the Home Assistant Ingress proxy | Generate with `openssl rand -hex 32` |
 | `DECLAN_VOICEPIPELINE_URL` | Optional URL of the VoicePipeline management API | `http://127.0.0.1:8000` |
 | `DECLAN_VOICEPIPELINE_TOKEN` | Optional VoicePipeline API bearer token, if authentication is enabled | Leave empty when not required |
 
-These variables are documented in the existing deployment instructions. This is **not yet a complete inventory** of every `DECLAN_*` setting. Before expanding this reference, verify names and defaults against the current backend configuration code. Do not guess names, defaults, or required/optional status.
+The added HA, Assist, bind-address and release-version names were verified against `server.py` on 17 November 2026. This is **not yet a complete inventory** of every `DECLAN_*` setting. Before expanding this reference, verify names and defaults against the current backend configuration code. Do not guess names, defaults, or required/optional status.
 
 ## Installation
 
