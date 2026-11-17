@@ -79,6 +79,8 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_UPDATE_ROOT | Missing or blank disables the updater | Requires an absolute POSIX root with writable directories, a releases directory and a current symlink pointing to the running app | `tests/test_update_root_environment_defaults.py` |
 | DECLAN_UPDATE_SUPERVISED | Missing or blank blocks installation | Only exact `1` passes the supervisor gate; other values fail before release selection or staging | `tests/test_update_supervised_environment_gate.py` |
 | DECLAN_RELEASE_VERSION | Optional configured fallback when no valid installed release marker exists | A valid installed `.declan-release` marker takes precedence; missing, invalid or unreadable markers preserve the fallback | `tests/test_installed_release_version_defaults.py` |
+| DECLAN_SENSITIVE_ROUTINES | Defaults to `night,guest`; explicitly empty disables legacy group defaults | Comma-separated values are trimmed, case-folded and deduplicated; explicitly saved routine policies take precedence | `tests/test_sensitive_environment_boundaries.py` |
+| DECLAN_TRUSTED_SPEAKERS | Missing or empty means no speaker is trusted by the legacy confirmation gate | Names are trimmed and case-folded; membership also requires numeric confidence from 0.85 through 1.0, excluding booleans | `tests/test_sensitive_environment_boundaries.py` |
 
 The Spotify credential source can also be a persisted settings file, not just
 the process environment. The `DECLAN_WEB_TTS_ENTITY` and
