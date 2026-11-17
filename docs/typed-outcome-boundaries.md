@@ -135,7 +135,16 @@ routine follow-on entity selection accept typed or legacy evidence with stable
 deduplication; scope, preview and count guards remain in place. Existing text and
 optional-field output are preserved without introducing new truncation limits.
 
+Movie launch action rows use frozen `MovieActionEvidence`, retaining the existing
+sent/skipped/failed/unverified vocabulary and exact plain mapping shape.
+`action_evidence_to_wire()` explicitly serializes verified, routine, lighting and
+movie evidence at shared conversation-response and direct history boundaries.
+Mixed batches preserve legacy JSON rows and extra fields; legacy-only containers
+retain their existing behavior. Conversion does not mutate typed input rows.
+History failures retain their existing nonfatal response behavior.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes other provider evidence and shared response/history evidence
-persistence. Their broader
-status vocabulary must not be silently narrowed to verified `ActionStatus`.
+scope includes keeping typed evidence through shared action-results accumulation
+and downstream consumers rather than projecting provider rows immediately, plus
+an exhaustive compatibility audit of remaining adapters. Broader evidence status
+vocabulary must not be silently narrowed to verified `ActionStatus`.

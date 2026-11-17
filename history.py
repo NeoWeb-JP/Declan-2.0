@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from time import time
 from threading import Lock
+from action_evidence_wire import action_evidence_to_wire
 
 
 DATABASE = Path(__file__).resolve().parent / ".data" / "conversations.sqlite3"
@@ -174,13 +175,14 @@ def has_recent_assist():
 
 def record(session_id, source, message, reply, outcome=None, routine_status=None, action_results=None,
            phrase_suggestion=None, *, speaker=None, diagnostic_id=None):
+    stored_actions = action_evidence_to_wire(action_results)
     match = speaker_match(speaker) if source == "assist" else None
     with database() as connection:
         cursor = connection.execute(
             "INSERT INTO turns(created_at, session_id, source, message, reply, outcome, routine_status, "
             "action_results, phrase_suggestion, speaker_match, diagnostic_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (time(), session_id, source, message, reply, outcome, routine_status,
-             json.dumps(action_results) if action_results else None, phrase_suggestion,
+             json.dumps(stored_actions) if stored_actions else None, phrase_suggestion,
              json.dumps(match) if match else None, diagnostic_id),
         )
         return cursor.lastrowid
