@@ -6,8 +6,8 @@ if __package__:
     from .http_server import BoundedHTTPServer as ThreadingHTTPServer
     from .security import response_headers, secure_page
 else:
-    from http_server import BoundedHTTPServer as ThreadingHTTPServer  # type: ignore[no-redef]
-    from security import response_headers, secure_page  # type: ignore[no-redef]
+    from http_server import BoundedHTTPServer as ThreadingHTTPServer  # type: ignore[no-redef,import-not-found]
+    from security import response_headers, secure_page  # type: ignore[no-redef,import-not-found]
 import json
 import os
 import secrets
