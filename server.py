@@ -59,6 +59,7 @@ import routine_follow_on_dispatch
 import information_result_response
 import device_result_response
 import lighting_result_dispatch
+import fallback_orchestration
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2651,18 +2652,18 @@ class Handler(BaseHTTPRequestHandler):
                     if lighting_result is not None:
                         routine_reply, outcome, lighting_context = lighting_result
                         light_result = (routine_reply, outcome)
-        if routine_reply is None and light_result is None:
-            exposed = fallback_entity_authorization.exposed_entities(
-                body, self.headers.get("Authorization", ""),
-                os.environ.get("DECLAN_ASSIST_TOKEN", ""),
-            )
-            fallback_result = guarded_fallback_dispatch.dispatch_fallback(
-                effective_message, source=source, exposed_entities=exposed,
-                fallback_handler=guarded_openai_fallback,
-                action_results=action_results,
-            )
-            if fallback_result is not None:
-                routine_reply, outcome = fallback_result
+        fallback_result = fallback_orchestration.resolve_fallback(
+            effective_message, routine_reply=routine_reply,
+            light_result=light_result, body=body,
+            authorization=self.headers.get("Authorization", ""),
+            bridge_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+            source=source, action_results=action_results,
+            exposed_entities=fallback_entity_authorization.exposed_entities,
+            dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback,
+            fallback_handler=guarded_openai_fallback,
+        )
+        if fallback_result is not None:
+            routine_reply, outcome = fallback_result
         chat_kind = effective_message.casefold().strip(" .?!")
         guest_mode, visitor_present, response_guest_mode = (
             response_persona_context.resolve_response_persona(
