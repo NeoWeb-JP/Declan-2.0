@@ -58,6 +58,7 @@ from personality import add_sass, choose_line
 import routine_responses
 import command_responses
 import command_registry
+import session_orchestration
 import lighting_intents
 import roast
 import personality_policy
@@ -1708,44 +1709,14 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
 
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
-    now = monotonic()
-    while SESSIONS and now - next(iter(SESSIONS.values()))["at"] >= IDLE_SECONDS:
-        SESSIONS.popitem(last=False)
-    state = SESSIONS.pop(session_id, None)
-    if state is None:
-        session_id = secrets.token_urlsafe(24)
-        state = {"last": None, "name": None}
-    command = message.casefold().strip(" .?!")
-    name = NAME_PATTERN.fullmatch(message.strip(" .?!"))
-    kind = CHAT_COMMANDS.get(command)
-    if routine_reply is not None:
-        reply = routine_reply
-    elif name:
-        state["name"] = name[1].strip()
-        reply = add_sass(f"Nice to meet you, {state['name']}.", "greeting", guest_mode)
-    elif kind == "recall_name":
-        reply = f"Your name is {state['name']}." if state["name"] else "I don't know your name yet."
-        if state["name"]:
-            reply = add_sass(reply, "memory", guest_mode)
-    elif kind == "recall_message":
-        reply = f"You said: {state['last']}" if state["last"] else "This is your first message."
-        if state["last"]:
-            reply = add_sass(reply, "memory", guest_mode)
-    elif kind == "time":
-        reply = add_sass(f"It's {datetime.now().astimezone():%H:%M} here.", "time", guest_mode)
-    elif kind == "greeting":
-        reply = f"Hello, {state['name']}." if state["name"] else "Hello. I'm Declan."
-        reply = add_sass(reply, "greeting", guest_mode)
-    else:
-        reply = UNMATCHED_REPLY
-    state.update(last=message, at=now)
-    if lighting_context is not None:
-        state["lighting_context"] = lighting_context
-        state["lighting_scope"] = scope
-    SESSIONS[session_id] = state
-    if len(SESSIONS) > 128:
-        SESSIONS.popitem(last=False)
-    return {"session_id": session_id, "reply": reply}
+    """Compatibility entry point; caller holds SESSION_LOCK."""
+    return session_orchestration.converse(
+        message, session_id, routine_reply, lighting_context=lighting_context,
+        scope=scope, guest_mode=guest_mode, sessions=SESSIONS,
+        idle_seconds=IDLE_SECONDS, name_pattern=NAME_PATTERN,
+        chat_commands=CHAT_COMMANDS, unmatched_reply=UNMATCHED_REPLY,
+        decorate=add_sass,
+    )
 
 
 @diagnostics.timed("ha_transcription")
