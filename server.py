@@ -91,6 +91,7 @@ import ha_dispatcher
 import routine_registry
 from routine_action_evidence import RoutineActionStatus, parse_routine_actions
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
+from movie_action_evidence import MovieActionEvidence
 import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
@@ -777,14 +778,13 @@ def run_routine_result(period, *, action_results=None, movie_action=None, movie_
                 if outcome is Outcome.REPORTED_SUCCESS:
                     sleep(7)
                     launch = launch_movie_app_result(connection, remote, movie_app)
-                    status, note = launch.status.value, launch.detail
+                    status, note = launch.status, launch.detail
                 else:
-                    status, note = "skipped", detail or "Movie Time was not verified."
+                    status, note = MovieLaunchStatus.SKIPPED, detail or "Movie Time was not verified."
                 if action_results is not None:
-                    action_results.append({
-                        "target": movie_app[0], "action": "open_app", "status": status, "entity_id": remote,
-                        "detail": f"{note} Remote: {remote}. Command: app:{movie_app[1]}.",
-                    })
+                    evidence = MovieActionEvidence(movie_app[0], status, remote,
+                                                   f"{note} Remote: {remote}. Command: app:{movie_app[1]}.")
+                    action_results.append(evidence.to_wire())
             return execution, detail
         return ExecutionResult(f"{salutation} Home Assistant did not return a correlated completion result.", Outcome.UNVERIFIED), None
     finally:
