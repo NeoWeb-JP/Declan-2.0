@@ -8,7 +8,7 @@ import web_stt
 
 class AssistPipelineSelectionTests(unittest.TestCase):
     @staticmethod
-    def run(pipeline):
+    def capture_messages(pipeline):
         socket = Mock()
         messages = [
             {"type": "auth_required"},
@@ -22,7 +22,7 @@ class AssistPipelineSelectionTests(unittest.TestCase):
     def test_missing_or_empty_pipeline_uses_home_assistant_default(self):
         for pipeline in (None, ""):
             with self.subTest(pipeline=pipeline):
-                sent = self.run(pipeline)
+                sent = self.capture_messages(pipeline)
                 self.assertNotIn("pipeline", sent[1])
                 self.assertEqual(sent[1]["start_stage"], "stt")
                 self.assertEqual(sent[1]["end_stage"], "stt")
