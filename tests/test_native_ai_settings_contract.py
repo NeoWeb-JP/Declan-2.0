@@ -5,6 +5,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = (ROOT / "server.py").read_text()
+AUTHORIZATION = (ROOT / "fallback_entity_authorization.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/ai_settings_view.py").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
 JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
@@ -55,8 +56,9 @@ class NativeAISettingsContractTests(unittest.TestCase):
 
     def test_fallback_local_first_and_allowlist(self):
         self.assertIn("if routine_reply is None and light_result is None:", BACKEND)
-        self.assertIn('ai_exposed_entities', BACKEND)
-        self.assertIn('authenticated_ha', BACKEND)
+        self.assertIn('fallback_entity_authorization.exposed_entities(', BACKEND)
+        self.assertIn('ai_exposed_entities', AUTHORIZATION)
+        self.assertIn('authenticated_ha', AUTHORIZATION)
         self.assertIn('ai_pricing.charge(settings["model"]', BACKEND)
         self.assertNotIn("DECLAN_OPENAI_FALLBACK_ENABLED", BACKEND)
         self.assertIn('if not settings["enabled"] or not ai_intent_gate.is_action_request(message):', BACKEND)
