@@ -93,3 +93,28 @@ def response_category(phrase, parse_light_command):
     if command and command[1] in {"on", "off"}:
         return "lights_" + command[1]
     return "lights_status"
+
+
+def matches(phrase, parse_light_command):
+    """Recognize lighting phrases without executing Home Assistant actions."""
+    if phrase in {"what lights are on", "which lights are on",
+                  "what lights are still on", "which lights are still on"}:
+        return True
+    preview = re.match(r"^(?:preview|dry[ -]run)\\b[ ,:]*", phrase)
+    candidate = phrase[preview.end():] if preview else phrase
+    if re.fullmatch(r"make it (?:darker|lighter|brighter|very bright) in .+", candidate):
+        return True
+    if re.fullmatch(r"turn (?:down|up) (?:the )?(?:all )?lights(?: in .+)?", candidate):
+        return True
+    if candidate.endswith(" in here") and re.match(r"^(?:turn|make|dim|brighten|set)\\b", candidate):
+        return True
+    if re.fullmatch(r"(?:turn (?:it|them) (?:on|off)|(?:turn )?(?:on|off) (?:it|them)|make (?:it|them) (?:darker|lighter|brighter|very bright))", candidate):
+        return True
+    if re.fullmatch(r"(?:set|dim) (?:the )?.+? to\\s+[+-]?\\d+\\s*(?:percent|per cent|%)", candidate):
+        return True
+    if re.fullmatch(r"(?:dim|brighten) (?:the )?.+? by\\s+[+-]?\\d+\\s*(?:percent|per cent|%)", candidate):
+        return True
+    parts = re.split(r"[ ,;]+(?:actually|no[ ,]+i mean|i mean|no(?=,))\\b[ ,:;]*", candidate)
+    if len(parts) > 1:
+        return bool(parse_light_command(parts[0]) or parse_light_command(parts[-1]))
+    return bool(parse_light_command(candidate)) or bool(preview)
