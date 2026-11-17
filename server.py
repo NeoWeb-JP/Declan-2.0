@@ -51,6 +51,7 @@ import sensitive_confirmation_decision
 import sensitive_confirmation_turn
 import routine_preview_detection
 import routine_preview_dispatch
+import early_command_result
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2540,10 +2541,11 @@ class Handler(BaseHTTPRequestHandler):
         )
         routine_turn = None
         routine_voice_result = None
-        if routine_preview:
-            routine_reply, outcome = routine_preview
-        elif timer_result:
-            routine_reply, outcome = timer_result.result.as_legacy_pair()
+        early_result = early_command_result.early_command_result(
+            routine_preview, timer_result,
+        )
+        if early_result is not None:
+            routine_reply, outcome = early_result
         elif stop_result := stop_command_dispatch.dispatch_stop(
             phrase, source=source, origin_device=origin_device, satellite=satellite,
             registry_factory=command_registry.stop_registry,
