@@ -13,6 +13,7 @@ class Outcome(StrEnum):
     UNAVAILABLE = "unavailable"
     BUSY = "busy"
     MUSIC_FEEDBACK = "music_feedback"
+    SEARCH_RESULT = "search_result"
 
 
 class ActionStatus(StrEnum):

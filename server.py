@@ -2634,6 +2634,7 @@ class Handler(BaseHTTPRequestHandler):
                     parse_control=music.parse_control, control=music.control,
                     parse_music=music.parse, play=music.play,
                     music_inventory=read_music_inventory, areas=read_ha_areas,
+                    search_media=search_media,
                 )).dispatch(command_registry.RequestContext(
                     phrase=phrase, source=source, last_device=last_device,
                     origin_device=origin_device, satellite=satellite,
@@ -2642,12 +2643,8 @@ class Handler(BaseHTTPRequestHandler):
                     routine_reply, outcome = local.result.as_legacy_pair()
                     status_target = local.status_target
                 else:
-                    media_result = search_media(phrase)
-                    if media_result:
-                        routine_reply, outcome = media_result
-                    else:
-                        light_result = handle_light_request(phrase, action_results=action_results,
-                                                            last_lights=last_lights, origin_device=origin_device)
+                    light_result = handle_light_request(phrase, action_results=action_results,
+                                                        last_lights=last_lights, origin_device=origin_device)
             if light_result:
                 routine_reply, outcome = light_result
                 if not re.match(r"^(?:preview|dry[ -]run)\b", phrase):
