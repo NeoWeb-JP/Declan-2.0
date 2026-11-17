@@ -25,4 +25,4 @@ Use the exact check name above when requiring it for `main`; the workflow has no
 path filters so unrelated pull requests still report a result.
 
 References: [HACS validation documentation](https://contributors.home-assistant.io/marketplace/reference/validation/)
-and [upstream licence validator](https://github.com/hacs/integration/blob/master/custom_components/hacs/validate/license.py).
+and [upstream licence validator](https://github.com/hacs/integration/blob/8a543828351b963438a1613a6f06332138e4f4d6/custom_components/hacs/validate/license.py).
