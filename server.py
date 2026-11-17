@@ -91,6 +91,7 @@ import ha_dispatcher
 import routine_registry
 from routine_action_evidence import RoutineActionStatus, parse_routine_actions
 from script_provider_results import ScriptProviderResult, ScriptReportedOutcome
+from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from movie_action_evidence import MovieActionEvidence
@@ -235,34 +236,39 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def home_assistant_status():
+    """Compatibility API returning the original connection status string."""
+    return home_assistant_status_result().status.value
+
+
+def home_assistant_status_result() -> HomeAssistantStatusResult:
     url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
     token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
     if not url or not token:
         try:
             if history.has_recent_assist():
-                return "assist_recent"
+                return HomeAssistantStatusResult(HomeAssistantStatus.ASSIST_RECENT)
         except (OSError, sqlite3.Error):
             pass
-        return "not_configured"
+        return HomeAssistantStatusResult(HomeAssistantStatus.NOT_CONFIGURED)
     try:
         parsed = urlsplit(url)
         if (parsed.scheme not in {"http", "https"} or not parsed.hostname
                 or parsed.username or parsed.password or parsed.query or parsed.fragment):
-            return "not_configured"
+            return HomeAssistantStatusResult(HomeAssistantStatus.NOT_CONFIGURED)
         request = Request(url + "/api/", headers={"Authorization": f"Bearer {token}"})
         opener = build_opener(ProxyHandler({}), NoRedirect())
         with opener.open(request, timeout=3) as response:
             payload = json.loads(response.read(4096))
             if response.status == 200 and payload == {"message": "API running."}:
-                return "connected"
+                return HomeAssistantStatusResult(HomeAssistantStatus.CONNECTED)
     except HTTPError as error:
         status = error.code
         error.close()
         if status in {401, 403}:
-            return "authentication_failed"
+            return HomeAssistantStatusResult(HomeAssistantStatus.AUTHENTICATION_FAILED)
     except (OSError, ValueError):
         pass
-    return "disconnected"
+    return HomeAssistantStatusResult(HomeAssistantStatus.DISCONNECTED)
 
 
 def read_guest_mode():
@@ -999,9 +1005,9 @@ def run_sexy_time_result(operation, connection, *, approved=False):
             music_ok = music_result.outcome is Outcome.CONFIRMED
             if lighting_ok:
                 detail = None if music_ok else "Bedroom lights restored. Bedroom music stop could not be verified."
-                return ExecutionResult(choose_line("sexy_time_end", read_guest_mode()), Outcome("confirmed" if music_ok else "partial")), detail
+                return ExecutionResult(choose_line("sexy_time_end", read_guest_mode()), Outcome.CONFIRMED if music_ok else Outcome.PARTIAL), detail
             playback = "The music has stopped." if music_ok else "I couldn't verify that the bedroom music stopped."
-            return ExecutionResult(f"I couldn't verify the bedroom lights. {playback}", Outcome("partial" if music_ok else "unverified")), None
+            return ExecutionResult(f"I couldn't verify the bedroom lights. {playback}", Outcome.PARTIAL if music_ok else Outcome.UNVERIFIED), None
 
         if not lighting_ok:
             return ExecutionResult("I couldn't verify the bedroom lights, so I held off on the playlist.", Outcome.UNVERIFIED), None
@@ -1464,7 +1470,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             reply = "Home Assistant reports all individual lights are off."
         if unknown:
             reply += " I couldn't check: " + ", ".join(unknown) + "."
-            return ExecutionResult(reply, Outcome("partial" if len(unknown) < len(individual_lights) else "unverified"))
+            return ExecutionResult(reply, Outcome.PARTIAL if len(unknown) < len(individual_lights) else Outcome.UNVERIFIED)
         return ExecutionResult(add_sass(reply, "lights_status", guest_mode), Outcome.CONFIRMED)
 
     areas = None
@@ -2076,7 +2082,7 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError, ValueError, sqlite3.Error):
                 self.send_json(503, {"error": "Diagnostics unavailable."})
         elif self.path == "/api/ha-status":
-            self.send_json(200, {"status": home_assistant_status(), "release_version": RELEASE_VERSION})
+            self.send_json(200, {"status": home_assistant_status_result().status.value, "release_version": RELEASE_VERSION})
         elif self.path == "/api/updates/status":
             self.send_json(200, {**updates.status(), "current": RELEASE_VERSION})
         elif self.path == "/api/updates":
