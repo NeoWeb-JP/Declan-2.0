@@ -6,7 +6,14 @@ from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCUMENTS = ("README.md", "docs/installation.md", "docs/environment.md")
+DOCUMENTS = (
+    "README.md",
+    "docs/installation.md",
+    "docs/environment.md",
+    "docs/architecture.md",
+    "docs/now-work.md",
+    "docs/p1-security.md",
+)
 LINK = re.compile(r"(?<!!)\[[^]]+\]\(([^)]+)\)")
 
 
