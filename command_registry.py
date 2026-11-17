@@ -56,6 +56,8 @@ class HandlerRegistry:
                 # A match owns the command, including failure/clarification.
                 # Never try another executor after an uncertain side effect.
                 result = handler.execute(context, match)
+                if result is None and handler.name == "lighting":
+                    return None
                 if not isinstance(result, HandledCommand) or result.handler != handler.name:
                     raise ValueError("Invalid command handler result")
                 return result
@@ -210,7 +212,7 @@ def lighting_registry(*, matches, parse_light_command, handle_light_request,
             origin_device=origin_device,
         )
         if result is None:
-            return HandledCommand("lighting", ExecutionResult("", Outcome.UNRESOLVED))
+            return None
         return HandledCommand("lighting", ExecutionResult(*result))
 
     return HandlerRegistry((Handler("lighting", 0,
