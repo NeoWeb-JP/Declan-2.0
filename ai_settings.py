@@ -1,7 +1,6 @@
 """Persisted owner-approved AI settings, separate from secret credentials."""
 import json
 import re
-import sqlite3
 
 from history import database
 from ai_pricing import RATES

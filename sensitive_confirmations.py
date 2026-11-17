@@ -1,6 +1,5 @@
 """One-shot, origin-bound voice confirmation for sensitive household routines."""
 import os
-import re
 import sqlite3
 from threading import Lock
 from time import monotonic
