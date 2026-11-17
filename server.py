@@ -2589,7 +2589,7 @@ class Handler(BaseHTTPRequestHandler):
             satellite=satellite, action_results=action_results,
             registry_factory=command_registry.routine_registry,
             context_factory=command_registry.RequestContext,
-            select=select_routine_turn, execute=execute_routine,
+            select=select_routine_turn, execute=execute_routine_result,
         ):
             routine_status = routine_dispatch.routine_status
             routine_turn = routine_dispatch.routine_selection
