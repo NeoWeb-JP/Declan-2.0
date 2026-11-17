@@ -22,6 +22,20 @@ class EnvironmentReferenceTests(unittest.TestCase):
         self.assertTrue(all(names), "Every environment table row needs a variable name")
         self.assertEqual(len(names), len({match.group(1) for match in names if match}))
 
+    def test_every_operator_variable_has_purpose_and_example(self):
+        content = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
+        section = content.split("## Variables documented for operators", 1)[1].split(
+            "The added HA, Assist", 1
+        )[0]
+        rows = [line for line in section.splitlines() if line.startswith("|")][2:]
+        self.assertTrue(rows, "Expected documented operator variables")
+        for row in rows:
+            with self.subTest(row=row):
+                columns = [column.strip() for column in row.split("|")[1:-1]]
+                self.assertEqual(len(columns), 3, "Expected variable, purpose and example")
+                self.assertTrue(columns[1], "Purpose must not be blank")
+                self.assertTrue(columns[2], "Example or default guidance must not be blank")
+
     def test_active_example_assignments_have_documented_purposes(self):
         reference = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
