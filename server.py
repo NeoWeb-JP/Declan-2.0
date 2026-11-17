@@ -56,6 +56,7 @@ import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses
+import routine_follow_on
 import command_responses
 import command_registry
 import session_orchestration
@@ -2597,33 +2598,19 @@ class Handler(BaseHTTPRequestHandler):
             routine_turn = routine_dispatch.routine_selection
             follow_on = routine_dispatch.routine_follow_on
             if follow_on:
-                routine_voice_result = (routine_reply, outcome)
-                light_steps = []
-                if follow_on.startswith("play "):
-                    command = music.parse(follow_on)
-                    follow_reply, follow_outcome = (
-                        music.play(command, ha_device_connection(), read_music_inventory,
-                                   **({"origin": satellite or origin_device} if satellite or origin_device else {})) if command
-                        else ("Tell me where to play the music.", "unresolved")
-                    )
-                else:
-                    follow_result = handle_light_request(
-                        follow_on, action_results=light_steps, last_lights=last_lights,
-                        origin_device=origin_device or satellite,
-                    )
-                    follow_reply, follow_outcome = follow_result or (
-                        "I couldn't understand the lighting command after the routine.", "unresolved"
-                    )
-                action_results.extend(light_steps)
-                if follow_outcome == "confirmed" and scope is not None and len(light_steps) < 200:
-                    lighting_context = tuple(dict.fromkeys(
-                        step["entity_id"] for step in light_steps
-                        if step["status"] in ("confirmed", "already_set") and "entity_id" in step
-                    ))
-                if routine_status and routine_status not in routine_reply:
-                    routine_reply += f" {routine_status}"
-                routine_reply += f" {follow_reply}"
-                outcome = chained_outcome(outcome, follow_outcome)
+                chained = routine_follow_on.execute(
+                    follow_on, routine_reply=routine_reply, routine_outcome=outcome,
+                    routine_status=routine_status, parse_music=music.parse,
+                    play_music=music.play, connection=ha_device_connection,
+                    music_inventory=read_music_inventory,
+                    handle_lighting=handle_light_request, last_lights=last_lights,
+                    origin=origin_device or satellite, music_origin=satellite or origin_device,
+                    action_results=action_results, scope=scope,
+                    chained_outcome=chained_outcome,
+                )
+                routine_reply, outcome = chained.reply, chained.outcome
+                lighting_context = chained.lighting_context
+                routine_voice_result = chained.routine_voice_result
         else:
             information_result = command_registry.information_registry(
                 matches=conditions.matches, follow_up=conditions.follow_up,
