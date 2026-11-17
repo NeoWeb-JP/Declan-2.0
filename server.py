@@ -2642,7 +2642,7 @@ class Handler(BaseHTTPRequestHandler):
             routine_preview=routine_preview,
             registry_factory=command_registry.timer_registry,
             context_factory=command_registry.RequestContext,
-            matches=timers.matches, handle=timers.handle, opener=opener,
+            matches=timers.matches, handle=timers.handle_result, opener=opener,
             guest_mode=read_guest_mode, decorate=add_sass,
         )
         routine_turn = None

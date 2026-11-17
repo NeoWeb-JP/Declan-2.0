@@ -298,6 +298,15 @@ unchanged. `/api/ha-status` and `home_assistant_status()` retain their original
 plain status strings. Remaining conditional lighting/bedroom result construction
 also uses enum members directly rather than building strings to reparse.
 
+The end-to-end command-path audit found and removed one remaining active legacy
+round trip: HTTP timer dispatch now injects `timers.handle_result`, rather than
+the public `timers.handle` pair adapter. HTTP regressions disable
+`ExecutionResult.as_legacy_pair` while exercising timers, music and chained
+routine/lighting requests through both Chat and Assist. They verify authoritative
+combined outcomes, typed evidence serialization, and identical plain values in
+HTTP replies and stored history. Public legacy timer callers retain their
+existing pair/`None` API.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

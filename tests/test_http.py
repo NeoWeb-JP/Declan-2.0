@@ -14,12 +14,62 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 import server
+from execution_results import ExecutionResult, Outcome
+from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
+from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from declan_ingress import proxy
 
 READ_VISITORS_PRESENT = server.read_visitors_present
 
 
 class APITests(TestCase):
+    def test_typed_chained_routine_results_reach_http_and_history_without_legacy_pairs(self):
+        selection = RoutineTurnSelection(RoutineSelection(RoutineSelectionKind.SCRIPT, "script.audit"), "turn on study")
+        cases = ((Outcome.STARTED, Outcome.CONFIRMED, Outcome.STARTED),
+                 (Outcome.REPORTED_SUCCESS, Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS),
+                 (Outcome.REPORTED_SUCCESS, Outcome.FAILED, Outcome.PARTIAL),
+                 (Outcome.FAILED, Outcome.CONFIRMED, Outcome.PARTIAL),
+                 (Outcome.FAILED, Outcome.UNVERIFIED, Outcome.UNVERIFIED))
+        for routine_outcome, light_outcome, expected in cases:
+            status = {Outcome.CONFIRMED: LightingActionStatus.CONFIRMED,
+                      Outcome.FAILED: LightingActionStatus.FAILED,
+                      Outcome.UNVERIFIED: LightingActionStatus.UNVERIFIED}[light_outcome]
+            evidence = LightingActionEvidence("Study", "turn_on", status, "light.study")
+            def lighting(phrase, **kwargs):
+                server.append_action_evidence(kwargs["action_results"], evidence)
+                return ExecutionResult("Lighting result.", light_outcome)
+            with self.subTest(routine=routine_outcome, lighting=light_outcome), \
+                 patch.object(server, "select_routine_turn_result", return_value=selection), \
+                 patch.object(server.script_discovery, "execute_result", return_value=(ExecutionResult("Routine result.", routine_outcome), None)), \
+                 patch.object(server, "handle_light_request_result", side_effect=lighting), \
+                 patch.object(server.routine_responses, "render", side_effect=lambda selection, outcome, original, **kwargs: original), \
+                 patch.object(server.CAPTURE_ARBITER, "claim", return_value=True), \
+                 patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("active path serialized a legacy pair")):
+                for path in ("/api/chat", "/api/assist"):
+                    reply = self.ask("run audit routine and turn on study", path=path)
+                    self.assertEqual(reply["outcome"], expected.value)
+                    self.assertIs(type(reply["outcome"]), str)
+                    self.assertEqual(reply["action_results"], [evidence.to_wire()])
+                    saved = server.history.recent(limit=1)[0]
+                    self.assertEqual(saved["outcome"], expected.value)
+                    self.assertIs(type(saved["outcome"]), str)
+                    self.assertEqual(saved["action_results"], [evidence.to_wire()])
+
+    def test_typed_timer_and_music_results_reach_http_and_history_without_legacy_pairs(self):
+        for phrase, outcome in (("set a timer for 5 minutes", Outcome.TIMER_SET),
+                                ("play country music", Outcome.CONFIRMED)):
+            with self.subTest(phrase=phrase), \
+                 patch.object(server, "select_routine_turn_result", return_value=None), \
+                 patch.object(server.timers, "handle_result", return_value=ExecutionResult("Timer set.", Outcome.TIMER_SET)), \
+                 patch.object(server.music, "_play_provider", return_value=ExecutionResult("Playing music.", Outcome.CONFIRMED)), \
+                 patch.object(server.CAPTURE_ARBITER, "claim", return_value=True), \
+                 patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("active path serialized a legacy pair")):
+                for path in ("/api/chat", "/api/assist"):
+                    reply = self.ask(phrase, path=path)
+                    self.assertEqual(reply["outcome"], outcome.value)
+                    self.assertIs(type(reply["outcome"]), str)
+                    self.assertEqual(server.history.recent(limit=1)[0]["outcome"], outcome.value)
+
     def setUp(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
         self.enterContext(patch.object(server.history, "DATABASE", directory / "history.sqlite3"))
@@ -528,7 +578,7 @@ class APITests(TestCase):
             states[0]["state"] = "off"
             reply = self.ask("Is it off?", turn["session_id"])
             self.assertIn("Fairy Lights is off", reply["reply"])
-        with patch.object(server.timers, "handle", return_value=("Timer set.", "timer_set")):
+        with patch.object(server.timers, "handle_result", return_value=ExecutionResult("Timer set.", Outcome.TIMER_SET)):
             self.assertEqual(self.ask("Set a timer for five seconds")["outcome"], "timer_set")
 
     def test_music_handoff_routes_from_assist(self):
