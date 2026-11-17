@@ -74,6 +74,7 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_TIMER_ALARM_MEDIA_ID | Unset or blank uses a spoken timer announcement | Trims media-source IDs; unsupported schemes or rejected media playback fall back to speech | `tests/test_timer_alarm_media_environment.py` |
 | DECLAN_VOICEPIPELINE_URL | Missing or blank URL fails before network access | Trims trailing slash and whitespace; malformed or unsafe URLs fail before network access | `tests/test_voicepipeline_environment_defaults.py` |
 | DECLAN_VOICEPIPELINE_TOKEN | Unset or blank omits the Authorization header | Trims nonempty tokens and sends them as bearer credentials | `tests/test_voicepipeline_environment_defaults.py` |
+| DECLAN_BIND_ADDRESS | Normal mode binds to `127.0.0.1` and ignores this override; Assist LAN mode defaults to `0.0.0.0` | In Assist LAN mode accepts IPv4 addresses only, rejecting invalid addresses before binding; requires an Assist token of at least 32 characters | `tests/test_bind_address_environment_defaults.py` |
 
 The Spotify credential source can also be a persisted settings file, not just
 the process environment. The `DECLAN_WEB_TTS_ENTITY` and
