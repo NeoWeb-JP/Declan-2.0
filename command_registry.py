@@ -22,6 +22,9 @@ class HandledCommand:
     status_target: str | None = None
     routine_status: str | None = None
     information_context: object = None
+    routine_follow_on: str | None = None
+    routine_reply: str | None = None
+    routine_selection: object = None
 
 
 @dataclass(frozen=True)
@@ -218,3 +221,16 @@ def lighting_registry(*, matches, parse_light_command, handle_light_request,
     return HandlerRegistry((Handler("lighting", 0,
         lambda context: context.phrase if matches(context.phrase, parse_light_command) else None,
         run),))
+
+
+def routine_registry(*, select, execute, action_results, origin):
+    """Select and execute a HA routine, leaving chained follow-on work to the caller."""
+    def run(context, selection):
+        routine, follow_on = selection
+        reply, outcome, status = execute(routine, action_results)
+        return HandledCommand("routine", ExecutionResult(reply, outcome),
+                              routine_status=status, routine_follow_on=follow_on,
+                              routine_reply=reply, routine_selection=selection)
+
+    return HandlerRegistry((Handler("routine", 0,
+        lambda context: select(context.phrase, origin), run),))

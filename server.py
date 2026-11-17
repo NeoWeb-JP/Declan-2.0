@@ -2585,10 +2585,17 @@ class Handler(BaseHTTPRequestHandler):
             r"(?: of the house)?", phrase
         ):
             routine_reply, outcome = guest_assignment("assign:" + guest_names[1].strip(), ha_device_connection())
-        elif routine_turn := select_routine_turn(phrase, origin_device or satellite):
+        elif routine_dispatch := command_registry.routine_registry(
+            select=select_routine_turn, execute=execute_routine,
+            action_results=action_results, origin=origin_device or satellite,
+        ).dispatch(command_registry.RequestContext(
+            phrase=phrase, source=source, origin_device=origin_device, satellite=satellite,
+        )):
             lighting_context = ()
-            routine, follow_on = routine_turn
-            routine_reply, outcome, routine_status = execute_routine(routine, action_results)
+            routine_reply, outcome = routine_dispatch.result.as_legacy_pair()
+            routine_status = routine_dispatch.routine_status
+            routine_turn = routine_dispatch.routine_selection
+            follow_on = routine_dispatch.routine_follow_on
             if follow_on:
                 routine_voice_result = (routine_reply, outcome)
                 light_steps = []
