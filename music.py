@@ -416,16 +416,16 @@ def control(command, connection, read_inventory, *, origin=None, read_areas=None
 def _control_provider(command, connection, read_inventory, *, origin=None, read_areas=None, assist=False):
     action, room = command
     if connection is None:
-        return "The Home Assistant connection isn't configured.", "not_configured"
+        return music_execution_result(("The Home Assistant connection isn't configured.", "not_configured"))
     if not HANDOFF.acquire(blocking=False):
-        return "A music request is already in progress.", "busy"
+        return music_execution_result(("A music request is already in progress.", "busy"))
     location = "on the music player"
     try:
         inventory, error = read_inventory(connection)
         if error == "unavailable":
             inventory, error = read_inventory(connection)
         if error:
-            return "I couldn't check the music players.", error
+            return music_execution_result(("I couldn't check the music players.", error))
         destinations, players = music_players(inventory)
         # Unqualified Stop is household-wide, regardless of the originating room.
         # Only approved Music Assistant destinations may receive commands.
@@ -435,7 +435,7 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
                 if entity and players.get(entity, {}).get("state") in ACTIVE
             )
             if not active:
-                return "There's no active Music Assistant playback to stop.", "confirmed"
+                return music_execution_result(("There's no active Music Assistant playback to stop.", "confirmed"))
             # Stop the Everywhere group once, not again through its members.
             group_entity = destinations.get("everywhere")
             if group_entity in active:
@@ -454,9 +454,9 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
                 except (OSError, ValueError, HTTPError, TimeoutError):
                     failed.append(entity)
             if failed:
-                return (f"I couldn't verify playback stopped on {len(failed)} "
-                        "Music Assistant player(s).", "partial")
-            return "Stopped Music Assistant playback Everywhere.", "confirmed"
+                return music_execution_result((f"I couldn't verify playback stopped on {len(failed)} "
+                        "Music Assistant player(s).", "partial"))
+            return music_execution_result(("Stopped Music Assistant playback Everywhere.", "confirmed"))
         group = destinations.get("everywhere")
         grouped = players.get(group, {})
         members = ((grouped.get("attributes") or {}).get("group_members") or []
@@ -465,44 +465,44 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
             areas = read_areas(connection, origin) if origin and read_areas else {}
             room = next((room_key(name) for name in areas if room_key(name) in destinations), None)
             if room and destinations.get(room) is None:
-                return f"No approved Music Assistant player is configured for {room}.", "unresolved"
+                return music_execution_result((f"No approved Music Assistant player is configured for {room}.", "unresolved"))
             if action in {"media_next_track", "media_previous_track"}:
                 if room and destinations[room] in members:
                     room = "everywhere"
                 elif room and players.get(destinations[room], {}).get("state") not in ACTIVE:
-                    return f"No active playback in the {room}.", "unavailable"
+                    return music_execution_result((f"No active playback in the {room}.", "unavailable"))
             elif room is None:
-                return "Which room should I control?", "unresolved"
+                return music_execution_result(("Which room should I control?", "unresolved"))
         if room is None:
             active = [name for name, entity in destinations.items()
                       if (entity == group or entity not in members)
                       and players.get(entity, {}).get("state") in ACTIVE]
             if len(active) != 1:
-                return "Which room should I control?", "unresolved"
+                return music_execution_result(("Which room should I control?", "unresolved"))
             room = active[0]
         entity = destinations.get(room)
         if entity is None:
-            return f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"
+            return music_execution_result((f"No approved Music Assistant player is configured for {room}, or its registration is missing.", "unresolved"))
         location = "everywhere" if room == "everywhere" else f"in the {room}"
         player = players.get(entity, {})
         state = player.get("state")
         if not player_available(entity, state):
-            return f"The music player {location} is unavailable.", "unavailable"
+            return music_execution_result((f"The music player {location} is unavailable.", "unavailable"))
         if entity != group and entity in members:
-            return "That player is part of Everywhere. Say Everywhere to control the group.", "unresolved"
+            return music_execution_result(("That player is part of Everywhere. Say Everywhere to control the group.", "unresolved"))
         target_states = {"media_stop": STOPPED, "media_pause": {"paused"}, "media_play": {"playing"}}
         expected = target_states.get(action)
         if expected and state in expected:
             label = {"media_stop": "stopped", "media_pause": "paused", "media_play": "playing"}[action]
-            return f"Playback is already {label} {location}.", "confirmed"
+            return music_execution_result((f"Playback is already {label} {location}.", "confirmed"))
         if action != "media_play" and state not in ACTIVE:
-            return f"There's no active playback {location}.", "unavailable"
+            return music_execution_result((f"There's no active playback {location}.", "unavailable"))
         before = player.get("attributes") or {}
         timed_out = False
         deadline = monotonic() + 5
         remaining = deadline - monotonic()
         if remaining <= 0:
-            return f"I ran out of time checking the player {location}.", "unverified"
+            return music_execution_result((f"I ran out of time checking the player {location}.", "unverified"))
         try:
             request(connection, "/api/services/media_player/" + action, {"entity_id": entity},
                     timeout=min(remaining, 2.5))
@@ -523,19 +523,19 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
             result = {"media_stop": "Stopped playback", "media_pause": "Paused playback",
                       "media_play": "Resumed playback", "media_next_track": "Skipped to the next track",
                       "media_previous_track": "Went to the previous track"}[action]
-            return f"{result} {location}.", "confirmed"
+            return music_execution_result((f"{result} {location}.", "confirmed"))
         if timed_out:
-            return f"Home Assistant took too long to respond, and I couldn't verify playback {location}.", "unverified"
-        return f"I sent the playback command {location}, but couldn't verify the result.", "unverified"
+            return music_execution_result((f"Home Assistant took too long to respond, and I couldn't verify playback {location}.", "unverified"))
+        return music_execution_result((f"I sent the playback command {location}, but couldn't verify the result.", "unverified"))
     except HTTPError as error:
         error.close()
         if error.code == 429:
-            return "Music playback is being rate limited. I haven't retried the command.", "unverified"
+            return music_execution_result(("Music playback is being rate limited. I haven't retried the command.", "unverified"))
         if error.code in {502, 503, 504}:
-            return "Home Assistant's music service is temporarily unavailable. I couldn't verify playback.", "unverified"
-        return f"Home Assistant returned an error for the playback command {location}.", "unverified"
+            return music_execution_result(("Home Assistant's music service is temporarily unavailable. I couldn't verify playback.", "unverified"))
+        return music_execution_result((f"Home Assistant returned an error for the playback command {location}.", "unverified"))
     except (OSError, ValueError):
-        return f"I couldn't verify the playback command {location}.", "unverified"
+        return music_execution_result((f"I couldn't verify the playback command {location}.", "unverified"))
     finally:
         HANDOFF.release()
 
