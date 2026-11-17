@@ -210,7 +210,7 @@ def lighting_registry(*, matches, parse_light_command, handle_light_request,
             origin_device=origin_device,
         )
         if result is None:
-            raise ValueError("Matched lighting request returned no result")
+            return HandledCommand("lighting", ExecutionResult("", Outcome.UNRESOLVED))
         return HandledCommand("lighting", ExecutionResult(*result))
 
     return HandlerRegistry((Handler("lighting", 0,
