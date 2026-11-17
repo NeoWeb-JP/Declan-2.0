@@ -120,9 +120,9 @@ async def run_job(hass, state, job, service, parameters, fields, context):
                                                 blocking=True, return_response=True, context=context)
         typed_summary = summarize_result_typed(result, job, fields)
         if typed_summary is None:
-            from .script_result_view import lookup_result
-            evidence = await lookup_result(hass, job["entity_id"], context.id)
-            summary = {"outcome": evidence["status"], "steps": evidence.get("steps", []), "run_id": evidence.get("run_id")}
+            from .script_result_view import lookup_result_typed
+            evidence = await lookup_result_typed(hass, job["entity_id"], context.id)
+            summary = evidence.to_job_wire()
         else:
             summary = typed_summary.to_wire()
         final.update(summary)

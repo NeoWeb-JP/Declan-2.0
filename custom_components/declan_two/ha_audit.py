@@ -4,13 +4,72 @@ Never evaluate templates or infer device success from a finished trace.
 Only identifiers, state summaries and diagnostic codes leave this module.
 """
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import StrEnum
+from typing import Any
 import re
 import hashlib
 import json
 
 IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]*\.[a-z0-9_]+\Z")
 SELECTORS = {"entity_id": "entity", "device_id": "device", "area_id": "area"}
+
+
+class TraceOutcome(StrEnum):
+    FAILED = "failed"
+    PARTIAL = "partial"
+    SKIPPED = "skipped"
+    RUNNING = "running"
+    FINISHED_UNVERIFIED = "finished_unverified"
+    CANCELLED = "cancelled"
+    UNVERIFIED = "unverified"
+
+
+@dataclass(frozen=True)
+class TraceExecution:
+    status: TraceOutcome
+    run_id: Any = None
+    start: str | None = None
+    finish: str | None = None
+    last_step: Any = None
+    steps: tuple[dict, ...] = ()
+    steps_truncated: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.status, TraceOutcome):
+            raise TypeError("status must be a TraceOutcome")
+
+    def to_wire(self) -> dict:
+        return {"run_id": self.run_id, "status": self.status.value,
+                "start": self.start, "finish": self.finish, "last_step": self.last_step,
+                "steps": [dict(step) for step in self.steps], "steps_truncated": self.steps_truncated}
+
+
+def classify_trace_typed(trace) -> TraceExecution:
+    if trace.get("error") or trace.get("script_execution") == "error":
+        status = TraceOutcome.FAILED
+    elif any(step["status"] == "failed" for step in trace.get("audit_steps", [])):
+        status = TraceOutcome.PARTIAL
+    elif trace.get("not_triggered") or trace.get("script_execution") == "failed_conditions":
+        status = TraceOutcome.SKIPPED
+    elif trace.get("state") == "running":
+        status = TraceOutcome.RUNNING
+    elif trace.get("script_execution") == "finished":
+        status = TraceOutcome.FINISHED_UNVERIFIED
+    elif trace.get("script_execution") == "cancelled":
+        status = TraceOutcome.CANCELLED
+    else:
+        status = TraceOutcome.UNVERIFIED
+    timestamp = trace.get("timestamp") or {}
+
+    def stamp(value):
+        return value.isoformat() if isinstance(value, datetime) else value if isinstance(value, str) else None
+
+    return TraceExecution(status, trace.get("run_id"), stamp(timestamp.get("start")),
+                          stamp(timestamp.get("finish")), trace.get("last_step"),
+                          tuple(dict(step) for step in trace.get("audit_steps", [])[:100]),
+                          len(trace.get("audit_steps", [])) > 100)
 
 
 def review_fingerprint(routine, findings, execution):
@@ -158,28 +217,7 @@ def build_report(states, registry, devices, areas, services, routines, traces, g
             finding("warning", "routine_disabled", "state", "Review whether this routine should remain disabled.")
         execution = []
         for trace in traces.get(entity_id, []):
-            if trace.get("error") or trace.get("script_execution") == "error":
-                status = "failed"
-            elif any(step["status"] == "failed" for step in trace.get("audit_steps", [])):
-                status = "partial"
-            elif trace.get("not_triggered") or trace.get("script_execution") == "failed_conditions":
-                status = "skipped"
-            elif trace.get("state") == "running":
-                status = "running"
-            elif trace.get("script_execution") == "finished":
-                status = "finished_unverified"
-            elif trace.get("script_execution") == "cancelled":
-                status = "cancelled"
-            else:
-                status = "unverified"
-            timestamp = trace.get("timestamp") or {}
-            def stamp(value):
-                return value.isoformat() if isinstance(value, datetime) else value if isinstance(value, str) else None
-            execution.append({"run_id": trace.get("run_id"), "status": status,
-                              "start": stamp(timestamp.get("start")), "finish": stamp(timestamp.get("finish")),
-                              "last_step": trace.get("last_step"),
-                              "steps": trace.get("audit_steps", [])[:100],
-                              "steps_truncated": len(trace.get("audit_steps", [])) > 100})
+            execution.append(classify_trace_typed(trace).to_wire())
         execution.sort(key=lambda row: row.get("start") or "", reverse=True)
         execution = execution[:5]
         if not execution:

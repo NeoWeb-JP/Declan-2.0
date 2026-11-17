@@ -176,8 +176,17 @@ mapping adapter. Storage and HTTP boundaries retain plain strings, bounded step
 projections, correlation failures, reason filtering, and interrupted-job behavior.
 Reported script success is still distinct from verified device execution.
 
+Trace classification now returns frozen `TraceExecution` values with a dedicated
+seven-value `TraceOutcome` enum. Audit report serialization preserves the original
+status vocabulary, timestamp conversion, step bounds and failure precedence.
+`lookup_result_typed` returns a frozen `ScriptTraceResult` directly from the shared
+classifier, without building and reparsing an audit report. The HTTP endpoint and
+background-job fallback consume that typed result; `lookup_result` retains the
+original mapping API. Missing or ambiguous contexts remain unverified, and a
+finished trace never establishes device success.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining
-cross-component audit scope includes trace classification and lookup
-(`ha_audit.py`, `script_result_view.py`) and their fallback into background jobs.
-Those components retain their own protocol/state vocabulary. Broader evidence
-statuses must not be silently narrowed to verified `ActionStatus`.
+cross-component audit scope includes trace-step evidence and audit review/failure
+consumers, which still use mapping statuses, plus persisted background-job state
+readback. Broader evidence statuses must not be silently narrowed to verified
+`ActionStatus`.

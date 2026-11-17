@@ -58,6 +58,23 @@ class BackgroundDispatchTests(unittest.TestCase):
 
 
 class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
+    async def test_background_trace_fallback_consumes_typed_lookup(self):
+        async def service(*args, **kwargs):
+            return None
+        self.hass.services.async_call = service
+        self.trace_details["context"]["id"] = "context1"
+        self.trace_rows.append({"run_id": "run1", "script_execution": "finished"})
+        self.trace_details["trace"] = {"sequence/0": [{}]}
+        payload, _ = await self.endpoint.post(self.request())
+        with patch.object(self.result_view, "lookup_result", side_effect=AssertionError("legacy roundtrip")):
+            await self.pending[0]
+        state = await self.jobs_view.job_state(self.hass)
+        job = state["jobs"][payload["job_id"]]
+        self.assertEqual(job["outcome"], "finished_unverified")
+        self.assertIs(type(job["outcome"]), str)
+        self.assertEqual(job["run_id"], "run1")
+        self.assertEqual(job["steps"], [{"path": "sequence/0", "status": "observed"}])
+
     def test_typed_summary_preserves_protocol_and_filters_evidence(self):
         job = {"job_id": "job", "entity_id": "script.movie_time"}
         for external, expected in (("success", "reported_success"), ("partial", "partial"),
