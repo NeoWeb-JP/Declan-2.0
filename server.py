@@ -43,6 +43,7 @@ import turn_persistence_orchestration
 import request_origin
 import request_validation
 import session_context_retrieval
+import retry_context
 import history
 import music
 import approved_media_players
@@ -2478,11 +2479,10 @@ class Handler(BaseHTTPRequestHandler):
                 effective_message = target
                 phrase = history.normalize_phrase(target)
         with SESSION_LOCK:
-            previous = SESSIONS.get(session_id)
-            pending_retry = previous.pop("pending_retry", None) if previous else None
-        if pending_retry and (pending_retry["scope"] != scope or scope is None
-                              or monotonic() - pending_retry["at"] > retry_learning.WINDOW_SECONDS):
-            pending_retry = None
+            pending_retry = retry_context.consume_pending_retry(
+                SESSIONS.get(session_id), scope, now=monotonic(),
+                window_seconds=retry_learning.WINDOW_SECONDS,
+            )
         if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
             with SESSION_LOCK:
                 reply = converse(message, session_id, "", scope=scope)
