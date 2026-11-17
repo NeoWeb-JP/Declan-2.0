@@ -365,7 +365,8 @@ class MusicTests(unittest.TestCase):
                 self.assertEqual(self.calls[-1], (action, {"entity_id": self.bedroom}))
 
     def test_unqualified_assist_stop_controls_all_active_approved_rooms(self):
-        areas = lambda connection, origin: {"master bedroom": set(), "bedroom": set()}
+        def areas(connection, origin):
+            return {"master bedroom": set(), "bedroom": set()}
         self.players[self.kitchen].update(state="playing", attributes=self.track)
         self.assertEqual(self.control("stop", origin="satellite", read_areas=areas, assist=True)[1], "confirmed")
         self.assertEqual(self.calls, [("media_stop", {"entity_id": self.bedroom}),
