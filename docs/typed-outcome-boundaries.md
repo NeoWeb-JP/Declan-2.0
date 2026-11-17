@@ -371,6 +371,12 @@ outcomes lazily, preserving dependent skips and independent execution; the publi
 tests verify incomplete responses never dispatch, reservations remain accounted,
 empty plans remain unresolved and model completion cannot bypass device verification.
 
+Confirmation response construction now consumes enum decisions and retains a
+frozen `ConfirmationReplyResult` with typed outcome and continuation metadata.
+Only history/API adapters emit plain outcome strings. Allow/confirmed/unknown
+decisions still produce no blocking response; prompt/cancel/deny wording and
+nonfatal history-save behavior remain unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
