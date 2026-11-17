@@ -20,6 +20,44 @@ class RoutineJobOutcome(StrEnum):
     SKIPPED = "skipped"
 
 
+class ScriptReportedOutcome(StrEnum):
+    SUCCESS = "success"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    BUSY = "busy"
+    UNKNOWN = "unknown"
+    STARTED = "started"
+
+
+@dataclass(frozen=True)
+class ScriptReportedResult:
+    outcome: ScriptReportedOutcome | None
+
+    def __post_init__(self):
+        if self.outcome is not None and not isinstance(self.outcome, ScriptReportedOutcome):
+            raise TypeError("outcome must be a ScriptReportedOutcome or None")
+
+    @classmethod
+    def parse(cls, value) -> "ScriptReportedResult":
+        if not isinstance(value, str):
+            return cls(None)
+        try:
+            return cls(ScriptReportedOutcome(value))
+        except ValueError:
+            return cls(None)
+
+    @property
+    def job_outcome(self) -> RoutineJobOutcome:
+        if self.outcome is None:
+            return RoutineJobOutcome.UNVERIFIED
+        return {ScriptReportedOutcome.SUCCESS: RoutineJobOutcome.REPORTED_SUCCESS,
+                ScriptReportedOutcome.PARTIAL: RoutineJobOutcome.PARTIAL,
+                ScriptReportedOutcome.FAILED: RoutineJobOutcome.FAILED,
+                ScriptReportedOutcome.CANCELLED: RoutineJobOutcome.CANCELLED,
+                ScriptReportedOutcome.BUSY: RoutineJobOutcome.BUSY}.get(self.outcome, RoutineJobOutcome.UNVERIFIED)
+
+
 class RoutineJobStepStatus(StrEnum):
     CONFIRMED = "confirmed"
     ALREADY_SET = "already_set"

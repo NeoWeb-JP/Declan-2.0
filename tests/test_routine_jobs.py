@@ -58,6 +58,30 @@ class BackgroundDispatchTests(unittest.TestCase):
 
 
 class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
+    def test_script_reported_results_preserve_exact_provider_interpretation(self):
+        models = audit_tests.job_results
+        job = {"job_id": "job", "entity_id": "script.movie_time"}
+        expected = {"success": "reported_success", "partial": "partial", "failed": "failed",
+                    "cancelled": "cancelled", "busy": "busy", "unknown": "unverified", "started": "unverified"}
+        for raw, outcome in expected.items():
+            with self.subTest(raw=raw):
+                parsed = models.ScriptReportedResult.parse(raw)
+                self.assertIs(parsed.outcome, models.ScriptReportedOutcome(raw))
+                self.assertEqual(parsed.job_outcome.value, outcome)
+                with self.assertRaises(AttributeError):
+                    parsed.outcome = None
+                summary = self.jobs_view.summarize_result_typed({"outcome": raw}, job, {})
+                self.assertIs(summary.outcome, parsed.job_outcome)
+                self.assertEqual(self.jobs_view.summarize_result({"outcome": raw}, job, {})["outcome"], outcome)
+        for raw in (None, [], {}, 1, "SUCCESS", " success ", "future_outcome"):
+            with self.subTest(raw=raw):
+                parsed = models.ScriptReportedResult.parse(raw)
+                self.assertIsNone(parsed.outcome)
+                summary = self.jobs_view.summarize_result_typed({"outcome": raw}, job, {})
+                self.assertIs(summary.outcome, models.RoutineJobOutcome.UNVERIFIED)
+        with self.assertRaises(TypeError):
+            models.ScriptReportedResult("success")
+
     def test_step_evidence_is_typed_bounded_and_preserves_unknown_wire_statuses(self):
         models = audit_tests.job_results
         job = {"job_id": "job", "entity_id": "script.movie_time"}

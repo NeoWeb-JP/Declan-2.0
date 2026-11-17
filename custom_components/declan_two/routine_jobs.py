@@ -11,6 +11,7 @@ from homeassistant.components.http import HomeAssistantView
 
 from .script_discovery_view import declared_script_fields
 from .routine_job_results import RoutineJobOutcome, RoutineJobStepEvidence, StoredRoutineJob, job_outcome
+from .routine_job_results import ScriptReportedResult
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,10 +82,8 @@ def summarize_result_typed(result, job, fields) -> RoutineJobSummary | None:
     if (("request_id" in fields and result.get("request_id") != job["job_id"])
             or ("routine_id" in fields and result.get("routine_id") != job["entity_id"])):
         return RoutineJobSummary(RoutineJobOutcome.UNVERIFIED, reason="result_correlation_failed")
-    value = result["outcome"]
-    outcome = {"success": RoutineJobOutcome.REPORTED_SUCCESS, "partial": RoutineJobOutcome.PARTIAL,
-               "failed": RoutineJobOutcome.FAILED, "cancelled": RoutineJobOutcome.CANCELLED,
-               "busy": RoutineJobOutcome.BUSY}.get(value, RoutineJobOutcome.UNVERIFIED) if isinstance(value, str) else RoutineJobOutcome.UNVERIFIED
+    reported = ScriptReportedResult.parse(result["outcome"])
+    outcome = reported.job_outcome
     raw = result.get("steps", [])
     if not isinstance(raw, list) or len(raw) > 200:
         return RoutineJobSummary(RoutineJobOutcome.UNVERIFIED, reason="invalid_steps")

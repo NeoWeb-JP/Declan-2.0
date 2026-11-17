@@ -338,6 +338,13 @@ planned/requested actions and unknown statuses never enable completion decoratio
 Legacy lighting follow-up selection likewise parses its status enum before deciding;
 wire and history evidence remain unchanged.
 
+HA background job summarization parses external script outcomes into a frozen
+`ScriptReportedResult` before deriving `RoutineJobOutcome`. Its vocabulary stays
+local to the independently installed integration. Parsing remains exact and
+case-sensitive; unknown, malformed and merely started reports stay unverified.
+Correlation guards, required-step verification, safe reasons and legacy summary
+mappings remain unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
