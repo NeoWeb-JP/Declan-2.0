@@ -54,6 +54,7 @@ import routine_preview_dispatch
 import early_command_result
 import stop_result_response
 import roast_guest_dispatch
+import routine_registry_dispatch
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2570,12 +2571,13 @@ class Handler(BaseHTTPRequestHandler):
             connection=ha_device_connection,
         )) is not None:
             routine_reply, outcome = roast_guest_result
-        elif routine_dispatch := command_registry.routine_registry(
+        elif routine_dispatch := routine_registry_dispatch.dispatch_routine(
+            phrase, source=source, origin_device=origin_device,
+            satellite=satellite, action_results=action_results,
+            registry_factory=command_registry.routine_registry,
+            context_factory=command_registry.RequestContext,
             select=select_routine_turn, execute=execute_routine,
-            action_results=action_results, origin=origin_device or satellite,
-        ).dispatch(command_registry.RequestContext(
-            phrase=phrase, source=source, origin_device=origin_device, satellite=satellite,
-        )):
+        ):
             lighting_context = ()
             routine_reply, outcome = routine_dispatch.result.as_legacy_pair()
             routine_status = routine_dispatch.routine_status
