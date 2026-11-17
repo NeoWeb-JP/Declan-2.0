@@ -7,7 +7,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCUMENTS = ("README.md", "docs/installation.md", "docs/environment.md")
-LINK = re.compile(r"(?<!!)\\[[^]]+\\]\\(([^)]+)\\)")
+LINK = re.compile(r"(?<!!)\[[^]]+\]\(([^)]+)\)")
 
 
 class DocumentationLinksTests(unittest.TestCase):
