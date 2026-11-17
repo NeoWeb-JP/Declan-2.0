@@ -96,7 +96,7 @@ def lighting_failure_reply(reply, *, light_result, routine_turn, outcome, phrase
     import re
     if (light_result is None or routine_turn is not None
             or outcome in {"confirmed", "preview"}
-            or re.match(r"^(?:preview|dry[ -]run)\\b", phrase)):
+            or re.match(r"^(?:preview|dry[ -]run)\b", phrase)):
         return reply
     category = response_category(phrase, parse_light_command)
     return render_failure(category, reply, guest=response_guest)
