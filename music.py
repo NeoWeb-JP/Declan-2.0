@@ -3,6 +3,7 @@
 import json
 import diagnostics
 import approved_media_players
+from music_provider_result import music_execution_result
 import os
 import re
 import sqlite3
@@ -831,3 +832,24 @@ def play(command, connection, read_inventory, *, origin=None):
     finally:
         HANDOFF.release()
 
+
+
+def feedback_result(command, connection, read_inventory):
+    """Typed music preference result; legacy feedback() remains supported."""
+    return music_execution_result(feedback(command, connection, read_inventory))
+
+
+def control_result(command, connection, read_inventory, *, origin=None,
+                   read_areas=None, assist=False):
+    """Typed Music Assistant control result with existing locking semantics."""
+    return music_execution_result(control(
+        command, connection, read_inventory, origin=origin,
+        read_areas=read_areas, assist=assist,
+    ))
+
+
+def play_result(command, connection, read_inventory, *, origin=None):
+    """Typed Music Assistant playback result; preserve legacy call behaviour."""
+    return music_execution_result(play(
+        command, connection, read_inventory, origin=origin,
+    ))
