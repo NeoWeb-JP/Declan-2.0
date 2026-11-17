@@ -11,6 +11,8 @@ BACKEND_MODULES = (
     "updates.py", "sensitive_confirmations.py", "declan_logs.py",
     "command_responses.py", "routine_responses.py", "script_discovery.py",
     "personality.py", "response_library.py", "arbitration.py",
+    "history.py", "timers.py", "conditions.py", "web_stt.py",
+    "diagnostics.py", "voice_profiles.py", "lighting_intents.py",
 )
 ENV_READ = re.compile(
     r"""(?:\bos\.getenv|\bgetenv|\bos\.environ\.get|\benviron\.get)\s*\(\s*['"](DECLAN_[A-Z0-9_]+)['"]"""
