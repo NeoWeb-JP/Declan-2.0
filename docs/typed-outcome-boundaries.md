@@ -402,6 +402,16 @@ fields are preserved losslessly. Installation checks, worker arguments, locking,
 activation and restart behavior are unchanged; no installation is performed by
 the snapshot or queue unit tests.
 
+The follow-up scheduling model audit validates `OrderedActionResult` at runtime:
+plain status strings, malformed indices and non-candidate actions cannot enter
+the typed contract. Scheduler-generated values and legacy tuples are unchanged.
+
+The reviewed core constructor paths use enum outcomes. Remaining raw strings in
+HA device states, model/Assist protocol messages and public JSON are interpreted
+at their respective boundaries; they are not interchangeable execution outcomes.
+Compatibility adapters intentionally accept legacy strings and emit the original
+wire vocabulary. This audit does not propose replacing those external protocols.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
