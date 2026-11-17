@@ -17,6 +17,17 @@
 
 The server owns the command decisions; Home Assistant owns entities, scripts, devices and areas. Keep routine implementation in Home Assistant rather than duplicating entity IDs in the server.
 
+## Assist reply history and trust boundary
+
+The Home Assistant Assist bridge currently has two ways to forward an already-produced reply to the standalone server's authenticated `POST /api/assist/history` endpoint:
+
+1. **Integration-local callback:** `hass.data["declan_two"]["record_assist_reply"]` accepts a dictionary and calls the shared forwarding helper. It is registered per config entry and removed on unload only if the callback is still owned by that entry. This avoids publishing a globally visible Home Assistant event, but it is an internal integration API, not a general-purpose public service or an authentication mechanism for arbitrary Python callers.
+2. **Legacy event:** `declan_two_assist_reply` on Home Assistant's global event bus still invokes the same helper. Any integration or automation able to fire that event may submit plausible history data. **Payload validation is not sender authentication.** Do not treat event-sourced history as provenance-verified.
+
+Both paths validate nonblank `message` and `reply` (up to 1,000 characters each); optional `session_id`, `outcome`, and `routine_status` strings (up to 128 characters); and optional `steps` (up to 50 strings of at most 256 characters). Malformed payloads are ignored. The bridge forwards using its configured backend bearer token, so the backend sees the bridge credential rather than the original event producer.
+
+**Migration before disabling the legacy listener:** inventory any Home Assistant scripts, automations and custom integrations that fire `declan_two_assist_reply`, including configuration outside this repository; migrate each supported producer to a trusted recording path; verify that history still captures the intended interaction; then remove the bus subscription and add a regression asserting forged events cannot create history. The repository's native `conversation.py` and `chat_view.py` currently do not publish this event. Removing the listener without checking the deployed Home Assistant configuration may silently lose historical entries. Track the outstanding migration in [issue #17](https://github.com/NeoWeb-JP/Declan-2.0/issues/17).
+
 ## Security and operations
 
 The Assist bridge and Ingress have separate credentials. Never commit live tokens or keys. Limit HTTP access to trusted networks or use HTTPS. The server and Home Assistant components are deployed and updated independently.
