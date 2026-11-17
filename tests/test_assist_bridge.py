@@ -378,7 +378,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         with wave.open(BytesIO(fields[0].args[1]), "rb") as recording:
             self.assertEqual((recording.getframerate(), recording.getnchannels(), recording.getsampwidth()), (16000, 1, 2))
             self.assertEqual(recording.readframes(2), b"\x00\x01\x02\x03")
-        self.assertIn(("model", "gpt-transcribe"), [field.args for field in fields])
+        self.assertIn(("model", "gpt-4o-mini-transcribe"), [field.args for field in fields])
         self.assertFalse(self.session.post.call_args.kwargs["allow_redirects"])
 
     async def test_wyoming_is_registered_and_retains_speaker_event(self):
