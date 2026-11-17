@@ -3,6 +3,8 @@ import base64
 import json
 import os
 import re
+from dataclasses import dataclass
+from enum import StrEnum
 from http.client import HTTPException
 from threading import Lock
 from urllib.error import HTTPError, URLError
@@ -11,6 +13,35 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 
 MAX_RESPONSE = 4 * 1024 * 1024
 WRITE_LOCK = Lock()
+
+
+class InteractionReviewStatus(StrEnum):
+    DISMISSED = "dismissed"
+    REJECTED = "rejected"
+    DISCARDED = "discarded"
+
+
+@dataclass(frozen=True)
+class InteractionReviewResult:
+    status: InteractionReviewStatus | None
+
+    def __post_init__(self):
+        if self.status is not None and not isinstance(self.status, InteractionReviewStatus):
+            raise TypeError("status must be an InteractionReviewStatus or None")
+
+    @classmethod
+    def parse(cls, value) -> "InteractionReviewResult":
+        if not isinstance(value, str):
+            return cls(None)
+        try:
+            return cls(InteractionReviewStatus(value))
+        except ValueError:
+            return cls(None)
+
+    @property
+    def blocks_teaching(self) -> bool:
+        # This is the existing exclusion rule, not a general review approval.
+        return self.status is not None
 
 
 class PipelineError(Exception):

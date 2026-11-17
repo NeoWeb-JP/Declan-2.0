@@ -15,6 +15,19 @@ PENDING = [{'id': 'interaction-1', 'status': 'pending', 'transcript': 'Hello',
 
 
 class PipelineTests(TestCase):
+    def test_review_results_are_typed_frozen_and_preserve_exact_exclusions(self):
+        for status in vp.InteractionReviewStatus:
+            result = vp.InteractionReviewResult.parse(status.value)
+            self.assertIs(result.status, status)
+            self.assertTrue(result.blocks_teaching)
+            with self.assertRaises(AttributeError):
+                setattr(result, "status", None)
+        for value in ("pending", "resolved", "future_status", "DISMISSED", " dismissed", None, [], {}):
+            with self.subTest(value=value):
+                result = vp.InteractionReviewResult.parse(value)
+                self.assertIsNone(result.status)
+                self.assertFalse(result.blocks_teaching)
+
     def setUp(self):
         self.calls = []
         self.responses = {'/api/v1/speakers': SPEAKERS, '/api/v1/interactions/pending': PENDING,
