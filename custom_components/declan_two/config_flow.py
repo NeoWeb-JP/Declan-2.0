@@ -14,6 +14,24 @@ from .config_validation import valid_declan_origin
 from .voice_defaults import DEFAULT_PROVIDER
 
 
+async def verify_declan_token(hass, url: str, token: str) -> str | None:
+    """Check a Declan Assist token without redirects or leaking credentials."""
+    try:
+        async with async_get_clientsession(hass).get(
+            url + "/api/capabilities",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=aiohttp.ClientTimeout(total=5),
+            allow_redirects=False,
+        ) as response:
+            if response.status in {401, 403}:
+                return "invalid_auth"
+            if response.status != 200:
+                return "cannot_connect"
+    except (aiohttp.ClientError, TimeoutError):
+        return "cannot_connect"
+    return None
+
+
 # The audit environment lacks Home Assistant type definitions for ConfigFlow.__init_subclass__.
 class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # type: ignore[call-arg]
     VERSION = 1
@@ -32,19 +50,9 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
             elif len(user_input["token"]) < 32:
                 errors["token"] = "invalid_token"  # nosec B105 - HA validation error key, not a password
             else:
-                try:
-                    async with async_get_clientsession(self.hass).get(
-                        url + "/api/capabilities",
-                        headers={"Authorization": f"Bearer {user_input['token']}"},
-                        timeout=aiohttp.ClientTimeout(total=5),
-                        allow_redirects=False,
-                    ) as response:
-                        if response.status in {401, 403}:
-                            errors["base"] = "invalid_auth"
-                        elif response.status != 200:
-                            errors["base"] = "cannot_connect"
-                except (aiohttp.ClientError, TimeoutError):
-                    errors["base"] = "cannot_connect"
+                auth_error = await verify_declan_token(self.hass, url, user_input["token"])
+                if auth_error:
+                    errors["base"] = auth_error
                 if errors:
                     return self.async_show_form(
                         step_id="user", data_schema=vol.Schema({
@@ -80,19 +88,9 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
             elif len(token) < 32:
                 errors["token"] = "invalid_token"  # nosec B105 - HA form error key, not a credential
             else:
-                try:
-                    async with async_get_clientsession(self.hass).get(
-                        url + "/api/capabilities",
-                        headers={"Authorization": f"Bearer {token}"},
-                        timeout=aiohttp.ClientTimeout(total=5),
-                        allow_redirects=False,
-                    ) as response:
-                        if response.status in {401, 403}:
-                            errors["base"] = "invalid_auth"
-                        elif response.status != 200:
-                            errors["base"] = "cannot_connect"
-                except (aiohttp.ClientError, TimeoutError):
-                    errors["base"] = "cannot_connect"
+                auth_error = await verify_declan_token(self.hass, url, token)
+                if auth_error:
+                    errors["base"] = auth_error
                 if not errors:
                     return self.async_update_reload_and_abort(
                         entry, data_updates={"url": url, "token": token},
@@ -120,19 +118,9 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
             if len(token) < 32:
                 errors["token"] = "invalid_token"  # nosec B105 - HA form error identifier
             else:
-                try:
-                    async with async_get_clientsession(self.hass).get(
-                        entry.data["url"] + "/api/capabilities",
-                        headers={"Authorization": f"Bearer {token}"},
-                        timeout=aiohttp.ClientTimeout(total=5),
-                        allow_redirects=False,
-                    ) as response:
-                        if response.status in {401, 403}:
-                            errors["base"] = "invalid_auth"
-                        elif response.status != 200:
-                            errors["base"] = "cannot_connect"
-                except (aiohttp.ClientError, TimeoutError):
-                    errors["base"] = "cannot_connect"
+                auth_error = await verify_declan_token(self.hass, entry.data["url"], token)
+                if auth_error:
+                    errors["base"] = auth_error
                 if not errors:
                     return self.async_update_reload_and_abort(
                         entry, data_updates={"token": token},
