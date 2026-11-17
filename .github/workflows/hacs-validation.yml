@@ -1,0 +1,32 @@
+name: HACS custom repository validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hacs:
+    name: HACS (proprietary custom repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate custom integration with HACS
+        uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa # main snapshot 2026-11-17
+        with:
+          category: integration
+          # Owner decision: proprietary/all rights reserved. This is custom-repo
+          # validation, not eligibility for the HACS default catalog.
+          ignore: license
+          comment: false
+      - name: Explain proprietary validation scope
+        if: always()
+        run: |
+          echo '## HACS custom repository validation' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The license check is intentionally excluded: Declan remains proprietary/all rights reserved.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'All other applicable HACS checks are blocking. This does not establish default-catalog eligibility.' >> "$GITHUB_STEP_SUMMARY"

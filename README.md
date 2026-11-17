@@ -12,6 +12,7 @@ Declan 2.0 is a proprietary household voice assistant with a standalone backend 
 ## Operations and development
 
 - [Current work and testing](docs/now-work.md)
+- [Proprietary custom-repository HACS validation](docs/hacs-validation.md)
 - [Security and privacy](docs/p1-security.md)
 - [Proxmox release updates](PROXMOX-UPDATES.md)
 - [Legacy operational notes](docs/legacy-readme.md)
