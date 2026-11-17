@@ -161,7 +161,7 @@ def stop_pending_routines_result():
 
 IDLE_SECONDS = 300
 ASSIST_PORT = 52737
-RELEASE_VERSION = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
+RELEASE_VERSION: str | None = os.environ.get("DECLAN_RELEASE_VERSION", "").strip()
 if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?", RELEASE_VERSION) or len(RELEASE_VERSION) > 40:
     RELEASE_VERSION = None
 RELEASE_VERSION = updates.installed_version(RELEASE_VERSION)
@@ -2390,8 +2390,8 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         if not isinstance(entity, str) or not routine_responses.ENTITY.fullmatch(entity):
                             raise ValueError("Select a routine or command")
-                        scripts, error = script_discovery.discover(ha_device_connection(), fresh=True)
-                        if error:
+                        scripts, discovery_error = script_discovery.discover(ha_device_connection(), fresh=True)
+                        if discovery_error:
                             self.send_json(503, {"error": "Home Assistant routines unavailable. Try again."})
                             return
                         item = next((row for row in scripts if row['entity_id'] == entity), None)
