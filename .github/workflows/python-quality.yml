@@ -1,0 +1,46 @@
+name: Python quality and dependency audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Advisory Python quality checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install audit tools
+        run: python -m pip install ruff==0.14.5 bandit==1.9.1 pip-audit==2.9.0
+      - name: Ruff baseline
+        continue-on-error: true
+        run: ruff check . --output-format github
+      - name: Bandit security baseline
+        continue-on-error: true
+        run: bandit -r . -x ./tests,./.git -q
+      - name: Audit pinned dependency files
+        continue-on-error: true
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(requirements*.txt)
+          if (("${#files[@]}" == 0)); then
+            echo "No root requirements files found; skipping pip-audit."
+            exit 0
+          fi
+          for file in "${files[@]}"; do
+            echo "Auditing $file"
+            python -m pip_audit -r "$file" --disable-pip --no-deps || exit 1
+          done
