@@ -90,6 +90,7 @@ import guarded_fallback
 import ha_dispatcher
 import routine_registry
 from routine_action_evidence import RoutineActionStatus, parse_routine_actions
+from script_provider_results import ScriptProviderResult, ScriptReportedOutcome
 from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
@@ -801,9 +802,9 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
             detail = "Home Assistant didn't return a Movie Time result that matched this request."
             return ExecutionResult(f"{salutation} {detail}", Outcome.UNVERIFIED), detail
         return ExecutionResult(f"{salutation} I couldn't verify the result of this run.", Outcome.UNVERIFIED), None
-    outcome = result.get("outcome")
+    outcome = ScriptProviderResult.parse(result.get("outcome")).outcome
     resolved = result.get("resolved_action")
-    if movie_action and outcome in ("success", "partial"):
+    if movie_action and outcome in (ScriptReportedOutcome.SUCCESS, ScriptReportedOutcome.PARTIAL):
         expected = ("start", "end") if movie_action == "toggle" else (movie_action,)
         if resolved not in expected:
             return ExecutionResult("Movie Time. I couldn't verify that the result matched the requested direction.", Outcome.UNVERIFIED), None
@@ -813,14 +814,14 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
         extend_action_evidence(action_results, steps)
     required = [step for step in steps if step.required is not False]
     confirmed = any(step.completed for step in required)
-    if outcome == "success" and (not required or len(steps) != len(raw_steps)
+    if outcome is ScriptReportedOutcome.SUCCESS and (not required or len(steps) != len(raw_steps)
                                  or any(not step.completed for step in required)):
-        outcome = "partial" if confirmed else "unknown"
-    elif outcome == "partial" and not confirmed:
-        outcome = "unknown"
-    elif outcome == "failed" and confirmed:
-        outcome = "partial"
-    if outcome == "success":
+        outcome = ScriptReportedOutcome.PARTIAL if confirmed else ScriptReportedOutcome.UNKNOWN
+    elif outcome is ScriptReportedOutcome.PARTIAL and not confirmed:
+        outcome = ScriptReportedOutcome.UNKNOWN
+    elif outcome is ScriptReportedOutcome.FAILED and confirmed:
+        outcome = ScriptReportedOutcome.PARTIAL
+    if outcome is ScriptReportedOutcome.SUCCESS:
         guest_mode = result.get("guest_mode")
         if movie_action:
             salutation = "Starting Movie Time." if resolved == "start" else "Ending Movie Time."
@@ -838,7 +839,7 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
         detail = ("Home Assistant reports all lights are off." if period == "night"
                   else "Home Assistant confirmed the required steps.")
         return ExecutionResult(reply, Outcome.REPORTED_SUCCESS), detail
-    if outcome == "busy":
+    if outcome is ScriptReportedOutcome.BUSY:
         return ExecutionResult(f"{salutation} The routine is already in progress.", Outcome.BUSY), None
     verified = [step.target.replace("_", " ") for step in required if step.completed]
     failed = [step.target.replace("_", " ") for step in required if step.status is RoutineActionStatus.FAILED]
@@ -851,13 +852,15 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
         details.append("These steps failed: " + ", ".join(failed[:8]) + ".")
     if incomplete:
         details.append("I couldn't confirm " + ", ".join(incomplete[:8]) + ".")
-    detail = " ".join(details) or ("Home Assistant reported a failure." if outcome == "failed"
+    detail = " ".join(details) or ("Home Assistant reported a failure." if outcome is ScriptReportedOutcome.FAILED
                                    else "I couldn't confirm the routine completed.")
     reply = f"{salutation} {detail}"
-    if movie_action and outcome == "partial" and resolved in ("start", "end"):
+    if movie_action and outcome is ScriptReportedOutcome.PARTIAL and resolved in ("start", "end"):
         intro = "Starting Movie Time." if resolved == "start" else "Ending Movie Time."
         reply = add_sass(intro, f"movie_{resolved}", result.get("guest_mode"))
-    return ExecutionResult(reply, Outcome(outcome if outcome in ("partial", "failed") else "unverified")), detail
+    final_outcome = (ScriptProviderResult(outcome).execution_outcome
+                     if outcome in (ScriptReportedOutcome.PARTIAL, ScriptReportedOutcome.FAILED) else Outcome.UNVERIFIED)
+    return ExecutionResult(reply, final_outcome), detail
 
 
 def parse_light_command(phrase):

@@ -2,6 +2,7 @@
 from execution_results import ExecutionResult, Outcome
 from script_action_evidence import parse_script_actions
 from action_evidence_buffer import extend_action_evidence
+from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
 import json
 import re
 import secrets
@@ -140,17 +141,17 @@ def completion_from_trace_result(connection, current, result):
             or evidence.get("context_id") != context_id or evidence.get("evidence") != "ha_trace"
             or not isinstance(evidence.get("run_id"), str) or not evidence["run_id"]):
         return None
-    status = evidence.get("status")
+    status = parse_trace_outcome(evidence.get("status"))
     detail = "HA trace " + evidence["run_id"][:128] + "; device results not verified."
-    if status == "finished_unverified":
+    if status is TraceProviderOutcome.FINISHED_UNVERIFIED:
         return ExecutionResult("Routine finished.", Outcome.EXECUTION_COMPLETED), detail
-    if status == "partial":
+    if status is TraceProviderOutcome.PARTIAL:
         return ExecutionResult("The routine finished with action errors. Check its Home Assistant trace.", Outcome.PARTIAL), detail
-    if status == "failed":
+    if status is TraceProviderOutcome.FAILED:
         return ExecutionResult("The routine failed. Check its Home Assistant trace.", Outcome.FAILED), detail
-    if status == "cancelled":
+    if status is TraceProviderOutcome.CANCELLED:
         return ExecutionResult("The routine was cancelled.", Outcome.CANCELLED), detail
-    if status == "running":
+    if status is TraceProviderOutcome.RUNNING:
         return ExecutionResult("The routine is still running.", Outcome.STARTED), detail
     return None
 
@@ -287,29 +288,27 @@ def _execute_provider(connection, item, *, parameters=None, expect_response=Fals
             return ExecutionResult("Script result did not match this request.", Outcome.UNVERIFIED), None
         if "routine_id" in allowed_fields and data.get("routine_id") != current["entity_id"]:
             return ExecutionResult("Script result did not match this routine.", Outcome.UNVERIFIED), None
-        outcome = str(data["outcome"]).lower()
-        statuses = {"success": Outcome.REPORTED_SUCCESS, "partial": Outcome.PARTIAL,
-                    "failed": Outcome.FAILED, "cancelled": Outcome.CANCELLED,
-                    "unknown": Outcome.UNVERIFIED, "started": Outcome.STARTED, "busy": Outcome.BUSY}
-        if outcome not in statuses:
+        provider_result = ScriptProviderResult.parse(data["outcome"], normalize=True)
+        outcome = provider_result.outcome
+        if outcome is None:
             return ExecutionResult("Home Assistant returned an unknown script outcome.", Outcome.UNVERIFIED), None
         reasons = {
             "screen_moving": "The projector screen is still moving. Please wait before trying Movie Time again.",
             "screen_position_unverified": "I couldn't determine a safe screen position and direction. Movie Time was not run.",
             "requested_action_missing_or_invalid": "Movie Time did not receive a valid start, end or toggle action. Nothing was run.",
         }
-        if outcome in {"unknown", "busy"} and isinstance(data.get("reason_code"), str) and data["reason_code"] in reasons:
-            return ExecutionResult(reasons[data["reason_code"]], Outcome(statuses[outcome])), None
+        if outcome in {ScriptReportedOutcome.UNKNOWN, ScriptReportedOutcome.BUSY} and isinstance(data.get("reason_code"), str) and data["reason_code"] in reasons:
+            return ExecutionResult(reasons[data["reason_code"]], provider_result.execution_outcome), None
         evidence = parse_script_actions(data.get("steps", []))
-        if outcome == "success" and not evidence.required_steps_completed:
+        if outcome is ScriptReportedOutcome.SUCCESS and not evidence.required_steps_completed:
             return ExecutionResult("Script success was not confirmed by its required steps.", Outcome.UNVERIFIED), None
-        description = {"success": "completed successfully", "partial": "partially completed",
-                       "failed": "failed", "cancelled": "was cancelled",
-                       "unknown": "could not be verified", "started": "started but not completed",
-                       "busy": "is already in progress"}[outcome]
+        description = {ScriptReportedOutcome.SUCCESS: "completed successfully", ScriptReportedOutcome.PARTIAL: "partially completed",
+                       ScriptReportedOutcome.FAILED: "failed", ScriptReportedOutcome.CANCELLED: "was cancelled",
+                       ScriptReportedOutcome.UNKNOWN: "could not be verified", ScriptReportedOutcome.STARTED: "started but not completed",
+                       ScriptReportedOutcome.BUSY: "is already in progress"}[outcome]
         if action_results is not None:
             extend_action_evidence(action_results, evidence.steps)
-        return ExecutionResult(current["name"] + " " + description + ".", Outcome(statuses[outcome])), None
+        return ExecutionResult(current["name"] + " " + description + ".", provider_result.execution_outcome), None
     for key in ("speech", "reply", "message", "response", "summary"):
         value = data.get(key)
         if isinstance(value, str) and value.strip():
