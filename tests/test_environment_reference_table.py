@@ -22,6 +22,16 @@ class EnvironmentReferenceTests(unittest.TestCase):
         self.assertTrue(all(names), "Every environment table row needs a variable name")
         self.assertEqual(len(names), len({match.group(1) for match in names if match}))
 
+    def test_example_variables_are_documented(self):
+        reference = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
+        example = (ROOT / ".env.example").read_text(encoding="utf-8")
+        documented = set(re.findall(r"^\\| `([A-Z][A-Z0-9_]*)` \\|", reference, re.MULTILINE))
+        example_names = set(re.findall(
+            r"^\\s*#?\\s*(DECLAN_[A-Z0-9_]+)\\s*=", example, re.MULTILINE
+        ))
+        self.assertTrue(example_names, "Expected environment variables in .env.example")
+        self.assertEqual(set(), example_names - documented)
+
 
 if __name__ == "__main__":
     unittest.main()
