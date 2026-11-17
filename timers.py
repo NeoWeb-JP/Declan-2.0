@@ -13,7 +13,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request
 
-from local_outcome_contracts import timer_execution_result
+from execution_results import ExecutionResult, Outcome
 
 
 DATABASE = Path(__file__).resolve().parent / ".data" / "timers.sqlite3"
@@ -209,33 +209,33 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
             duration_text, separator, suffix = duration_text.partition(" for ")
             duration = duration_seconds(duration_text)
             if duration is None:
-                return timer_execution_result(("Give me a duration between one second and 24 hours.", "unresolved"))
+                return ExecutionResult("Give me a duration between one second and 24 hours.", Outcome.UNRESOLVED)
             name = timer_name(prefix or suffix) if prefix or separator else format_duration(duration, hyphen=True) + " timer"
             if not name or len(name) > 60 or (prefix and separator):
-                return timer_execution_result(("Please give the timer one name of up to 60 characters.", "unresolved"))
+                return ExecutionResult("Please give the timer one name of up to 60 characters.", Outcome.UNRESOLVED)
             name = name[0].upper() + name[1:]
             if destination == "":
-                return timer_execution_result(("Which room should this timer ring in?", "unresolved"))
+                return ExecutionResult("Which room should this timer ring in?", Outcome.UNRESOLVED)
             output = resolve_output(opener, satellite, device, browser=browser, room=destination)
             if output is None:
                 if destination is not None:
-                    return timer_execution_result((f"I couldn't identify one available Assist satellite in {destination}. The timer wasn't set.", "unavailable"))
-                return timer_execution_result(("I couldn't verify an alarm output. Set the timer from an available Assist satellite or configure a browser timer output.", "unavailable"))
+                    return ExecutionResult(f"I couldn't identify one available Assist satellite in {destination}. The timer wasn't set.", Outcome.UNAVAILABLE)
+                return ExecutionResult("I couldn't verify an alarm output. Set the timer from an available Assist satellite or configure a browser timer output.", Outcome.UNAVAILABLE)
             deadline = time() + duration
             with database() as db:
                 db.execute("BEGIN IMMEDIATE")
                 if db.execute("SELECT count(*) FROM timers").fetchone()[0] >= 32:
-                    return timer_execution_result(("There are already 32 timers. Cancel or acknowledge one first.", "unavailable"))
+                    return ExecutionResult("There are already 32 timers. Cancel or acknowledge one first.", Outcome.UNAVAILABLE)
                 try:
                     db.execute("INSERT INTO timers(name,satellite,room,deadline,next_alarm) VALUES (?,?,?,?,?)",
                                (name, *output, deadline, deadline))
                 except sqlite3.IntegrityError:
-                    return timer_execution_result((f"There's already a timer named {name} in {output[1]}. Use a different name.", "unresolved"))
-            return timer_execution_result((f"Set {name} for {format_duration(duration)}. Alarm output: {output[1]}.", "timer_set"))
+                    return ExecutionResult(f"There's already a timer named {name} in {output[1]}. Use a different name.", Outcome.UNRESOLVED)
+            return ExecutionResult(f"Set {name} for {format_duration(duration)}. Alarm output: {output[1]}.", Outcome.TIMER_SET)
 
         amount = duration_seconds(adjustment["amount"]) if adjustment else None
         if adjustment and amount is None:
-            return timer_execution_result(("Give me a duration between one second and 24 hours.", "unresolved"))
+            return ExecutionResult("Give me a duration between one second and 24 hours.", Outcome.UNRESOLVED)
         match = query or removal or adjustment
         name = timer_name(match["target"]) if match else ""
         room = match["room"] if match else None
@@ -250,38 +250,38 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
             if adjustment and name and not room and not matches:
                 matches = [timer for timer in timers if timer["room"].casefold() == name.casefold()]
             if not matches:
-                return timer_execution_result(("I couldn't find a matching timer." if name or room else "There are no timers.", "no_timer"))
+                return ExecutionResult("I couldn't find a matching timer." if name or room else "There are no timers.", Outcome.NO_TIMER)
             if len(matches) > 1 and (name or removal or adjustment):
                 options = ". ".join(describe(timer, now) for timer in matches)
-                return timer_execution_result((f"Which timer do you mean? {options}.", "unresolved"))
+                return ExecutionResult(f"Which timer do you mean? {options}.", Outcome.UNRESOLVED)
             if not (removal or adjustment):
-                return timer_execution_result((". ".join(describe(timer, now) for timer in matches) + ".", "timer_status"))
+                return ExecutionResult(". ".join(describe(timer, now) for timer in matches) + ".", Outcome.TIMER_STATUS)
             timer = matches[0]
             expired = timer["deadline"] <= now
             named_timer = timer_label(timer["name"])
             if adjustment:
                 if expired:
-                    return timer_execution_result((f"The {named_timer} in {timer['room']} has already expired.", "unresolved"))
+                    return ExecutionResult(f"The {named_timer} in {timer['room']} has already expired.", Outcome.UNRESOLVED)
                 increase = adjustment[1] == "increase"
                 deadline = timer["deadline"] + (amount if increase else -amount)
                 if deadline - now > MAX_SECONDS:
-                    return timer_execution_result(("A timer can't have more than 24 hours left.", "unresolved"))
+                    return ExecutionResult("A timer can't have more than 24 hours left.", Outcome.UNRESOLVED)
                 deadline = max(now, deadline)
                 db.execute("UPDATE timers SET deadline = ?, next_alarm = ?, last_alarm_ok = NULL WHERE id = ?",
                            (deadline, deadline, timer["id"]))
                 remaining = math.ceil(deadline - now)
                 label = f"The {named_timer} in {timer['room']}"
-                return timer_execution_result(((f"{label} now has {format_duration(remaining)} left." if remaining
-                        else f"{label} is due now."), "timer_adjusted"))
+                return ExecutionResult(f"{label} now has {format_duration(remaining)} left." if remaining
+                        else f"{label} is due now.", Outcome.TIMER_ADJUSTED)
             if removal[1] == "cancel" and expired:
-                return timer_execution_result((f"{timer['name']} has already expired. Say stop the {named_timer} to silence its alarm.", "unresolved"))
+                return ExecutionResult(f"{timer['name']} has already expired. Say stop the {named_timer} to silence its alarm.", Outcome.UNRESOLVED)
             if removal[1] != "cancel" and not expired:
-                return timer_execution_result((f"{timer['name']} is still running. Say cancel the {named_timer} to cancel it.", "unresolved"))
+                return ExecutionResult(f"{timer['name']} is still running. Say cancel the {named_timer} to cancel it.", Outcome.UNRESOLVED)
             db.execute("DELETE FROM timers WHERE id = ?", (timer["id"],))
             verb = "Cancelled" if not expired else "Stopped the alarm for"
-            return timer_execution_result((f"{verb} {timer['name']}.", "timer_cancelled" if not expired else "timer_stopped"))
+            return ExecutionResult(f"{verb} {timer['name']}.", Outcome.TIMER_CANCELLED if not expired else Outcome.TIMER_STOPPED)
     except (OSError, ValueError, sqlite3.Error):
-        return timer_execution_result(("I couldn't complete that timer request.", "unavailable"))
+        return ExecutionResult("I couldn't complete that timer request.", Outcome.UNAVAILABLE)
 
 
 def stop_due(satellite):

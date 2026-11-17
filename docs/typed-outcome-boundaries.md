@@ -230,8 +230,17 @@ its previous training behavior. Dinner music evidence uses its existing status
 enum. Routine rendering also consumes the typed discovery cache directly so live
 script metadata remains available after discovery.
 
+Lighting-provider aggregation now retains skipped/error replies as
+`ExecutionResult` values and combines their enum outcomes directly. It preserves
+first-skipped-result precedence, partial results when any lighting confirmation
+exists, response ordering, preview/correction guards and plain legacy pairs.
+Timer provider paths construct `ExecutionResult` values with `Outcome` members
+directly rather than passing new string pairs through the compatibility adapter.
+The public timer API still returns its original pair or `None`; timer persistence,
+expiry and cancellation semantics are unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining source
-audit scope includes residual lighting-provider aggregation in `server.py`,
-timer provider construction through legacy pair adapters, and diagnostic trace
-outcomes, which have an independent vocabulary. Broader evidence statuses must
-not be silently narrowed to verified `ActionStatus`.
+audit scope includes diagnostic trace outcomes, which have an independent
+vocabulary, and a final review of compatibility adapters across the migrated
+providers. Broader evidence statuses must not be silently narrowed to verified
+`ActionStatus`.

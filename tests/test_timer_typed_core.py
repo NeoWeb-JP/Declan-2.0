@@ -1,5 +1,7 @@
 """Timer core returns typed outcomes while legacy handle API remains unchanged."""
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 import timers
@@ -7,6 +9,29 @@ from execution_results import ExecutionResult, Outcome
 
 
 class TimerCoreTypedTests(unittest.TestCase):
+    def test_timer_lifecycle_constructs_results_with_enum_outcomes(self):
+        with TemporaryDirectory() as folder, \
+             patch.object(timers, "DATABASE", Path(folder) / "timers.db"), \
+             patch.object(timers, "time", return_value=100) as clock, \
+             patch.object(timers, "resolve_output", return_value=("assist_satellite.kitchen", "kitchen")), \
+             patch.object(timers, "ExecutionResult", wraps=ExecutionResult) as model:
+            for phrase, expected in (("set tea timer for 5 minutes", Outcome.TIMER_SET),
+                    ("set tea timer for 5 minutes", Outcome.UNRESOLVED),
+                    ("list timers", Outcome.TIMER_STATUS),
+                    ("increase tea timer by 1 minute", Outcome.TIMER_ADJUSTED),
+                    ("stop tea timer", Outcome.UNRESOLVED),
+                    ("cancel tea timer", Outcome.TIMER_CANCELLED),
+                    ("list timers", Outcome.NO_TIMER),
+                    ("set tea timer for 1 second", Outcome.TIMER_SET)):
+                with self.subTest(phrase=phrase):
+                    result = timers.handle_result(phrase, Mock())
+                    self.assertIs(result.outcome, expected)
+                    self.assertIs(model.call_args.args[1], expected)
+            clock.return_value = 200
+            self.assertIs(timers.handle_result("cancel tea timer", Mock()).outcome, Outcome.UNRESOLVED)
+            self.assertIs(timers.handle_result("stop tea timer", Mock()).outcome, Outcome.TIMER_STOPPED)
+            self.assertTrue(all(isinstance(call.args[1], Outcome) for call in model.call_args_list))
+
     def test_unmatched_phrase_remains_none(self):
         self.assertIsNone(timers.handle_result("turn on kitchen", Mock()))
         self.assertIsNone(timers.handle("turn on kitchen", Mock()))

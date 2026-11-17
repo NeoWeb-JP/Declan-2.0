@@ -1519,7 +1519,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         name,
     )
     resolved_targets = []
-    skipped = []
+    skipped: list[ExecutionResult] = []
     direction = desired_state
     for target in targets:
         target = target.strip().removeprefix("the ")
@@ -1543,7 +1543,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 if left_matches and right_matches:
                     splits.append(((left, left_matches), (right, right_matches)))
             if len(splits) > 1:
-                skipped.append((f"I couldn't tell where to split {target}. Say 'and' between the light names.", "unresolved"))
+                skipped.append(ExecutionResult(f"I couldn't tell where to split {target}. Say 'and' between the light names.", Outcome.UNRESOLVED))
                 continue
             if splits:
                 resolved_targets.extend((part, ids, direction) for part, ids in splits[0])
@@ -1566,23 +1566,23 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     for target, matches, direction in resolved_targets:
         if not matches:
             record_action(target, direction, LightingActionStatus.SKIPPED, detail="unresolved")
-            skipped.append((f"I couldn't find a Home Assistant light called {target}.", "unresolved"))
+            skipped.append(ExecutionResult(f"I couldn't find a Home Assistant light called {target}.", Outcome.UNRESOLVED))
             continue
         if len(matches) > 1 and target not in room_targets:
             record_action(target, direction, LightingActionStatus.SKIPPED, detail="ambiguous")
             options = ", ".join(sorted(matches))
-            skipped.append((f"More than one light matches {target}. Try one of these entity IDs: {options}.", "unresolved"))
+            skipped.append(ExecutionResult(f"More than one light matches {target}. Try one of these entity IDs: {options}.", Outcome.UNRESOLVED))
             continue
         for entity in sorted(matches):
             label, state = lights[entity]
             if state not in ("on", "off"):
                 record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="unavailable")
-                skipped.append((f"Home Assistant says {label} is unavailable.", "unavailable"))
+                skipped.append(ExecutionResult(f"Home Assistant says {label} is unavailable.", Outcome.UNAVAILABLE))
                 continue
             relative = direction in ("darker", "brighter")
             if (brightness is not None or relative or direction == "very bright") and entity not in dimmable:
                 record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="brightness unsupported")
-                skipped.append((f"Home Assistant doesn't report brightness control for {label}.", "unavailable"))
+                skipped.append(ExecutionResult(f"Home Assistant doesn't report brightness control for {label}.", Outcome.UNAVAILABLE))
                 continue
             percent = brightness
             goal = direction
@@ -1593,7 +1593,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 if state == "off" or not (isinstance(level, (int, float)) and 0 <= level <= 255):
                     reason = "already off" if state == "off" else "current brightness unknown"
                     record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=reason)
-                    skipped.append((f"I left {label} alone ({reason}).", "unavailable"))
+                    skipped.append(ExecutionResult(f"I left {label} alone ({reason}).", Outcome.UNAVAILABLE))
                     continue
                 change = -relative_step if direction == "darker" else relative_step
                 percent = min(100, max(1, round(level * 100 / 255) + change))
@@ -1604,22 +1604,21 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 del selected[entity]
                 conflicts.add(entity)
                 record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail="conflicting directions")
-                skipped.append((f"I heard conflicting settings for {label}. I left it alone.", "unresolved"))
+                skipped.append(ExecutionResult(f"I heard conflicting settings for {label}. I left it alone.", Outcome.UNRESOLVED))
                 continue
             selected[entity] = (label, state, goal)
             target_levels[entity] = percent
             if direction == "off" and target in room_targets and not target.startswith("everything except "):
                 room_off_entities.add(entity)
 
-    skipped_details = "".join(f" {message}" for message, _ in skipped)
+    skipped_details = "".join(f" {result.reply}" for result in skipped)
     if not selected:
         if brightness is None and not require_all and len(resolved_targets) == 1:
             switch_result = set_switch_as_light_result(name, desired_state, inventory, connection, preview=preview, action_results=action_results)
             if switch_result is not None:
                 return lighting_intents._lighting_result(switch_result)
-        return lighting_intents._lighting_result((skipped_details.strip(), skipped[0][1]) if skipped else (
-            "Tell me which lights to switch.", "unresolved"
-        ))
+        return (ExecutionResult(skipped_details.strip(), skipped[0].outcome) if skipped else
+                ExecutionResult("Tell me which lights to switch.", Outcome.UNRESOLVED))
     if preview:
         for entity, (label, _, direction) in selected.items():
             record_action(label, direction, LightingActionStatus.PLANNED, entity=entity)
@@ -1665,7 +1664,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         if remaining <= 0:
             for entity in entity_ids:
                 record_action(selected[entity][0], direction, LightingActionStatus.SKIPPED, entity=entity, detail="dispatch time limit")
-            skipped.append((f"I ran out of time before sending the command for {labels}.", "unverified"))
+            skipped.append(ExecutionResult(f"I ran out of time before sending the command for {labels}.", Outcome.UNVERIFIED))
             continue
         action = Request(
             f"{url}/api/services/light/turn_{direction}",
@@ -1679,12 +1678,12 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             error.close()
             for entity in entity_ids:
                 record_action(selected[entity][0], direction, LightingActionStatus.FAILED, entity=entity, detail=f"HTTP {error.code}")
-            skipped.append((f"Home Assistant returned HTTP {error.code} for {labels}.", "action_error"))
+            skipped.append(ExecutionResult(f"Home Assistant returned HTTP {error.code} for {labels}.", Outcome.ACTION_ERROR))
             continue
         except OSError:
             for entity in entity_ids:
                 record_action(selected[entity][0], direction, LightingActionStatus.UNVERIFIED, entity=entity, detail="no dispatch response")
-            skipped.append((f"I didn't get a response for {labels}.", "unverified"))
+            skipped.append(ExecutionResult(f"I didn't get a response for {labels}.", Outcome.UNVERIFIED))
             continue
         pending.update({entity: direction for entity in entity_ids})
 
@@ -1722,18 +1721,18 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         record_action(label, direction, LightingActionStatus.UNVERIFIED, entity=entity, detail=str(state))
         percent = target_levels[entity]
         goal = f"at {percent}%" if percent is not None else direction
-        skipped.append((f"I couldn't confirm {label} is {goal} ({state}).", "unverified"))
+        skipped.append(ExecutionResult(f"I couldn't confirm {label} is {goal} ({state}).", Outcome.UNVERIFIED))
     confirmations = [
         f"{', '.join(labels)} {'is' if len(labels) == 1 else 'are'} "
         + (f"at {percent}%." if percent is not None else f"{direction}.")
         for (direction, percent), labels in verified.items() if labels
     ]
-    reply = " ".join(confirmations + [message for message, _ in skipped])
-    outcome = ("partial" if confirmations else skipped[0][1]) if skipped else "confirmed"
-    if outcome == "partial" and room_targets:
+    reply = " ".join(confirmations + [result.reply for result in skipped])
+    outcome = (Outcome.PARTIAL if confirmations else skipped[0].outcome) if skipped else Outcome.CONFIRMED
+    if outcome is Outcome.PARTIAL and room_targets:
         reply = add_sass("I handled part of that. Some lighting changes couldn't be confirmed.",
                          "partial_lighting", guest_mode)
-    if outcome == "confirmed":
+    if outcome is Outcome.CONFIRMED:
         if room_targets:
             reply = "Done."
         directions = {direction for direction, _ in verified}
@@ -1747,7 +1746,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         else:
             category = "lights_on" if "on" in directions else "lights_off"
         reply = add_sass(reply, category, guest_mode)
-    return ExecutionResult(reply, Outcome(outcome))
+    return ExecutionResult(reply, outcome)
 
 
 
