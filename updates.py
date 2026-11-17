@@ -7,7 +7,7 @@ import state_backup
 import sqlite3
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404 - required for fixed-argument Git and Python update commands
 import sys
 from http.client import HTTPException
 from pathlib import Path
@@ -117,7 +117,8 @@ def available_releases(include_prereleases=False):
 
 
 def run(*command, cwd=None, timeout=30):
-    return subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True,
+    # Commands are assembled by trusted updater code, not a shell; release refs are validated.
+    return subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True,  # nosec B603
                           timeout=timeout, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"}).stdout.strip()
 
 
