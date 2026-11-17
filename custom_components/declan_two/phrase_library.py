@@ -92,14 +92,20 @@ def join_clips(clips: list[bytes], gap_ms: int = 20) -> bytes:
     parts = []
     for audio in clips:
         samples=array('h',read_pcm(audio))
-        if sys.byteorder != 'little':samples.byteswap()
-        start=0;end=len(samples)
-        while start < end and abs(samples[start]) <= 64:start+=1
-        while end > start and abs(samples[end-1]) <= 64:end-=1
-        if start == end:raise ValueError('Speech clip contains only silence')
+        if sys.byteorder != 'little':
+            samples.byteswap()
+        start=0
+        end=len(samples)
+        while start < end and abs(samples[start]) <= 64:
+            start+=1
+        while end > start and abs(samples[end-1]) <= 64:
+            end-=1
+        if start == end:
+            raise ValueError('Speech clip contains only silence')
         # Keep a small edge margin, removing only leading/trailing near-silence.
         trimmed=samples[max(0,start-RATE//100):min(len(samples),end+RATE//100)]
-        if sys.byteorder != 'little':trimmed.byteswap()
+        if sys.byteorder != 'little':
+            trimmed.byteswap()
         parts.append(trimmed.tobytes())
     silence = b"\0\0" * (RATE * gap_ms // 1000)
     pcm = silence.join(parts)
@@ -132,7 +138,8 @@ class PhraseLibrary:
         state=await self.cache.snapshot(limit=0)
         if not state['storage_available']:
             raise ValueError('Cache storage is full; no generation requested')
-        clips=[];generated=0
+        clips=[]
+        generated=0
         for part in parts:
             _,audio,hit=await self.clip(part,identity,generate)
             generated+=not hit
@@ -147,17 +154,21 @@ class PhraseLibrary:
     async def preview(self, parts, identity, gap_ms=20):
         """Read-only composition: no providers, persistence or household actions."""
         self.validate_sentence(parts,gap_ms)
-        clips=[];missing=[]
+        clips=[]
+        missing=[]
         for part in parts:
             text=part.strip().casefold()
             saved=await self.cache.find_cached_audio(text=text,**self.clip_identity(identity))
             if saved is None:
-                if text not in missing:missing.append(text)
+                if text not in missing:
+                    missing.append(text)
             else:
                 extension,audio=saved
-                if extension != 'wav':raise ValueError('Reimport that clip as a reusable recording')
+                if extension != 'wav':
+                    raise ValueError('Reimport that clip as a reusable recording')
                 clips.append(audio)
-        if missing:return {'missing':missing}
+        if missing:
+            return {'missing':missing}
         return {'missing':[], 'audio':join_clips(clips,gap_ms), 'extension':'wav'}
 
     async def import_clips(self, clips, identity):
@@ -171,9 +182,12 @@ class PhraseLibrary:
         state=await self.cache.snapshot(limit=0)
         if state['bytes']+required > state['limit_bytes'] or state['free_bytes']-required < state['reserve_bytes']:
             raise ValueError('Not enough cache space to import these recordings')
-        imported=[];existing=[];not_saved=[]
+        imported=[]
+        existing=[]
+        not_saved=[]
         for text,audio in prepared:
-            async def generate(audio=audio):return 'wav',audio
+            async def generate(audio=audio):
+                return 'wav',audio
             try:
                 _,_,hit=await self.cache.get_or_generate_audio(
                     text=text,**clip_identity,generate=generate,kind='imported_clip',
@@ -184,9 +198,12 @@ class PhraseLibrary:
                 not_saved.append(text)
                 continue
             # A concurrent write can consume the remaining budget; report it.
-            if not saved:not_saved.append(text)
-            elif hit:existing.append(text)
-            else:imported.append(text)
+            if not saved:
+                not_saved.append(text)
+            elif hit:
+                existing.append(text)
+            else:
+                imported.append(text)
         return {'imported':imported,'existing':existing,'not_saved':not_saved}
 
     async def clip(self, text, identity, generate):
