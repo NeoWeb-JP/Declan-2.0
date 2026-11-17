@@ -36,6 +36,7 @@ BACKEND_MODULES = (
     "custom_components/declan_two/config_flow.py",
     "approved_media_players.py",
     "openai_planner.py",
+    "ai_credentials.py",
     "spotify_playlists.py",
 )
 ENV_READ = re.compile(
@@ -89,7 +90,7 @@ class EnvironmentDocumentationTests(unittest.TestCase):
                 unaudited[relative] = keys
         self.assertEqual(
             unaudited, {},
-            "Add modules with runtime DECLAN_* reads to BACKEND_MODULES and document new keys",
+            "Add modules with runtime environment reads to BACKEND_MODULES and document new keys",
         )
 
     def test_environment_inventory_has_unique_described_entries(self):
