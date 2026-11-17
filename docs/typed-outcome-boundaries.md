@@ -118,7 +118,16 @@ response action lists explicitly emit ordinary string mappings. Only confirmed
 and already-set evidence count as completed; requested/planned states remain
 distinct and cannot verify a claimed success.
 
+Discovered-script providers use a frozen `ScriptActionEvidence` report with typed
+routine action steps and an independent required-step completion flag. Its
+diagnostic projection retains the existing nine statuses (excluding planned),
+200-row cap, text bounds and narrow field set. Required-step verification still
+examines the full supplied list, including failures after the output cap, and
+preserves existing required-flag/non-list behavior. The provider consumes this
+typed report before emitting plain action mappings; unknown required statuses
+cannot verify reported success. Explicit outcome mappings also use enums.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes discovered-script action evidence, lighting/provider evidence
-production and shared response/history evidence persistence. Their broader
+scope includes lighting/provider evidence production and shared response/history
+evidence persistence. Their broader
 status vocabulary must not be silently narrowed to verified `ActionStatus`.

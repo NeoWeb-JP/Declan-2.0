@@ -1,5 +1,6 @@
 """Discover and run Home Assistant scripts without per-script approval."""
 from execution_results import ExecutionResult, Outcome
+from script_action_evidence import parse_script_actions
 import json
 import re
 import secrets
@@ -286,9 +287,9 @@ def _execute_provider(connection, item, *, parameters=None, expect_response=Fals
         if "routine_id" in allowed_fields and data.get("routine_id") != current["entity_id"]:
             return ExecutionResult("Script result did not match this routine.", Outcome.UNVERIFIED), None
         outcome = str(data["outcome"]).lower()
-        statuses = {"success": "reported_success", "partial": "partial",
-                    "failed": "failed", "cancelled": "cancelled",
-                    "unknown": "unverified", "started": "started", "busy": "busy"}
+        statuses = {"success": Outcome.REPORTED_SUCCESS, "partial": Outcome.PARTIAL,
+                    "failed": Outcome.FAILED, "cancelled": Outcome.CANCELLED,
+                    "unknown": Outcome.UNVERIFIED, "started": Outcome.STARTED, "busy": Outcome.BUSY}
         if outcome not in statuses:
             return ExecutionResult("Home Assistant returned an unknown script outcome.", Outcome.UNVERIFIED), None
         reasons = {
@@ -298,26 +299,15 @@ def _execute_provider(connection, item, *, parameters=None, expect_response=Fals
         }
         if outcome in {"unknown", "busy"} and isinstance(data.get("reason_code"), str) and data["reason_code"] in reasons:
             return ExecutionResult(reasons[data["reason_code"]], Outcome(statuses[outcome])), None
-        steps = data.get("steps", [])
-        if outcome == "success" and isinstance(steps, list):
-            if any(isinstance(step, dict) and step.get("required", True)
-                   and step.get("status") not in {"confirmed", "already_set"}
-                   for step in steps):
-                return ExecutionResult("Script success was not confirmed by its required steps.", Outcome.UNVERIFIED), None
+        evidence = parse_script_actions(data.get("steps", []))
+        if outcome == "success" and not evidence.required_steps_completed:
+            return ExecutionResult("Script success was not confirmed by its required steps.", Outcome.UNVERIFIED), None
         description = {"success": "completed successfully", "partial": "partially completed",
                        "failed": "failed", "cancelled": "was cancelled",
                        "unknown": "could not be verified", "started": "started but not completed",
                        "busy": "is already in progress"}[outcome]
-        if action_results is not None and isinstance(steps, list):
-            for step in steps[:200]:
-                if not isinstance(step, dict) or not isinstance(step.get("target"), str):
-                    continue
-                if step.get("status") not in {"confirmed", "already_set", "unverified", "failed", "skipped", "requested", "already_requested", "not_requested", "not_configured"}:
-                    continue
-                action_results.append({
-                    **{key: step[key][:240] for key in ("target", "status", "action", "entity_id") if isinstance(step.get(key), str)},
-                    **({"required": step["required"]} if type(step.get("required")) is bool else {}),
-                })
+        if action_results is not None:
+            action_results.extend(step.to_wire() for step in evidence.steps)
         return ExecutionResult(current["name"] + " " + description + ".", Outcome(statuses[outcome])), None
     for key in ("speech", "reply", "message", "response", "summary"):
         value = data.get(key)
