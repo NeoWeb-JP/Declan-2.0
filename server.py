@@ -49,6 +49,7 @@ import learned_intent_resolution
 import sensitive_confirmation_response
 import sensitive_confirmation_decision
 import routine_preview_detection
+import guest_assignment_command
 import history
 import music
 import approved_media_players
@@ -2540,14 +2541,10 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = roast.respond(
                 roast_target, guest=roast_guest_mode != "off"
             ), "confirmed"
-        elif phrase in GUEST_COMMANDS:
-            routine_reply, outcome = guest_assignment(GUEST_COMMANDS[phrase], ha_device_connection())
-        elif guest_names := re.fullmatch(
-            r"(?:we are going out and |we're going out and |set |make |put )?"
-            r"([a-z][a-z '\\-]{0,119}?) (?:are|is) in charge"
-            r"(?: of the house)?", phrase
-        ):
-            routine_reply, outcome = guest_assignment("assign:" + guest_names[1].strip(), ha_device_connection())
+        elif (guest_action := guest_assignment_command.assignment_action(
+            phrase, GUEST_COMMANDS
+        )) is not None:
+            routine_reply, outcome = guest_assignment(guest_action, ha_device_connection())
         elif routine_dispatch := command_registry.routine_registry(
             select=select_routine_turn, execute=execute_routine,
             action_results=action_results, origin=origin_device or satellite,
