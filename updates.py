@@ -24,7 +24,7 @@ VERSION = re.compile(r"v?(\d{1,8})\.(\d{1,8})\.(\d{1,8})(?:-[0-9A-Za-z.-]{1,20})
 APP = Path(__file__).resolve().parent
 RESTART = Event()
 _lock = Lock()
-_tags = {}
+_tags: dict = {}
 _job = {"state": "idle"}
 
 
