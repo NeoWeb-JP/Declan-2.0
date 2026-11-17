@@ -52,6 +52,7 @@ import sensitive_confirmation_turn
 import routine_preview_detection
 import routine_preview_dispatch
 import early_command_result
+import stop_result_response
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -2554,8 +2555,9 @@ class Handler(BaseHTTPRequestHandler):
             stop_everywhere=stop_everywhere_output,
             connection=ha_device_connection,
         ):
-            routine_reply, outcome = stop_result.result.as_legacy_pair()
-            routine_status = stop_result.routine_status
+            routine_reply, outcome, routine_status = (
+                stop_result_response.stop_result_response(stop_result)
+            )
         elif (roast_target := roast.target(phrase)) is not None:
             routine_reply, outcome = roast_command_dispatch.respond_to_roast(
                 roast_target, guest_mode=read_guest_mode,
