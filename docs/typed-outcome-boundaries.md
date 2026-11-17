@@ -185,8 +185,15 @@ background-job fallback consume that typed result; `lookup_result` retains the
 original mapping API. Missing or ambiguous contexts remain unverified, and a
 finished trace never establishes device success.
 
+Trace collectors now retain frozen `TraceStepEvidence` values with dedicated
+`TraceStepStatus` members (`observed` and `failed`). Classification checks all
+steps before limiting the output to 100, so a later error still yields `partial`.
+`trace_steps` remains a plain-list compatibility adapter; legacy mapping steps
+remain accepted by classification. Audit review/failure consumers retain typed
+executions until report serialization. Fingerprints and review issue identifiers
+are identical for typed and legacy inputs, preserving existing review decisions.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining
-cross-component audit scope includes trace-step evidence and audit review/failure
-consumers, which still use mapping statuses, plus persisted background-job state
-readback. Broader evidence statuses must not be silently narrowed to verified
-`ActionStatus`.
+cross-component audit scope includes persisted background-job state readback and
+its outcome consumers. Broader evidence statuses must not be silently narrowed
+to verified `ActionStatus`.

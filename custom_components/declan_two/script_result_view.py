@@ -6,7 +6,7 @@ import re
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 
-from .ha_audit import TraceExecution, TraceOutcome, classify_trace_typed, trace_steps
+from .ha_audit import TraceExecution, TraceOutcome, classify_trace_typed, trace_step_wire, trace_steps_typed
 
 
 @dataclass(frozen=True)
@@ -23,12 +23,12 @@ class ScriptTraceResult:
         result: dict[str, object] = {"entity_id": self.entity_id, "context_id": self.context_id, "status": self.status.value}
         if self.execution is not None:
             result.update(run_id=self.execution.run_id, evidence="ha_trace",
-                          steps=[dict(step) for step in self.execution.steps])
+                          steps=[trace_step_wire(step) for step in self.execution.steps])
         return result
 
     def to_job_wire(self) -> dict:
         return {"outcome": self.status.value,
-                "steps": [dict(step) for step in self.execution.steps] if self.execution is not None else [],
+                "steps": [trace_step_wire(step) for step in self.execution.steps] if self.execution is not None else [],
                 "run_id": self.execution.run_id if self.execution is not None else None}
 
 
@@ -54,7 +54,7 @@ async def lookup_result_typed(hass, entity_id, context_id) -> ScriptTraceResult:
             context = detail.get("context")
             found_id = context.get("id") if isinstance(context, dict) else getattr(context, "id", None)
             if found_id == context_id:
-                matched.append({**row, "audit_steps": trace_steps(detail)})
+                matched.append({**row, "audit_steps": trace_steps_typed(detail)})
     if len(matched) != 1:
         return unknown
     return ScriptTraceResult(entity_id, context_id, classify_trace_typed(matched[0]))

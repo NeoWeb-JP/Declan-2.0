@@ -24,6 +24,58 @@ review_spec.loader.exec_module(reviews)
 
 
 class AuditTests(unittest.TestCase):
+    def test_typed_steps_keep_only_paths_and_error_presence(self):
+        trace = {"trace": {"action/0": [{"error": "secret", "changed_variables": {"token": "hidden"}}],
+                           "action/1": [{"result": {"success": True}}], "ignored": {"error": "secret"}}}
+        typed = audit.trace_steps_typed(trace)
+        self.assertIsInstance(typed, tuple)
+        self.assertIs(typed[0].status, audit.TraceStepStatus.FAILED)
+        self.assertIs(typed[1].status, audit.TraceStepStatus.OBSERVED)
+        self.assertEqual([step.to_wire() for step in typed], audit.trace_steps(trace))
+        self.assertNotIn("secret", str(typed))
+        self.assertNotIn("hidden", str(typed))
+        with self.assertRaises(AttributeError):
+            typed[0].status = audit.TraceStepStatus.OBSERVED
+        with self.assertRaises(TypeError):
+            audit.TraceStepEvidence("action/0", "failed")
+        execution = audit.classify_trace_typed({"script_execution": "finished", "audit_steps": typed})
+        self.assertIs(execution.status, audit.TraceOutcome.PARTIAL)
+        self.assertIs(execution.steps[0], typed[0])
+        self.assertEqual(execution.to_wire()["steps"], audit.trace_steps(trace))
+        bounded = audit.classify_trace_typed({"script_execution": "finished", "audit_steps":
+            (typed[1],) * 100 + (typed[0],)})
+        self.assertIs(bounded.status, audit.TraceOutcome.PARTIAL)
+        self.assertEqual(len(bounded.steps), 100)
+        self.assertTrue(bounded.steps_truncated)
+
+    def test_review_identifiers_match_legacy_without_typed_serialization(self):
+        routine = {"entity_id": "script.test", "config": {"sequence": []},
+                   "background_result": {"job_id": "job", "outcome": "failed"}}
+        findings = [{"severity": "warning", "code": "missing_entity", "path": "config.entity_id"}]
+        for outcome in audit.TraceOutcome:
+            with self.subTest(outcome=outcome):
+                execution = audit.TraceExecution(outcome, run_id="run")
+                legacy = [execution.to_wire()]
+                fingerprint = audit.review_fingerprint(routine, findings, legacy)
+                evidence = audit.review_evidence(routine, findings, legacy)
+                with patch.object(audit.TraceExecution, "to_wire", side_effect=AssertionError("early serialization")):
+                    self.assertEqual(audit.review_fingerprint(routine, findings, [execution]), fingerprint)
+                    self.assertEqual(audit.review_evidence(routine, findings, [execution]), evidence)
+
+    def test_audit_review_consumes_typed_executions_until_report_boundary(self):
+        original = audit.review_evidence
+        def check(routine, findings, execution):
+            self.assertTrue(all(isinstance(row, audit.TraceExecution) for row in execution))
+            return original(routine, findings, execution)
+        with patch.object(audit, "review_evidence", side_effect=check):
+            report = self.report({}, [{"run_id": "run", "audit_steps": audit.trace_steps_typed(
+                {"trace": {"action/0": [{"error": "secret"}]}})}])
+        row = report["routines"][0]["executions"][0]
+        self.assertEqual(row["status"], "partial")
+        self.assertIs(type(row["status"]), str)
+        self.assertEqual(row["steps"], [{"path": "action/0", "status": "failed"}])
+        self.assertIs(type(row["steps"][0]["status"]), str)
+
     def test_typed_trace_classification_preserves_precedence_and_bounds(self):
         cases = [({"error": "secret", "state": "running"}, audit.TraceOutcome.FAILED),
                  ({"script_execution": "error"}, audit.TraceOutcome.FAILED),

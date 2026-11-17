@@ -9,7 +9,7 @@ from urllib.parse import quote
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 
-from .ha_audit import build_report, trace_steps
+from .ha_audit import build_report, trace_steps_typed
 from .audit_reviews import apply_reviews, review_state
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,7 +103,7 @@ async def collect_report(hass):
                     key = f"{entity_id.split('.', 1)[0]}.{row['item_id']}"
                     try:
                         detail = await async_get_trace(hass, key, row["run_id"])
-                        row["audit_steps"] = trace_steps(detail)
+                        row["audit_steps"] = trace_steps_typed(detail)
                     except (KeyError, TypeError, AttributeError):
                         gaps.append(f"{entity_id}: action trace details unavailable")
     except Exception:
