@@ -4,6 +4,31 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 
+class MusicFailureKind(StrEnum):
+    RATE_LIMITED = "rate_limited"
+    SERVICE_UNAVAILABLE = "service_unavailable"
+    HTTP_ERROR = "http_error"
+    TIMEOUT = "timeout"
+
+
+@dataclass(frozen=True)
+class MusicRequestFailure:
+    kind: MusicFailureKind
+    http_status: int | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.kind, MusicFailureKind):
+            raise TypeError("kind must be a MusicFailureKind")
+        if self.http_status is not None and type(self.http_status) is not int:
+            raise TypeError("HTTP status must be an integer or None")
+
+    @classmethod
+    def from_http_status(cls, status) -> "MusicRequestFailure":
+        kind = (MusicFailureKind.RATE_LIMITED if status == 429 else
+                MusicFailureKind.SERVICE_UNAVAILABLE if status in {502, 503, 504} else MusicFailureKind.HTTP_ERROR)
+        return cls(kind, status)
+
+
 class PlayerAvailability(StrEnum):
     AVAILABLE = "available"
     UNAVAILABLE = "unavailable"

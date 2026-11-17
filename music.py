@@ -7,6 +7,7 @@ import approved_media_players
 from execution_results import ExecutionResult, Outcome
 from music_provider_result import music_execution_result
 from music_provider_result import PlayerAvailability, PlayerAvailabilityResult
+from music_provider_result import MusicFailureKind, MusicRequestFailure
 import os
 import re
 import sqlite3
@@ -357,12 +358,12 @@ def request(connection, path, data=None, *, timeout=None):
         try:
             return _request(connection, path, data, timeout=timeout)
         except HTTPError as error:
-            entry["http_status"] = error.code
-            entry["failure_kind"] = ("rate_limited" if error.code == 429 else
-                                     "service_unavailable" if error.code in {502, 503, 504} else "http_error")
+            failure = MusicRequestFailure.from_http_status(error.code)
+            entry["http_status"] = failure.http_status
+            entry["failure_kind"] = failure.kind.value
             raise
         except TimeoutError:
-            entry["failure_kind"] = "timeout"
+            entry["failure_kind"] = MusicRequestFailure(MusicFailureKind.TIMEOUT).kind.value
             raise
 
 
@@ -542,9 +543,10 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
         return ExecutionResult(f"I sent the playback command {location}, but couldn't verify the result.", Outcome.UNVERIFIED)
     except HTTPError as error:
         error.close()
-        if error.code == 429:
+        failure = MusicRequestFailure.from_http_status(error.code)
+        if failure.kind is MusicFailureKind.RATE_LIMITED:
             return ExecutionResult("Music playback is being rate limited. I haven't retried the command.", Outcome.UNVERIFIED)
-        if error.code in {502, 503, 504}:
+        if failure.kind is MusicFailureKind.SERVICE_UNAVAILABLE:
             return ExecutionResult("Home Assistant's music service is temporarily unavailable. I couldn't verify playback.", Outcome.UNVERIFIED)
         return ExecutionResult(f"Home Assistant returned an error for the playback command {location}.", Outcome.UNVERIFIED)
     except (OSError, ValueError):
@@ -847,9 +849,10 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         return ExecutionResult(f"{prefix}I sent the music request {location}, but couldn't verify playback.", Outcome.UNVERIFIED)
     except HTTPError as error:
         error.close()
-        if error.code == 429:
+        failure = MusicRequestFailure.from_http_status(error.code)
+        if failure.kind is MusicFailureKind.RATE_LIMITED:
             detail = "Music playback is being rate limited. I haven't retried the request."
-        elif error.code in {502, 503, 504}:
+        elif failure.kind is MusicFailureKind.SERVICE_UNAVAILABLE:
             detail = "Home Assistant's music service is temporarily unavailable. I couldn't verify playback."
         else:
             detail = "Home Assistant returned an error for the music request."

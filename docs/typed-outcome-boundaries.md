@@ -383,6 +383,12 @@ remains an adapter. Diagnostic stages still serialize plain available/unavailabl
 strings and validated player IDs; state interpretation, recovery on a later
 request and the absence of dispatch/search for unavailable players are unchanged.
 
+Music request failures now use frozen `MusicRequestFailure` values with
+`MusicFailureKind` across HTTP classification, playback/control responses and
+diagnostic projection. Rate limits and service outages share one interpretation;
+diagnostics retain plain failure-kind strings and numeric HTTP status. Original
+exceptions, no-retry behavior, safe logging and unverified replies remain unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
