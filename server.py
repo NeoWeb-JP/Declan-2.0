@@ -29,6 +29,7 @@ import sensitive_confirmations
 import diagnostics
 import declan_logs
 import configuration
+import health_readiness
 import voice_profiles
 import voicepipeline
 import device_status
@@ -2039,7 +2040,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/logo.png":
             self.send_body(200, Path(__file__).with_name("logo.png").read_bytes(), "image/png")
         elif self.path == "/health":
-            self.send_json(200, {"status": "ok"})
+            ready = health_readiness.database_ready()
+            self.send_json(200 if ready else 503, {"status": "ok" if ready else "unavailable"})
         elif self.path == "/api/capabilities":
             self.send_json(200, {
                 "api_version": "1.0",
