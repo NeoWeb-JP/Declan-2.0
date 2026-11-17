@@ -113,8 +113,14 @@ class EnvironmentDocumentationTests(unittest.TestCase):
     def test_example_environment_keys_are_documented(self):
         documented = set(DOCUMENTED.findall((ROOT / "docs/environment.md").read_text(encoding="utf-8")))
         example = (ROOT / ".env.example").read_text(encoding="utf-8")
-        example_keys = set(re.findall(r"^\s*#?\s*((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))\s*=", example, re.MULTILINE))
-        self.assertEqual(sorted(example_keys - documented), [], "Document .env.example keys")
+        example_keys = re.findall(
+            r"^\s*#?\s*((?:DECLAN_[A-Z0-9_]+|OPENAI_API_KEY))\s*=",
+            example,
+            re.MULTILINE,
+        )
+        self.assertEqual(sorted(set(example_keys) - documented), [], "Document .env.example keys")
+        duplicates = sorted({key for key in example_keys if example_keys.count(key) > 1})
+        self.assertEqual(duplicates, [], "Do not define the same .env.example key twice")
 
 
 if __name__ == "__main__":
