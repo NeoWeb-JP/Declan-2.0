@@ -2550,19 +2550,18 @@ class Handler(BaseHTTPRequestHandler):
             r"\b(?:light|lights|lamp|spotlight|brightness|dim|switch)\b", preview_phrase
         ):
             routine_preview = preview_routine(preview_phrase, origin_device or satellite)
-        timer_result = None if routine_preview else timers.handle(
-            phrase, opener,
-            satellite=satellite if isinstance(satellite, str) and len(satellite) <= 128 else None,
-            device=origin_device, browser=source != "assist",
-        )
+        timer_result = None if routine_preview else command_registry.timer_registry(
+            matches=timers.matches, handle=timers.handle, opener=opener,
+            guest_mode=read_guest_mode, decorate=add_sass,
+        ).dispatch(command_registry.RequestContext(
+            phrase=phrase, source=source, origin_device=origin_device, satellite=satellite,
+        ))
         routine_turn = None
         routine_voice_result = None
         if routine_preview:
             routine_reply, outcome = routine_preview
         elif timer_result:
-            routine_reply, outcome = timer_result
-            if outcome in ("timer_set", "timer_adjusted", "timer_cancelled", "timer_stopped"):
-                routine_reply = add_sass(routine_reply, outcome, read_guest_mode())
+            routine_reply, outcome = timer_result.result.as_legacy_pair()
         elif stop_result := command_registry.stop_registry(
             stop_routines=stop_pending_routines, stop_everywhere=stop_everywhere_output,
             connection=ha_device_connection,
