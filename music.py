@@ -50,7 +50,7 @@ SPOTIFY_REFERENCE = re.compile(
 spotify_token = None
 SPOTIFY_SETTINGS = Path(__file__).with_name(".data") / "spotify-settings.json"
 PREFERENCES = SPOTIFY_SETTINGS.with_name("music-preferences.sqlite3")
-recent_blacklist_skips = {}
+recent_blacklist_skips: dict = {}
 
 
 def room_key(name):
