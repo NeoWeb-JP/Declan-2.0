@@ -323,6 +323,13 @@ Only the form boundary converts failures to existing error keys; the public
 contain no credentials or URL. Redirect refusal, timeout handling, credential
 validation and entry updates after successful verification remain unchanged.
 
+Background script dispatch parses HA's durable receipt into a frozen
+`BackgroundReceiptResult` and branches on `BackgroundReceiptStatus`. Acceptance
+still requires HTTP 202, the exact accepted status and matching job/script IDs.
+Malformed, mismatched or future receipt statuses remain unverified. Public
+execution tuples, acknowledgement wording and background job details are unchanged;
+acceptance never claims device completion.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

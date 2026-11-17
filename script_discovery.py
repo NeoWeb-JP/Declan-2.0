@@ -3,6 +3,7 @@ from execution_results import ExecutionResult, Outcome
 from script_action_evidence import parse_script_actions
 from action_evidence_buffer import extend_action_evidence
 from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
+from script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
 import json
 import re
 import secrets
@@ -247,7 +248,8 @@ def _enqueue_provider(connection, entity_id, parameters):
     try:
         with opener.open(request, timeout=2) as response:
             data = json.loads(response.read(8192))
-            if response.status != 202 or not isinstance(data, dict) or data.get("status") != "accepted" or data.get("job_id") != job_id or data.get("entity_id") != entity_id:
+            receipt = BackgroundReceiptResult.parse(response.status, data, job_id=job_id, entity_id=entity_id)
+            if receipt.status is not BackgroundReceiptStatus.ACCEPTED:
                 return ExecutionResult("Home Assistant did not acknowledge the routine request.", Outcome.UNVERIFIED), None
     except HTTPError as error:
         code = error.code

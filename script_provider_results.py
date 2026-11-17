@@ -5,6 +5,29 @@ from enum import StrEnum
 from execution_results import Outcome
 
 
+class BackgroundReceiptStatus(StrEnum):
+    ACCEPTED = "accepted"
+    UNVERIFIED = "unverified"
+
+
+@dataclass(frozen=True)
+class BackgroundReceiptResult:
+    status: BackgroundReceiptStatus
+
+    def __post_init__(self):
+        if not isinstance(self.status, BackgroundReceiptStatus):
+            raise TypeError("status must be a BackgroundReceiptStatus")
+
+    @classmethod
+    def parse(cls, http_status, payload, *, job_id, entity_id) -> "BackgroundReceiptResult":
+        """Accept only a durable receipt correlated to this exact request."""
+        accepted = (http_status == 202 and isinstance(payload, dict)
+                    and payload.get("status") == BackgroundReceiptStatus.ACCEPTED.value
+                    and payload.get("job_id") == job_id
+                    and payload.get("entity_id") == entity_id)
+        return cls(BackgroundReceiptStatus.ACCEPTED if accepted else BackgroundReceiptStatus.UNVERIFIED)
+
+
 class ScriptReportedOutcome(StrEnum):
     SUCCESS = "success"
     PARTIAL = "partial"
