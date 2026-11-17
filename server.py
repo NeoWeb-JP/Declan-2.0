@@ -461,9 +461,9 @@ def preview_routine(phrase, origin=None):
 def execute_routine_result(selection, action_results, *, approved=False):
     """Typed execution result for local routine selection with optional status."""
     from local_outcome_contracts import routine_execution_result
-    return routine_execution_result(
-        execute_routine(selection, action_results, approved=approved)
-    )
+    result = (execute_routine(selection, action_results, approved=True)
+              if approved else execute_routine(selection, action_results))
+    return routine_execution_result(result)
 
 
 def execute_routine(selection, action_results, *, approved=False):
