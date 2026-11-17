@@ -345,6 +345,12 @@ case-sensitive; unknown, malformed and merely started reports stay unverified.
 Correlation guards, required-step verification, safe reasons and legacy summary
 mappings remain unchanged.
 
+Discovered script reason codes now enter `ScriptProviderResult` as `ScriptReason`
+enum values before response selection. Only known exact reasons on unknown/busy
+outcomes select guard messages; other outcomes and malformed/future reasons retain
+their existing behavior. Outcome normalization remains independent of reason
+parsing. Legacy replies, outcomes, details and correlation guards are unchanged.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol

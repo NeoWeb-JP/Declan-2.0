@@ -4,6 +4,7 @@ from script_action_evidence import parse_script_actions
 from action_evidence_buffer import extend_action_evidence
 from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
 from script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
+from script_provider_results import ScriptReason
 import json
 import re
 import secrets
@@ -355,17 +356,18 @@ def _execute_provider(connection, item, *, parameters=None, expect_response=Fals
             return ExecutionResult("Script result did not match this request.", Outcome.UNVERIFIED), None
         if "routine_id" in allowed_fields and data.get("routine_id") != current["entity_id"]:
             return ExecutionResult("Script result did not match this routine.", Outcome.UNVERIFIED), None
-        provider_result = ScriptProviderResult.parse(data["outcome"], normalize=True)
+        provider_result = ScriptProviderResult.parse(data["outcome"], normalize=True, reason=data.get("reason_code"))
         outcome = provider_result.outcome
         if outcome is None:
             return ExecutionResult("Home Assistant returned an unknown script outcome.", Outcome.UNVERIFIED), None
         reasons = {
-            "screen_moving": "The projector screen is still moving. Please wait before trying Movie Time again.",
-            "screen_position_unverified": "I couldn't determine a safe screen position and direction. Movie Time was not run.",
-            "requested_action_missing_or_invalid": "Movie Time did not receive a valid start, end or toggle action. Nothing was run.",
+            ScriptReason.SCREEN_MOVING: "The projector screen is still moving. Please wait before trying Movie Time again.",
+            ScriptReason.SCREEN_POSITION_UNVERIFIED: "I couldn't determine a safe screen position and direction. Movie Time was not run.",
+            ScriptReason.REQUESTED_ACTION_INVALID: "Movie Time did not receive a valid start, end or toggle action. Nothing was run.",
         }
-        if outcome in {ScriptReportedOutcome.UNKNOWN, ScriptReportedOutcome.BUSY} and isinstance(data.get("reason_code"), str) and data["reason_code"] in reasons:
-            return ExecutionResult(reasons[data["reason_code"]], provider_result.execution_outcome), None
+        guard_reason = provider_result.guard_reason
+        if guard_reason is not None:
+            return ExecutionResult(reasons[guard_reason], provider_result.execution_outcome), None
         evidence = parse_script_actions(data.get("steps", []))
         if outcome is ScriptReportedOutcome.SUCCESS and not evidence.required_steps_completed:
             return ExecutionResult("Script success was not confirmed by its required steps.", Outcome.UNVERIFIED), None

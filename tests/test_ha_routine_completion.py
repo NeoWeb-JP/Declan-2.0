@@ -133,6 +133,20 @@ class RoutineResultTests(unittest.TestCase):
     def test_partial_is_not_success(self):
         self.assertEqual(self.run_script("partial")[1], "partial")
 
+    def test_guard_reasons_preserve_legacy_dispatch_boundaries(self):
+        for outcome in ("unknown", "busy"):
+            for reason, text in (("screen_moving", "still moving"),
+                                 ("screen_position_unverified", "safe screen position"),
+                                 ("requested_action_missing_or_invalid", "start, end or toggle")):
+                reply, status, detail = self.run_script(outcome, reason=reason)
+                self.assertIn(text, reply)
+                self.assertEqual(status, "busy" if outcome == "busy" else "unverified")
+                self.assertIsNone(detail)
+            for reason in ("SCREEN_MOVING", " screen_moving", "future_reason", [], {}, None):
+                self.assertEqual(self.run_script(outcome, reason=reason), self.run_script(outcome))
+        for outcome in ("success", "partial", "failed", "cancelled", "started"):
+            self.assertEqual(self.run_script(outcome, reason="screen_moving"), self.run_script(outcome))
+
     def test_busy_screen_is_not_an_unknown_outcome_or_success(self):
         reply, outcome, _ = self.run_script("busy")
         self.assertEqual(outcome, "busy")

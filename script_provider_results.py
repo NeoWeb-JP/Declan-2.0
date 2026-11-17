@@ -38,24 +38,43 @@ class ScriptReportedOutcome(StrEnum):
     BUSY = "busy"
 
 
+class ScriptReason(StrEnum):
+    SCREEN_MOVING = "screen_moving"
+    SCREEN_POSITION_UNVERIFIED = "screen_position_unverified"
+    REQUESTED_ACTION_INVALID = "requested_action_missing_or_invalid"
+
+
 @dataclass(frozen=True)
 class ScriptProviderResult:
     outcome: ScriptReportedOutcome | None
+    reason: ScriptReason | None = None
 
     def __post_init__(self):
         if self.outcome is not None and not isinstance(self.outcome, ScriptReportedOutcome):
             raise TypeError("outcome must be a ScriptReportedOutcome or None")
+        if self.reason is not None and not isinstance(self.reason, ScriptReason):
+            raise TypeError("reason must be a ScriptReason or None")
 
     @classmethod
-    def parse(cls, value, *, normalize=False) -> "ScriptProviderResult":
+    def parse(cls, value, *, normalize=False, reason=None) -> "ScriptProviderResult":
+        try:
+            parsed_reason = ScriptReason(reason) if isinstance(reason, str) else None
+        except ValueError:
+            parsed_reason = None
         if normalize:
             value = str(value).lower()
         if not isinstance(value, str):
-            return cls(None)
+            return cls(None, parsed_reason)
         try:
-            return cls(ScriptReportedOutcome(value))
+            return cls(ScriptReportedOutcome(value), parsed_reason)
         except ValueError:
-            return cls(None)
+            return cls(None, parsed_reason)
+
+    @property
+    def guard_reason(self) -> ScriptReason | None:
+        if self.outcome in {ScriptReportedOutcome.UNKNOWN, ScriptReportedOutcome.BUSY}:
+            return self.reason
+        return None
 
     @property
     def execution_outcome(self) -> Outcome:

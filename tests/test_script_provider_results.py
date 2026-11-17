@@ -5,9 +5,24 @@ from unittest.mock import patch
 import server
 from execution_results import Outcome
 from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
+from script_provider_results import ScriptReason
 
 
 class ScriptProviderResultTests(unittest.TestCase):
+    def test_reason_codes_are_typed_exact_and_cannot_override_other_outcomes(self):
+        for reason in ScriptReason:
+            for outcome in ScriptReportedOutcome:
+                with self.subTest(reason=reason, outcome=outcome):
+                    result = ScriptProviderResult.parse(outcome.value.upper(), normalize=True, reason=reason.value)
+                    self.assertIs(result.reason, reason)
+                    self.assertIs(result.guard_reason, reason if outcome in
+                                  {ScriptReportedOutcome.UNKNOWN, ScriptReportedOutcome.BUSY} else None)
+                    with self.assertRaises(AttributeError):
+                        setattr(result, "reason", None)
+            for raw in (reason.value.upper(), " " + reason.value, [], {}, None, "future_reason"):
+                self.assertIsNone(ScriptProviderResult.parse("busy", reason=raw).guard_reason)
+        self.assertIsNone(ScriptProviderResult.parse("future_outcome", reason="screen_moving").guard_reason)
+
     def test_supported_outcomes_have_explicit_execution_interpretations(self):
         expected = {"success": Outcome.REPORTED_SUCCESS, "partial": Outcome.PARTIAL,
                     "failed": Outcome.FAILED, "cancelled": Outcome.CANCELLED,
