@@ -71,6 +71,11 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_SPOTIFY_MARKET  | Defaults to `GB` when unset | Trims and uppercases a two-letter code; empty or invalid codes fail before a search request | `tests/test_spotify_market_environment_defaults.py` |
 | DECLAN_INGRESS_TOKEN  | Missing or short tokens cannot authenticate | Requires an exact token match of at least 32 characters and must differ from the Assist token | `tests/test_ingress_token_environment_defaults.py` |
 
+| DECLAN_BROWSER_TIMER_SATELLITE | Unset or blank browser satellite disables timer output resolution | Trims configured satellite ID, rejects malformed IDs before contacting HA, and rejects mismatched HA resolution | `tests/test_browser_timer_satellite_environment.py` |
+| DECLAN_TIMER_ALARM_MEDIA_ID | Unset or blank uses a spoken timer announcement | Trims media-source IDs; unsupported schemes or rejected media playback fall back to speech | `tests/test_timer_alarm_media_environment.py` |
+| DECLAN_VOICEPIPELINE_URL | Missing or blank URL fails before network access | Trims trailing slash and whitespace; malformed or unsafe URLs fail before network access | `tests/test_voicepipeline_environment_defaults.py` |
+| DECLAN_VOICEPIPELINE_TOKEN | Unset or blank omits the Authorization header | Trims nonempty tokens and sends them as bearer credentials | `tests/test_voicepipeline_environment_defaults.py` |
+
 The Spotify credential source can also be a persisted settings file, not just
 the process environment. The `DECLAN_WEB_TTS_ENTITY` and
 `DECLAN_VISITORS_ENTITY` values are read through Declan's configuration
