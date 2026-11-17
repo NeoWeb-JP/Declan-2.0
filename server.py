@@ -30,8 +30,6 @@ import sensitive_confirmations
 import diagnostics
 import declan_logs
 import configuration
-DECLAN_EVENT_LOG = logging.getLogger("declan.server")
-DECLAN_EVENT_LOG.setLevel(logging.INFO)
 import voice_profiles
 import voicepipeline
 import device_status
@@ -106,6 +104,8 @@ import lighting_intents
 import roast
 import personality_policy
 
+DECLAN_EVENT_LOG = logging.getLogger("declan.server")
+DECLAN_EVENT_LOG.setLevel(logging.INFO)
 
 SESSIONS = OrderedDict()
 SESSION_LOCK = Lock()
