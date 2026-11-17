@@ -2,7 +2,6 @@
 import io
 import json
 import unittest
-from unittest.mock import patch
 import server
 
 class SwitchAsLightTests(unittest.TestCase):
