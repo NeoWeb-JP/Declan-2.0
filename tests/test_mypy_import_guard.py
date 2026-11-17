@@ -15,7 +15,7 @@ class MypyImportGuardTests(unittest.TestCase):
     def guard_script():
         workflow = WORKFLOW.read_text(encoding="utf-8")
         section = workflow.split(STEP, 1)[1].split("\n      - name:", 1)[0]
-        return "\n".join(line[10:] for line in section.splitlines()[2:])
+        return "\n".join(line[10:] for line in section.splitlines()[3:])
 
     def run_guard(self, log):
         with tempfile.TemporaryDirectory() as directory:
