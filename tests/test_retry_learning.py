@@ -21,7 +21,7 @@ class RetryLearningTests(unittest.TestCase):
         self.enterContext(patch.object(server, 'read_guest_mode', return_value='off'))
         self.enterContext(patch.object(server, 'read_visitors_present', return_value=False))
         self.enterContext(patch.object(server, 'guarded_openai_fallback_result', return_value=None))
-        self.enterContext(patch.object(server, 'select_routine_turn', return_value=None))
+        self.enterContext(patch.object(server, 'select_routine_turn_result', return_value=None))
         self.enterContext(patch.object(server, 'handle_light_request_result', return_value=None))
         self.enterContext(patch.object(server, 'search_media', return_value=None))
         self.enterContext(patch.object(server.CAPTURE_ARBITER, 'claim', return_value=True))

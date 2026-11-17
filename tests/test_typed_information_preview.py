@@ -53,7 +53,7 @@ class TypedInformationPreviewTests(unittest.TestCase):
 
     def test_preview_core_bypasses_legacy_and_cannot_execute(self):
         selection = (("auto:script.tea", {"mode": "quiet"}), None)
-        with patch.object(server, "select_routine_turn", return_value=selection), \
+        with patch.object(server, 'select_routine_turn_result', return_value=selection), \
              patch.object(server, "preview_routine", side_effect=AssertionError("legacy preview")), \
              patch.object(server, "execute_routine_result", side_effect=AssertionError("execution")):
             result = server.preview_routine_result("preview tea", "kitchen")

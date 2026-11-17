@@ -2,6 +2,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 import ha_inventory
+from routine_selection_results import RoutineTurnSelection
 import re
 
 from execution_results import ExecutionResult, Outcome
@@ -232,11 +233,16 @@ def lighting_registry(*, matches, parse_light_command, handle_light_request,
 def routine_registry(*, select, execute, action_results, origin):
     """Select and execute a HA routine, leaving chained follow-on work to the caller."""
     def run(context, selection):
-        routine, follow_on = selection
+        if isinstance(selection, RoutineTurnSelection):
+            routine, follow_on = selection.routine, selection.follow_on
+            metadata = selection.as_legacy_pair()
+        else:
+            routine, follow_on = selection
+            metadata = selection
         typed, status = routine_execution_result(execute(routine, action_results))
         return HandledCommand("routine", typed,
                               routine_status=status, routine_follow_on=follow_on,
-                              routine_reply=typed.reply, routine_selection=selection)
+                              routine_reply=typed.reply, routine_selection=metadata)
 
     return HandlerRegistry((Handler("routine", 0,
         lambda context: select(context.phrase, origin), run),))
