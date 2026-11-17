@@ -20,7 +20,11 @@ class RetirementTests(unittest.TestCase):
     def test_backend_endpoints_and_native_panel_preserved(self):
         source = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
         self.assertIn('elif self.path == "/health":', source)
-        self.assertIn('self.path == "/api/assist"', source)
+        # Request-origin routing now lives in the extracted request_origin module.
+        origin_source = Path(__file__).resolve().parents[1].joinpath(
+            "request_origin.py").read_text()
+        self.assertIn('path == "/api/assist"', origin_source)
+        self.assertIn("request_origin.request_context(", source)
         self.assertNotIn("webbrowser.open(", source)
         self.assertTrue(Path(__file__).resolve().parents[1].joinpath(
             "custom_components/declan_two/frontend/panel.js").exists())
