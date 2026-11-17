@@ -4,9 +4,21 @@ from unittest.mock import patch, Mock
 
 import music
 from execution_results import ExecutionResult, Outcome
+from music_provider_result import PlayerAvailability
 
 
 class MusicProviderCoreContractTests(unittest.TestCase):
+    def test_player_availability_is_typed_frozen_and_preserves_boolean_api(self):
+        for state in (None, "unknown", "unavailable", "playing", "paused", "idle", "off", "future_state", ""):
+            with self.subTest(state=state):
+                expected = state not in (None, "unknown", "unavailable")
+                result = music.player_availability_result("media_player.kitchen", state)
+                self.assertIs(result.status, PlayerAvailability.AVAILABLE if expected else PlayerAvailability.UNAVAILABLE)
+                self.assertIs(result.available, expected)
+                self.assertIs(music.player_available("media_player.kitchen", state), expected)
+                with self.assertRaises(AttributeError):
+                    setattr(result, "status", PlayerAvailability.AVAILABLE)
+
     def test_feedback_public_api_preserves_legacy_tuple(self):
         with patch.object(music, "_feedback_provider", return_value=("Saved", "music_feedback")):
             self.assertEqual(music.feedback(("like", None), "ha", Mock()),
