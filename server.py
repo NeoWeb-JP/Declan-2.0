@@ -54,6 +54,7 @@ import roast_command_dispatch
 import timer_command_dispatch
 import stop_command_dispatch
 import information_command_dispatch
+import device_command_dispatch
 import history
 import music
 import approved_media_players
@@ -2592,7 +2593,12 @@ class Handler(BaseHTTPRequestHandler):
                 routine_reply, outcome = information_result.result.as_legacy_pair()
                 information_context = information_result.information_context
             else:
-                local = command_registry.registry(command_registry.Dependencies(
+                local = device_command_dispatch.dispatch_device(
+                    phrase, source=source, last_device=last_device,
+                    origin_device=origin_device, satellite=satellite,
+                    registry_factory=command_registry.registry,
+                    dependencies_factory=command_registry.Dependencies,
+                    context_factory=command_registry.RequestContext,
                     parse_status=device_status.parse, describe_status=device_status.describe,
                     connection=ha_device_connection, inventory=read_ha_inventory,
                     decorate=add_sass, guest_mode_entity=GUEST_MODE_ENTITY,
@@ -2601,10 +2607,7 @@ class Handler(BaseHTTPRequestHandler):
                     parse_music=music.parse, play=music.play,
                     music_inventory=read_music_inventory, areas=read_ha_areas,
                     search_media=search_media,
-                )).dispatch(command_registry.RequestContext(
-                    phrase=phrase, source=source, last_device=last_device,
-                    origin_device=origin_device, satellite=satellite,
-                ))
+                )
                 if local is not None:
                     routine_reply, outcome = local.result.as_legacy_pair()
                     status_target = local.status_target
