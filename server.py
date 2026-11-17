@@ -2043,16 +2043,12 @@ class Handler(BaseHTTPRequestHandler):
             ready = health_readiness.database_ready()
             self.send_json(200 if ready else 503, {"status": "ok" if ready else "unavailable"})
         elif self.path == "/health/dependencies":
-            database_ready = health_readiness.database_ready()
-            ha_result = home_assistant_status_result()
-            ha_status = ha_result.status
-            ha_ready = health_readiness.home_assistant_ready(ha_result)
-            ready = database_ready and ha_ready
-            self.send_json(200 if ready else 503, {
-                "status": "ok" if ready else "unavailable",
-                "database": "ok" if database_ready else "unavailable",
-                "home_assistant": ha_status,
-            })
+            health = health_readiness.DependencyHealth(
+                database=health_readiness.database_ready(),
+                home_assistant=home_assistant_status_result(),
+            )
+            status, payload = health.response()
+            self.send_json(status, payload)
         elif self.path == "/api/capabilities":
             self.send_json(200, {
                 "api_version": "1.0",
