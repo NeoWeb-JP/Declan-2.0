@@ -111,24 +111,24 @@ def registry(deps):
         return HandledCommand("device_status", ExecutionResult(reply, outcome), target)
 
     def feedback(context, command):
-        reply, outcome = deps.feedback(command, deps.connection(), deps.music_inventory)
-        return HandledCommand("music_feedback", music_execution_result((reply, outcome)))
+        result = deps.feedback(command, deps.connection(), deps.music_inventory)
+        return HandledCommand("music_feedback", music_execution_result(result))
 
     def control(context, command):
-        reply, outcome = deps.control(
+        result = deps.control(
             command, deps.connection(), deps.music_inventory,
             origin=context.origin_device or context.satellite, read_areas=deps.areas,
             assist=context.source == "assist",
         )
-        return HandledCommand("music_control", music_execution_result((reply, outcome)))
+        return HandledCommand("music_control", music_execution_result(result))
 
     def play(context, command):
-        reply, outcome = deps.play(
+        result = deps.play(
             command, deps.connection(), deps.music_inventory,
             **({"origin": context.satellite or context.origin_device}
                if context.satellite or context.origin_device else {}),
         )
-        return HandledCommand("music_play", music_execution_result((reply, outcome)))
+        return HandledCommand("music_play", music_execution_result(result))
 
     def media_search(context, phrase):
         reply, outcome = deps.search_media(phrase)
