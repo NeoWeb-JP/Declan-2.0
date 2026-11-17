@@ -1,4 +1,5 @@
 """Pure routing of successful background routine acknowledgements to persona replies."""
+from execution_results import ExecutionResult
 
 
 def background_reply(outcome, routine_turn, *, guest, visitor_present, personality):
@@ -31,7 +32,10 @@ def routine_reply(reply, *, outcome, routine_turn, routine_voice_result,
                 "emergency", "intruder", "panic alarm"))):
         return reply
     if routine_voice_result:
-        original, routine_outcome = routine_voice_result
+        if isinstance(routine_voice_result, ExecutionResult):
+            original, routine_outcome = routine_voice_result.reply, routine_voice_result.outcome
+        else:
+            original, routine_outcome = routine_voice_result
         reply = render(routine_turn[0], routine_outcome, original,
                        guest=guest or visitor_present is not False) + original_routine_reply[len(original):]
     else:

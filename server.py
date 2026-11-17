@@ -2652,18 +2652,19 @@ class Handler(BaseHTTPRequestHandler):
         ):
             routine_status = routine_dispatch.routine_status
             routine_turn = routine_dispatch.routine_selection
-            (routine_reply, outcome, lighting_context, routine_voice_result) = (
-                routine_follow_on_dispatch.execute_follow_on(
-                    routine_dispatch, origin_device=origin_device,
-                    satellite=satellite, action_results=action_results,
-                    scope=scope, execute=routine_follow_on.execute,
-                    parse_music=music.parse, play_music=music.play_result,
-                    connection=ha_device_connection,
-                    music_inventory=read_music_inventory,
-                    handle_lighting=handle_light_request_result,
-                    last_lights=last_lights, chained_outcome=chained_outcome_result,
-                )
+            response = routine_follow_on_dispatch.execute_follow_on_result(
+                routine_dispatch, origin_device=origin_device,
+                satellite=satellite, action_results=action_results,
+                scope=scope, execute=routine_follow_on.execute_result,
+                parse_music=music.parse, play_music=music.play_result,
+                connection=ha_device_connection,
+                music_inventory=read_music_inventory,
+                handle_lighting=handle_light_request_result,
+                last_lights=last_lights, chained_outcome=chained_outcome_result,
             )
+            routine_reply, outcome = response.result.reply, response.result.outcome
+            lighting_context = response.lighting_context
+            routine_voice_result = response.routine_voice_result
         else:
             information_result = information_command_dispatch.dispatch_information(
                 phrase, source=source,
@@ -2699,7 +2700,7 @@ class Handler(BaseHTTPRequestHandler):
                     routine_reply, outcome = response.result.reply, response.result.outcome
                     status_target = response.status_target
                 else:
-                    lighting_result = lighting_result_dispatch.dispatch_lighting_result(
+                    lighting_result = lighting_result_dispatch.dispatch_lighting_response(
                         phrase, source=source, origin_device=origin_device,
                         satellite=satellite,
                         registry_factory=command_registry.lighting_registry,
@@ -2715,7 +2716,8 @@ class Handler(BaseHTTPRequestHandler):
                         ),
                     )
                     if lighting_result is not None:
-                        routine_reply, outcome, lighting_context = lighting_result
+                        routine_reply, outcome = lighting_result.result.reply, lighting_result.result.outcome
+                        lighting_context = lighting_result.lighting_context
                         light_result = (routine_reply, outcome)
         fallback_result = fallback_orchestration.resolve_fallback(
             effective_message, routine_reply=routine_reply,

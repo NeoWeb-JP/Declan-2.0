@@ -58,8 +58,17 @@ Session success vocabulary uses `Outcome` members while accepting existing strin
 callers. HTTP outcome metadata and history persistence explicitly convert enum
 values to plain strings at those external boundaries.
 
+Routine follow-on execution and dispatch expose `execute_result()` and
+`execute_follow_on_result()`, returning `CommandResponse` with typed lighting
+context and original routine voice results. Combined execution preserves both
+routine and follow-on action evidence. No-follow-on dispatch retains the original
+execution object. Routine response decoration consumes the typed original voice
+result while still accepting legacy pairs. Lighting response dispatch exposes
+`dispatch_lighting_response()` and retains typed execution identity and scoped
+follow-up context. Existing follow-on and lighting tuple APIs remain available.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes routine follow-on, lighting response, fallback and other session/
+scope includes fallback and other session/
 final-response orchestration that still uses legacy tuples. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.
