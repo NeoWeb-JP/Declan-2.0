@@ -12,7 +12,7 @@ class EnvironmentReferenceTests(unittest.TestCase):
         content = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         section = content.split("## Variables documented for operators", 1)[1].split(
             "\n## ", 1
-        )[0].split("\n\n", 1)[0]
+        )[0].strip().split("\n\n", 1)[0]
         rows = [line for line in section.splitlines() if line.startswith("|")]
         self.assertGreater(len(rows), 20)
         self.assertEqual(rows[0], "| Variable | Purpose | Example |")
@@ -26,7 +26,7 @@ class EnvironmentReferenceTests(unittest.TestCase):
         content = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         section = content.split("## Variables documented for operators", 1)[1].split(
             "\n## ", 1
-        )[0].split("\n\n", 1)[0]
+        )[0].strip().split("\n\n", 1)[0]
         rows = [line for line in section.splitlines() if line.startswith("|")][2:]
         self.assertTrue(rows, "Expected documented operator variables")
         for row in rows:
