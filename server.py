@@ -1248,7 +1248,7 @@ def stop_origin_result(connection, satellite, device):
             error.close()
         except (OSError, ValueError, sqlite3.Error):
             pass
-        return "", "unverified", f"Could not verify Stop on {target}."
+        return ExecutionResult("", Outcome.UNVERIFIED), f"Could not verify Stop on {target}."
     area = origin.get("declan_area") if origin else None
     if not isinstance(area, str) or not area.strip():
         return ExecutionResult("", Outcome.UNRESOLVED), "No playback output or area could be resolved for the satellite."
