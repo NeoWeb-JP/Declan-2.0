@@ -48,6 +48,7 @@ import retry_cancellation
 import learned_intent_resolution
 import sensitive_confirmation_response
 import sensitive_confirmation_decision
+import routine_preview_detection
 import history
 import music
 import approved_media_players
@@ -2507,13 +2508,11 @@ class Handler(BaseHTTPRequestHandler):
             if decision == "confirmed":
                 phrase = approved_phrase
                 effective_message = approved_phrase
-        preview_request = re.match(r"^(?:preview|dry[ -]run)\b[ ,:]*", phrase)
-        preview_phrase = phrase[preview_request.end():] if preview_request else None
-        routine_preview = None
-        if preview_phrase and not re.search(
-            r"\b(?:light|lights|lamp|spotlight|brightness|dim|switch)\b", preview_phrase
-        ):
-            routine_preview = preview_routine(preview_phrase, origin_device or satellite)
+        preview_phrase = routine_preview_detection.routine_preview_phrase(phrase)
+        routine_preview = (
+            preview_routine(preview_phrase, origin_device or satellite)
+            if preview_phrase else None
+        )
         timer_result = None if routine_preview else command_registry.timer_registry(
             matches=timers.matches, handle=timers.handle, opener=opener,
             guest_mode=read_guest_mode, decorate=add_sass,
