@@ -42,6 +42,13 @@ class MypyImportGuardTests(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("homeassistant_fake", output)
 
+    def test_unrecognised_import_diagnostic_fails_closed(self):
+        code, output = self.run_guard(
+            'integration.py:1: error: missing dependency [import-not-found]\n'
+        )
+        self.assertNotEqual(code, 0)
+        self.assertIn("missing dependency", output)
+
     def test_missing_inventory_is_rejected(self):
         code, output = self.run_guard(None)
         self.assertNotEqual(code, 0)
