@@ -32,4 +32,5 @@ class NativeIntentsTests(unittest.TestCase):
         self.assertIn("this._recordingTurnLinks", JS)
         self.assertNotIn('Advanced editing remains in the existing Declan app.', JS)
 
-if __name__=="__main__": unittest.main()
+if __name__=="__main__":
+    unittest.main()
