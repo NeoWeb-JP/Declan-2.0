@@ -48,7 +48,8 @@ def _environment_snapshot():
 def export(include_learning=False):
     with history.database() as db:
         state = _state(db)
-    settings = {key: (state['settings'].get(key) or os.environ.get(key, '')) for key in FIELDS}
+    environment = _environment_snapshot()
+    settings = {key: (state['settings'].get(key) or environment[key]) for key in FIELDS}
     document = {'format': 'declan-settings', 'schema_version': 1, 'settings': settings}
     if include_learning:
         document['learned_intents'] = state['learned_intents']
