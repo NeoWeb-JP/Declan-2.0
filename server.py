@@ -47,6 +47,7 @@ import retry_context
 import retry_cancellation
 import learned_intent_resolution
 import sensitive_confirmation_response
+import sensitive_confirmation_decision
 import history
 import music
 import approved_media_players
@@ -2489,15 +2490,12 @@ class Handler(BaseHTTPRequestHandler):
         # action and retains its existing voice confirmation protection.
         routine_approved = True
         if source == "assist":
-            spoken = history.normalize_phrase(message)
-            candidate = spoken if spoken in sensitive_confirmations.YES | sensitive_confirmations.NO else phrase
-            group = sensitive_confirmations.sensitive_group(
-                candidate, None, GUEST_COMMANDS, {}, set())
-            if not session_id:
-                session_id = secrets.token_urlsafe(24)
-            decision, approved_phrase = SENSITIVE_CONFIRMATIONS.evaluate(
-                session=session_id, origin=satellite or origin_device,
-                phrase=candidate, group=group, speaker=body.get("speaker"))
+            session_id, decision, approved_phrase = sensitive_confirmation_decision.evaluate(
+                message, phrase, session_id, satellite=satellite,
+                origin_device=origin_device, speaker=body.get("speaker"),
+                normalize=history.normalize_phrase, guest_commands=GUEST_COMMANDS,
+                confirmations=SENSITIVE_CONFIRMATIONS,
+            )
             confirmation_reply = sensitive_confirmation_response.confirmation_response(
                 decision, session_id, source=source, message=message,
                 speaker=body.get("speaker"), record=history.record,
