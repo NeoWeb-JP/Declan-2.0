@@ -389,6 +389,12 @@ diagnostic projection. Rate limits and service outages share one interpretation;
 diagnostics retain plain failure-kind strings and numeric HTTP status. Original
 exceptions, no-retry behavior, safe logging and unverified replies remain unchanged.
 
+Missing music and unmatched lighting follow-ons now construct enum-backed
+`ExecutionResult` values directly. Legacy conversion remains only for injected
+provider results. Regression guards reject string construction and music adapter
+round trips on these fallbacks while preserving routine evidence identity,
+combined outcomes, replies and the absence of provider dispatch on missing music.
+
 Issue #17 and its overall typed-outcome checklist remain open as requested. The
 identified inventory/provider/dispatch follow-ups above are implemented; this
 scoped audit does not claim that every unrelated subsystem or external protocol
