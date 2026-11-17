@@ -76,8 +76,16 @@ validated before appending actions. The public server fallback triple and older
 dispatch/orchestration entrypoints remain compatible. Accepted local results,
 including empty replies, still block fallback before authorization is evaluated.
 
+Sensitive confirmation uses `ConfirmationDecision` and frozen evaluation,
+session-decision and turn-result models. The gate exposes `evaluate_result()`;
+typed decision and turn orchestration retain those models through the execution
+gate. Legacy gate/decision/turn APIs preserve their existing tuples. Confirmation
+HTTP/history outcomes use explicit `Outcome` members converted to plain strings.
+Origin binding, 30-second expiry, one-shot consumption and non-Assist bypass
+retain their previous semantics.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes other session/
-final-response orchestration that still uses legacy tuples. Structured action
+scope includes conversational retry cancellation, roast/guest dispatch and
+final-response/session orchestration still using legacy tuples. Structured action
 evidence also retains legacy statuses such as `already_set`, `planned` and
 `skipped`; those must not be silently narrowed to `ActionStatus` members.

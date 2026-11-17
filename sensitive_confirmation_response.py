@@ -1,5 +1,6 @@
 """Build and persist sensitive action confirmation responses."""
 import sqlite3
+from execution_results import Outcome
 
 
 CONFIRMATION_REPLIES = {
@@ -16,7 +17,9 @@ def confirmation_response(decision, session_id, *, source, message, speaker,
         return None
     response = CONFIRMATION_REPLIES[decision]
     result = {"reply": response, "session_id": session_id,
-              "outcome": "confirmation_" + decision,
+              "outcome": {"prompt": Outcome.CONFIRMATION_PROMPT,
+                          "cancelled": Outcome.CONFIRMATION_CANCELLED,
+                          "denied": Outcome.CONFIRMATION_DENIED}[decision].value,
               "continue_conversation": decision == "prompt"}
     try:
         record(session_id, source, message, response, result["outcome"],
