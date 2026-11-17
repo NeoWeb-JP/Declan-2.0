@@ -1,4 +1,6 @@
 FROM python:3.12-alpine
 WORKDIR /app
 COPY proxy.py http_server.py security.py .
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.error, urllib.request; exec('try:\\n urllib.request.urlopen(\\\"http://127.0.0.1:8099/\\\", timeout=3)\\nexcept urllib.error.HTTPError as exc:\\n raise SystemExit(0 if exc.code == 403 else 1)')" 
 CMD ["python", "proxy.py"]
