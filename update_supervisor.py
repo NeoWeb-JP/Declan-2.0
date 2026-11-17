@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 import signal
-import subprocess
+import subprocess  # nosec B404 - required to supervise the installed server process
 from time import monotonic, sleep
 from urllib.request import ProxyHandler, build_opener
 
