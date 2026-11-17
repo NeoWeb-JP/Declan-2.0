@@ -177,7 +177,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
     async def test_event_logging_and_unload(self):
         hass = SimpleNamespace(config_entries=SimpleNamespace(async_forward_entry_setups=AsyncMock(),
                                                               async_unload_platforms=AsyncMock(return_value=True)),
-                               bus=SimpleNamespace(async_listen=Mock()),
+                               bus=SimpleNamespace(async_listen=Mock()), data={},
                                services=SimpleNamespace(async_register=Mock(), async_remove=Mock(),
                                                         async_call=AsyncMock()))
         self.entry.options = {"tts_enabled": True, "primary_tts": "tts.example",
@@ -261,6 +261,12 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                                                  "entity_id": "media_player.kitchen"}))
             hass.services.async_call.assert_not_awaited()
             self.entry.options["overnight_announcement_outputs"] = "media_player.kitchen"
+        internal = hass.data["declan_two"]["record_assist_reply"]
+        await internal({"message": "internal request", "reply": "internal response"})
+        self.assertEqual(self.session.post.call_args.kwargs["json"]["message"], "internal request")
+        self.session.post.reset_mock()
+        await internal("not a dictionary")
+        self.session.post.assert_not_called()
         name, handler = hass.bus.async_listen.call_args.args
         self.assertEqual(name, "declan_two_assist_reply")
         for invalid_data in (None, "invalid", [], 42):
