@@ -205,7 +205,7 @@ class HTTPRegistryTests(TestCase):
 
     def test_stop_and_information_keep_precedence_over_the_registry(self):
         with patch.object(server.command_registry,"registry") as registry, \
-             patch.object(server,"stop_everywhere_output",return_value=("Stopped everywhere.","confirmed",None)):
+             patch.object(server,"_stop_everywhere_typed_core",return_value=(server.ExecutionResult("Stopped everywhere.", server.Outcome.CONFIRMED), None)):
             self.assertEqual(self.ask("stop")["outcome"],"confirmed")
             registry.assert_not_called()
         with patch.object(server.command_registry,"registry") as registry, \
