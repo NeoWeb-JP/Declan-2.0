@@ -1,5 +1,6 @@
 """A plain visible transcript with per-request in-process identity metadata."""
 class SpeakerTranscript(str):
+    capture_level: dict[str, float] | None
     def __new__(cls,text,speaker=None,capture_level=None):
         obj=super().__new__(cls,text)
         obj.jarvis_speaker=speaker
