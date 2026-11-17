@@ -28,12 +28,10 @@ jobs:
         run: ruff check . --output-format github
       - name: Mypy repository type check (blocking)
         run: |
-          # The audit runner has no Home Assistant runtime dependencies. Check
-          # all discovered source files except ConfigFlow, whose HA base type
-          # is unavailable here; keep it in the full advisory scan below.
+          # Runtime integration dependencies are absent in this audit job.
+          # Enforce all available type diagnostics across every source file.
           python -m mypy --config-file mypy.ini \
-            --disable-error-code import-not-found \
-            --exclude '^custom_components/declan_two/config_flow\.py$' .
+            --disable-error-code import-not-found .
       - name: Mypy full-repository baseline (advisory)
         continue-on-error: true
         run: python -m mypy --config-file mypy.ini .
