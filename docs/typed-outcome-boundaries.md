@@ -109,8 +109,16 @@ and dispatch entrypoints without executing routines. Their original public pair/
 triple APIs remain compatible. The active lighting-result marker now retains the
 lighting `ExecutionResult` instead of rebuilding a reply/outcome pair.
 
+Mapped routine action evidence uses frozen `RoutineActionEvidence` and a separate
+`RoutineActionStatus` enum covering all ten existing provider statuses. Its
+bounded parser preserves the 200-row cap, 240-character text limits, optional
+required flags and filtering behavior. Mapped custom execution and correlated
+completion consume the typed evidence; legacy `routine_action_results()` and
+response action lists explicitly emit ordinary string mappings. Only confirmed
+and already-set evidence count as completed; requested/planned states remain
+distinct and cannot verify a claimed success.
+
 Issue #17 and its overall typed-outcome checklist remain open. Remaining audit
-scope includes structured action-evidence provider and persistence contracts.
-Structured action
-evidence also retains legacy statuses such as `already_set`, `planned` and
-`skipped`; those must not be silently narrowed to `ActionStatus` members.
+scope includes discovered-script action evidence, lighting/provider evidence
+production and shared response/history evidence persistence. Their broader
+status vocabulary must not be silently narrowed to verified `ActionStatus`.
