@@ -6,11 +6,32 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 
 | Variable | Purpose | Example |
 | --- | --- | --- |
+| `DECLAN_HA_URL` | Home Assistant API base URL used by the standalone backend | Set to your HA URL |
+| `DECLAN_HA_TOKEN` | Home Assistant API access token | Keep secret |
+| `DECLAN_ASSIST_TOKEN` | Bearer token for the Assist bridge; server requires at least 32 characters for LAN Assist | Generate a separate long random secret |
+| `DECLAN_BIND_ADDRESS` | Optional server bind address override | Configure for your network |
+| `DECLAN_RELEASE_VERSION` | Optional release version override for server reporting | Leave unset unless needed |
 | `DECLAN_INGRESS_TOKEN` | Separate bearer token used by the Home Assistant Ingress proxy | Generate with `openssl rand -hex 32` |
 | `DECLAN_VOICEPIPELINE_URL` | Optional URL of the VoicePipeline management API | `http://127.0.0.1:8000` |
 | `DECLAN_VOICEPIPELINE_TOKEN` | Optional VoicePipeline API bearer token, if authentication is enabled | Leave empty when not required |
 
-These variables are documented in the existing deployment instructions. This is **not yet a complete inventory** of every `DECLAN_*` setting. Before expanding this reference, verify names and defaults against the current backend configuration code. Do not guess names, defaults, or required/optional status.
+| `DECLAN_ALLOW_UNCONFIGURED_MA` | Allows the Music Assistant path without its usual configuration guard when set to `1` | Leave unset unless deliberately testing |
+| `DECLAN_SPOTIFY_CLIENT_ID` | Spotify API application client ID | Keep secret where applicable |
+| `DECLAN_SPOTIFY_CLIENT_SECRET` | Spotify API application client secret | Keep secret |
+| `DECLAN_SPOTIFY_MARKET` | Spotify two-letter country market; code defaults to `GB` | `GB` |
+| `DECLAN_SPOTIFY_PRESETS` | JSON object of Spotify preset definitions | `{}` |
+| `DECLAN_GOOD_MORNING_SCRIPT` | Configurable Home Assistant morning script entity | `script.example_morning` |
+| `DECLAN_GOOD_NIGHT_SCRIPT` | Configurable Home Assistant night script entity | `script.example_night` |
+| `DECLAN_MOVIE_SCRIPT` | Configurable movie routine script entity | `script.example_movie` |
+| `DECLAN_BEDROOM_MOVIE_SCRIPT` | Configurable bedroom movie routine script entity | `script.example_bedroom_movie` |
+| `DECLAN_MOVIE_REMOTE` | Configurable movie remote entity | `remote.example` |
+| `DECLAN_BEDROOM_MOVIE_REMOTE` | Configurable bedroom movie remote entity | `remote.example_bedroom` |
+| `DECLAN_WEB_TTS_ENTITY` | Home Assistant TTS entity for browser voice | `tts.example` |
+| `DECLAN_MEDIA_SEARCH_AGENT` | Home Assistant conversation agent for media search | `conversation.example` |
+| `DECLAN_WEB_ASSIST_PIPELINE` | Home Assistant Assist pipeline identifier for browser voice | Set to your configured pipeline ID |
+| `DECLAN_VISITORS_ENTITY` | Home Assistant visitor-presence input boolean | `input_boolean.example_visitors` |
+
+The added HA, Assist, bind-address and release-version names were verified against `server.py` on 17 November 2026. This inventory covers names verified in `server.py`, `configuration.py`, `music.py`, and `voicepipeline.py`; additional modules may define more settings. Configuration keys in `configuration.py` are stored as named configuration entries and should not be assumed to be read directly from the process environment. Confirm each value's source in the deployment before relying on an environment override.
 
 ## Installation
 
