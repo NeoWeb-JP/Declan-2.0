@@ -1,5 +1,4 @@
 """Configure the address and shared secret for the Declan test service."""
-from urllib.parse import urlsplit
 import re
 
 import voluptuous as vol
@@ -8,6 +7,7 @@ from homeassistant.components import tts
 
 from homeassistant.helpers import selector
 
+from .config_validation import valid_declan_origin
 from .voice_defaults import DEFAULT_PROVIDER
 
 
@@ -23,12 +23,7 @@ class DeclanTwoConfigFlow(config_entries.ConfigFlow, domain="declan_two"):  # ty
         errors = {}
         if user_input is not None:
             url = user_input["url"].strip().rstrip("/")
-            try:
-                parsed = urlsplit(url)
-                valid = (parsed.scheme in {"http", "https"} and parsed.hostname
-                         and not any((parsed.username, parsed.password, parsed.query, parsed.fragment)))
-            except ValueError:
-                valid = False
+            valid = valid_declan_origin(url)
             if not valid:
                 errors["url"] = "invalid_url"
             elif len(user_input["token"]) < 32:
