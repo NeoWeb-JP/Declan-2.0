@@ -1,5 +1,7 @@
 """Read-only weather and local-time queries."""
 
+from execution_results import ExecutionResult, Outcome
+from information_result import InformationResult
 import json
 import math
 import os
@@ -92,10 +94,10 @@ def ha_connection():
     return (url, {"Authorization": f"Bearer {token}"}) if configured else None
 
 
-def home_temperatures(opener, *, indoors_only=False, outdoors_only=False, report=False):
+def home_temperatures_result(opener, *, indoors_only=False, outdoors_only=False, report=False):
     connection = ha_connection()
     if not connection:
-        return "The Home Assistant weather and temperature readings aren't configured.", "not_configured"
+        return ExecutionResult("The Home Assistant weather and temperature readings aren't configured.", Outcome.NOT_CONFIGURED)
     url, headers = connection
     weather = os.environ.get("DECLAN_WEATHER_ENTITY", "weather.forecast_home").strip()
     indoor = os.environ.get("DECLAN_INDOOR_TEMPERATURE_ENTITY", "climate.home").strip()
@@ -104,7 +106,7 @@ def home_temperatures(opener, *, indoors_only=False, outdoors_only=False, report
         if not re.fullmatch(pattern, entity):
             return {}
         result = read_json(opener, f"{url}/api/states/{entity}", headers, timeout=2)
-        return result if result.get("state") not in (None, "unknown", "unavailable") else {}
+        return (result if result.get("state") not in (None, "unknown", "unavailable") else {})
 
     outside_state = state(weather, r"weather\.[a-z0-9_]+") if not indoors_only else {}
     inside_state = state(indoor, r"(?:climate|sensor)\.[a-z0-9_]+") if not outdoors_only else {}
@@ -125,17 +127,18 @@ def home_temperatures(opener, *, indoors_only=False, outdoors_only=False, report
     outside = reading(outside_attrs.get("temperature"), outside_unit)
     inside = reading(inside_value, inside_unit)
     if indoors_only:
-        return (f"It's {inside} inside.", "confirmed") if inside else ("The indoor temperature is unavailable.", "unavailable")
+        return (ExecutionResult(f"It's {inside} inside.", Outcome.CONFIRMED) if inside else ExecutionResult("The indoor temperature is unavailable.", Outcome.UNAVAILABLE))
     reply = f"It's {outside} outside." if outside else "The outside temperature is unavailable."
     if outdoors_only:
-        return reply, "confirmed" if outside else "unavailable"
+        return ExecutionResult(reply, Outcome.CONFIRMED if outside else Outcome.UNAVAILABLE)
     condition = HA_CONDITIONS.get(outside_state.get("state")) if report else None
     if condition:
         reply = f"Outside, it's {condition} and {outside}." if outside else f"Outside, it's {condition}. {reply}"
     elif report:
         reply = f"I couldn't verify the outside conditions. {reply}"
     reply += f" Inside, it's {inside}." if inside else " The indoor temperature is unavailable."
-    return reply, "confirmed" if outside and inside and (condition or not report) else "partial" if outside or inside or condition else "unavailable"
+    return ExecutionResult(reply, Outcome.CONFIRMED if outside and inside and (condition or not report)
+                           else Outcome.PARTIAL if outside or inside or condition else Outcome.UNAVAILABLE)
 
 
 def place_coordinates(location):
@@ -316,21 +319,21 @@ def place_forecast(opener, location):
     return forecast, datetime.now(timezone).date(), "°C"
 
 
-def forecast_reply(opener, match):
+def forecast_reply_result(opener, match):
     kind = match["kind"]
     period = match["first"] or match["last"] or "today"
     place = match["before"] or match["after"] or match["place_only"]
     if place:
         location, error = find_place(opener, place)
         if error:
-            return error, "unresolved", "weather"
+            return InformationResult(ExecutionResult(error, Outcome.UNRESOLVED), "weather")
         name = place_name(location)
         forecast, today, unit = place_forecast(opener, location)
     else:
         name = "home"
         forecast, today, unit = home_forecast(opener)
     if not today:
-        return f"I couldn't verify the forecast for {name}.", "unavailable", "weather"
+        return InformationResult(ExecutionResult(f"I couldn't verify the forecast for {name}.", Outcome.UNAVAILABLE), "weather")
 
     temperature_only = "temperature" in kind
     rain_only = kind == "will it rain"
@@ -356,9 +359,9 @@ def forecast_reply(opener, match):
             reports.append(f"On {label}, " + ", and ".join(details) + ".")
         else:
             reports.append(f"I couldn't verify {'the forecast temperature' if temperature_only else 'a forecast'} for {label}.")
-    outcome = "confirmed" if available == len(days) else "partial" if available else "unavailable"
+    outcome = Outcome.CONFIRMED if available == len(days) else Outcome.PARTIAL if available else Outcome.UNAVAILABLE
     location_intro = "For home" if not place else f"For {name}"
-    return location_intro + ". " + " ".join(reports), outcome, "weather"
+    return InformationResult(ExecutionResult(location_intro + ". " + " ".join(reports), Outcome(outcome)), "weather")
 
 
 def forecast_question(phrase):
@@ -422,10 +425,10 @@ def matches(phrase, context=None):
                 or HOME_WEATHER.fullmatch(normalized) or normalized in INSIDE)
 
 
-def handle(phrase, opener):
+def handle_result(phrase, opener):
     phrase = phrase.replace("’", "'")
     if forecast := forecast_question(phrase):
-        return forecast_reply(opener, forecast)
+        return forecast_reply_result(opener, forecast)
     phrase = re.sub(r"^what time is it in ", "what is the time in ", phrase)
     place = PLACE_QUESTION.fullmatch(phrase)
     home = HOME_WEATHER.fullmatch(phrase)
@@ -434,28 +437,28 @@ def handle(phrase, opener):
     if not place:
         report = bool(home and home["kind"].startswith("weather"))
         outdoors_only = bool(home and not report and home["where"] in {"outside", "outdoors"})
-        reply, outcome = home_temperatures(
+        home_result = home_temperatures_result(
             opener, indoors_only=phrase in INSIDE, outdoors_only=outdoors_only, report=report
         )
-        return reply, outcome, "weather"
+        return InformationResult(home_result, "weather")
     kind, query = place.group("kind", "place")
     category = "time" if kind.endswith("time") else "weather"
     location, error = find_place(opener, query)
     if location is None:
-        return error, "unresolved", category
+        return InformationResult(ExecutionResult(error, Outcome.UNRESOLVED), category)
     name = place_name(location)
     if category == "time":
         try:
             clock = datetime.now(ZoneInfo(location["timezone"])).strftime("%H:%M")
         except (KeyError, TypeError, ValueError, ZoneInfoNotFoundError):
-            return f"I couldn't verify the local time in {name}.", "unavailable", category
-        return f"It's {clock} in {name}.", "confirmed", category
+            return InformationResult(ExecutionResult(f"I couldn't verify the local time in {name}.", Outcome.UNAVAILABLE), category)
+        return InformationResult(ExecutionResult(f"It's {clock} in {name}.", Outcome.CONFIRMED), category)
     report = kind.startswith("weather")
     requested = "current weather" if report else "current temperature"
     try:
         coordinates = {key: float(location[key]) for key in ("latitude", "longitude")}
     except (KeyError, TypeError, ValueError):
-        return f"I couldn't verify the {requested} in {name}.", "unavailable", category
+        return InformationResult(ExecutionResult(f"I couldn't verify the {requested} in {name}.", Outcome.UNAVAILABLE), category)
     fields = "temperature_2m,weather_code" if report else "temperature_2m"
     data = read_json(opener, "https://api.open-meteo.com/v1/forecast?" + urlencode(
         {**coordinates, "current": fields, "temperature_unit": "celsius"}))
@@ -465,11 +468,28 @@ def handle(phrase, opener):
     code = current.get("weather_code")
     condition = WMO_CONDITIONS.get(code) if report and type(code) is int else None
     if condition and temperature:
-        return f"In {name}, it's {condition} and {temperature}.", "confirmed", category
+        return InformationResult(ExecutionResult(f"In {name}, it's {condition} and {temperature}.", Outcome.CONFIRMED), category)
     if condition:
-        return f"In {name}, it's {condition}. The temperature is unavailable.", "partial", category
+        return InformationResult(ExecutionResult(f"In {name}, it's {condition}. The temperature is unavailable.", Outcome.PARTIAL), category)
     if temperature is None:
-        return f"I couldn't verify the {requested} in {name}.", "unavailable", category
+        return InformationResult(ExecutionResult(f"I couldn't verify the {requested} in {name}.", Outcome.UNAVAILABLE), category)
     if report:
-        return f"It's {temperature} in {name}. I couldn't verify the conditions.", "partial", category
-    return f"It's {temperature} in {name}.", "confirmed", category
+        return InformationResult(ExecutionResult(f"It's {temperature} in {name}. I couldn't verify the conditions.", Outcome.PARTIAL), category)
+    return InformationResult(ExecutionResult(f"It's {temperature} in {name}.", Outcome.CONFIRMED), category)
+
+
+def home_temperatures(opener, *, indoors_only=False, outdoors_only=False, report=False):
+    """Compatibility API for home temperature reply/outcome pairs."""
+    return home_temperatures_result(opener, indoors_only=indoors_only,
+                                    outdoors_only=outdoors_only, report=report).as_legacy_pair()
+
+
+def forecast_reply(opener, match):
+    """Compatibility API for forecast reply/outcome/category triples."""
+    return forecast_reply_result(opener, match).as_legacy_triple()
+
+
+def handle(phrase, opener):
+    """Compatibility API for information reply/outcome/category triples."""
+    result = handle_result(phrase, opener)
+    return result.as_legacy_triple() if result is not None else None

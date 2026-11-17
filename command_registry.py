@@ -7,6 +7,7 @@ from execution_results import ExecutionResult, Outcome
 from music_provider_result import music_execution_result
 from local_outcome_contracts import timer_execution_result, routine_execution_result
 from device_status import DeviceStatusResult
+from information_result import InformationResult
 
 
 @dataclass(frozen=True)
@@ -197,12 +198,12 @@ def information_registry(*, matches, follow_up, handle, question_context,
         result = handle(information_phrase, opener)
         if result is None:
             raise ValueError("Matched information request returned no result")
-        reply, outcome, category = result
-        typed = ExecutionResult(reply, outcome)
+        information = InformationResult.coerce(result)
+        typed = information.result
         next_context = question_context(information_phrase) if typed.outcome in {
             Outcome.CONFIRMED, Outcome.PARTIAL, Outcome.UNAVAILABLE} else None
         if typed.outcome is Outcome.CONFIRMED:
-            typed = ExecutionResult(decorate(reply, category, guest_mode()), typed.outcome)
+            typed = ExecutionResult(decorate(typed.reply, information.category.value, guest_mode()), typed.outcome, typed.actions)
         return HandledCommand("information", typed, information_context=next_context)
 
     return HandlerRegistry((Handler("information", 0,

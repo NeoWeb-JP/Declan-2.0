@@ -167,7 +167,7 @@ class HTTPRegistryTests(TestCase):
         self.enterContext(patch.object(server,"read_guest_mode",return_value="off"))
         self.enterContext(patch.object(server,"read_visitors_present",return_value=False))
         self.enterContext(patch.object(server,"select_routine_turn",return_value=None))
-        self.enterContext(patch.object(server.conditions,"handle",return_value=None))
+        self.enterContext(patch.object(server.conditions,"handle_result",return_value=None))
         self.enterContext(patch.object(server.timers,"handle",return_value=None))
 
     def ask(self,phrase):
@@ -209,6 +209,6 @@ class HTTPRegistryTests(TestCase):
             self.assertEqual(self.ask("stop")["outcome"],"confirmed")
             registry.assert_not_called()
         with patch.object(server.command_registry,"registry") as registry, \
-             patch.object(server.conditions,"handle",return_value=("Weather unavailable.","unavailable","weather")):
+             patch.object(server.conditions,"handle_result",return_value=("Weather unavailable.","unavailable","weather")):
             self.assertEqual(self.ask("what is the weather")["reply"],"Weather unavailable.")
             registry.assert_not_called()
