@@ -23,6 +23,24 @@ READ_VISITORS_PRESENT = server.read_visitors_present
 
 
 class APITests(TestCase):
+    def test_browser_stt_typed_results_preserve_transcript_wire_format(self):
+        for text in ("Hello", ""):
+            result = server.web_stt.TranscriptionResult.from_text(text)
+            with self.subTest(text=text), \
+                 patch.dict(server.os.environ, {"DECLAN_HA_TOKEN": "test-token"}), \
+                 patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
+                 patch.object(server, "traced_transcribe", side_effect=AssertionError("legacy transcript adapter")), \
+                 patch.object(server.web_stt, "transcribe_result", return_value=result) as transcribe:
+                request = Request(self.origin + "/api/stt", data=b"\0\1", headers={
+                    "Origin": self.origin, "Content-Type": "application/octet-stream"})
+                with urlopen(request, timeout=4) as response:
+                    self.assertEqual(response.status, 200)
+                    body = json.loads(response.read())
+                self.assertEqual(body["text"], text)
+                self.assertIs(type(body["text"]), str)
+                self.assertNotIn("status", body)
+                self.assertEqual(transcribe.call_args.args, ("http://ha", "test-token", b"\0\1"))
+
     def test_typed_chained_routine_results_reach_http_and_history_without_legacy_pairs(self):
         selection = RoutineTurnSelection(RoutineSelection(RoutineSelectionKind.SCRIPT, "script.audit"), "turn on study")
         cases = ((Outcome.STARTED, Outcome.CONFIRMED, Outcome.STARTED),
