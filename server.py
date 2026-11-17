@@ -2505,7 +2505,7 @@ class Handler(BaseHTTPRequestHandler):
         # HA owns script permissions. Guest assignment is a separate privileged
         # action and retains its existing voice confirmation protection.
         routine_approved = True
-        session_id, confirmed_phrase, confirmation_reply = (
+        session_id, confirmed_phrase, confirmation_reply, is_confirmed = (
             sensitive_confirmation_turn.confirmation_turn(
                 message, phrase, session_id, source=source,
                 satellite=satellite, origin_device=origin_device,
@@ -2521,7 +2521,7 @@ class Handler(BaseHTTPRequestHandler):
         if confirmation_reply is not None:
             self.send_json(200, confirmation_reply)
             return
-        if confirmed_phrase != phrase:
+        if is_confirmed:
             phrase = confirmed_phrase
             effective_message = confirmed_phrase
         preview_phrase = routine_preview_detection.routine_preview_phrase(phrase)
