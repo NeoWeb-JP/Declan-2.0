@@ -271,7 +271,7 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
                            (deadline, deadline, timer["id"]))
                 remaining = math.ceil(deadline - now)
                 label = f"The {named_timer} in {timer['room']}"
-                return timer_execution_result((f"{label} now has {format_duration(remaining)} left." if remaining
+                return timer_execution_result(((f"{label} now has {format_duration(remaining)} left." if remaining
                         else f"{label} is due now."), "timer_adjusted"))
             if removal[1] == "cancel" and expired:
                 return timer_execution_result((f"{timer['name']} has already expired. Say stop the {named_timer} to silence its alarm.", "unresolved"))
