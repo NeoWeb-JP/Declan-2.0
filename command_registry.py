@@ -199,3 +199,20 @@ def information_registry(*, matches, follow_up, handle, question_context,
 
     return HandlerRegistry((Handler("information", 0,
         lambda context: context.phrase if matches(context.phrase, last_information) else None, run),))
+
+
+def lighting_registry(*, matches, parse_light_command, handle_light_request,
+                      action_results, last_lights, origin_device):
+    """Lighting command ownership with injected action/history dependencies."""
+    def run(context, phrase):
+        result = handle_light_request(
+            phrase, action_results=action_results, last_lights=last_lights,
+            origin_device=origin_device,
+        )
+        if result is None:
+            raise ValueError("Matched lighting request returned no result")
+        return HandledCommand("lighting", ExecutionResult(*result))
+
+    return HandlerRegistry((Handler("lighting", 0,
+        lambda context: context.phrase if matches(context.phrase, parse_light_command) else None,
+        run),))
