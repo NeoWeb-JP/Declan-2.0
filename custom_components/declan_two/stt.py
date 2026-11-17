@@ -94,7 +94,7 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
             form = aiohttp.FormData()
             form.add_field("file", pcm_to_wav(bytes(raw)),
                            filename="utterance.wav", content_type="audio/wav")
-            form.add_field("model", options.get("openai_stt_model", "gpt-transcribe"))
+            form.add_field("model", options.get("openai_stt_model", "gpt-4o-mini-transcribe"))
             form.add_field("language", "en")
             form.add_field("prompt", PROMPT)
             form.add_field("response_format", "json")
