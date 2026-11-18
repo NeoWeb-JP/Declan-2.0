@@ -132,9 +132,12 @@ class ChatRecallTests(unittest.TestCase):
                                       "my passcode is 123456",
                                       "a harmless note",
                                   ]}, 100)
-        record = self.recall.restore("s", 101)
+        self.assertIsNone(self.recall.restore("s", 101))
+        self.recall.remember("s", {"last": "a harmless note",
+                                   "recent_messages": ["hello", "set thermostat to 30 degrees",
+                                                       "my passcode is 123456", "a harmless note"]}, 102)
+        record = self.recall.restore("s", 103)
         self.assertEqual(record["recent_messages"], ["hello", "a harmless note"])
-        self.assertIsNone(record["last"])
         self.assertNotIn("passcode", str(record))
         self.assertNotIn("thermostat", str(record))
 
