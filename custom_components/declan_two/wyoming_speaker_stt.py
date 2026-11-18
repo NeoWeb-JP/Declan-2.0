@@ -62,7 +62,11 @@ async def receive(client):
             if transcript is not None and valid:
                 break
         elif Transcript.is_type(event.type):
-            transcript = Transcript.from_event(event).text
+            candidate = Transcript.from_event(event).text
+            if not isinstance(candidate, str) or not candidate.strip():
+                _LOGGER.info("DECLAN_WYOMING_SPEAKER event=empty_transcript")
+                return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
+            transcript = candidate
             if late_speaker_deadline is None:
                 late_speaker_deadline = asyncio.get_running_loop().time() + late_speaker_timeout
             if identity is not None:
