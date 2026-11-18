@@ -23,3 +23,7 @@ The production lock was updated using wheel SHA-256 hashes from successful GitHu
 ## Read-only readiness check
 
 With the production backend stopped and the key available through the normal protected environment, run `python -m check_voice_encryption --database /path/to/.data/voice-profiles.sqlite3`. Exit 0 means the database integrity check passed and all existing samples authenticated with the configured key. Exit 2 means plaintext samples remain and require the explicit migration before activation. Exit 1 means a missing/incorrect key, damaged database or other validation failure. This check never writes the database, generates a key or performs migration; it does not validate the separate VoicePipeline service.
+
+## Release activation gate
+
+The updater checks encryption readiness before switching the active release. If a local voice database exists, it must pass the read-only check with the configured key and contain no legacy plaintext samples. If no database exists, the key must still be configured and usable. A symlinked voice database is rejected. A failed check leaves the active release unchanged. **Prepare the key and perform the explicit migration while Declan is stopped before attempting to activate a release with this gate.** The updater does not generate keys or migrate samples automatically.
