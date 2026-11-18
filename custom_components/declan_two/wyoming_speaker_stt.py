@@ -44,7 +44,7 @@ async def receive(client):
             break
         if event is None:
             break
-        if event.type == 'jarvis-speaker':
+        if event.type in {'declan-speaker', 'jarvis-speaker'}:
             speaker_arrived_after_transcript = transcript is not None
             speaker_event_seen = True
             value = event.data if isinstance(event.data, dict) else {}
