@@ -38,6 +38,26 @@ class SessionContextAccessTests(unittest.TestCase):
         )
         retrieve.assert_called_once_with(None, "lounge", now=0, idle_seconds=30)
 
+    def test_invalid_ids_and_corrupt_sessions_are_missing_for_both_paths(self):
+        for invalid in (None, [], {}, 42, True, "", "x" * 257):
+            with self.subTest(session_id=repr(invalid)):
+                self.assert_missing(invalid, {})
+        for corrupt in (None, "session", [], 42, True):
+            with self.subTest(corrupt=repr(corrupt)):
+                self.assert_missing("one", {"one": corrupt})
+
+    def assert_missing(self, session_id, sessions):
+        retrieve = Mock(return_value=((), None, None))
+        consume = Mock(return_value=None)
+        load_recent_context(session_id=session_id, scope="kitchen", sessions=sessions,
+                            lock=threading.RLock(), now=10, idle_seconds=30,
+                            retrieve=retrieve)
+        consume_retry_context(session_id=session_id, scope="kitchen", sessions=sessions,
+                              lock=threading.RLock(), now=10, window_seconds=30,
+                              consume=consume)
+        retrieve.assert_called_once_with(None, "kitchen", now=10, idle_seconds=30)
+        consume.assert_called_once_with(None, "kitchen", now=10, window_seconds=30)
+
     def test_callback_runs_with_lock_held(self):
         lock = threading.Lock()
         def retrieve(*args, **kwargs):
