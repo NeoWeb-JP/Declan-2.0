@@ -6,6 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
 STAGE = (ROOT / "turn_fallback_dispatch.py").read_text()
+PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
 
 
 class DirectFinalDispatchTests(unittest.TestCase):
@@ -14,9 +15,11 @@ class DirectFinalDispatchTests(unittest.TestCase):
         ast.parse(STAGE)
         self.assertIn("lighting_result_dispatch.dispatch_lighting_response(", STAGE)
         self.assertIn("turn_fallback_dispatch.dispatch(", SERVER)
+        self.assertIn("turn_response_preparation.prepare(", SERVER)
+        self.assertIn("fallback_orchestration.resolve_fallback_result(", PREPARATION)
+        self.assertIn("response_persona_context.resolve_response_persona(", PREPARATION)
         for call in (
-            "fallback_orchestration.resolve_fallback_result(",
-            "response_persona_context.resolve_response_persona(",
+
             "turn_context_preparation.prepare_turn_context(",
             "turn_response_composition.compose_turn_result(",
             "turn_persistence_orchestration.persist_turn_result(",
@@ -25,7 +28,7 @@ class DirectFinalDispatchTests(unittest.TestCase):
                 self.assertIn(call, SERVER)
 
     def test_atomic_finalization_order(self):
-        lock = SERVER.index("        with SESSION_LOCK:", SERVER.index("fallback_result = "))
+        lock = SERVER.index("        with SESSION_LOCK:", SERVER.index("response_preparation = "))
         context = SERVER.index("turn_context_preparation.prepare_turn_context(", lock)
         compose = SERVER.index("turn_response_composition.compose_turn_result(", context)
         persist = SERVER.index("turn_persistence_orchestration.persist_turn_result(", compose)
