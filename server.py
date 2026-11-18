@@ -61,7 +61,6 @@ import information_result_response
 import device_result_response
 import lighting_result_dispatch
 import final_dispatch_orchestration
-import turn_finalization_dispatch
 import ingress_turn_orchestration
 import fallback_orchestration
 import guest_assignment_command
@@ -2524,14 +2523,13 @@ class Handler(BaseHTTPRequestHandler):
             information_context = ("time", None, None)
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
-            actions, phrase_suggestion = turn_finalization_dispatch.prepare_context(
-                previous, prepare=turn_context_preparation.prepare_turn_context, action_results=action_results, light_result=light_result,
+            actions, phrase_suggestion = turn_context_preparation.prepare_turn_context(
+                previous, action_results=action_results, light_result=light_result,
                 outcome=outcome, scope=scope, message=message, now=monotonic(),
                 suggestion_factory=turn_finalization.lighting_phrase_suggestion,
             )
-            response = turn_finalization_dispatch.compose_response(
+            response = turn_response_composition.compose_turn_result(
                 effective_message, session_id, routine_reply,
-                compose_turn=turn_response_composition.compose_turn_result,
                 lighting_context=lighting_context, scope=scope,
                 response_guest_mode=response_guest_mode, outcome=outcome,
                 routine_turn=routine_turn, light_result=light_result,
@@ -2548,9 +2546,8 @@ class Handler(BaseHTTPRequestHandler):
                 render_failure=command_responses.failure,
                 composition=response_composition,
             )
-            response = turn_finalization_dispatch.persist_response(
-                response, persist=turn_persistence_dispatch.persist_turn_result,
-                sessions=SESSIONS,
+            response = turn_persistence_dispatch.persist_turn_result(
+                response, sessions=SESSIONS,
                 apply_outcome_metadata=turn_finalization.apply_outcome_metadata,
                 finalize=turn_persistence_orchestration.finalize_turn,
                 message=message, phrase=phrase,
