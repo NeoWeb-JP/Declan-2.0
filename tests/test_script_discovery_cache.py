@@ -83,6 +83,13 @@ class DiscoveryCacheTests(unittest.TestCase):
         self.assertIsNone(self.cache.get(self.cache.key(
             "http://ha", {"Authorization": "0"}), seconds=30))
 
+    def test_failed_or_abandoned_scopes_cannot_grow_without_bound(self):
+        for index in range(50):
+            key = self.cache.key("http://ha", {"Authorization": str(index)})
+            self.cache.begin(key)
+        self.assertLessEqual(len(self.cache._generation), 4)
+        self.assertLessEqual(len(self.cache._entries), 2)
+
     def test_failed_fetch_is_not_cached(self):
         opener = Mock()
         opener.open.side_effect = TimeoutError()
