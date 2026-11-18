@@ -4,7 +4,6 @@ Accepts Wyoming speaker events before or shortly after Transcript.
 """
 import asyncio
 import logging
-import math
 from collections.abc import AsyncIterable
 from homeassistant.components import stt
 from wyoming.client import AsyncTcpClient
