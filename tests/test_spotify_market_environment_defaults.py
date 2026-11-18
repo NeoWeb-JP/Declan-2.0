@@ -33,7 +33,7 @@ class SpotifyMarketEnvironmentDefaultsTests(unittest.TestCase):
         credentials = ("test-client", "test-secret")
         with patch.dict(os.environ, settings, clear=True), patch.object(
                 music, "spotify_credentials", return_value=(credentials, "environment")), patch.object(
-                music, "spotify_token", (credentials, "test-access-token", float("inf"))):
+                music.RUNTIME, "spotify_token", (credentials, "test-access-token", float("inf"))):
             try:
                 result = music.spotify_search(opener, "example", "", ("track",))
                 return result, opener.requests, None
