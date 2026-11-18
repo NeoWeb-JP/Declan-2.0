@@ -28,6 +28,24 @@ class RetryContextTests(unittest.TestCase):
             with self.subTest(session=repr(session)):
                 self.assertIsNone(consume_pending_retry(session, "kitchen", now=105, window_seconds=10))
 
+    def test_invalid_clock_or_window_does_not_replay_retry(self):
+        for now, window in ((float("nan"), 10), (float("inf"), 10),
+                            (105, float("nan")), (105, float("inf")),
+                            (105, -1), (105, "ten"), (105, True)):
+            with self.subTest(now=repr(now), window=repr(window)):
+                session = {"pending_retry": dict(self.retry)}
+                self.assertIsNone(consume_pending_retry(session, "kitchen", now=now,
+                                                        window_seconds=window))
+                self.assertNotIn("pending_retry", session)
+
+    def test_invalid_scope_does_not_replay_retry(self):
+        for scope in (None, "", [], {}, 42):
+            with self.subTest(scope=repr(scope)):
+                session = {"pending_retry": dict(self.retry)}
+                self.assertIsNone(consume_pending_retry(session, scope, now=105,
+                                                        window_seconds=10))
+                self.assertNotIn("pending_retry", session)
+
     def test_matching_retry_is_returned(self):
         self.assertIs(self.consume(), self.retry)
 
