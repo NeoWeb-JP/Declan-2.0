@@ -49,12 +49,7 @@ async def receive(client):
             confidence = value.get('confidence')
             identity_id = value.get('interaction_id')
             speaker_unknown = isinstance(name, str) and name.strip().casefold() in ('unknown', 'unidentified', 'none')
-            valid = (
-                isinstance(name, str) and bool(name) and len(name) <= 80
-                and isinstance(identity_id, str) and len(identity_id) <= 80
-                and isinstance(confidence, (int, float)) and not isinstance(confidence, bool)
-                and math.isfinite(confidence) and 0 <= confidence <= 1
-            )
+            valid = valid_wyoming_speaker(identity_id, name, confidence)
             if valid:
                 identity = (identity_id, name, confidence)
             _LOGGER.info(
