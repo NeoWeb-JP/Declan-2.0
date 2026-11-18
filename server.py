@@ -26,6 +26,7 @@ import sensitive_confirmations
 import diagnostics
 import declan_logs
 import configuration
+import household_entities
 import health_readiness
 import voice_profiles
 import voicepipeline
@@ -268,6 +269,14 @@ def home_assistant_status_result() -> HomeAssistantStatusResult:
     return HomeAssistantStatusResult(HomeAssistantStatus.DISCONNECTED)
 
 
+def configured_guest_mode_entity():
+    """Avoid a default household ID or HTTP failure for invalid settings."""
+    try:
+        return household_entities.guest_mode()
+    except (OSError, sqlite3.Error, ValueError):
+        return ""
+
+
 def read_guest_mode():
     url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
     token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
@@ -276,13 +285,14 @@ def read_guest_mode():
         if (not token or parsed.scheme not in {"http", "https"} or not parsed.hostname
                 or parsed.username or parsed.password or parsed.query or parsed.fragment):
             return None
-        request = Request(f"{url}/api/states/{GUEST_MODE_ENTITY}", headers={"Authorization": f"Bearer {token}"})
+        entity = household_entities.guest_mode()
+        request = Request(f"{url}/api/states/{entity}", headers={"Authorization": f"Bearer {token}"})
         opener = build_opener(ProxyHandler({}), NoRedirect())
         with opener.open(request, timeout=1) as response:
             return json.loads(response.read(4096)).get("state")
     except HTTPError as error:
         error.close()
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError, sqlite3.Error):
         pass
     return None
 
@@ -728,7 +738,11 @@ def verify_legacy_lounge_start(connection, script):
     entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
     if entities.get(script, {}).get("state") != "off":
         return "Home Assistant hasn't confirmed the Movie Time script is off."
-    if entities.get("switch.projector_power_socket", {}).get("state") != "on":
+    try:
+        projector_entity = household_entities.projector_power()
+    except (OSError, sqlite3.Error, ValueError):
+        return "The projector power entity is not configured correctly."
+    if entities.get(projector_entity, {}).get("state") != "on":
         return "The projector power socket hasn't reported that it's on."
     return None
 
@@ -1064,6 +1078,11 @@ def start_dinner_result(connection, *, approved=False):
 def guest_assignment_result(operation, connection):
     if connection is None:
         return ExecutionResult("I couldn't reach Home Assistant to check Guest Mode or the guest register.", Outcome.UNAVAILABLE)
+    try:
+        guest_mode_entity = household_entities.guest_mode()
+        guest_register_entity = household_entities.guest_register()
+    except (OSError, sqlite3.Error, ValueError):
+        return ExecutionResult("Guest Mode or the guest register is not configured correctly.", Outcome.NOT_CONFIGURED)
     url, headers, opener = connection
 
     def request(path, data=None):
@@ -1088,27 +1107,27 @@ def guest_assignment_result(operation, connection):
         names = operation.partition(":")[2].strip()
         if not re.fullmatch(r"[A-Za-z][A-Za-z '\\-]{0,119}", names):
             return ExecutionResult("Tell me who is in charge.", Outcome.UNRESOLVED)
-        request("/api/services/input_text/set_value", {"entity_id": GUEST_REGISTER_ENTITY, "value": names})
-        if read_state(GUEST_REGISTER_ENTITY) != names:
+        request("/api/services/input_text/set_value", {"entity_id": guest_register_entity, "value": names})
+        if read_state(guest_register_entity) != names:
             return ExecutionResult("I couldn't verify the guest register was updated, so Guest Mode was left unchanged.", Outcome.UNVERIFIED)
-        request("/api/services/input_boolean/turn_on", {"entity_id": GUEST_MODE_ENTITY})
-        if read_state(GUEST_MODE_ENTITY) != "on":
+        request("/api/services/input_boolean/turn_on", {"entity_id": guest_mode_entity})
+        if read_state(guest_mode_entity) != "on":
             return ExecutionResult("I updated the guest register, but couldn't verify Guest Mode is on.", Outcome.PARTIAL)
         return ExecutionResult(f"{names} are in charge. Guest Mode is on.", Outcome.CONFIRMED)
 
     if operation == "clear":
-        request("/api/services/input_text/set_value", {"entity_id": GUEST_REGISTER_ENTITY, "value": ""})
-        names = read_state(GUEST_REGISTER_ENTITY)
+        request("/api/services/input_text/set_value", {"entity_id": guest_register_entity, "value": ""})
+        names = read_state(guest_register_entity)
         # Keep Guest Mode in place until the register is verified empty.
         if names != "":
             return ExecutionResult("I couldn't verify that the guest register was cleared, so I left Guest Mode alone.", Outcome.UNVERIFIED)
-        request("/api/services/input_boolean/turn_off", {"entity_id": GUEST_MODE_ENTITY})
-        if read_state(GUEST_MODE_ENTITY) != "off":
+        request("/api/services/input_boolean/turn_off", {"entity_id": guest_mode_entity})
+        if read_state(guest_mode_entity) != "off":
             return ExecutionResult("I cleared the guest register, but couldn't verify that Guest Mode is off.", Outcome.PARTIAL)
         return ExecutionResult(add_sass("I cleared the guest register and turned off Guest Mode.", "guest_cleared", "off"), Outcome.CONFIRMED)
 
-    mode = read_state(GUEST_MODE_ENTITY)
-    names = read_state(GUEST_REGISTER_ENTITY)
+    mode = read_state(guest_mode_entity)
+    names = read_state(guest_register_entity)
     if mode not in {"on", "off"} or names is None:
         return ExecutionResult("I couldn't read Guest Mode or the guest register.", Outcome.UNAVAILABLE)
     if mode == "on":
@@ -1417,9 +1436,13 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     if error:
         return ExecutionResult("I couldn't read the lights from Home Assistant.", error)
 
+    try:
+        guest_mode_entity = household_entities.guest_mode()
+    except (OSError, sqlite3.Error, ValueError):
+        guest_mode_entity = None
     guest_mode = next(
         (item.get("state") for item in inventory
-         if isinstance(item, dict) and item.get("entity_id") == GUEST_MODE_ENTITY),
+         if isinstance(item, dict) and item.get("entity_id") == guest_mode_entity),
         None,
     )
 
@@ -2152,7 +2175,7 @@ class Handler(BaseHTTPRequestHandler):
                 device_status=device_status,
                 ha_device_connection=ha_device_connection,
                 read_ha_inventory_result=read_ha_inventory_result,
-                GUEST_MODE_ENTITY=GUEST_MODE_ENTITY,
+                GUEST_MODE_ENTITY=configured_guest_mode_entity(),
                 music=music,
                 read_music_inventory_result=read_music_inventory_result,
                 read_ha_areas=read_ha_areas,
