@@ -101,6 +101,7 @@ import retry_cancellation_access
 import sensitive_confirmation_resolution
 import preview_timer_orchestration
 import stop_response_orchestration
+import roast_guest_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2391,8 +2392,9 @@ class Handler(BaseHTTPRequestHandler):
         ):
             routine_reply, outcome = stop_response.result.reply, stop_response.result.outcome
             routine_status = stop_response.routine_status
-        elif (roast_guest_result := roast_guest_dispatch.dispatch_roast_or_guest_result(
-            phrase, roast_target=roast.target,
+        elif (roast_guest_result := roast_guest_orchestration.dispatch_roast_guest(
+            phrase, dispatch=roast_guest_dispatch.dispatch_roast_or_guest_result,
+            roast_target=roast.target,
             respond_to_roast=roast_command_dispatch.respond_to_roast_result,
             guest_mode=read_guest_mode, visitors_present=read_visitors_present,
             response_guest_mode=personality_policy.response_guest_mode,
