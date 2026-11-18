@@ -20,5 +20,5 @@ def consume_retry_context(*, session_id, scope, sessions, lock, now, window_seco
     """Consume a pending retry while holding the session lock."""
     with lock:
         return consume(
-            sessions.get(session_id), scope, now=now, window_seconds=window_seconds,
+            _existing_session(sessions, session_id), scope, now=now, window_seconds=window_seconds,
         )
