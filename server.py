@@ -100,6 +100,7 @@ import session_context_access
 import retry_cancellation_access
 import sensitive_confirmation_resolution
 import preview_timer_orchestration
+import stop_response_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2378,17 +2379,18 @@ class Handler(BaseHTTPRequestHandler):
         )
         if early_result is not None:
             routine_reply, outcome = early_result.reply, early_result.outcome
-        elif stop_result := stop_command_dispatch.dispatch_stop(
+        elif stop_response := stop_response_orchestration.dispatch_stop_response(
             phrase, source=source, origin_device=origin_device, satellite=satellite,
+            dispatch=stop_command_dispatch.dispatch_stop,
             registry_factory=command_registry.stop_registry,
             context_factory=command_registry.RequestContext,
             stop_routines=stop_pending_routines_result,
             stop_everywhere=stop_everywhere_result,
             connection=ha_device_connection,
+            adapt=stop_result_response.stop_response,
         ):
-            response = stop_result_response.stop_response(stop_result)
-            routine_reply, outcome = response.result.reply, response.result.outcome
-            routine_status = response.routine_status
+            routine_reply, outcome = stop_response.result.reply, stop_response.result.outcome
+            routine_status = stop_response.routine_status
         elif (roast_guest_result := roast_guest_dispatch.dispatch_roast_or_guest_result(
             phrase, roast_target=roast.target,
             respond_to_roast=roast_command_dispatch.respond_to_roast_result,
