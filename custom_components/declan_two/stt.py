@@ -7,7 +7,7 @@ import logging
 import wave
 
 from .capture_level import CaptureLevel
-from .speaker_models import SpeakerTranscript
+from .speaker_models import SpeakerTranscript, speaker_from_transcript
 
 import aiohttp
 from homeassistant.components import stt
@@ -149,7 +149,7 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
                     return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
                 result = await engine.async_process_audio_stream(metadata, replay())
             if result.result == stt.SpeechResultState.SUCCESS and isinstance(result.text, str) and result.text.strip():
-                text = SpeakerTranscript(result.text, getattr(result.text, 'jarvis_speaker', None), capture_level=capture)
+                text = SpeakerTranscript(result.text, speaker_from_transcript(result.text), capture_level=capture)
                 return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
         except (OSError, TimeoutError, ValueError, aiohttp.ClientError):
             _LOGGER.warning('Declan local STT fallback could not complete')
