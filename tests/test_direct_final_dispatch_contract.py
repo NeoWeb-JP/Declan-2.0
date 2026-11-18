@@ -39,7 +39,8 @@ class DirectFinalDispatchTests(unittest.TestCase):
         self.assertLess(lock, context)
         self.assertLess(context, compose)
         self.assertLess(compose, persist)
-        self.assertLess(persist, send)
+        self.assertIn("return response", FINALIZATION)
+        self.assertIn("response = turn_atomic_finalization.finalize(", SERVER)
 
     def test_fallback_exposure_and_action_evidence_still_passed(self):
         self.assertIn("exposed_entities=fallback_entity_authorization.exposed_entities", SERVER)
