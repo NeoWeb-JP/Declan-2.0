@@ -490,6 +490,25 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         cleared = await flow.async_step_init({**settings, "openai_stt_vocabulary": ""})
         self.assertEqual(cleared["openai_stt_vocabulary"], "")
 
+    async def test_guest_mode_helper_options_validate_and_persist(self):
+        flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
+        flow.config_entry = SimpleNamespace(options={"guest_mode_entity": "input_boolean.old_guest"})
+        flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
+        flow.async_create_entry = Mock(side_effect=lambda **kwargs: kwargs["data"])
+        fields = {"openai_stt_enabled": False,
+                  "openai_stt_model": "gpt-4o-mini-transcribe"}
+        for bad in ("sensor.motion", "input_boolean.BadCase", "input_boolean.", "input_boolean.a/../b"):
+            with self.subTest(bad=bad):
+                self.assertEqual(await flow.async_step_init(
+                    {**fields, "guest_mode_entity": bad}),
+                    {"guest_mode_entity": "invalid_guest_mode_entity"})
+        saved = await flow.async_step_init(
+            {**fields, "guest_mode_entity": "input_boolean.house_sitters"})
+        self.assertEqual(saved["guest_mode_entity"], "input_boolean.house_sitters")
+        flow.config_entry.options = saved
+        unchanged = await flow.async_step_init(fields)
+        self.assertEqual(unchanged["guest_mode_entity"], "input_boolean.house_sitters")
+
     async def test_wyoming_is_registered_and_retains_speaker_event(self):
         provider = import_module("custom_components.declan_two.stt")
         bridge = import_module("custom_components.declan_two.wyoming_speaker_stt")
