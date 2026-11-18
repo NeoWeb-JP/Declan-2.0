@@ -61,6 +61,24 @@ class PipelineTests(TestCase):
             with self.assertRaises(ValueError):
                 vp.manage(self.change(action='enrol', assigned_to='ed'))
 
+    def test_upstream_write_payloads_never_leak_to_home_assistant(self):
+        private_response = {'audio_url': 'http://internal/recording.wav',
+                            'embedding': [0.1, 0.2], 'token': 'secret',
+                            'transcript': 'private words'}
+        def private_request(method, path, body=None, **kwargs):
+            if method == 'GET':
+                return self.fake(method, path, body, **kwargs)
+            return private_response
+        with patch.object(vp, 'request', side_effect=private_request):
+            for operation in (
+                self.change(),
+                self.change(operation='correct', expected_resolution_id='r1'),
+                {'operation': 'clear_clips', 'speaker_id': 'speaker-ed', 'confirm': True},
+                {'operation': 'delete_speaker', 'speaker_id': 'speaker-ed', 'confirm': True},
+            ):
+                with self.subTest(operation=operation['operation']):
+                    self.assertEqual(vp.manage(operation), {'saved': True})
+
     def test_no_writes_without_valid_name_confirmation_and_pending_entry(self):
         with patch.object(vp, 'request', side_effect=self.fake):
             for body in (None, {}, self.change(confirm=False), self.change(assigned_to=''),
