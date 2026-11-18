@@ -7,11 +7,25 @@ from time import monotonic
 import secrets
 from chat_recall_privacy import safe_chat_text
 
+def _prune_expired_sessions(sessions, now, idle_seconds):
+    """Expire all idle sessions, including entries whose access order changed."""
+    for key, state in list(sessions.items()):
+        if now - state["at"] >= idle_seconds:
+            sessions.pop(key, None)
+
+
+def _store_session(sessions, session_id, state, *, limit=128):
+    """Keep active sessions bounded with oldest-access eviction."""
+    sessions[session_id] = state
+    sessions.move_to_end(session_id)
+    while len(sessions) > limit:
+        sessions.popitem(last=False)
+
+
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
              sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None):
     now = monotonic()
-    while sessions and now - next(iter(sessions.values()))["at"] >= idle_seconds:
-        sessions.popitem(last=False)
+    _prune_expired_sessions(sessions, now, idle_seconds)
     state = sessions.pop(session_id, None)
     if state is None and recall is not None:
         # Recall harmless chat fields only, never expired action context.
@@ -74,9 +88,7 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
     if kind != "forget_chat" and lighting_context is not None:
         state["lighting_context"] = lighting_context
         state["lighting_scope"] = scope
-    sessions[session_id] = state
-    if len(sessions) > 128:
-        sessions.popitem(last=False)
+    _store_session(sessions, session_id, state)
     return {"session_id": session_id, "reply": reply}
 
 
