@@ -13,7 +13,7 @@ import math
 class SpeakerMetadata:
     """Explicit per-request identity snapshot, independent of transcript text."""
 
-    speaker: str | None
+    speaker: tuple[str, str, float] | str | None
     capture_level: dict[str, float] | None
 
 
