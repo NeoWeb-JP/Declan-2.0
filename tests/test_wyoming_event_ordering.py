@@ -96,6 +96,30 @@ class WyomingOrderingTests(unittest.IsolatedAsyncioTestCase):
         ]))
         self.assertEqual(result.text.speaker, ("id-1", "Edd", 0.9))
 
+    async def test_repeated_unknown_events_do_not_extend_deadline(self):
+        class RepeatingUnknownClient:
+            async def read_event(self):
+                await asyncio.sleep(0.06)
+                return speaker("unknown")
+
+        class FirstTranscriptClient:
+            def __init__(self):
+                self.first = True
+                self.repeating = RepeatingUnknownClient()
+
+            async def read_event(self):
+                if self.first:
+                    self.first = False
+                    return Event("transcript", {"text": "lights on"})
+                return await self.repeating.read_event()
+
+        start = asyncio.get_running_loop().time()
+        result = await asyncio.wait_for(receive(FirstTranscriptClient()), timeout=1)
+        elapsed = asyncio.get_running_loop().time() - start
+        self.assertEqual(result.result, State.SUCCESS)
+        self.assertIsNone(result.text.speaker)
+        self.assertLess(elapsed, 0.8)
+
     async def test_unknown_only_remains_anonymous(self):
         result = await receive(Client([
             speaker("none"), Event("transcript", {"text": "lights on"}),
