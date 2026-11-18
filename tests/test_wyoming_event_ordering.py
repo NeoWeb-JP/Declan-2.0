@@ -68,7 +68,7 @@ namespace = {
     "SpeakerMetadata": lambda speaker, capture: SimpleNamespace(speaker=speaker),
     "transcript_for_ha": lambda text, metadata: SimpleNamespace(
         text=text, speaker=metadata.speaker),
-    "_LOGGER": SimpleNamespace(info=lambda *args: None),
+    "_LOGGER": SimpleNamespace(info=lambda *args: None, warning=lambda *args: None),
 }
 exec(compile(ast.Module(body=[RECEIVE], type_ignores=[]), "<wyoming-receive>", "exec"), namespace)
 receive = namespace["receive"]
