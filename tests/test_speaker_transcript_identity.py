@@ -111,6 +111,36 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertEqual(metadata.speaker, "speaker-2")
         self.assertIsNone(metadata.capture_level)
 
+    def test_explicit_metadata_payload_matches_legacy_adapter(self):
+        transcript = SpeakerTranscript(
+            "hello", ("interaction-9", "Jaco", 0.9),
+            {"duration": 2.0, "rms": 0.15},
+        )
+        metadata = MODULE.metadata_from_transcript(transcript)
+        self.assertEqual(
+            MODULE.speaker_payload_from_metadata(metadata, speaker_present=True),
+            MODULE.speaker_request_payload(transcript),
+        )
+
+    def test_explicit_metadata_without_legacy_transcript(self):
+        metadata = MODULE.SpeakerMetadata(
+            speaker=("interaction-10", "Edd", 0.85),
+            capture_level={"duration": 1.2},
+        )
+        self.assertEqual(MODULE.speaker_payload_from_metadata(metadata), {
+            "speaker": {"interaction_id": "interaction-10",
+                        "name": "Edd", "confidence": 0.85},
+            "capture": {"duration": 1.2},
+        })
+
+    def test_explicit_metadata_retains_legacy_empty_speaker_marker(self):
+        metadata = MODULE.SpeakerMetadata(speaker=None, capture_level=None)
+        self.assertEqual(
+            MODULE.speaker_payload_from_metadata(metadata, speaker_present=True),
+            {"speaker": {}},
+        )
+        self.assertEqual(MODULE.speaker_payload_from_metadata(metadata), {})
+
     def test_assist_payload_preserves_valid_speaker_and_capture(self):
         transcript = SpeakerTranscript("hello", ("id-1", "Jaco", 0.95),
                                        {"confidence": 0.8})

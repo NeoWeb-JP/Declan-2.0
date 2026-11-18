@@ -62,10 +62,9 @@ def speaker_from_transcript(transcript):
     return getattr(transcript, "jarvis_speaker", None)
 
 
-def speaker_request_payload(transcript):
-    """Project transcript identity into the existing Assist JSON contract."""
-    metadata = metadata_from_transcript(transcript)
-    payload = {}
+def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present: bool = False):
+    """Project explicit metadata into the existing Assist JSON contract."""
+    payload: dict[str, object] = {}
     speaker = metadata.speaker
     if isinstance(speaker, tuple) and len(speaker) == 3:
         interaction_id, name, confidence = speaker
@@ -77,7 +76,7 @@ def speaker_request_payload(transcript):
                 "name": name,
                 "confidence": confidence,
             }
-    elif hasattr(transcript, "speaker") or hasattr(transcript, "jarvis_speaker"):
+    elif speaker_present:
         payload["speaker"] = {}
     if isinstance(metadata.capture_level, dict):
         capture = metadata.capture_level
@@ -91,3 +90,12 @@ def speaker_request_payload(transcript):
         if safe_capture:
             payload["capture"] = safe_capture
     return payload
+
+
+def speaker_request_payload(transcript):
+    """Legacy transcript adapter for the explicit Assist metadata boundary."""
+    return speaker_payload_from_metadata(
+        metadata_from_transcript(transcript),
+        speaker_present=(hasattr(transcript, "speaker")
+                         or hasattr(transcript, "jarvis_speaker")),
+    )
