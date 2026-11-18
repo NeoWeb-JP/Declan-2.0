@@ -96,6 +96,48 @@ class ChatRecallTests(unittest.TestCase):
         self.assertEqual(len(restored["recent_messages"]), 3)
         self.assertTrue(all(len(x) == 160 for x in restored["recent_messages"]))
 
+    def test_sensitive_and_action_utterances_are_not_retained_or_replayed(self):
+        first = self.say("my name is Alex")
+        sid = first["session_id"]
+        self.say("The password is secret-staging-value", sid)
+        self.say("turn off the kitchen light", sid)
+        self.say("please unlock the front door", sid)
+        self.say("hello again", sid)
+        self.clock[0] += 301
+        result = self.say("what did i say earlier", sid)
+        self.assertEqual(result["reply"], "Earlier you said: my name is Alex | hello again")
+        self.assertEqual(self.recall.entries[sid]["last"], "what did i say earlier")
+        stored = str(self.recall.entries[sid])
+        self.assertNotIn("secret-staging-value", stored)
+        self.assertNotIn("kitchen light", stored)
+        self.assertNotIn("front door", stored)
+        self.assertNotIn("password", stored)
+
+    def test_a_routine_does_not_extend_or_populate_long_chat_recall(self):
+        first = self.say("my name is Alex")
+        sid = first["session_id"]
+        self.clock[0] += 299
+        self.say("sensitive household routine", sid, routine_reply="Done",
+                 lighting_context=("light.private",), scope="study")
+        self.assertNotIn("sensitive household routine", str(self.recall.entries[sid]))
+        self.clock[0] += 1502
+        self.assertIsNone(self.recall.restore(sid, self.clock[0]))
+        self.assertNotIn("light.private", str(self.recall.entries))
+
+    def test_direct_memory_cannot_store_secret_or_action_content(self):
+        self.recall.remember("s", {"name": "Alex",
+                                  "last": "my API key is sk-abcdefghijklmnop",
+                                  "recent_messages": [
+                                      "hello", "set thermostat to 30 degrees",
+                                      "my passcode is 123456",
+                                      "a harmless note",
+                                  ]}, 100)
+        record = self.recall.restore("s", 101)
+        self.assertEqual(record["recent_messages"], ["hello", "a harmless note"])
+        self.assertIsNone(record["last"])
+        self.assertNotIn("passcode", str(record))
+        self.assertNotIn("thermostat", str(record))
+
     def test_memory_only_survives_in_same_process_store(self):
         first = self.say("my name is Alex")
         session_id = first["session_id"]

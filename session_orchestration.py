@@ -5,6 +5,7 @@ Callers serialize access to the injected session store. No server globals are im
 from datetime import datetime
 from time import monotonic
 import secrets
+from chat_recall_privacy import safe_chat_text
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
              sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None):
@@ -52,11 +53,15 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
     else:
         reply = unmatched_reply
     if kind != "forget_chat":
+        # Never turn a private command or credential-bearing utterance into
+        # a repeatable, 30-minute spoken chat memory.
         messages = list(state.get("recent_messages", []))
-        messages.append(message[:160])
+        safe_message = safe_chat_text(message)
+        if safe_message is not None and routine_reply is None:
+            messages.append(safe_message)
         state["recent_messages"] = messages[-3:]
     state.update(last=None if kind == "forget_chat" else message, at=now)
-    if recall is not None and kind != "forget_chat":
+    if recall is not None and kind != "forget_chat" and routine_reply is None:
         recall.remember(session_id, state, now)
     if kind != "forget_chat" and lighting_context is not None:
         state["lighting_context"] = lighting_context
