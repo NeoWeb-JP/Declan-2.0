@@ -15,8 +15,9 @@ class VoiceReviewContractTests(unittest.TestCase):
     def test_backend_exception_limits_remote_writes(self):
         get = SERVER[SERVER.index("    def do_GET(self):"):SERVER.index("    def do_POST(self):")]
         post = SERVER[SERVER.index("    def handle_post(self):"):]
-        self.assertIn('self.path == "/api/voicepipeline"', get)
-        self.assertIn('not voice_review_auth', get)
+        self.assertIn('get_access_gate_http.enforce_access(', get)
+        self.assertIn('handler.path == "/api/voicepipeline"', (ROOT / "get_access_gate_http.py").read_text())
+        self.assertIn('not voice_review_auth', (ROOT / "get_access_gate_http.py").read_text())
         ast.parse(ACCESS)
         self.assertIn("voicepipeline_access_http.enforce_access(", post)
         self.assertIn('operation not in {"resolve", "audio", "history", "correct"}', ACCESS)
