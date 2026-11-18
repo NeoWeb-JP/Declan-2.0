@@ -10,13 +10,13 @@ def request_context(path, body):
     scope = source
     origin_device = None
     satellite = body.get("satellite_id") if source == "assist" else None
-    if (not isinstance(satellite, str) or len(satellite) > 128
+    if (type(satellite) is not str or len(satellite) > 128
             or not re.fullmatch(r"assist_satellite\.[a-z0-9_]+", satellite)):
         satellite = None
     if source == "assist":
         device_id = body.get("device_id")
         user_id = body.get("user_id")
-        origin = tuple(value if isinstance(value, str) and 0 < len(value) <= 128 else None
+        origin = tuple(value if type(value) is str and 0 < len(value) <= 128 else None
                        for value in (device_id, user_id))
         origin_device = origin[0]
         scope = (source, *origin, satellite) if any(origin) or satellite else None
