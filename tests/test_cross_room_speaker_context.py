@@ -12,8 +12,7 @@ class SatelliteContextTests(unittest.TestCase):
         capture_source = Path(__file__).resolve().parents[1].joinpath(
             "assist_capture_http.py").read_text()
         ast.parse(capture_source)
-        self.assertIn("ingress_session_dispatch.suppress_duplicate(", source)
-        self.assertIn("suppress=assist_capture_http.suppress_duplicate", source)
+        self.assertIn("assist_capture_http.suppress_duplicate(", source)
         self.assertIn('speaker["confidence"] >= 0.85', capture_source)
         # Scope checks live in the extracted session context retrieval module.
         context_source = Path(__file__).resolve().parents[1].joinpath(
@@ -25,8 +24,7 @@ class SatelliteContextTests(unittest.TestCase):
         access_source = Path(__file__).resolve().parents[1].joinpath(
             "session_context_access.py").read_text()
         ast.parse(access_source)
-        self.assertIn("ingress_session_dispatch.load_recent_context(", source)
-        self.assertIn("load=session_context_access.load_recent_context", source)
+        self.assertIn("session_context_access.load_recent_context(", source)
         self.assertIn("retrieve=session_context_retrieval.recent_context", source)
         self.assertIn("with lock:", access_source)
         self.assertIn('IDLE_SECONDS = 300', source)
