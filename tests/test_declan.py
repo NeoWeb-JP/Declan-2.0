@@ -117,7 +117,7 @@ class ChainingTests(TestCase):
             stack.enter_context(patch.object(server, 'select_routine_result', side_effect=lambda phrase, origin: ("auto:script.good_morning", {}) if phrase in {"good morning", "run good morning"} else None))
             stack.enter_context(patch.object(server.script_discovery, "execute_result", side_effect=run_routine))
             stack.enter_context(patch.object(server, "handle_light_request_result", side_effect=turn_lights))
-            stack.enter_context(patch.object(server, "SESSIONS", server.OrderedDict()))
+            stack.enter_context(patch.object(server, "SESSION_STORE", server.session_store.SessionStore()))
             history = stack.enter_context(patch.object(server.history, "record"))
             http = stack.enter_context(server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler))
             worker = Thread(target=http.serve_forever, daemon=True)

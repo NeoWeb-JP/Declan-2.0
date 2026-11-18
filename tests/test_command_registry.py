@@ -163,7 +163,7 @@ class HTTPRegistryTests(TestCase):
     def setUp(self):
         directory=self.enterContext(tempfile.TemporaryDirectory())
         self.enterContext(patch.object(history,"DATABASE",Path(directory)/"history.db"))
-        self.enterContext(patch.object(server,"SESSIONS",server.OrderedDict()))
+        self.enterContext(patch.object(server, "SESSION_STORE", server.session_store.SessionStore()))
         self.enterContext(patch.object(server,"read_guest_mode",return_value="off"))
         self.enterContext(patch.object(server,"read_visitors_present",return_value=False))
         self.enterContext(patch.object(server,'select_routine_turn_result',return_value=None))
