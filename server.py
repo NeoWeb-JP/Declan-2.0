@@ -85,6 +85,7 @@ import updates
 import web_stt
 import openai_planner
 import ai_settings
+import ai_settings_post
 import ai_credentials
 import ai_pricing
 import ai_budget
@@ -2355,21 +2356,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.spotify_settings(body)
                 return
             if self.path == "/api/settings/ai":
-                try:
-                    if not isinstance(body, dict):
-                        raise ValueError("Invalid AI settings payload")
-                    if set(body) == {"api_key"}:
-                        ai_credentials.replace_key(body["api_key"])
-                        self.send_json(200, {"key_configured": True})
-                    elif set(body) == {"settings"}:
-                        self.send_json(200, {"settings": ai_settings.save(body["settings"]),
-                                             "key_configured": ai_credentials.configured()})
-                    else:
-                        raise ValueError("Invalid AI settings payload")
-                except ValueError as error:
-                    self.send_json(400, {"error": str(error)})
-                except (OSError, sqlite3.Error):
-                    self.send_json(503, {"error": "Could not save AI settings."})
+                ai_settings_post.handle_ai_settings(
+                    self, body, replace_key=ai_credentials.replace_key,
+                    save=ai_settings.save, configured=ai_credentials.configured,
+                )
                 return
             if self.path == "/api/settings/media-players":
                 self.approved_player_settings(body)

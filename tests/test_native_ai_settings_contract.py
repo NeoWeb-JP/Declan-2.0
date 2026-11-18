@@ -5,6 +5,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = (ROOT / "server.py").read_text()
+AI_POST = (ROOT / "ai_settings_post.py").read_text()
 AUTHORIZATION = (ROOT / "fallback_entity_authorization.py").read_text()
 FALLBACK = (ROOT / "fallback_orchestration.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/ai_settings_view.py").read_text()
@@ -16,9 +17,13 @@ HISTORY = (ROOT / "custom_components/declan_two/history_view.py").read_text()
 class NativeAISettingsContractTests(unittest.TestCase):
     def test_backend_routes_are_authenticated(self):
         ast.parse(BACKEND)
+        ast.parse(AI_POST)
         self.assertIn('self.path == "/api/settings/ai"', BACKEND)
-        self.assertIn('ai_settings.save(body["settings"])', BACKEND)
-        self.assertIn('ai_credentials.replace_key(body["api_key"])', BACKEND)
+        self.assertIn("ai_settings_post.handle_ai_settings(", BACKEND)
+        self.assertIn("save=ai_settings.save", BACKEND)
+        self.assertIn("replace_key=ai_credentials.replace_key", BACKEND)
+        self.assertIn('save(body["settings"])', AI_POST)
+        self.assertIn('replace_key(body["api_key"])', AI_POST)
         self.assertIn('secrets.compare_digest(', BACKEND)
 
     def test_ha_admin_proxy(self):
