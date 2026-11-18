@@ -64,7 +64,10 @@ class HouseholdNameTests(unittest.TestCase):
         with patch.object(household_language.configuration, "get", return_value=""):
             samples = [personality_policy.morning_request_reply(visitor_present=False)
                        for _ in range(5)]
-        self.assertEqual(len(samples), len(set(samples)))
+        # Rotation guarantees no repeats inside its three-response window,
+        # not uniqueness across five random draws.
+        for index in range(1, len(samples)):
+            self.assertNotIn(samples[index], samples[max(0, index - 3):index])
         self.assertTrue(all("Good morning." in x for x in samples))
 
 
