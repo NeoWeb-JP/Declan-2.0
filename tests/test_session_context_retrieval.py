@@ -37,6 +37,23 @@ class SessionContextRetrievalTests(unittest.TestCase):
         self.assertEqual(recent_context(self.previous, "kitchen", now=101, idle_seconds=10),
                          ((), "light.kitchen", ("weather",)))
 
+    def test_malformed_and_future_session_timestamps_cannot_restore_actions(self):
+        for at in (None, "recent", True, float("nan"), float("inf"), 200):
+            with self.subTest(at=repr(at)):
+                previous = {**self.previous, "at": at}
+                self.assertEqual(recent_context(previous, "kitchen", now=101, idle_seconds=10),
+                                 ((), None, None))
+        previous = dict(self.previous)
+        previous.pop("at")
+        self.assertEqual(recent_context(previous, "kitchen", now=101, idle_seconds=10),
+                         ((), None, None))
+
+    def test_non_mapping_previous_context_is_ignored(self):
+        for previous in ("hello", [], 123):
+            with self.subTest(previous=repr(previous)):
+                self.assertEqual(recent_context(previous, "kitchen", now=101, idle_seconds=10),
+                                 ((), None, None))
+
     def test_missing_context_values_use_defaults(self):
         self.assertEqual(recent_context({"at": 100, "lighting_scope": "kitchen"},
                                         "kitchen", now=101, idle_seconds=10),

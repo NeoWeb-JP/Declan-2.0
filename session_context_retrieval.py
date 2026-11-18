@@ -1,13 +1,17 @@
 """Scope-bound retrieval of recent conversation context."""
 
+from math import isfinite
+
 
 def recent_context(previous, scope, *, now, idle_seconds):
     """Return recent lighting, device and information context for this scope."""
     lights, device, information = (), None, None
-    if scope is None or not previous:
+    if scope is None or not isinstance(previous, dict):
         return lights, device, information
-    # Match the existing idle expiry boundary and do not leak across origins.
-    if now - previous["at"] >= idle_seconds:
+    # Reject corrupt, non-finite and future timestamps just like active-session expiry.
+    at = previous.get("at")
+    if (type(at) not in (int, float) or not isfinite(at)
+            or at > now or now - at >= idle_seconds):
         return lights, device, information
     if previous.get("device_status_scope") == scope:
         device = previous.get("device_status_target")
