@@ -88,6 +88,7 @@ import native_read_routes
 import operational_read_routes
 import settings_read_routes
 import history_read_routes
+import system_read_routes
 import media_settings_post
 import speech_http_routes
 import assist_capture_http
@@ -2006,26 +2007,13 @@ class Handler(BaseHTTPRequestHandler):
         }:
             self.send_json(403, {"error": "Use the local Declan address."})
             return
-        if self.path == "/":
-            self.send_json(404, {"error": "Use the native Declan Home Assistant panel."})
-        elif self.path == "/logo.png":
-            self.send_body(200, Path(__file__).with_name("logo.png").read_bytes(), "image/png")
-        elif self.path == "/health":
-            status, payload = health_readiness.database_health_response()
-            self.send_json(status, payload)
-        elif self.path == "/health/dependencies":
-            health = health_readiness.DependencyHealth(
-                database=health_readiness.database_ready(),
-                home_assistant=home_assistant_status_result(),
+        if system_read_routes.handles(self.path):
+            system_read_routes.dispatch(
+                self, logo_path=Path(__file__).with_name("logo.png"),
+                health_readiness=health_readiness,
+                ha_status=home_assistant_status_result,
+                release_version=RELEASE_VERSION,
             )
-            status, payload = health.response()
-            self.send_json(status, payload)
-        elif self.path == "/api/capabilities":
-            self.send_json(200, {
-                "api_version": "1.0",
-                "server_version": RELEASE_VERSION,
-                "capabilities": ["updates", "ha_status"],
-            })
         elif native_read_routes.handles(self.path):
             native_read_routes.dispatch(
                 self, music=music, configuration=configuration,
