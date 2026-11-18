@@ -1,7 +1,7 @@
 """Operational GET routes behind server.py's existing access checks."""
 import json
 import sqlite3
-import subprocess
+import subprocess  # nosec B404 - only catching errors from trusted release checks
 
 ROUTES = frozenset({
     "/api/ha-status", "/api/updates/status", "/api/updates",
