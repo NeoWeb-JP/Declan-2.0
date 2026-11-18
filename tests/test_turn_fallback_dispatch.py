@@ -7,7 +7,12 @@ import turn_fallback_dispatch as stage
 
 class FallbackDispatchTests(unittest.TestCase):
     def setUp(self):
-        empty = SimpleNamespace()
+        empty = SimpleNamespace(**{name: None for name in (
+            'matches', 'follow_up', 'handle_result', 'question_context',
+            'parse', 'describe_result', 'parse_feedback', 'feedback_result',
+            'parse_control', 'control_result', 'play_result',
+            'dispatch_lighting', 'confirmed_lighting_context',
+        )})
         self.args = ("test", "assist", None, None, None, None, None, [], None, None, None)
         self.kwargs = dict(
             command_registry=SimpleNamespace(information_registry=None, RequestContext=None, registry=None, Dependencies=None, lighting_registry=None),
