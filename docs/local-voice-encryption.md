@@ -27,3 +27,7 @@ With the production backend stopped and the key available through the normal pro
 ## Release activation gate
 
 The updater checks encryption readiness before switching the active release. If a local voice database exists, it must pass the read-only check with the configured key and contain no legacy plaintext samples. If no database exists, the key must still be configured and usable. A symlinked voice database is rejected. A failed check leaves the active release unchanged. **Prepare the key and perform the explicit migration while Declan is stopped before attempting to activate a release with this gate.** The updater does not generate keys or migrate samples automatically.
+
+## Supported CI runtime
+
+Declan is deployed as a Linux service on Proxmox. The main Python regression workflow runs on Ubuntu with Python 3.12; Windows is not a supported deployment target and is not in the CI test matrix. Browser JavaScript, dependency audits, HACS checks and voice-lock verification remain separate CI jobs. The actual production host architecture and Python version must still be checked before migration.
