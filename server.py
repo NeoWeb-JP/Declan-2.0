@@ -85,6 +85,7 @@ import timers
 import updates
 import operational_post_routes
 import media_settings_routes
+import native_read_routes
 import media_settings_post
 import speech_http_routes
 import assist_capture_http
@@ -2023,39 +2024,13 @@ class Handler(BaseHTTPRequestHandler):
                 "server_version": RELEASE_VERSION,
                 "capabilities": ["updates", "ha_status"],
             })
-        elif self.path == "/api/native/settings-status":
-            try:
-                _, source = music.spotify_credentials()
-                self.send_json(200, {"spotify_configured": source in {"saved", "environment"}, "spotify_source": source})
-            except (OSError, ValueError):
-                self.send_json(503, {"error": "Spotify configuration status unavailable."})
-        elif self.path in {"/api/native/settings-export", "/api/native/settings-recovery"}:
-            try:
-                document = (configuration.recovery() if self.path.endswith("recovery") else configuration.export())
-                self.send_json(200, {"document": document})
-            except (OSError, ValueError, sqlite3.Error):
-                self.send_json(503, {"error": "Settings document unavailable."})
-        elif self.path == "/api/native/routine-responses":
-            discovery = script_discovery.discover_result(ha_device_connection(), fresh=True)
-            if discovery.error is not None:
-                self.send_json(200, {"commands": command_responses.catalog(), "routines": [],
-                                     "routine_error": "Home Assistant routines unavailable. Try again."})
-            else:
-                self.send_json(200, {"commands": command_responses.catalog(), "routines": [{"entity_id": row["entity_id"], "name": row["name"]} for row in discovery.scripts]})
-        elif self.path == "/api/native/routines":
-            self.send_json(410, {"error": "Routine mappings are retired. Home Assistant scripts are the source of truth."})
-        elif self.path == "/api/native/intents":
-            try:
-                self.send_json(200, {"intents": history.learned_intents()})
-            except (OSError, sqlite3.Error):
-                self.send_json(503, {"error": "Learned intentions unavailable."})
-        elif self.path == "/api/native/logs":
-            self.send_json(200, {"entries": declan_logs.recent()})
-        elif self.path == "/api/native/diagnostics":
-            try:
-                self.send_json(200, {"traces": diagnostics.recent()})
-            except (OSError, ValueError, sqlite3.Error):
-                self.send_json(503, {"error": "Diagnostics unavailable."})
+        elif native_read_routes.handles(self.path):
+            native_read_routes.dispatch(
+                self, music=music, configuration=configuration,
+                script_discovery=script_discovery, ha_connection=ha_device_connection,
+                command_responses=command_responses, history=history,
+                logs=declan_logs, diagnostics=diagnostics,
+            )
         elif self.path == "/api/ha-status":
             self.send_json(200, {"status": home_assistant_status_result().status.value, "release_version": RELEASE_VERSION})
         elif self.path == "/api/updates/status":
