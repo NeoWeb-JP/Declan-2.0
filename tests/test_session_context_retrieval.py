@@ -24,6 +24,25 @@ class SessionContextRetrievalTests(unittest.TestCase):
         self.assertEqual(recent_context(self.previous, "bedroom", now=101, idle_seconds=10),
                          ((), None, None))
 
+    def test_malformed_scope_does_not_restore_context(self):
+        for scope in ("", "  ", "x" * 257, 42, [],
+                      ("assist", None, None, None),
+                      ("assist", "device"), ("assist", "x" * 129, None, None)):
+            with self.subTest(scope=repr(scope)):
+                previous = {**self.previous, "device_status_scope": scope,
+                            "lighting_scope": scope, "information_scope": scope}
+                self.assertEqual(recent_context(previous, scope, now=101,
+                                                idle_seconds=10), ((), None, None))
+
+    def test_hostile_scope_subclass_is_rejected_without_comparison(self):
+        class HostileText(str):
+            def __eq__(self, other):
+                raise RuntimeError("unexpected comparison")
+        scope = ("assist", "device", HostileText("user"), None)
+        previous = {**self.previous, "device_status_scope": scope}
+        self.assertEqual(recent_context(previous, scope, now=101,
+                                        idle_seconds=10), ((), None, None))
+
     def test_missing_scope_does_not_leak_context(self):
         self.assertEqual(recent_context(self.previous, None, now=101, idle_seconds=10),
                          ((), None, None))
