@@ -50,16 +50,12 @@ class ActiveRoutineRegistryTests(unittest.TestCase):
         first = registry.track("movie", "script.first")
         second = registry.track("movie", "script.second")
         first.__enter__()
+        second.__enter__()
+        first.__exit__(None, None, None)
         try:
-            second.__enter__()
-            try:
-                first.__exit__(None, None, None)
-                self.assertEqual(registry.snapshot(), {"movie": "script.second"})
-            finally:
-                second.__exit__(None, None, None)
+            self.assertEqual(registry.snapshot(), {"movie": "script.second"})
         finally:
-            # Both exits are idempotent only when the context is still open.
-            pass
+            second.__exit__(None, None, None)
         self.assertEqual(registry.snapshot(), {})
 
 
