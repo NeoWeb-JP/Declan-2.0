@@ -1,27 +1,4 @@
-"""Ingress context, learned intent, retry, and confirmation orchestration.
-
-Keep the caller's early-return decisions and lock boundaries unchanged.
-"""
-
-
-def resolve_origin(path, body, *, resolve):
-    return resolve(path, body)
-
-
-def resolve_learned_message(message, *, resolve, preprocess, normalize,
-                            learned_intent, log_error):
-    return resolve(
-        message, preprocess=preprocess, normalize=normalize,
-        learned_intent=learned_intent, log_error=log_error,
-    )
-
-
-def consume_retry(*, consume_context, session_id, scope, sessions, lock,
-                  now, window_seconds, consume):
-    return consume_context(
-        session_id=session_id, scope=scope, sessions=sessions, lock=lock,
-        now=now, window_seconds=window_seconds, consume=consume,
-    )
+"""Sensitive confirmation orchestration preserving resolved session and phrase."""
 
 
 def resolve_confirmation(message, phrase, session_id, *, confirm, source,
