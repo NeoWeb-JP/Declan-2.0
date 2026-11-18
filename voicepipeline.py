@@ -7,13 +7,12 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 from http.client import HTTPException
-from threading import Lock
+from sensitive_write_state import DEFAULT_SENSITIVE_WRITE_STATE
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 MAX_RESPONSE = 4 * 1024 * 1024
-WRITE_LOCK = Lock()
 
 
 class InteractionReviewStatus(StrEnum):
@@ -154,7 +153,7 @@ def manage(body):
         raise ValueError('Choose a supported VoicePipeline operation.')
     if body.get('confirm') is not True:
         raise ValueError('Confirm before changing VoicePipeline.')
-    with WRITE_LOCK:
+    with DEFAULT_SENSITIVE_WRITE_STATE.voice_reviews:
         if operation in {'delete_speaker', 'clear_clips'}:
             speaker_id = identifier(body.get('speaker_id'))
             if not any(row['id'] == speaker_id for row in speakers()):
