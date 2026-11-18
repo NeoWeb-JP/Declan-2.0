@@ -22,6 +22,10 @@ def database():
         db.execute('PRAGMA foreign_keys = ON')
         db.execute('PRAGMA secure_delete = ON')
         db.execute('CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, name TEXT NOT NULL, consent_at REAL)')
+        db.execute('''CREATE TABLE IF NOT EXISTS consent_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, profile TEXT NOT NULL,
+            action TEXT NOT NULL CHECK(action IN ('granted', 'revoked')),
+            recorded_at REAL NOT NULL)''')
         db.execute('''CREATE TABLE IF NOT EXISTS samples (id TEXT PRIMARY KEY, profile TEXT NOT NULL
             REFERENCES profiles(id) ON DELETE CASCADE, audio BLOB NOT NULL, duration REAL, digest TEXT,
             consent_at REAL, UNIQUE(profile, digest))''')
@@ -78,7 +82,10 @@ def manage(body):
                 raise ValueError('Up to ten local voice profiles are supported.')
             if db.execute('SELECT 1 FROM profiles WHERE lower(name) = lower(?)', (name,)).fetchone():
                 raise ValueError('That name already has a profile.')
-            db.execute('INSERT INTO profiles VALUES (?, ?, ?)', (secrets.token_hex(12), name, time()))
+            profile_id, granted_at = secrets.token_hex(12), time()
+            db.execute('INSERT INTO profiles VALUES (?, ?, ?)', (profile_id, name, granted_at))
+            db.execute('INSERT INTO consent_events(profile, action, recorded_at) VALUES (?, ?, ?)',
+                       (profile_id, 'granted', granted_at))
         return listing()
     audio = duration = None
     if operation == 'save_sample':
@@ -92,9 +99,22 @@ def manage(body):
         profile = db.execute('SELECT id, name, consent_at FROM profiles WHERE id = ?', (body.get('profile'),)).fetchone()
         if not profile:
             raise ValueError('Refresh and choose an existing voice profile.')
-        if operation == 'delete_profile' and body.get('confirm') is True:
+        if operation == 'revoke_consent' and body.get('confirm') is True:
+            # Revoke storage permission and erase all live local samples atomically.
+            db.execute('DELETE FROM samples WHERE profile = ?', (profile[0],))
+            db.execute('UPDATE profiles SET consent_at = NULL WHERE id = ?', (profile[0],))
+            db.execute('INSERT INTO consent_events(profile, action, recorded_at) VALUES (?, ?, ?)',
+                       (profile[0], 'revoked', time()))
+        elif operation == 'grant_consent' and body.get('consent') is True:
+            granted_at = time()
+            db.execute('UPDATE profiles SET consent_at = ? WHERE id = ?', (granted_at, profile[0]))
+            db.execute('INSERT INTO consent_events(profile, action, recorded_at) VALUES (?, ?, ?)',
+                       (profile[0], 'granted', granted_at))
+        elif operation == 'delete_profile' and body.get('confirm') is True:
             db.execute('DELETE FROM profiles WHERE id = ?', (profile[0],))
         elif operation == 'save_sample':
+            if profile[2] is None:
+                raise ValueError('Voice storage consent was revoked. Grant consent before saving samples.')
             if db.execute('SELECT count(*) FROM samples WHERE profile = ?', (profile[0],)).fetchone()[0] >= 20:
                 raise ValueError('Review or remove samples before adding more (20 per person).')
             digest = hashlib.sha256(audio).hexdigest()
