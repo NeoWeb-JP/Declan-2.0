@@ -61,7 +61,7 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
             messages.append(safe_message)
         state["recent_messages"] = messages[-3:]
     state.update(last=None if kind == "forget_chat" else message, at=now)
-    if recall is not None and kind != "forget_chat":
+    if recall is not None and kind != "forget_chat" and routine_reply is None:
         recall.remember(session_id, state, now)
     if kind != "forget_chat" and lighting_context is not None:
         state["lighting_context"] = lighting_context
