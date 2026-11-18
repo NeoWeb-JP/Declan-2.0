@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+AUTH = (ROOT / "post_origin_auth_http.py").read_text()
 BACKEND = (ROOT / "server.py").read_text()
 MEDIA_ROUTES = (ROOT / "media_settings_routes.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/media_players_view.py").read_text()
@@ -18,7 +19,10 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn('self.path == "/api/settings/media-players"', get)
         self.assertIn('not players_auth', get)
         self.assertIn('self.path == "/api/settings/media-players"', post)
-        self.assertIn('secrets.compare_digest(', post)
+        ast.parse(AUTH)
+        self.assertIn('"/api/settings/media-players"', AUTH)
+        self.assertIn('secrets.compare_digest(', AUTH)
+        self.assertIn("post_origin_auth_http.enforce_access(", post)
 
     def test_admin_proxy_and_payload_validation(self):
         ast.parse(VIEW)
