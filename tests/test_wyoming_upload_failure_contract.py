@@ -10,6 +10,37 @@ TREE = ast.parse(SOURCE)
 
 
 class WyomingUploadFailureTests(unittest.TestCase):
+    def test_receive_task_has_local_error_conversion(self):
+        bridge = next(node for node in TREE.body
+                      if isinstance(node, ast.ClassDef)
+                      and node.name == "DeclanWyomingVoiceBridge")
+        method = next(node for node in bridge.body
+                      if isinstance(node, ast.AsyncFunctionDef)
+                      and node.name == "async_process_audio_stream")
+        receive_awaits = [
+            node for node in ast.walk(method)
+            if isinstance(node, ast.Await)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "receive_task"
+        ]
+        self.assertEqual(len(receive_awaits), 1)
+        call = receive_awaits[0]
+        enclosing_handlers = [
+            node for node in ast.walk(method)
+            if isinstance(node, ast.Try)
+            and any(child is call for statement in node.body
+                    for child in ast.walk(statement))
+        ]
+        self.assertTrue(any(
+            any(isinstance(handler.type, ast.Name)
+                and handler.type.id == "Exception"
+                and any(isinstance(item, ast.Return)
+                        for statement in handler.body
+                        for item in ast.walk(statement))
+                for handler in candidate.handlers)
+            for candidate in enclosing_handlers
+        ), "Receive errors must return a normal STT error at the task boundary")
+
     def test_upload_task_result_has_local_error_conversion(self):
         bridge = next(node for node in TREE.body
                       if isinstance(node, ast.ClassDef)
