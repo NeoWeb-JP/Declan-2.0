@@ -9,3 +9,7 @@ This is an **opt-in migration requiring operator action**. The actual speaker re
 5. Restart and verify preview/export of local samples, consent revocation and new sample saving. Test an incorrect/missing key fails closed. Do not delete the separately protected key backup.
 
 **Compatibility:** existing plaintext samples cannot be previewed/exported until migrated. New samples cannot be saved without the key and cryptography dependency. Roll back application code only with an explicit plan: old code cannot read encrypted samples. The migration does not cover filesystem copies, snapshots outside the local upgrade directory, or VoicePipeline.
+
+## Preparing the production dependency lock
+
+On the target Linux/Python environment, run `python generate_voice_dependency_lock.py`. This downloads `websocket-client==1.9.2`, `cryptography==46.0.3` and resolved transitive wheels, then writes `requirements-web-voice.txt.candidate` without modifying the active lock. Review the candidate and test `pip install --require-hashes --only-binary=:all: -r requirements-web-voice.txt.candidate` in a fresh virtual environment. Only then replace and commit `requirements-web-voice.txt` in a separate reviewed change. Locks generated for one platform may need additional hashes for other target architectures. **Until the production lock is updated, encryption releases are intentionally blocked by the preflight in #502.**
