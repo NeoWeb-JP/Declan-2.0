@@ -4,6 +4,11 @@ from datetime import datetime, timezone
 import math
 
 
+# Fallback speech is not subject to the primary provider spending cap.
+# Group its noncritical usage writes, while primary reservations remain durable.
+FALLBACK_SAVE_BATCH = 10
+
+
 class VoiceBudget:
     def __init__(self, store=None, today=None):
         self.store = store
@@ -11,6 +16,7 @@ class VoiceBudget:
         self.lock = asyncio.Lock()
         self.data = self.empty()
         self.available = True
+        self._unflushed_fallback = 0
 
     def empty(self):
         return {'day':self.today(), 'primary_characters':0, 'primary_attempts':0,
@@ -59,14 +65,36 @@ class VoiceBudget:
             new = dict(self.data)
             new[role+'_characters'] += count
             new[role+'_attempts'] += 1
-            if self.store and self.available:
+            # Never delay or batch primary reservations: a restart must not
+            # reset the primary daily limit or allow unaccounted paid requests.
+            persist = role == 'primary' or self._unflushed_fallback + 1 >= FALLBACK_SAVE_BATCH
+            if self.store and self.available and persist:
                 try:
                     await self.store.async_save(new)
                 except OSError:
                     self.available = False
                     if role == 'primary':
                         raise ValueError('Could not reserve primary speech usage; no request sent') from None
+                else:
+                    self._unflushed_fallback = 0
+            elif role == 'fallback':
+                self._unflushed_fallback += 1
             self.data = new
+
+    async def flush(self):
+        """Best-effort save of remaining fallback usage on clean HA unload."""
+        async with self.lock:
+            if not self._unflushed_fallback or self.store is None:
+                return True
+            if not self.available:
+                return False
+            try:
+                await self.store.async_save(dict(self.data))
+            except OSError:
+                self.available = False
+                return False
+            self._unflushed_fallback = 0
+            return True
 
     def snapshot(self, limit=0, credit_rate=0):
         limit = self.validate_limit(limit)

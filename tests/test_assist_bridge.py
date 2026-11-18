@@ -87,7 +87,10 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         for validator in ("In", "All", "Coerce", "Range", "Length"):
             setattr(modules["voluptuous"], validator, Mock())
         modules["homeassistant.components"].tts = modules["homeassistant.components.tts"]
-        modules["homeassistant.components.tts"].TextToSpeechEntity = object
+        class FakeTextToSpeechEntity:
+            async def async_will_remove_from_hass(self):
+                return None
+        modules["homeassistant.components.tts"].TextToSpeechEntity = FakeTextToSpeechEntity
         modules["homeassistant.components.tts"].get_engine_instance = Mock(return_value=None)
         modules["homeassistant.exceptions"].HomeAssistantError = type("HomeAssistantError", (Exception,), {})
         modules["homeassistant.helpers.storage"].Store = Mock()
@@ -540,6 +543,20 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertEqual(transcript.capture_level["duration"], 1 / 16000)
         self.assertGreater(transcript.capture_level["rms"], 0)
         bridge.AsyncTcpClient.assert_called_once_with("192.168.0.43", 10300)
+
+    async def test_tts_entity_flushes_fallback_usage_on_unload(self):
+        platform = import_module("custom_components.declan_two.tts")
+        budget = Mock(flush=AsyncMock(return_value=True))
+        entity = platform.DeclanVoiceManager(self.entry, Mock(), budget)
+        await entity.async_will_remove_from_hass()
+        budget.flush.assert_awaited_once()
+
+        budget.flush.reset_mock()
+        budget.flush.return_value = False
+        with patch.object(platform, "_LOGGER") as logger:
+            await entity.async_will_remove_from_hass()
+        logger.warning.assert_called_once_with(
+            "Declan voice usage could not be saved on unload")
 
     async def test_voice_manager_reuses_provider_and_legacy_cache_identity(self):
         platform = import_module("custom_components.declan_two.tts")

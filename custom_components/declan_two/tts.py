@@ -41,6 +41,12 @@ class DeclanVoiceManager(TextToSpeechEntity):
         self._budget = budget
         self._phrases = PhraseLibrary(cache, self._normalise)
 
+    async def async_will_remove_from_hass(self):
+        """Flush any buffered fallback accounting on a clean HA unload."""
+        if not await self._budget.flush():
+            _LOGGER.warning("Declan voice usage could not be saved on unload")
+        await super().async_will_remove_from_hass()
+
     async def _normalise(self, extension, audio):
         from homeassistant.components.ffmpeg import get_ffmpeg_manager
 
