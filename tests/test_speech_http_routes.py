@@ -15,7 +15,7 @@ class SpeechHttpRoutesTests(TestCase):
         self.handler.rfile.read.return_value = b"1234"
         self.web_stt = Mock()
         self.web_stt.MAX_AUDIO_BYTES = 640000
-        self.web_stt.AssistSpeechError = type("AssistSpeechError", (Exception,), {})
+        self.web_stt.AssistSpeechError = type("AssistSpeechError", (Exception,), {"code": "failed"})
         self.connection = Mock(return_value=("http://ha",))
         self.transcribe = Mock(return_value=SimpleNamespace(text="Hello"))
         self.logger = Mock()
