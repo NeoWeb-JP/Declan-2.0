@@ -79,6 +79,15 @@ class RetryContextTests(unittest.TestCase):
                                                         window_seconds=window))
                 self.assertNotIn("pending_retry", session)
 
+    def test_invalid_origin_scopes_are_consumed_once(self):
+        for scope in (("assist", None, None, None), ("assist", "device"),
+                      "x" * 257, "  "):
+            with self.subTest(scope=scope):
+                session = {"pending_retry": {"text": "lights off", "scope": scope, "at": 100}}
+                self.assertIsNone(consume_pending_retry(session, scope, now=105,
+                                                        window_seconds=10))
+                self.assertNotIn("pending_retry", session)
+
     def test_matching_retry_is_returned(self):
         self.assertIs(self.consume(), self.retry)
 
