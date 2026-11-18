@@ -9,8 +9,10 @@ class HealthDependencyEndpointTests(unittest.TestCase):
     def test_existing_health_endpoint_remains_lightweight(self):
         # Startup health remains independent of external Home Assistant availability.
         source = __import__("inspect").getsource(server)
-        self.assertIn('elif self.path == "/health":', source)
-        self.assertIn('elif self.path == "/health/dependencies":', source)
+        self.assertIn('system_read_routes.handles(self.path)', source)
+        routes = __import__("inspect").getsource(__import__("system_read_routes"))
+        self.assertIn('path == "/health"', routes)
+        self.assertIn('path == "/health/dependencies"', routes)
 
     def test_home_assistant_status_returns_not_configured_without_credentials(self):
         with patch.dict(server.os.environ, {"DECLAN_HA_URL": "", "DECLAN_HA_TOKEN": ""}):
