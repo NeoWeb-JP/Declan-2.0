@@ -99,6 +99,7 @@ import post_validation_errors_http
 import session_context_access
 import retry_cancellation_access
 import sensitive_confirmation_resolution
+import preview_timer_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2358,17 +2359,16 @@ class Handler(BaseHTTPRequestHandler):
         if confirmation_reply is not None:
             self.send_json(200, confirmation_reply)
             return
-        routine_preview = routine_preview_dispatch.dispatch_preview_result(
-            phrase, origin_device=origin_device, satellite=satellite,
+        routine_preview, timer_result = preview_timer_orchestration.preview_and_timer(
+            phrase, source=source, origin_device=origin_device,
+            satellite=satellite, opener=opener,
+            preview_dispatch=routine_preview_dispatch.dispatch_preview_result,
             detect_phrase=routine_preview_detection.routine_preview_phrase,
             preview_routine=preview_routine_result,
-        )
-        timer_result = timer_command_dispatch.dispatch_timer(
-            phrase, source=source, origin_device=origin_device, satellite=satellite,
-            routine_preview=routine_preview,
+            timer_dispatch=timer_command_dispatch.dispatch_timer,
             registry_factory=command_registry.timer_registry,
             context_factory=command_registry.RequestContext,
-            matches=timers.matches, handle=timers.handle_result, opener=opener,
+            matches=timers.matches, handle=timers.handle_result,
             guest_mode=read_guest_mode, decorate=add_sass,
         )
         routine_turn = None
