@@ -1,6 +1,7 @@
 """Bounded, origin-scoped retry context for conversational corrections."""
 
 from context_numeric_validation import finite_number
+from retry_phrase_validation import valid_retry_phrase
 
 def consume_pending_retry(session, scope, *, now, window_seconds):
     """Consume the pending retry exactly once and reject expired or foreign scopes."""
@@ -11,7 +12,7 @@ def consume_pending_retry(session, scope, *, now, window_seconds):
         return None
     at = pending.get("at")
     text = pending.get("text")
-    if (not isinstance(text, str) or not text.strip() or len(text) > 4096
+    if (not valid_retry_phrase(text)
             or not isinstance(scope, (str, tuple)) or not scope or pending.get("scope") != scope
             or not finite_number(now)
             or not finite_number(window_seconds) or window_seconds < 0
