@@ -83,6 +83,23 @@ class ExplicitSTTMetadataBoundaryTests(unittest.TestCase):
         self.assertEqual(second_payload["capture"]["peak"], 0.9)
         self.assertEqual(MODULE.snapshot_speaker_payload(first)["capture"]["peak"], 0.1)
 
+    def test_unknown_or_whitespace_identity_never_enters_assist_payload(self):
+        for name in ("unknown", " Unidentified ", "NONE", "  "):
+            with self.subTest(name=name):
+                transcript = MODULE.transcript_for_ha(
+                    "hello", MODULE.SpeakerMetadata(
+                        ("interaction-1", name, 0.8), {"peak": 0.4},
+                    ),
+                )
+                payload = MODULE.snapshot_speaker_payload(transcript)
+                self.assertNotIn("speaker", payload)
+                self.assertEqual(payload["capture"], {"peak": 0.4})
+
+        transcript = MODULE.transcript_for_ha(
+            "hello", MODULE.SpeakerMetadata(("  ", "J", 0.8), None),
+        )
+        self.assertNotIn("speaker", MODULE.snapshot_speaker_payload(transcript))
+
     def test_malformed_identity_does_not_enter_assist_payload(self):
         for identity in [("", "speaker", 0.8), ("id", "", 0.8),
                          ("x" * 81, "speaker", 0.8),
