@@ -39,7 +39,7 @@ def parse_outcome(value) -> Outcome | None:
     """Interpret legacy outcome inputs without treating unknown values as success."""
     if isinstance(value, Outcome):
         return value
-    if not isinstance(value, str):
+    if type(value) is not str:
         return None
     try:
         return Outcome(value)
@@ -61,7 +61,7 @@ class MovieLaunchResult:
 
     def __post_init__(self):
         object.__setattr__(self, "status", MovieLaunchStatus(self.status))
-        if not isinstance(self.detail, str):
+        if type(self.detail) is not str:
             raise ValueError("Movie launch detail must be text")
 
     def as_legacy_pair(self):
@@ -87,7 +87,7 @@ class DispatchResult:
 
     def __post_init__(self):
         object.__setattr__(self, "status", ActionStatus(self.status))
-        if self.status not in DISPATCH_STATUSES or not isinstance(self.detail, str):
+        if self.status not in DISPATCH_STATUSES or type(self.detail) is not str:
             raise ValueError("Invalid dispatch result")
 
     @classmethod
@@ -95,7 +95,7 @@ class DispatchResult:
         """Accept existing dispatcher tuples only at this compatibility boundary."""
         if isinstance(value, cls):
             return value
-        if not isinstance(value, (tuple, list)) or len(value) != 2:
+        if type(value) not in (tuple, list) or len(value) != 2:
             raise ValueError("Invalid dispatch result")
         return cls(*value)
 
@@ -133,7 +133,7 @@ class ExecutionResult:
 
     def __post_init__(self):
         object.__setattr__(self, "outcome", Outcome(self.outcome))
-        if not isinstance(self.reply, str) or not isinstance(self.actions, tuple) or any(
+        if type(self.reply) is not str or type(self.actions) is not tuple or any(
                 not isinstance(action, ActionResult) for action in self.actions):
             raise ValueError("Invalid execution result")
 
