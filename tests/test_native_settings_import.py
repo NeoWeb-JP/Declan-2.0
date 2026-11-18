@@ -9,14 +9,15 @@ VIEW = (ROOT / "custom_components/declan_two/management_view.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 CONFIG = (ROOT / "configuration.py").read_text()
 IMPORT_ROUTE = (ROOT / "settings_import_post.py").read_text()
+DISPATCH = (ROOT / "settings_voice_post.py").read_text()
 
 class NativeImportContracts(unittest.TestCase):
     def test_backend_reuses_atomic_validated_import(self):
         ast.parse(SERVER)
         ast.parse(VIEW)
         ast.parse(IMPORT_ROUTE)
-        self.assertIn('"/api/native/settings-import"', SERVER)
-        self.assertIn("settings_import_post.handle_settings_import(", SERVER)
+        self.assertIn('"/api/native/settings-import"', DISPATCH)
+        self.assertIn("settings_import_post.handle_settings_import(", DISPATCH)
         self.assertIn("preview=configuration.preview", SERVER)
         self.assertIn("apply=configuration.apply", SERVER)
         self.assertIn("preview(body.get(\"document\"))", IMPORT_ROUTE)
