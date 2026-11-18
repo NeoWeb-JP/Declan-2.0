@@ -56,6 +56,21 @@ class SessionContextAccessTests(unittest.TestCase):
                                       consume=consume)
                 consume.assert_called_once_with(None, "kitchen", now=10, window_seconds=30)
 
+    def test_corrupt_session_values_are_never_passed_to_callbacks(self):
+        for corrupt in (None, "session", [], 42, True):
+            with self.subTest(corrupt=repr(corrupt)):
+                sessions = {"one": corrupt}
+                retrieve = Mock(return_value=((), None, None))
+                consume = Mock(return_value=None)
+                load_recent_context(session_id="one", scope="kitchen", sessions=sessions,
+                                    lock=threading.RLock(), now=10, idle_seconds=30,
+                                    retrieve=retrieve)
+                consume_retry_context(session_id="one", scope="kitchen", sessions=sessions,
+                                      lock=threading.RLock(), now=10, window_seconds=30,
+                                      consume=consume)
+                retrieve.assert_called_once_with(None, "kitchen", now=10, idle_seconds=30)
+                consume.assert_called_once_with(None, "kitchen", now=10, window_seconds=30)
+
     def test_callback_runs_with_lock_held(self):
         lock = threading.Lock()
         def retrieve(*args, **kwargs):
