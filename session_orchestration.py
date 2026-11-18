@@ -84,6 +84,24 @@ def _compose_chat_reply(state, *, kind, name, routine_reply, guest_mode, decorat
     return state, reply
 
 
+def _finalize_chat_session(state, *, message, kind, routine_reply, lighting_context,
+                           scope, recall, session_id, sessions, now):
+    """Apply the winning reply outcome to chat retention and action context."""
+    is_forget = kind == "forget_chat" and routine_reply is None
+    if not is_forget:
+        # Never turn a private command or credential-bearing utterance into
+        # a repeatable, 30-minute spoken chat memory.
+        _remember_safe_chat(state, message, routine_reply=routine_reply)
+    state.update(last=None if is_forget else message, at=now)
+    if recall is not None and not is_forget and routine_reply is None:
+        recall.remember(session_id, state, now)
+    if not is_forget and lighting_context is not None:
+        state["lighting_context"] = lighting_context
+        state["lighting_scope"] = scope
+    _store_session(sessions, session_id, state)
+    return state
+
+
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
              sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None):
     now = monotonic()
@@ -102,18 +120,10 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
         state, kind=kind, name=name, routine_reply=routine_reply,
         guest_mode=guest_mode, decorate=decorate, unmatched_reply=unmatched_reply,
         recall=recall, session_id=session_id)
-    is_forget = kind == "forget_chat" and routine_reply is None
-    if not is_forget:
-        # Never turn a private command or credential-bearing utterance into
-        # a repeatable, 30-minute spoken chat memory.
-        _remember_safe_chat(state, message, routine_reply=routine_reply)
-    state.update(last=None if is_forget else message, at=now)
-    if recall is not None and not is_forget and routine_reply is None:
-        recall.remember(session_id, state, now)
-    if not is_forget and lighting_context is not None:
-        state["lighting_context"] = lighting_context
-        state["lighting_scope"] = scope
-    _store_session(sessions, session_id, state)
+    _finalize_chat_session(
+        state, message=message, kind=kind, routine_reply=routine_reply,
+        lighting_context=lighting_context, scope=scope, recall=recall,
+        session_id=session_id, sessions=sessions, now=now)
     return {"session_id": session_id, "reply": reply}
 
 
