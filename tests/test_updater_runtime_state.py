@@ -2,7 +2,6 @@
 
 import threading
 import unittest
-from unittest.mock import patch
 
 from update_results import UpdateJobState
 from updater_runtime_state import UpdaterRuntimeState
