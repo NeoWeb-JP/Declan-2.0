@@ -92,6 +92,7 @@ import assist_capture_http
 import assist_auth_http
 import voicepipeline_access_http
 import post_payload_http
+import post_origin_auth_http
 import web_stt
 import openai_planner
 import ai_settings
@@ -2170,76 +2171,10 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines", "/api/native/routine-responses"}:
             self.send_json(404, {"error": "Not found."})
             return
-        elif not (
-            self.path == "/api/voicepipeline"
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not (
-            self.path == "/api/settings/ai"
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not (
-            self.path in {"/api/settings/media-players", "/api/settings/music-playlists"}
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not (
-            self.path == "/api/chat"
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not (
-            self.path == "/api/stt"
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not (
-            self.path == "/api/native/spotify-credentials"
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not (
-            self.path == "/api/native/settings-import"
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not (
-            self.path in {"/api/native/intents", "/api/native/routines", "/api/native/routine-responses"}
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not (
-            self.path == "/api/updates"
-            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32
-            and secrets.compare_digest(
-                self.headers.get("Authorization", "").encode(),
-                f'Bearer {os.environ.get("DECLAN_ASSIST_TOKEN", "")}'.encode(),
-            )
-        ) and not self.has_ingress_access() and (
-            self.client_address[0] != "127.0.0.1" or self.headers.get("Origin") not in {
-                f"http://127.0.0.1:{self.server.server_port}",
-                f"http://localhost:{self.server.server_port}",
-            }
+        elif not post_origin_auth_http.enforce_access(
+            self, token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+            ingress=self.has_ingress_access(),
         ):
-            self.send_json(403, {"error": "Send requests from the local Declan page."})
             return
         if self.path == "/api/stt":
             self.transcribe_browser_audio()
