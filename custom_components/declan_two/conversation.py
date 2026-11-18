@@ -6,7 +6,7 @@ from homeassistant.components import conversation
 from homeassistant.helpers import intent
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .ai_exposure import exposed_for_declan
-from .speaker_models import speaker_request_payload
+from .speaker_models import metadata_from_transcript, speaker_payload_from_metadata
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +34,14 @@ class DeclanTwoAgent(conversation.ConversationEntity):
         session_id = user_input.conversation_id
         error_reply = None
         continue_conversation = False
-        speaker_data = speaker_request_payload(user_input.text)
+        # Snapshot metadata before any text conversion can discard attributes.
+        transcript = user_input.text
+        speaker_metadata = metadata_from_transcript(transcript)
+        speaker_data = speaker_payload_from_metadata(
+            speaker_metadata,
+            speaker_present=(hasattr(transcript, "speaker")
+                             or hasattr(transcript, "jarvis_speaker")),
+        )
         try:
             session = async_get_clientsession(self.hass)
             async with session.post(
