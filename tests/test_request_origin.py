@@ -39,6 +39,25 @@ class RequestOriginTests(unittest.TestCase):
             "device_id": "a" * 129, "user_id": "b" * 129}),
             ("assist", None, None, None))
 
+    def test_hostile_string_subclasses_are_not_accepted_as_origin(self):
+        class HostileText(str):
+            def __eq__(self, other):
+                raise RuntimeError("unexpected equality")
+            def __hash__(self):
+                raise RuntimeError("unexpected hashing")
+        self.assertEqual(request_context("/api/assist", {
+            "device_id": HostileText("device-1"),
+            "user_id": HostileText("user-1"),
+            "satellite_id": HostileText("assist_satellite.kitchen")}),
+            ("assist", None, None, None))
+
+    def test_mixed_valid_and_invalid_origin_retains_valid_device(self):
+        class CustomText(str):
+            pass
+        self.assertEqual(request_context("/api/assist", {
+            "device_id": "device-1", "user_id": CustomText("user-1")}),
+            ("assist", ("assist", "device-1", None, None), "device-1", None))
+
     def test_valid_satellite_without_device_sets_scope(self):
         self.assertEqual(request_context("/api/assist", {
             "satellite_id": "assist_satellite.bedroom"}),
