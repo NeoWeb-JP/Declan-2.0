@@ -5,7 +5,7 @@ ROUTES = frozenset({
     "/api/native/settings-status", "/api/native/settings-export",
     "/api/native/settings-recovery", "/api/native/routine-responses",
     "/api/native/routines", "/api/native/intents", "/api/native/logs",
-    "/api/native/diagnostics",
+    "/api/native/diagnostics", "/api/native/diagnostics/metrics",
 })
 
 
@@ -48,6 +48,11 @@ def dispatch(handler, *, music, configuration, script_discovery,
             handler.send_json(503, {"error": "Learned intentions unavailable."})
     elif path == "/api/native/logs":
         handler.send_json(200, {"entries": logs.recent()})
+    elif path == "/api/native/diagnostics/metrics":
+        try:
+            handler.send_json(200, {"metrics": diagnostics.metrics()})
+        except (OSError, ValueError, sqlite3.Error):
+            handler.send_json(503, {"error": "Diagnostic metrics unavailable."})
     elif path == "/api/native/diagnostics":
         try:
             handler.send_json(200, {"traces": diagnostics.recent()})
