@@ -10,7 +10,9 @@ def consume_pending_retry(session, scope, *, now, window_seconds):
     if not isinstance(pending, dict):
         return None
     at = pending.get("at")
-    if (not isinstance(scope, (str, tuple)) or not scope or pending.get("scope") != scope
+    text = pending.get("text")
+    if (not isinstance(text, str) or not text.strip() or len(text) > 4096
+            or not isinstance(scope, (str, tuple)) or not scope or pending.get("scope") != scope
             or not finite_number(now)
             or not finite_number(window_seconds) or window_seconds < 0
             or not finite_number(at)
