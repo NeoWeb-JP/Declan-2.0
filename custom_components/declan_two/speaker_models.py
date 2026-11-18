@@ -18,9 +18,10 @@ class SpeakerMetadata:
 
 def metadata_from_transcript(transcript):
     """Snapshot identity before string operations can discard its attributes."""
+    capture = getattr(transcript, "capture_level", None)
     return SpeakerMetadata(
         speaker=speaker_from_transcript(transcript),
-        capture_level=getattr(transcript, "capture_level", None),
+        capture_level=dict(capture) if capture is not None else None,
     )
 
 
