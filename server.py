@@ -2375,7 +2375,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         routine_turn = None
         routine_voice_result = None
-        early_result = early_command_result.select_early_result(
+        early_result = preview_timer_orchestration.select_early_result(
             routine_preview, timer_result,
         )
         if early_result is not None:
