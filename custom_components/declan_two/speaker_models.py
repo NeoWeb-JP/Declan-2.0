@@ -92,6 +92,18 @@ def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present:
     return payload
 
 
+def transcript_for_ha(text: str, metadata: SpeakerMetadata) -> SpeakerTranscript:
+    """Adapt explicit STT metadata to the current Home Assistant text contract.
+
+    This is the only compatibility conversion needed by STT providers until an
+    HA-supported side channel can replace the string subclass entirely.
+    """
+    return SpeakerTranscript(
+        str(text), metadata.speaker,
+        dict(metadata.capture_level) if metadata.capture_level is not None else None,
+    )
+
+
 def speaker_request_payload(transcript):
     """Legacy transcript adapter for the explicit Assist metadata boundary."""
     return speaker_payload_from_metadata(

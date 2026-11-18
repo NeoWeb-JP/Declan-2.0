@@ -7,7 +7,7 @@ import logging
 import wave
 
 from .capture_level import CaptureLevel
-from .speaker_models import SpeakerTranscript, metadata_from_transcript
+from .speaker_models import SpeakerMetadata, metadata_from_transcript, transcript_for_ha
 
 import aiohttp
 from homeassistant.components import stt
@@ -110,7 +110,7 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
             text = text.strip() if isinstance(text, str) else ""
             if not text:
                 raise ValueError('Cloud transcription was empty')
-            return stt.SpeechResult(SpeakerTranscript(text, capture_level=level.snapshot()), stt.SpeechResultState.SUCCESS)
+            return stt.SpeechResult(transcript_for_ha(text, SpeakerMetadata(None, level.snapshot())), stt.SpeechResultState.SUCCESS)
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError):
             _LOGGER.warning("Declan OpenAI STT request could not complete")
             if raw and len(raw) <= MAX_AUDIO_BYTES and level.snapshot() is not None:
@@ -149,8 +149,10 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
                     return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
                 result = await engine.async_process_audio_stream(metadata, replay())
             if result.result == stt.SpeechResultState.SUCCESS and isinstance(result.text, str) and result.text.strip():
-                metadata = metadata_from_transcript(result.text)
-                text = SpeakerTranscript(result.text, metadata.speaker, capture_level=capture)
+                speaker_metadata = metadata_from_transcript(result.text)
+                text = transcript_for_ha(
+                    result.text, SpeakerMetadata(speaker_metadata.speaker, capture),
+                )
                 return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
         except (OSError, TimeoutError, ValueError, aiohttp.ClientError):
             _LOGGER.warning('Declan local STT fallback could not complete')
