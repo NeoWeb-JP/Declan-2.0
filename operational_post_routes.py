@@ -4,7 +4,7 @@ HTTP authentication, origin checks, content-type and size limits stay in server.
 """
 
 import sqlite3
-import subprocess
+import subprocess  # nosec B404 - only catches errors from controlled update operations
 
 
 def handle_updates(handler, body, *, check, status_result, prerelease_versions,
