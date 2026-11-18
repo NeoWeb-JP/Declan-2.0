@@ -13,14 +13,19 @@ from execution_results import Outcome, parse_outcome
 
 
 class RoutineResponsesTests(TestCase):
-    def test_response_rendering_uses_typed_discovery_cache_and_plain_phase(self):
-        live = {**self.item, "name": "Live script name", "fields": ["request_id"]}
+    def test_response_rendering_never_reads_another_credential_cache(self):
+        live = {**self.item, "name": "Private script name", "fields": ["request_id"]}
         cached = script_discovery.DiscoveryResult((live,))
-        with patch.dict(script_discovery._CACHE, {"ha": (0, cached)}, clear=True), \
+        cache = script_discovery.ScriptDiscoveryCache()
+        key = cache.key("http://ha", {"Authorization": "Bearer other-token"})
+        epoch = cache.begin(key)
+        cache.publish(key, epoch, cached)
+        with patch.object(script_discovery, "CACHE", cache), \
              patch.object(responses, "select", return_value="Custom line") as select:
             result = responses.render(("auto:" + live["entity_id"], {}), Outcome.STARTED, "Original")
         self.assertEqual(result, "Custom line")
-        select.assert_called_once_with(live, "requested", False, "default")
+        expected = {"entity_id": live["entity_id"], "name": "good morning"}
+        select.assert_called_once_with(expected, "requested", False, "default")
         self.assertIs(type(select.call_args.args[1]), str)
 
     def test_typed_phase_selection_preserves_failure_diagnostics(self):

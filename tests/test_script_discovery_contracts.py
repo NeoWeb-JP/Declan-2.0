@@ -10,7 +10,7 @@ import server
 
 class DiscoveryContractTests(unittest.TestCase):
     def setUp(self):
-        script_discovery._CACHE.clear()
+        script_discovery.CACHE.clear()
         self.item = {"entity_id": "script.make_tea", "name": "Make Tea", "safe": False,
                      "fields": ["request_id", "routine_id"]}
 

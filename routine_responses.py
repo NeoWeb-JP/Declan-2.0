@@ -89,14 +89,9 @@ def render(selection, outcome, original, *, guest=False):
         return original
     entity = kind[5:]
     item = {"entity_id": entity, "name": entity[7:].replace('_', ' ')}
-    # Runtime uses the same live name/capabilities as the editor when available.
-    import script_discovery
-    with script_discovery._CACHE_LOCK:
-        for _, discovery in script_discovery._CACHE.values():
-            found = next((row for row in discovery.scripts if row['entity_id'] == entity), None)
-            if found:
-                item = found
-                break
+    # Rendering is not bound to a specific HA credential scope. Do not scan
+    # another request's authenticated discovery cache for script metadata.
+    # Saved response profiles remain keyed to the stable script entity ID.
     action = options.get("requested_action", options.get("operation", "default"))
     try:
         # Informational scripts retain their returned content until the user
