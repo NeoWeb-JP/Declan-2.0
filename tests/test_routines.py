@@ -16,7 +16,7 @@ class RoutineTests(TestCase):
         self.enterContext(patch.dict(server.os.environ, HA_ENV | {
             "DECLAN_MOVIE_SCRIPT": "script.movie", "DECLAN_MOVIE_REMOTE": "remote.projector",
         }))
-        self.enterContext(patch.object(server, "routine_last_attempts", {}))
+        self.enterContext(patch.object(server, "ROUTINE_COOLDOWN", server.routine_cooldown.RoutineCooldown()))
         self.mappings = {key: {"script": script, "phrases": [key], "fields": {}, "sensitive": False} for key, script in {"morning": server.GOOD_MORNING_SCRIPT, "night": server.GOOD_NIGHT_SCRIPT, "movie": "script.movie", "movie_bedroom": "script.movie_bedroom"}.items()}
         self.mappings["movie"]["remote"] = "remote.projector"
         self.mappings["movie_bedroom"]["remote"] = "remote.projector"
@@ -69,7 +69,7 @@ class RoutineTests(TestCase):
     def test_night_private_facts_depend_on_guest_mode(self):
         for guest in ("on", "off"):
             with self.subTest(guest=guest):
-                server.routine_last_attempts.clear()
+                server.ROUTINE_COOLDOWN = server.routine_cooldown.RoutineCooldown()
                 self.respond(lambda data: self.confirmed(data, guest_mode=guest, bedtime={
                     "battery_percent": 30, "indoor_temperature": 14,
                 }))
@@ -155,7 +155,7 @@ class RoutineTests(TestCase):
     def test_rejection_is_distinct_from_an_uncertain_timeout(self):
         self.opener.open.side_effect = HTTPError("http://ha.invalid", 403, "Forbidden", {}, None)
         self.assertEqual(server.run_routine("morning")[1], "rejected")
-        server.routine_last_attempts.clear()
+        server.ROUTINE_COOLDOWN = server.routine_cooldown.RoutineCooldown()
         self.opener.open.side_effect = TimeoutError()
         self.assertEqual(server.run_routine("morning")[1], "unverified")
 

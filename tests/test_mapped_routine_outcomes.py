@@ -40,7 +40,7 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
         mapping = {"morning": {"script": "script.morning", "fields": {}, "sensitive": False}}
         with patch.object(server.routine_registry, "load", return_value=mapping), \
              patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
-             patch.object(server, "routine_last_attempts", {}), \
+             patch.object(server, "ROUTINE_COOLDOWN", server.routine_cooldown.RoutineCooldown()), \
              patch.object(server, "format_routine_result", side_effect=AssertionError("legacy formatter")), \
              patch.object(server, "routine_completion_result", return_value=(expected, "evidence")) as complete:
             result, detail = server.run_routine_result("morning")
@@ -55,7 +55,7 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
         mapping = {"morning": {"script": "script.morning", "fields": {}, "sensitive": False}}
         with patch.object(server.routine_registry, "load", return_value=mapping), \
              patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
-             patch.object(server, "routine_last_attempts", {}):
+             patch.object(server, "ROUTINE_COOLDOWN", server.routine_cooldown.RoutineCooldown()):
             result, _ = server.run_routine_result("morning")
         self.assertIs(result.outcome, Outcome.REJECTED)
         opener.open.assert_called_once()
