@@ -3,6 +3,7 @@
 Callers serialize access to the injected session store. No server globals are imported.
 """
 from datetime import datetime
+from math import isfinite
 from time import monotonic
 import secrets
 from chat_recall_privacy import safe_chat_text
@@ -10,7 +11,9 @@ from chat_recall_privacy import safe_chat_text
 def _prune_expired_sessions(sessions, now, idle_seconds):
     """Expire all idle sessions, including entries whose access order changed."""
     for key, state in list(sessions.items()):
-        if not isinstance(state, dict) or not isinstance(state.get("at"), (int, float)) or now - state["at"] >= idle_seconds:
+        at = state.get("at") if isinstance(state, dict) else None
+        if (type(at) not in (int, float) or not isfinite(at)
+                or at > now or now - at >= idle_seconds):
             sessions.pop(key, None)
 
 
