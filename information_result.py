@@ -23,7 +23,7 @@ class InformationResult:
     def coerce(cls, value):
         if isinstance(value, cls):
             return value
-        if not isinstance(value, (tuple, list)) or len(value) != 3:
+        if type(value) not in (tuple, list) or len(value) != 3:
             raise ValueError("Information provider requires a typed result or legacy triple")
         reply, outcome, category = value
         return cls(ExecutionResult(reply, outcome), category)

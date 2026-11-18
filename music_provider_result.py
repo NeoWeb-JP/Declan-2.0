@@ -51,6 +51,6 @@ def music_execution_result(provider_reply):
     """Validate a provider reply and return a frozen typed execution result."""
     if isinstance(provider_reply, ExecutionResult):
         return provider_reply
-    if not isinstance(provider_reply, (tuple, list)) or len(provider_reply) != 2:
+    if type(provider_reply) not in (tuple, list) or len(provider_reply) != 2:
         raise ValueError("Music provider must return a reply/outcome pair")
     return ExecutionResult(*provider_reply)
