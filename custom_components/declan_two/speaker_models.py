@@ -70,7 +70,8 @@ def speaker_request_payload(transcript):
     if isinstance(speaker, tuple) and len(speaker) == 3:
         interaction_id, name, confidence = speaker
         if (isinstance(interaction_id, str) and isinstance(name, str)
-                and type(confidence) in (int, float) and 0 <= confidence <= 1):
+                and type(confidence) in (int, float)
+                and math.isfinite(confidence) and 0 <= confidence <= 1):
             payload["speaker"] = {
                 "interaction_id": interaction_id,
                 "name": name,
