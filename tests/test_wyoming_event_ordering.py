@@ -136,6 +136,25 @@ class WyomingOrderingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.result, State.SUCCESS)
         self.assertEqual(result.text.text, "lights on")
 
+    async def test_duplicate_transcript_does_not_replace_first_command(self):
+        result = await receive(Client([
+            Event("transcript", {"text": "turn on lounge light"}),
+            Event("transcript", {"text": "turn off all lights"}),
+            speaker("Jaco"),
+        ]))
+        self.assertEqual(result.result, State.SUCCESS)
+        self.assertEqual(result.text.text, "turn on lounge light")
+        self.assertEqual(result.text.speaker, ("id-1", "Jaco", 0.9))
+
+    async def test_blank_duplicate_does_not_discard_valid_transcript(self):
+        result = await receive(Client([
+            Event("transcript", {"text": "lights on"}),
+            Event("transcript", {"text": " "}),
+            speaker("Jaco"),
+        ]))
+        self.assertEqual(result.result, State.SUCCESS)
+        self.assertEqual(result.text.text, "lights on")
+
     async def test_unknown_only_remains_anonymous(self):
         result = await receive(Client([
             speaker("none"), Event("transcript", {"text": "lights on"}),

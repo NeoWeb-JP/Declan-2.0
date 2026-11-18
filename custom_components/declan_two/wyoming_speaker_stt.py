@@ -62,6 +62,9 @@ async def receive(client):
             if transcript is not None and valid:
                 break
         elif Transcript.is_type(event.type):
+            # Preserve the first command while waiting for late speaker identity.
+            if transcript is not None:
+                continue
             candidate = Transcript.from_event(event).text
             if not isinstance(candidate, str) or not candidate.strip():
                 _LOGGER.info("DECLAN_WYOMING_SPEAKER event=empty_transcript")
