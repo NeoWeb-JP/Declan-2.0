@@ -120,6 +120,7 @@ import command_responses
 import command_registry
 import session_orchestration
 import session_store
+import routine_cooldown
 import session_turn_state
 import lighting_intents
 import roast
@@ -135,7 +136,7 @@ CAPTURE_ARBITER = CaptureArbiter()
 SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
-routine_last_attempts: dict = {}
+ROUTINE_COOLDOWN = routine_cooldown.RoutineCooldown()
 ACTIVE_ROUTINES = {}
 ACTIVE_ROUTINES_LOCK = Lock()
 
@@ -772,10 +773,8 @@ def run_routine_result(period, *, action_results=None, movie_action=None, movie_
         return ExecutionResult(f"The {period} routine request is already in progress.", Outcome.BUSY), None
     try:
         attempt_key = (period, movie_room, movie_action) if movie_action else period
-        last_attempt = routine_last_attempts.get(attempt_key)
-        if last_attempt is not None and monotonic() - last_attempt < 30:
+        if not ROUTINE_COOLDOWN.claim(attempt_key):
             return ExecutionResult(f"I already sent a {period} request. I haven't sent another.", Outcome.DUPLICATE), None
-        routine_last_attempts[attempt_key] = monotonic()
         service = script.split(".", 1)[1]
         request_id = "declan-" + secrets.token_hex(16)
         parameters = {**mapped["fields"], "request_id": request_id, "routine_id": script}
