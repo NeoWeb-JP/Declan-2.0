@@ -103,6 +103,7 @@ import preview_timer_orchestration
 import stop_response_orchestration
 import roast_guest_orchestration
 import routine_follow_on_orchestration
+import routine_registry_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2405,9 +2406,10 @@ class Handler(BaseHTTPRequestHandler):
             connection=ha_device_connection,
         )) is not None:
             routine_reply, outcome = roast_guest_result.reply, roast_guest_result.outcome
-        elif routine_dispatch := routine_registry_dispatch.dispatch_routine(
+        elif routine_dispatch := routine_registry_orchestration.dispatch_routine(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
+            dispatch=routine_registry_dispatch.dispatch_routine,
             registry_factory=command_registry.routine_registry,
             context_factory=command_registry.RequestContext,
             select=select_routine_turn_result, execute=execute_routine_result,
