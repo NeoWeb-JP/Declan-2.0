@@ -39,6 +39,7 @@ class ChatRecallTests(unittest.TestCase):
         sid = first["session_id"]
         result = self.say("forget this conversation", sid, routine_reply="Routine complete")
         self.assertEqual(result["reply"], "Routine complete")
+        self.assertIn(sid, self.recall.entries)
         self.assertEqual(self.say("what\'s my name", sid)["reply"], "Your name is Alex.")
 
     def test_forget_reply_clears_recall_without_leaking_old_name(self):
