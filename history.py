@@ -7,14 +7,13 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from time import time
-from threading import Lock
+from database_schema_state import DatabaseSchemaState
 from action_evidence_wire import action_evidence_to_wire
 
 
 DATABASE = Path(__file__).resolve().parent / ".data" / "conversations.sqlite3"
 SPEAKER_THRESHOLD = 0.75
-_SCHEMA_LOCK = Lock()
-_initialized = set()
+SCHEMA_STATE = DatabaseSchemaState()
 
 
 def retention_seconds():
@@ -48,32 +47,30 @@ def speaker_match(value):
 
 def initialize():
     """Migrate once per database file, before starting HTTP workers."""
-    DATABASE.parent.mkdir(parents=True, exist_ok=True)
-    with _SCHEMA_LOCK:
-        identity = (DATABASE.resolve(), DATABASE.stat().st_ino) if DATABASE.exists() else None
-        if identity in _initialized:
-            return
-        connection = sqlite3.connect(DATABASE, timeout=2)
-        try:
-            connection.execute("PRAGMA journal_mode=WAL")
-            with connection:
-                connection.execute("BEGIN IMMEDIATE")
-                connection.execute("""CREATE TABLE IF NOT EXISTS turns (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    created_at REAL NOT NULL, session_id TEXT NOT NULL,
-                    source TEXT NOT NULL, message TEXT NOT NULL, reply TEXT NOT NULL
-                )""")
-                connection.execute("CREATE INDEX IF NOT EXISTS turns_created ON turns(created_at)")
-                columns = {row[1] for row in connection.execute("PRAGMA table_info(turns)")}
-                for column in ("outcome", "routine_status", "action_results", "phrase_suggestion",
-                               "speaker_match", "diagnostic_id"):
-                    if column not in columns:
-                        connection.execute(f"ALTER TABLE turns ADD COLUMN {column} TEXT")
-                connection.execute("CREATE TABLE IF NOT EXISTS learned_intents "
-                                   "(phrase TEXT PRIMARY KEY, target TEXT NOT NULL)")
-            _initialized.add((DATABASE.resolve(), DATABASE.stat().st_ino))
-        finally:
-            connection.close()
+    SCHEMA_STATE.ensure(DATABASE, _migrate_schema)
+
+
+def _migrate_schema():
+    connection = sqlite3.connect(DATABASE, timeout=2)
+    try:
+        connection.execute("PRAGMA journal_mode=WAL")
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("""CREATE TABLE IF NOT EXISTS turns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at REAL NOT NULL, session_id TEXT NOT NULL,
+                source TEXT NOT NULL, message TEXT NOT NULL, reply TEXT NOT NULL
+            )""")
+            connection.execute("CREATE INDEX IF NOT EXISTS turns_created ON turns(created_at)")
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(turns)")}
+            for column in ("outcome", "routine_status", "action_results", "phrase_suggestion",
+                           "speaker_match", "diagnostic_id"):
+                if column not in columns:
+                    connection.execute(f"ALTER TABLE turns ADD COLUMN {column} TEXT")
+            connection.execute("CREATE TABLE IF NOT EXISTS learned_intents "
+                               "(phrase TEXT PRIMARY KEY, target TEXT NOT NULL)")
+    finally:
+        connection.close()
 
 
 @contextmanager
