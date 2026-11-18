@@ -3,7 +3,6 @@ import hashlib
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 
 import generate_voice_dependency_lock as lock
 
