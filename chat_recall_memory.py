@@ -41,7 +41,9 @@ class ChatRecallMemory:
             return
         self.prune(now)
         name = state.get("name")
-        name = name[:40] if isinstance(name, str) else None
+        # Names are spoken back on request; apply the same privacy boundary.
+        name = safe_chat_text(name)
+        name = name[:40] if name is not None else None
         messages = state.get("recent_messages", [])
         messages = [text for item in messages
                     if (text := safe_chat_text(item)) is not None][-MAX_RECENT_MESSAGES:]
