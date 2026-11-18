@@ -5,6 +5,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = (ROOT / "server.py").read_text()
+MEDIA_ROUTES = (ROOT / "media_settings_routes.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/media_players_view.py").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
 JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
@@ -48,7 +49,9 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn('option.textContent = player.name', JS)
         self.assertIn('data.room_labels && data.room_labels[room]', JS)
         self.assertIn('label.textContent = ', JS)
-        self.assertIn('"room_labels": room_labels', BACKEND)
+        ast.parse(MEDIA_ROUTES)
+        self.assertIn("media_settings_routes.approved_player_settings(", BACKEND)
+        self.assertIn('"room_labels": room_labels', MEDIA_ROUTES)
         self.assertIn('players-save', JS)
         self.assertNotIn('option.innerHTML', JS)
         self.assertNotIn('Bearer ', JS)
