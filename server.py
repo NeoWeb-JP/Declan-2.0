@@ -17,7 +17,7 @@ from threading import Lock, Thread
 from contextlib import contextmanager
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from execution_results import ExecutionResult, Outcome, MovieLaunchResult, MovieLaunchStatus
