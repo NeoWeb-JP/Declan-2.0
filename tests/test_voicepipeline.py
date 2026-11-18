@@ -141,6 +141,20 @@ class TransportTests(TestCase):
         self.response.read.return_value = b''
         self.assertEqual(vp.request('DELETE', '/api/v1/test'), {})
 
+    def test_public_cleartext_transport_is_rejected_before_sending_audio_or_token(self):
+        for base in ('http://8.8.8.8:8000', 'http://example.com:8000',
+                     'http://[2606:4700:4700::1111]:8000'):
+            with self.subTest(base=base), patch.dict(os.environ, {'DECLAN_VOICEPIPELINE_URL': base}):
+                self.opener.reset_mock()
+                with self.assertRaisesRegex(vp.PipelineError, 'Use HTTPS') as error:
+                    vp.request('POST', '/api/v1/test', {'audio': 'private'})
+                self.assertEqual(error.exception.status, 503)
+                self.opener.assert_not_called()
+        for base in ('http://127.0.0.1:8000', 'http://192.168.1.10:8000',
+                     'http://voicepipeline.local:8000', 'https://example.com:8000'):
+            with self.subTest(base=base), patch.dict(os.environ, {'DECLAN_VOICEPIPELINE_URL': base}):
+                self.assertEqual(vp.request('GET', '/api/v1/speakers'), [])
+
     def test_bad_configuration_and_protocol_errors_are_bounded_and_redacted(self):
         for base in ('', 'file:///tmp/x', 'http://user:pass@host', 'http://host/path', 'http://host?key=secret', 'http://['):
             with patch.dict(os.environ, {'DECLAN_VOICEPIPELINE_URL': base}), self.assertRaises(vp.PipelineError):
