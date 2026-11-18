@@ -40,7 +40,8 @@ def aggregate(traces, *, sampled_at=None):
             continue
         row = grouped[route]
         row["count"] += 1
-        row["errors"] += int(trace.get("outcome") in FAILURE_OUTCOMES)
+        outcome = trace.get("outcome")
+        row["errors"] += int(isinstance(outcome, str) and outcome in FAILURE_OUTCOMES)
         duration = _duration(trace.get("duration_ms"))
         if duration is not None:
             row["durations"].append(duration)
@@ -52,7 +53,9 @@ def aggregate(traces, *, sampled_at=None):
                 continue
             item = stages[name]
             item["count"] += 1
-            item["errors"] += int(stage.get("outcome") in FAILURE_OUTCOMES)
+            stage_outcome = stage.get("outcome")
+            item["errors"] += int(isinstance(stage_outcome, str)
+                                  and stage_outcome in FAILURE_OUTCOMES)
             stage_duration = _duration(stage.get("duration_ms"))
             if stage_duration is not None:
                 item["durations"].append(stage_duration)
