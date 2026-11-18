@@ -157,7 +157,15 @@ class DeclanWyomingVoiceBridge(stt.SpeechToTextEntity):
                             return stt.SpeechResult(
                                 None, stt.SpeechResultState.ERROR,
                             )
-                    result = await receive_task
+                    try:
+                        result = await receive_task
+                    except Exception:
+                        _LOGGER.warning(
+                            "Declan Wyoming transcript receive failed", exc_info=True,
+                        )
+                        return stt.SpeechResult(
+                            None, stt.SpeechResultState.ERROR,
+                        )
                     text = getattr(result, "text", None)
                     if result.result == stt.SpeechResultState.SUCCESS and isinstance(text, str):
                         speaker = metadata_from_transcript(text).speaker
