@@ -34,6 +34,21 @@ class ChatRecallTests(unittest.TestCase):
         with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
             return session_orchestration.converse(message, sid, **self.kwargs, **extra)
 
+    def test_routine_reply_takes_precedence_over_chat_commands(self):
+        first = self.say("my name is Alex")
+        sid = first["session_id"]
+        result = self.say("forget this conversation", sid, routine_reply="Routine complete")
+        self.assertEqual(result["reply"], "Routine complete")
+        self.assertEqual(self.say("what\'s my name", sid)["reply"], "Your name is Alex.")
+
+    def test_forget_reply_clears_recall_without_leaking_old_name(self):
+        first = self.say("my name is Alex")
+        sid = first["session_id"]
+        result = self.say("forget this conversation", sid)
+        self.assertIn("cleared", result["reply"])
+        self.assertNotIn(sid, self.recall.entries)
+        self.assertIsNone(self.sessions[sid]["name"])
+
     def test_greeting_never_speaks_unsafe_legacy_session_name(self):
         first = self.say("hello")
         sid = first["session_id"]
