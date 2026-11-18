@@ -3,17 +3,21 @@
 Callers serialize access to the injected session store. No server globals are imported.
 """
 from datetime import datetime
-from math import isfinite
+from context_numeric_validation import finite_number
 from time import monotonic
 import secrets
 from chat_recall_privacy import safe_chat_text
 from session_identity import valid_session_id
+from retry_scope_validation import valid_retry_scope
 
 def _prune_expired_sessions(sessions, now, idle_seconds):
     """Expire all idle sessions, including entries whose access order changed."""
+    if not finite_number(now) or not finite_number(idle_seconds) or idle_seconds <= 0:
+        sessions.clear()
+        return
     for key, state in list(sessions.items()):
         at = state.get("at") if isinstance(state, dict) else None
-        if (type(at) not in (int, float) or not isfinite(at)
+        if (not finite_number(at)
                 or at > now or now - at >= idle_seconds):
             sessions.pop(key, None)
 
@@ -106,14 +110,14 @@ def _finalize_chat_session(state, *, message, kind, routine_reply, lighting_cont
     state.update(last=None if is_forget else message, at=now)
     if recall is not None and not is_forget and routine_reply is None:
         recall.remember(session_id, state, now)
-    if not is_forget and lighting_context is not None:
+    if not is_forget and lighting_context is not None and valid_retry_scope(scope):
         state["lighting_context"] = lighting_context
         state["lighting_scope"] = scope
     _store_session(sessions, session_id, state)
     return state
 
 
-def _load_chat_session(sessions, recall, session_id, now):
+def _load_chat_session(sessions, recall, session_id, now, *, new_session_id):
     """Accept only opaque string IDs; never trust arbitrary client values as keys."""
     if not valid_session_id(session_id):
         session_id = None
@@ -126,18 +130,24 @@ def _load_chat_session(sessions, recall, session_id, now):
         if not isinstance(state, dict):
             state = None
     if state is None:
-        session_id = secrets.token_urlsafe(24)
+        session_id = new_session_id()
         state = {"last": None, "name": None, "recent_messages": []}
     return session_id, state
 
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
-             sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None):
+             sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None,
+             clock=monotonic, new_session_id=None):
     if not isinstance(message, str):
         raise ValueError("chat message must be a string")
-    now = monotonic()
+    now = clock()
+    if not finite_number(now):
+        raise ValueError("session clock must be finite")
+    if new_session_id is None:
+        new_session_id = lambda: secrets.token_urlsafe(24)
     _prune_expired_sessions(sessions, now, idle_seconds)
-    session_id, state = _load_chat_session(sessions, recall, session_id, now)
+    session_id, state = _load_chat_session(sessions, recall, session_id, now,
+                                           new_session_id=new_session_id)
     command = message.casefold().strip(" .?!")
     name = name_pattern.fullmatch(message.strip(" .?!"))
     kind = chat_commands.get(command)
