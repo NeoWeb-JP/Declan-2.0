@@ -31,6 +31,7 @@ import declan_logs
 import configuration
 import health_readiness
 import voice_profiles
+import voice_post_routes
 import voicepipeline
 import device_status
 import retry_learning
@@ -2388,22 +2389,15 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(503, {"error": "Spotify playlist storage unavailable."})
                 return
             if self.path == "/api/voicepipeline":
-                try:
-                    self.send_json(200, voicepipeline.manage(body))
-                except voicepipeline.PipelineError as error:
-                    self.send_json(error.status, {'error': str(error)})
-                except ValueError as error:
-                    self.send_json(400, {'error': str(error)})
+                voice_post_routes.handle_voicepipeline(
+                    self, body, manage=voicepipeline.manage,
+                    pipeline_error=voicepipeline.PipelineError,
+                )
                 return
             if self.path == "/api/voice-profiles":
-                try:
-                    if isinstance(body, dict) and body.get('operation') in {'create', 'save_sample'}:
-                        raise ValueError('Use Voice profiles to enrol through VoicePipeline. Separate local collection is retired.')
-                    self.send_json(200, voice_profiles.manage(body))
-                except ValueError as error:
-                    self.send_json(400, {'error': str(error)})
-                except (OSError, sqlite3.Error):
-                    self.send_json(503, {'error': 'Voice profiles could not be saved.'})
+                voice_post_routes.handle_voice_profiles(
+                    self, body, manage=voice_profiles.manage,
+                )
                 return
             if self.path in {"/api/settings/import", "/api/native/settings-import"}:
                 try:
