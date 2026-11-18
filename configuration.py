@@ -13,6 +13,9 @@ FIELDS = {
     'DECLAN_WEB_TTS_ENTITY': 'tts', 'DECLAN_MEDIA_SEARCH_AGENT': 'conversation',
     'DECLAN_WEB_ASSIST_PIPELINE': 'pipeline',
     'DECLAN_VISITORS_ENTITY': 'input_boolean',
+    'DECLAN_GUEST_MODE_ENTITY': 'input_boolean',
+    'DECLAN_GUEST_REGISTER_ENTITY': 'input_text',
+    'DECLAN_PROJECTOR_POWER_ENTITY': 'switch',
 }
 
 
