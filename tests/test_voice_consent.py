@@ -79,6 +79,85 @@ class LocalVoiceConsentTests(unittest.TestCase):
                         'SELECT count(*) FROM samples WHERE profile = ?',
                         (profile,)).fetchone()[0], 0)
 
+    def test_revocation_sanitizes_retained_backup_after_live_commit(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as temp:
+            data_dir = Path(temp)
+            database = data_dir / 'voice.sqlite3'
+            with patch.object(voice_profiles, 'DATABASE', database):
+                profile = voice_profiles.manage({
+                    'operation': 'create', 'name': 'Test Person', 'consent': True
+                })['profiles'][0]['id']
+                with patch.object(voice_profiles, 'validate_audio',
+                                  return_value=(b'audio-for-test', 1.0)):
+                    voice_profiles.manage({
+                        'operation': 'save_sample', 'profile': profile,
+                        'consent': True, 'audio': 'test'
+                    })
+                backup = data_dir / 'upgrade-backups' / 'legacy-release'
+                backup.mkdir(parents=True)
+                with sqlite3.connect(backup / 'voice-profiles.sqlite3') as db:
+                    db.execute('CREATE TABLE samples (id TEXT PRIMARY KEY, audio BLOB)')
+                    db.execute('INSERT INTO samples VALUES (?, ?)',
+                               ('legacy-test', b'RIFF_private_test_audio'))
+                result = voice_profiles.manage({
+                    'operation': 'revoke_consent', 'profile': profile, 'confirm': True
+                })
+                self.assertIs(result['backup_cleanup_required'], False)
+                self.assertEqual(result['profiles'][0]['samples'], [])
+                with sqlite3.connect(backup / 'voice-profiles.sqlite3') as db:
+                    self.assertEqual(db.execute('SELECT count(*) FROM samples').fetchone()[0], 0)
+                self.assertNotIn(b'RIFF_private_test_audio',
+                                 (backup / 'voice-profiles.sqlite3').read_bytes())
+
+    def test_deleted_sample_and_profile_trigger_backup_cleanup(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with patch.object(voice_profiles, 'DATABASE', Path(temp) / 'voice.sqlite3'):
+                profile = voice_profiles.manage({
+                    'operation': 'create', 'name': 'Test Person', 'consent': True
+                })['profiles'][0]['id']
+                with patch.object(voice_profiles, 'validate_audio',
+                                  return_value=(b'test-audio', 1.0)):
+                    saved = voice_profiles.manage({
+                        'operation': 'save_sample', 'profile': profile,
+                        'consent': True, 'audio': 'test'
+                    })
+                sample = saved['profiles'][0]['samples'][0]['id']
+                with patch.object(voice_profiles, 'sanitize_retained_voice_snapshots',
+                                  return_value=1) as scrub:
+                    deleted = voice_profiles.manage({
+                        'operation': 'delete_sample', 'profile': profile,
+                        'sample': sample, 'confirm': True
+                    })
+                    self.assertFalse(deleted['backup_cleanup_required'])
+                    scrub.assert_called_once_with(Path(temp))
+                    scrub.reset_mock()
+                    voice_profiles.manage({
+                        'operation': 'delete_profile', 'profile': profile, 'confirm': True
+                    })
+                    scrub.assert_called_once_with(Path(temp))
+
+    def test_cleanup_failure_keeps_deletion_and_reports_operator_action(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with patch.object(voice_profiles, 'DATABASE', Path(temp) / 'voice.sqlite3'):
+                profile = voice_profiles.manage({
+                    'operation': 'create', 'name': 'Test Person', 'consent': True
+                })['profiles'][0]['id']
+                with patch.object(voice_profiles, 'sanitize_retained_voice_snapshots',
+                                  side_effect=ValueError('secret-private-test-path')), \
+                     patch.object(voice_profiles, '_LOGGER') as logger:
+                    result = voice_profiles.manage({
+                        'operation': 'revoke_consent', 'profile': profile, 'confirm': True
+                    })
+                self.assertTrue(result['backup_cleanup_required'])
+                self.assertIn('could not be sanitised', result['notice'])
+                self.assertNotIn('secret-private-test-path', str(result))
+                self.assertIsNone(result['profiles'][0]['consent_at'])
+                logger.warning.assert_called_once_with(
+                    'Retained voice backup cleanup needs operator review (reason=%s)',
+                    'ValueError')
+                self.assertNotIn('secret-private-test-path', str(logger.warning.call_args))
+
     def test_revocation_requires_explicit_confirmation(self):
         with tempfile.TemporaryDirectory() as temp:
             with patch.object(voice_profiles, 'DATABASE', Path(temp) / 'voice.sqlite3'):
