@@ -14,7 +14,9 @@ class DirectCommandDispatchTests(unittest.TestCase):
         self.assertLess(adapt, response)
 
     def test_guest_dispatch_preserves_confirmation_and_order(self):
-        confirmation = SERVER.index("sensitive_confirmation_resolution.resolve_confirmation(")
+        confirmation = SERVER.index("turn_preflight.resolve(")
+        preflight_source = (Path(__file__).resolve().parents[1] / "turn_preflight.py").read_text()
+        self.assertIn("sensitive_confirmation_resolution.resolve_confirmation(", preflight_source)
         stop = SERVER.index("stop_command_dispatch.dispatch_stop(", confirmation)
         guest = SERVER.index("roast_guest_dispatch.dispatch_roast_or_guest_result(", stop)
         self.assertLess(confirmation, stop)
