@@ -90,7 +90,7 @@ class ActionEvidencePersistenceTests(unittest.TestCase):
             actions = []
             with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
                  patch.object(server.routine_registry, "load", return_value=mapping), \
-                 patch.object(server, "routine_last_attempts", {}), patch.object(server, "sleep"), \
+                 patch.object(server, "ROUTINE_COOLDOWN", server.routine_cooldown.RoutineCooldown()), patch.object(server, "sleep"), \
                  patch.object(server, "routine_completion_result", return_value=(ExecutionResult("Routine", outcome), None)), \
                  patch.object(server, "launch_movie_app_result", return_value=MovieLaunchResult(MovieLaunchStatus.SENT, "Accepted")) as launch, \
                  patch.object(server, "MovieActionEvidence", wraps=MovieActionEvidence) as model:
