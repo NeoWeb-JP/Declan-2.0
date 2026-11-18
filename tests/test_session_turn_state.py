@@ -66,6 +66,27 @@ class SessionTurnStateTests(unittest.TestCase):
             light=("Unknown.", "unresolved"), steps=[{"detail": "unresolved"}])
         self.assertNotIn("failed_light_phrase", session)
 
+    def test_invalid_original_phrase_never_stores_retry(self):
+        for message in (None, 42, "", " ", "x" * 4097):
+            with self.subTest(message_type=type(message).__name__):
+                session, reply = {}, {"reply": "Unmatched"}
+                update_turn(session, reply, message=message, phrase="unknown",
+                    outcome="unresolved", scope="kitchen", status_target=None,
+                    information_context=None, light_result=None, action_results=[],
+                    actions=None, unmatched_reply="Unmatched", now=123.0)
+                self.assertNotIn("pending_retry", session)
+                self.assertTrue(reply["continue_conversation"])
+
+    def test_invalid_clock_never_stores_retry(self):
+        for now in (None, True, float("nan"), float("inf"), 10 ** 1000):
+            with self.subTest(clock_type=type(now).__name__):
+                session, reply = {}, {"reply": "Unmatched"}
+                update_turn(session, reply, message="turn off kitchen", phrase="unknown",
+                    outcome="unresolved", scope="kitchen", status_target=None,
+                    information_context=None, light_result=None, action_results=[],
+                    actions=None, unmatched_reply="Unmatched", now=now)
+                self.assertNotIn("pending_retry", session)
+
     def test_missing_scope_never_stores_retry(self):
         session, reply, _ = self.update(scope=None)
         self.assertTrue(reply["continue_conversation"])

@@ -3,6 +3,8 @@ import re
 from execution_results import Outcome, parse_outcome
 from action_evidence_buffer import evidence_lighting_reason
 from lighting_action_evidence import LightingActionReason
+from context_numeric_validation import finite_number
+from retry_phrase_validation import valid_retry_phrase
 
 SUCCESS_OUTCOMES = frozenset({
     Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED,
@@ -30,6 +32,7 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
     needs_retry = reply["reply"] == unmatched_reply
     reply["continue_conversation"] = needs_retry
     reply["follow_up_timeout"] = 10 if needs_retry else 0
-    if needs_retry and scope is not None:
+    if (needs_retry and scope is not None and valid_retry_phrase(message)
+            and finite_number(now)):
         session["pending_retry"] = {"text": message, "scope": scope, "at": now}
     return decision_outcome in SUCCESS_OUTCOMES or outcome is None and not needs_retry
