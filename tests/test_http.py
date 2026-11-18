@@ -92,7 +92,7 @@ class APITests(TestCase):
         directory = Path(self.enterContext(TemporaryDirectory()))
         self.enterContext(patch.object(server.history, "DATABASE", directory / "history.sqlite3"))
         self.enterContext(patch.object(server.music, "SPOTIFY_SETTINGS", directory / "spotify-settings.json"))
-        self.enterContext(patch.object(server, "SESSIONS", server.OrderedDict()))
+        self.enterContext(patch.object(server, "SESSION_STORE", server.session_store.SessionStore()))
         self.enterContext(patch.object(server, "read_guest_mode", return_value="off"))
         self.enterContext(patch.object(server, "read_visitors_present", return_value=False))
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": "test", "DECLAN_ALLOW_UNCONFIGURED_MA": "1"}))
@@ -582,7 +582,7 @@ class APITests(TestCase):
             self.assertEqual(self.ask("What about Saturday?", session, path="/api/assist", device="other")["outcome"],
                              "unresolved")
             session = self.ask("What's the weather in Oxford tomorrow?", path="/api/assist")["session_id"]
-            server.SESSIONS[session]["at"] = monotonic() - server.IDLE_SECONDS - 1
+            server.SESSION_STORE.sessions[session]["at"] = monotonic() - server.IDLE_SECONDS - 1
             self.assertEqual(self.ask("What about Saturday?", session, path="/api/assist")["outcome"], "unresolved")
 
     def test_device_and_timer_route(self):
