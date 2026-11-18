@@ -48,6 +48,25 @@ class ExplicitSTTMetadataBoundaryTests(unittest.TestCase):
             "capture": {"peak": 0.75},
         })
 
+    def test_plain_text_has_no_speaker_or_capture_payload(self):
+        metadata = MODULE.metadata_from_transcript("hello")
+        self.assertEqual(
+            MODULE.speaker_payload_from_metadata(metadata, speaker_present=False), {},
+        )
+
+    def test_legacy_speaker_attribute_is_snapshotted(self):
+        class LegacyTranscript(str):
+            jarvis_speaker = ("legacy-id", "speaker", 0.7)
+            capture_level = {"peak": 0.4}
+
+        transcript = LegacyTranscript("hello")
+        metadata = MODULE.metadata_from_transcript(transcript)
+        self.assertEqual(MODULE.speaker_payload_from_metadata(metadata, speaker_present=True), {
+            "speaker": {"interaction_id": "legacy-id", "name": "speaker",
+                        "confidence": 0.7},
+            "capture": {"peak": 0.4},
+        })
+
     def test_missing_capture_is_preserved(self):
         transcript = MODULE.transcript_for_ha(
             "hello", MODULE.SpeakerMetadata(None, None),
