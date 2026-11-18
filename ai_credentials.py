@@ -13,6 +13,12 @@ def configured():
 
 
 def get_key():
+    """Read credentials consistently with in-process replacements."""
+    with DEFAULT_SENSITIVE_WRITE_STATE.ai_credentials:
+        return _read_key()
+
+
+def _read_key():
     if PATH.is_symlink():
         raise ValueError("Unsafe OpenAI credential path")
     if PATH.is_file():
