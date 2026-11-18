@@ -1,13 +1,10 @@
 """Bounded, redacted Declan application log feed for the native HA Settings panel."""
-from collections import deque
 from datetime import datetime, timezone
 import logging
 import re
-from threading import RLock
+from log_feed_state import LogFeedState
 
-_LOCK = RLock()
-_ENTRIES: deque = deque(maxlen=500)
-_HANDLER = None
+STATE = LogFeedState()
 _SENSITIVE = re.compile(
     r"(?i)(bearer\s+)[a-z0-9._~+/-]+|"
     r"((?:client_secret|api_key|access_token|refresh_token|password|authorization)"
@@ -36,17 +33,13 @@ class _Capture(logging.Handler):
             "level": record.levelname,
             "source": record.name[:80],
             "message": message,
+            "levelno": record.levelno,
         }
-        with _LOCK:
-            _ENTRIES.append(item)
+        STATE.append(item)
 
 
 def install():
-    global _HANDLER
-    with _LOCK:
-        if _HANDLER is None:
-            _HANDLER = _Capture()
-            logging.getLogger().addHandler(_HANDLER)
+    STATE.install(logging.getLogger(), _Capture)
 
 
 def recent(level="ALL", limit=200):
@@ -55,7 +48,4 @@ def recent(level="ALL", limit=200):
     if type(limit) is not int or not 1 <= limit <= 200:
         raise ValueError("Invalid log limit")
     threshold = {"ALL": 0, "INFO": 20, "WARNING": 30, "ERROR": 40}[level]
-    with _LOCK:
-        items = [item.copy() for item in reversed(_ENTRIES)
-                 if logging._nameToLevel.get(item["level"], 0) >= threshold]
-    return items[:limit]
+    return STATE.snapshot(threshold=threshold, limit=limit)
