@@ -40,9 +40,15 @@ class ChatRecallMemory:
                 or not isinstance(previous.get("last"), str)):
             self.entries.pop(session_id, None)
             return None
+        last = safe_chat_text(previous["last"])
+        if last is None:
+            # A legacy or corrupted entry must not become a repeatable secret.
+            self.entries.pop(session_id, None)
+            return None
+        name = safe_chat_text(previous.get("name"))
         self.entries.move_to_end(session_id)
-        return {"name": safe_chat_text(previous.get("name")),
-                "last": safe_chat_text(previous["last"]),
+        return {"name": name[:40] if name is not None else None,
+                "last": last,
                 "recent_messages": [safe for item in previous["recent_messages"]
                                     if (safe := safe_chat_text(item)) is not None][-MAX_RECENT_MESSAGES:]}
 
@@ -50,11 +56,15 @@ class ChatRecallMemory:
         if not isinstance(session_id, str) or not session_id:
             return
         self.prune(now)
+        if not isinstance(state, dict):
+            return
         name = state.get("name")
         # Names are spoken back on request; apply the same privacy boundary.
         name = safe_chat_text(name)
         name = name[:40] if name is not None else None
         messages = state.get("recent_messages", [])
+        if not isinstance(messages, (list, tuple)):
+            messages = []
         messages = [text for item in messages
                     if (text := safe_chat_text(item)) is not None][-MAX_RECENT_MESSAGES:]
         last = safe_chat_text(state.get("last"))
