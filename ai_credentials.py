@@ -3,10 +3,9 @@ import os
 import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from threading import Lock
+from sensitive_write_state import DEFAULT_SENSITIVE_WRITE_STATE
 
 PATH = Path(__file__).resolve().parent / ".data" / "openai-api-key"
-LOCK = Lock()
 
 
 def configured():
@@ -30,7 +29,7 @@ def get_key():
 def replace_key(value):
     if not isinstance(value, str) or not re.fullmatch(r"sk-[A-Za-z0-9_-]{16,256}", value):
         raise ValueError("Invalid OpenAI API key")
-    with LOCK:
+    with DEFAULT_SENSITIVE_WRITE_STATE.ai_credentials:
         PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         with NamedTemporaryFile(mode="w", encoding="utf-8", dir=PATH.parent, delete=False) as handle:
             temporary = Path(handle.name)
