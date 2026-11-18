@@ -53,6 +53,25 @@ class ChatRecallTests(unittest.TestCase):
             self.assertNotIn(f"bad-{n}", self.sessions)
             self.assertNotIn(f"bad-{n}", self.recall.entries)
 
+    def test_unsafe_legacy_recall_last_is_discarded(self):
+        self.recall.entries["legacy"] = {"at": self.clock[0],
+            "last": "my password is synthetic-test-value",
+            "name": "Alex", "recent_messages": ("hello",)}
+        self.assertIsNone(self.recall.restore("legacy", self.clock[0]))
+        self.assertNotIn("legacy", self.recall.entries)
+
+    def test_recalled_legacy_name_is_sanitised_and_bounded(self):
+        self.recall.entries["legacy"] = {"at": self.clock[0],
+            "last": "hello", "name": "Z" * 100,
+            "recent_messages": ("hello", "my password is synthetic-test-value")}
+        restored = self.recall.restore("legacy", self.clock[0])
+        self.assertEqual(restored["name"], "Z" * 40)
+        self.assertEqual(restored["recent_messages"], ["hello"])
+
+    def test_malformed_history_does_not_break_remember(self):
+        self.recall.remember("sid", {"last": "hello", "recent_messages": None}, self.clock[0])
+        self.assertEqual(self.recall.restore("sid", self.clock[0])["recent_messages"], [])
+
     def test_malformed_recall_entry_is_rejected_without_crash(self):
         self.recall.entries["broken"] = {"at": self.clock[0], "last": "hello"}
         self.assertIsNone(self.recall.restore("broken", self.clock[0]))
