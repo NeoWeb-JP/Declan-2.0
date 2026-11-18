@@ -160,7 +160,7 @@ def manage(body):
             if not any(row['id'] == speaker_id for row in speakers()):
                 raise ValueError('Refresh and choose an existing speaker.')
             path = '/api/v1/speakers/' + speaker_id
-            result = request('DELETE', path) if operation == 'delete_speaker' else request('POST', path + '/clear-clips')
+            request('DELETE', path) if operation == 'delete_speaker' else request('POST', path + '/clear-clips')
         else:
             interaction_id = identifier(body.get('interaction_id'))
             name = body.get('assigned_to')
@@ -188,7 +188,7 @@ def manage(body):
                 expected = body['expected_resolution_id']
                 if expected is not None:
                     identifier(expected)
-                result = request('POST', path + '/correct', {'assigned_to': name, 'expected_resolution_id': expected})
+                request('POST', path + '/correct', {'assigned_to': name, 'expected_resolution_id': expected})
             else:
                 # Serialise Declan's writes and reject already resolved entries. The upstream
                 # resolve API has no atomic stale-write token for edits from other clients.
@@ -197,5 +197,7 @@ def manage(body):
                     raise PipelineError('This recording is no longer pending. Refresh the list.', 409)
                 if action == 'confirm' and pending.get('matched_speaker') != name:
                     raise PipelineError('The suggested speaker changed. Refresh before confirming.', 409)
-                result = request('POST', path + '/resolve', {'action': action, 'assigned_to': name})
-        return {'saved': True, 'result': result}
+                request('POST', path + '/resolve', {'action': action, 'assigned_to': name})
+        # Never relay upstream write-response data to the HA UI: it may include
+        # audio URLs, speaker embeddings, tokens or other unexpected fields.
+        return {'saved': True}
