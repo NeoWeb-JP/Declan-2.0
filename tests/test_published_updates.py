@@ -171,7 +171,7 @@ class PublishedReleaseTests(TestCase):
                     return 'a'*40 if args[-1] == 'refs/tags/0.10.0' else 'b'*40
                 return ''
             with patch.object(updates, 'APP', app), patch.object(updates, 'layout', return_value=root), patch.object(
-                    updates, 'RESTART', restart), patch.object(updates, 'available_releases', return_value={'0.10.0': selection}), patch.object(
+                    updates.RUNTIME, "restart", restart), patch.object(updates, 'available_releases', return_value={'0.10.0': selection}), patch.object(
                     updates, 'run', side_effect=command) as run:
                 updates.install(root, '0.10.0', selection)
                 self.assertEqual(updates.RUNTIME.job['state'], 'restarting')
