@@ -89,6 +89,7 @@ import operational_post_routes
 import media_settings_routes
 import speech_http_routes
 import assist_capture_http
+import assist_auth_http
 import web_stt
 import openai_planner
 import ai_settings
@@ -2160,21 +2161,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_post(self):
         if self.path in {"/api/assist", "/api/assist/history"}:
-            token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
-            supplied = self.headers.get("Authorization", "")
-            valid = bool(token) and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
-            retry = self.server.bad_tokens.check(self.client_address[0], valid)
-            if retry:
-                self.close_connection = True
-                self.send_response(429)
-                self.send_header('Retry-After', str(retry))
-                self.send_header('Content-Length', '0')
-                self.send_header('Cache-Control', 'no-store')
-                self.end_headers()
-                return
-            if not valid:
-                self.close_connection = True
-                self.send_json(401, {"error": "Invalid bridge credentials."})
+            if assist_auth_http.authenticate_assist(
+                self, token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+            ):
                 return
         elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines", "/api/native/routine-responses"}:
             self.send_json(404, {"error": "Not found."})
