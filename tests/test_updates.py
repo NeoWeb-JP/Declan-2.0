@@ -66,6 +66,17 @@ class UpdateTests(TestCase):
                 self.assertFalse(restart.is_set())
                 self.assertEqual(list((root / 'releases').iterdir()), [])
 
+    def test_failed_staging_logs_only_error_type_not_secret_exception(self):
+        secret = "private-token-and-release-path"
+        with patch.object(updates, "trusted_releases", side_effect=ValueError(secret)), \
+             patch.object(updates, "_LOGGER") as logger, \
+             patch.object(updates.RUNTIME, "job", {"state": "installing"}):
+            updates.install(Path("/unused"), "0.2.0", "a" * 40)
+            self.assertEqual(updates.status()["state"], "failed")
+        logger.error.assert_called_once_with(
+            "Release staging failed (reason=%s)", "ValueError")
+        self.assertNotIn(secret, repr(logger.error.call_args))
+
     def test_unapproved_release_never_clones_or_executes_code(self):
         with patch.object(updates, 'run') as run, patch.object(updates.RUNTIME, "job", {}):
             updates.install(Path('/unused'), '9.9.9', 'a' * 40)

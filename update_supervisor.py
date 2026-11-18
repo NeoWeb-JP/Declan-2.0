@@ -1,12 +1,16 @@
 """Stable systemd launcher. Install outside releases so broken updates can roll back."""
 import argparse
 import json
+import logging
 import os
 from pathlib import Path
 import signal
 import subprocess  # nosec B404 - required to supervise the installed server process
 from time import monotonic, sleep
 from urllib.request import ProxyHandler, build_opener
+
+
+_LOGGER = logging.getLogger("declan.updater.supervisor")
 
 
 def healthy(opener, port, process, timeout=30):
@@ -73,7 +77,7 @@ def supervise(root, port=52737, *, launch=subprocess.Popen):
                 previous = (root / "previous").resolve(strict=True)
                 if previous == selected or not (previous / "server.py").is_file():
                     return 1
-                print("Selected release failed its startup health check; restoring previous release.", flush=True)
+                _LOGGER.warning("Selected release failed startup health check; rolling back")
                 select(root, previous)
                 # If rollback fails too, exit for systemd instead of alternating builds.
                 (root / "previous").unlink()
@@ -84,7 +88,8 @@ def supervise(root, port=52737, *, launch=subprocess.Popen):
             try:
                 prune_old(root, selected / ".data")
             except Exception as error:
-                print(f"Release cleanup failed: {type(error).__name__}", flush=True)
+                # Never log exception text: paths may identify private data.
+                _LOGGER.warning("Release cleanup failed (reason=%s)", type(error).__name__)
             result = child.wait()
             child = None
             if stopping or result != 75:
