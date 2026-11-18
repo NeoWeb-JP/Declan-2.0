@@ -47,8 +47,6 @@ import sensitive_confirmation_decision
 import sensitive_confirmation_turn
 import routine_preview_detection
 import routine_preview_dispatch
-import stop_result_response
-import roast_guest_dispatch
 import routine_registry_dispatch
 import routine_follow_on_dispatch
 import information_result_response
@@ -58,7 +56,6 @@ import fallback_orchestration
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
-import stop_command_dispatch
 import information_command_dispatch
 import device_command_dispatch
 import lighting_command_dispatch
@@ -70,6 +67,7 @@ import turn_context_preparation
 import turn_initialization
 import turn_preflight
 import turn_preview_stage
+import turn_direct_dispatch
 import turn_response_composition
 import history
 import training_history_post
@@ -2124,29 +2122,25 @@ class Handler(BaseHTTPRequestHandler):
         routine_voice_result = None
         if early_result is not None:
             routine_reply, outcome = early_result.reply, early_result.outcome
-        elif stop_dispatch := stop_command_dispatch.dispatch_stop(
-            phrase, source=source, origin_device=origin_device, satellite=satellite,
-            registry_factory=command_registry.stop_registry,
+        elif direct_result := turn_direct_dispatch.dispatch(
+            phrase, source=source, origin_device=origin_device,
+            satellite=satellite,
+            stop_registry=command_registry.stop_registry,
             context_factory=command_registry.RequestContext,
             stop_routines=stop_pending_routines_result,
             stop_everywhere=stop_everywhere_result,
             connection=ha_device_connection,
-        ):
-            stop_response = stop_result_response.stop_response(stop_dispatch)
-            routine_reply, outcome = stop_response.result.reply, stop_response.result.outcome
-            routine_status = stop_response.routine_status
-        elif (roast_guest_result := roast_guest_dispatch.dispatch_roast_or_guest_result(
-            phrase,
             roast_target=roast.target,
             respond_to_roast=roast_command_dispatch.respond_to_roast_result,
             guest_mode=read_guest_mode, visitors_present=read_visitors_present,
             response_guest_mode=personality_policy.response_guest_mode,
             roast_respond=roast.respond,
             assignment_action=guest_assignment_command.assignment_action,
-            guest_commands=GUEST_COMMANDS, guest_assignment=guest_assignment_result,
-            connection=ha_device_connection,
-        )) is not None:
-            routine_reply, outcome = roast_guest_result.reply, roast_guest_result.outcome
+            guest_commands=GUEST_COMMANDS,
+            guest_assignment=guest_assignment_result,
+        ):
+            routine_reply, outcome = direct_result.reply, direct_result.outcome
+            routine_status = direct_result.routine_status
         elif routine_dispatch := routine_registry_dispatch.dispatch_routine(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
