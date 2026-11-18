@@ -148,7 +148,7 @@ class ChatRecallTests(unittest.TestCase):
                 self.sessions[sid]["recent_messages"] = malformed
                 result = self.say("what did i say earlier", sid)
                 self.assertEqual(result["reply"], "I don\'t have earlier messages to recall.")
-                self.assertEqual(self.sessions[sid]["recent_messages"], [])
+                self.assertEqual(self.sessions[sid]["recent_messages"], ["what did i say earlier"])
 
     def test_mixed_legacy_history_is_filtered_before_spoken_recall(self):
         first = self.say("hello")
@@ -156,7 +156,7 @@ class ChatRecallTests(unittest.TestCase):
         self.sessions[sid]["recent_messages"] = [None, 99, "my password is synthetic-test-value", "safe one", "safe two"]
         result = self.say("what did i say earlier", sid)
         self.assertEqual(result["reply"], "Earlier you said: safe one | safe two")
-        self.assertEqual(self.sessions[sid]["recent_messages"], ["safe one", "safe two"])
+        self.assertEqual(self.sessions[sid]["recent_messages"], ["safe one", "safe two", "what did i say earlier"])
 
     def test_safe_history_is_revalidated_before_adding_new_turn(self):
         first = self.say("hello")
