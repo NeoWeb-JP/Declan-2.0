@@ -79,6 +79,41 @@ class ChatRecallTests(unittest.TestCase):
         }
         self.assertIsNone(self.recall.restore("sid", 1000))
 
+    def test_failed_forget_does_not_clear_active_session(self):
+        from unittest.mock import Mock
+        first = self.say("my name is Alex")
+        sid = first["session_id"]
+        old = self.sessions[sid]
+        failing_recall = Mock()
+        failing_recall.forget.side_effect = RuntimeError("recall unavailable")
+        kwargs = {**self.kwargs, "recall": failing_recall}
+        with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
+            with self.assertRaisesRegex(RuntimeError, "recall unavailable"):
+                session_orchestration.converse(
+                    "forget this conversation", sid, **kwargs)
+        self.assertIs(self.sessions[sid], old)
+        self.assertEqual(self.sessions[sid]["name"], "Alex")
+        self.assertEqual(self.say("what's my name", sid)["reply"], "Your name is Alex.")
+
+    def test_forget_callback_observes_uncommitted_original_session(self):
+        from unittest.mock import Mock
+        first = self.say("my name is Alex")
+        sid = first["session_id"]
+        original = self.sessions[sid]
+        recall = Mock()
+        def observe_forget(key):
+            self.assertEqual(key, sid)
+            self.assertIs(self.sessions[sid], original)
+            self.assertEqual(self.sessions[sid]["name"], "Alex")
+        recall.forget.side_effect = observe_forget
+        kwargs = {**self.kwargs, "recall": recall}
+        with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
+            result = session_orchestration.converse(
+                "forget this conversation", sid, **kwargs)
+        self.assertIn("cleared", result["reply"])
+        self.assertIsNone(self.sessions[sid]["name"])
+        recall.forget.assert_called_once_with(sid)
+
     def test_non_string_messages_fail_before_mutating_sessions(self):
         self.say("hello")
         before = list(self.sessions.items())
