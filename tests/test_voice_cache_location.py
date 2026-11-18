@@ -9,6 +9,8 @@ import unittest
 PATH = (Path(__file__).resolve().parents[1] /
         "custom_components/declan_two/voice_cache_location.py")
 SPEC = importlib.util.spec_from_file_location("voice_cache_location_test", PATH)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("Unable to load Declan voice cache location module")
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
