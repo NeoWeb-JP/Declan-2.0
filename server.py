@@ -86,6 +86,7 @@ import updates
 import operational_post_routes
 import media_settings_routes
 import native_read_routes
+import operational_read_routes
 import media_settings_post
 import speech_http_routes
 import assist_capture_http
@@ -2031,22 +2032,12 @@ class Handler(BaseHTTPRequestHandler):
                 command_responses=command_responses, history=history,
                 logs=declan_logs, diagnostics=diagnostics,
             )
-        elif self.path == "/api/ha-status":
-            self.send_json(200, {"status": home_assistant_status_result().status.value, "release_version": RELEASE_VERSION})
-        elif self.path == "/api/updates/status":
-            self.send_json(200, {**updates.status_result().to_wire(), "current": RELEASE_VERSION})
-        elif self.path == "/api/updates":
-            try:
-                self.send_json(200, {**updates.status_result().to_wire(), "current": RELEASE_VERSION, "versions": updates.check()})
-            except (OSError, ValueError, subprocess.SubprocessError):
-                self.send_json(503, {"error": "Couldn't check GitHub for releases."})
-        elif self.path in {"/api/settings/export", "/api/settings/export-learning", "/api/settings/recovery", "/api/settings/recovery-learning"}:
-            try:
-                document = (configuration.recovery(self.path.endswith("recovery-learning")) if "/recovery" in self.path else
-                            configuration.export(self.path.endswith('export-learning')))
-                self.send_body(200, json.dumps(document).encode(), 'application/json', 'declan-settings.json')
-            except (ValueError, OSError, sqlite3.Error):
-                self.send_json(503, {"error": "Settings export is unavailable."})
+        elif operational_read_routes.handles(self.path):
+            operational_read_routes.dispatch(
+                self, ha_status=home_assistant_status_result,
+                release_version=RELEASE_VERSION, updates=updates,
+                configuration=configuration,
+            )
         elif self.path == "/api/voicepipeline":
             try:
                 self.send_json(200, voicepipeline.listing())
