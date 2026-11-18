@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock
 
-from ingress_turn_orchestration import (
+from sensitive_confirmation_resolution import (
     resolve_confirmation,
 )
 
