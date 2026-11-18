@@ -5,6 +5,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 SERVER=(ROOT/"server.py").read_text()
 TRAINING=(ROOT/"native_training_post.py").read_text()
+ROUTES=(ROOT/"training_history_post.py").read_text()
 VIEW=(ROOT/"custom_components/declan_two/management_view.py").read_text()
 HISTORY=(ROOT/"custom_components/declan_two/history_view.py").read_text()
 JS=(ROOT/"custom_components/declan_two/frontend/panel.js").read_text()
@@ -12,10 +13,12 @@ class NativeIntentsTests(unittest.TestCase):
     def test_proxy_and_backend_parse(self):
         ast.parse(SERVER)
         ast.parse(TRAINING)
+        ast.parse(ROUTES)
         ast.parse(VIEW)
         ast.parse(HISTORY)
-        self.assertIn('"/api/native/intents"', SERVER)
-        self.assertIn("native_training_post.handle_native_intents(", SERVER)
+        self.assertIn('"/api/native/intents"', ROUTES)
+        self.assertIn("training_history_post.handles(self.path)", SERVER)
+        self.assertIn("native_training_post.handle_native_intents(", ROUTES)
         self.assertIn('history.edit_intent(body["phrase"], body["target"], body["previous"])', TRAINING)
         self.assertIn('history.forget_intent(phrase)', TRAINING)
         self.assertIn('history.teach_intent(body["turn_id"], body["target"], unmatched_reply)', TRAINING)
