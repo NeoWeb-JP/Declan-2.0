@@ -81,6 +81,19 @@ def speaker(name, identity="id-1"):
 
 
 class WyomingOrderingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_new_declan_speaker_events_and_legacy_alias_both_work(self):
+        for event_name in ("declan-speaker", "jarvis-speaker"):
+            with self.subTest(event=event_name):
+                result = await receive(Client([
+                    Event(event_name, {"speaker": "Test Speaker",
+                                       "interaction_id": "sample-1",
+                                       "confidence": 0.9}),
+                    Event("transcript", {"text": "turn on study lights"}),
+                ]))
+                self.assertEqual(result.result, State.SUCCESS)
+                self.assertEqual(result.text.speaker,
+                                 ("sample-1", "Test Speaker", 0.9))
+
     async def test_unknown_before_transcript_then_valid_identity(self):
         result = await receive(Client([
             speaker("unknown"), Event("transcript", {"text": "lights on"}),

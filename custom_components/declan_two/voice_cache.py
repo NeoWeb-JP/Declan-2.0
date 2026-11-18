@@ -45,7 +45,7 @@ class VoiceCache:
                     return False
                 path.parent.mkdir(parents=True, exist_ok=True)
                 for target, content in [(path, audio), (sidecar, encoded)]:
-                    fd, tmp = tempfile.mkstemp(prefix='.jarvis-', dir=path.parent)
+                    fd, tmp = tempfile.mkstemp(prefix='.declan-', dir=path.parent)
                     try:
                         with os.fdopen(fd, 'wb') as stream:
                             stream.write(content)
