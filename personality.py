@@ -1,7 +1,6 @@
 """Short, outcome-specific replies for Declan's built-in commands."""
 
-from random import SystemRandom
-from threading import Lock
+from response_rotation_state import ResponseRotationState
 
 
 LINES = {
@@ -322,9 +321,7 @@ LINES = {
     ),
 }
 
-_random = SystemRandom()
-_lock = Lock()
-_recent: dict = {}
+ROTATION = ResponseRotationState(window=2)
 
 
 def choose_line(category, guest_mode):
@@ -336,11 +333,7 @@ def choose_line(category, guest_mode):
         return custom
     key = category, guest
     lines = LINES[category][guest]
-    with _lock:
-        recent = _recent.setdefault(key, [])
-        line = _random.choice([line for line in lines if line not in recent])
-        recent[:] = (recent + [line])[-2:]
-    return line
+    return ROTATION.choose(key, lines)
 
 
 def add_sass(reply, category, guest_mode):
