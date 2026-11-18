@@ -75,6 +75,7 @@ import turn_context_preparation
 import turn_response_composition
 import turn_persistence_dispatch
 import history
+import history_post_routes
 import music
 import approved_media_players
 import spotify_playlists
@@ -2500,15 +2501,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {"saved": True})
                 return
             if self.path == "/api/history/clear":
-                if not isinstance(body, dict) or body.get("confirm") is not True:
-                    self.send_json(400, {"error": "Confirm before clearing conversation history."})
-                    return
-                try:
-                    deleted = history.clear()
-                except (OSError, sqlite3.Error):
-                    self.send_json(503, {"error": "Conversation history could not be cleared."})
-                    return
-                self.send_json(200, {"deleted": deleted})
+                history_post_routes.handle_history_clear(
+                    self, body, clear=history.clear,
+                    storage_errors=(OSError, sqlite3.Error),
+                )
                 return
             if self.path == "/api/updates":
                 try:
