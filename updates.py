@@ -2,6 +2,7 @@
 
 import os
 import json
+import logging
 import stat
 import state_backup
 import sqlite3
@@ -17,6 +18,9 @@ from updater_runtime_state import UpdaterRuntimeState
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 from update_results import UpdateJobState, UpdateStatusResult
+
+
+_LOGGER = logging.getLogger("declan.updater.install")
 
 
 REPOSITORY = "https://github.com/NeoWeb-JP/Declan-2.0.git"
@@ -275,7 +279,8 @@ def install(root, version, expected_ref):
         activated = True
         RUNTIME.request_restart()
     except (OSError, ValueError, sqlite3.Error, subprocess.SubprocessError) as error:
-        print(f"Declan update {version} failed: {type(error).__name__}", flush=True)
+        # Never log exception text: subprocess commands may contain secrets.
+        _LOGGER.error("Release staging failed (reason=%s)", type(error).__name__)
         RUNTIME.update_job(state=UpdateJobState.FAILED.value)
     finally:
         if staged is not None and not activated:
