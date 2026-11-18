@@ -139,6 +139,25 @@ class SpeakerTranscriptTests(unittest.TestCase):
                         "name": "Edd", "confidence": 0.91},
         })
 
+    def test_assist_payload_rejects_non_finite_confidence(self):
+        for confidence in (float("nan"), float("inf"), -float("inf")):
+            with self.subTest(confidence=confidence):
+                transcript = SpeakerTranscript(
+                    "hello", ("id", "Jaco", confidence), {"rms": 0.2}
+                )
+                self.assertEqual(MODULE.speaker_request_payload(transcript), {
+                    "capture": {"rms": 0.2},
+                })
+
+    def test_assist_payload_accepts_confidence_boundaries(self):
+        for confidence in (0, 0.0, 1, 1.0):
+            with self.subTest(confidence=confidence):
+                transcript = SpeakerTranscript("hello", ("id", "Jaco", confidence))
+                self.assertEqual(
+                    MODULE.speaker_request_payload(transcript)["speaker"]["confidence"],
+                    confidence,
+                )
+
     def test_assist_payload_rejects_boolean_confidence(self):
         self.assertEqual(MODULE.speaker_request_payload(
             SpeakerTranscript("hello", ("id", "Jaco", True))), {})
