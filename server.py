@@ -69,6 +69,7 @@ import fallback_entity_authorization
 import guarded_fallback_dispatch
 import response_persona_context
 import turn_context_preparation
+import turn_initialization
 import turn_response_composition
 import history
 import training_history_post
@@ -2071,26 +2072,20 @@ class Handler(BaseHTTPRequestHandler):
                 action_results=routine_action_results_typed,
             )
             return
-        source, scope, origin_device, satellite = request_origin.request_context(
-            self.path, body,
+        turn = turn_initialization.prepare(
+            self, body, message=message, session_id=session_id,
+            arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
+            new_session_id=secrets.token_urlsafe, sessions=SESSIONS,
+            lock=SESSION_LOCK, now=monotonic(), idle_seconds=IDLE_SECONDS,
+            retrieve=session_context_retrieval.recent_context,
         )
+        if turn is None:
+            return
+        source, scope, origin_device, satellite = turn.source, turn.scope, turn.origin_device, turn.satellite
+        last_lights, last_device, last_information = turn.recent_context
         routine_reply = outcome = routine_status = None
         action_results = ActionEvidenceBuffer()
         light_result = None
-        if assist_capture_http.suppress_duplicate(
-            self, source=source, body=body, message=message,
-            session_id=session_id, satellite=satellite, origin_device=origin_device,
-            arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
-            new_session_id=secrets.token_urlsafe,
-        ):
-            return
-        last_lights, last_device, last_information = (
-            session_context_access.load_recent_context(
-                session_id=session_id, scope=scope, sessions=SESSIONS,
-                lock=SESSION_LOCK, now=monotonic(), idle_seconds=IDLE_SECONDS,
-                retrieve=session_context_retrieval.recent_context,
-            )
-        )
         lighting_context = None
         status_target = None
         information_context = None
