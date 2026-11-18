@@ -2487,7 +2487,7 @@ class Handler(BaseHTTPRequestHandler):
                         handle_light_request=handle_light_request_result,
                         action_results=action_results, last_lights=last_lights,
                         scope=scope,
-                        dispatch_lighting_command=lighting_command_dispatch.dispatch_lighting,
+                        dispatch_lighting=lighting_command_dispatch.dispatch_lighting,
                         confirmed_lighting_context=(
                             lighting_context_finalization.confirmed_lighting_context
                         ),
