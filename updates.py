@@ -12,7 +12,8 @@ import sys
 from http.client import HTTPException
 from pathlib import Path
 from tempfile import mkdtemp
-from threading import Event, Lock, Thread
+from threading import Thread
+from updater_runtime_state import UpdaterRuntimeState
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 from update_results import UpdateJobState, UpdateStatusResult
@@ -23,10 +24,7 @@ RELEASES_API = "https://api.github.com/repos/NeoWeb-JP/Declan-2.0/releases?per_p
 MAX_RELEASE_BYTES = 2 * 1024 * 1024
 VERSION = re.compile(r"v?(\d{1,8})\.(\d{1,8})\.(\d{1,8})(?:-[0-9A-Za-z.-]{1,20})?")
 APP = Path(__file__).resolve().parent
-RESTART = Event()
-_lock = Lock()
-_tags: dict = {}
-_job = {"state": UpdateJobState.IDLE.value}
+RUNTIME = UpdaterRuntimeState()
 
 
 def trusted_releases():
@@ -157,8 +155,7 @@ def installed_version(fallback):
 
 
 def status_result() -> UpdateStatusResult:
-    with _lock:
-        return UpdateStatusResult({"enabled": layout() is not None, **_job})
+    return RUNTIME.status(layout() is not None)
 
 
 def status():
@@ -177,20 +174,17 @@ def check(include_prereleases=False):
     if type(include_prereleases) is not bool:
         raise ValueError('Choose whether to include prereleases.')
     # A failed check must not leave previously offered selections installable.
-    with _lock:
-        _tags.clear()
+    generation = RUNTIME.begin_check()
     if layout() is None:
         return []
     tags = available_releases(True) if include_prereleases else available_releases()
-    with _lock:
-        _tags.clear()
-        _tags.update(tags)
+    if not RUNTIME.finish_check(generation, tags):
+        return []
     return sorted(tags, key=version_order, reverse=True)
 
 
 def prerelease_versions():
-    with _lock:
-        return [tag for tag, selection in _tags.items() if selection.get('prerelease')]
+    return RUNTIME.prerelease_versions()
 
 
 def queue(version, current, include_prereleases=False):
@@ -199,16 +193,8 @@ def queue(version, current, include_prereleases=False):
     root = layout()
     if root is None:
         raise ValueError("Updates are not enabled on this installation.")
-    with _lock:
-        if UpdateStatusResult({"state": _job["state"]}).active:
-            raise ValueError("An update is already in progress.")
-        if not isinstance(version, str) or version not in _tags or version == current:
-            raise ValueError("Check for updates and select a different release.")
-        if _tags[version].get('include_prereleases', False) != include_prereleases:
-            raise ValueError('The release channel changed. Check for updates again.')
-        _job.update(state=UpdateJobState.INSTALLING.value, version=version)
-        selection = dict(_tags[version])
-        Thread(target=install, args=(root, version, selection), daemon=True).start()
+    selection = RUNTIME.claim(version, current, include_prereleases)
+    Thread(target=install, args=(root, version, selection), daemon=True).start()
 
 
 def install(root, version, expected_ref):
@@ -278,8 +264,7 @@ def install(root, version, expected_ref):
         if layout() != root:
             raise ValueError("Active release changed during staging")
         backup = state_backup.snapshot(APP / ".data")
-        with _lock:
-            _job.update(backup=backup)
+        RUNTIME.update_job(backup=backup)
         for name, target in (("previous", APP), ("current", staged)):
             pending = root / f".{name}-{staged.name}"
             pending.symlink_to(target, target_is_directory=True)
@@ -288,13 +273,10 @@ def install(root, version, expected_ref):
             finally:
                 pending.unlink(missing_ok=True)
         activated = True
-        with _lock:
-            _job.update(state=UpdateJobState.RESTARTING.value)
-        RESTART.set()
+        RUNTIME.request_restart()
     except (OSError, ValueError, sqlite3.Error, subprocess.SubprocessError) as error:
         print(f"Declan update {version} failed: {type(error).__name__}", flush=True)
-        with _lock:
-            _job.update(state=UpdateJobState.FAILED.value)
+        RUNTIME.update_job(state=UpdateJobState.FAILED.value)
     finally:
         if staged is not None and not activated:
             shutil.rmtree(staged, ignore_errors=True)
