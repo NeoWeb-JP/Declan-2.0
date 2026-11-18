@@ -42,7 +42,6 @@ import request_validation
 import session_context_retrieval
 import retry_context
 import retry_cancellation
-import learned_intent_resolution
 import sensitive_confirmation_response
 import sensitive_confirmation_decision
 import sensitive_confirmation_turn
@@ -69,6 +68,7 @@ import guarded_fallback_dispatch
 import response_persona_context
 import turn_context_preparation
 import turn_initialization
+import turn_preflight
 import turn_response_composition
 import history
 import training_history_post
@@ -96,8 +96,6 @@ import post_route_gate_http
 import post_request_preflight
 import post_content_type_http
 import post_validation_errors_http
-import session_context_access
-import retry_cancellation_access
 import sensitive_confirmation_resolution
 import preview_timer_orchestration
 import web_stt
@@ -2087,50 +2085,29 @@ class Handler(BaseHTTPRequestHandler):
         lighting_context = None
         status_target = None
         information_context = None
-        # Resolve self-corrections and learned aliases before command side effects.
-        effective_message, phrase = learned_intent_resolution.resolve(
-            message, preprocess=preprocess_speech,
-            normalize=history.normalize_phrase,
-            learned_intent=history.learned_intent, log_error=self.log_error,
-        )
-        pending_retry = session_context_access.consume_retry_context(
-            session_id=session_id, scope=scope, sessions=SESSIONS,
+        preflight = turn_preflight.resolve(
+            self, body, message=message, session_id=session_id,
+            scope=scope, source=source, satellite=satellite,
+            origin_device=origin_device, sessions=SESSIONS,
             lock=SESSION_LOCK, now=monotonic(),
-            window_seconds=retry_learning.WINDOW_SECONDS,
-            consume=retry_context.consume_pending_retry,
+            preprocess=preprocess_speech, normalize=history.normalize_phrase,
+            learned_intent=history.learned_intent,
+            retry_window=retry_learning.WINDOW_SECONDS,
+            consume_retry=retry_context.consume_pending_retry,
+            cancel_phrases=retry_learning.CANCEL, converse=converse,
+            record=history.record, cancel_retry=retry_cancellation.cancel_retry_result,
+            confirm=sensitive_confirmation_turn.confirmation_turn_result,
+            evaluate=sensitive_confirmation_decision.evaluate_result,
+            confirmation_response=sensitive_confirmation_response.confirmation_response,
+            guest_commands=GUEST_COMMANDS, confirmations=SENSITIVE_CONFIRMATIONS,
+            diagnostic_id=diagnostics.current_id,
+            resolve_confirmation=sensitive_confirmation_resolution.resolved_confirmation,
         )
-        if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
-            cancellation = retry_cancellation_access.cancel_pending_retry(
-                message=message, session_id=session_id, scope=scope,
-                source=source, speaker=body.get("speaker"),
-                lock=SESSION_LOCK, converse=converse, record=history.record,
-                log_error=self.log_error,
-                cancel=retry_cancellation.cancel_retry_result,
-            )
-            self.send_json(200, cancellation.to_wire())
+        if preflight is None:
             return
+        session_id, phrase, effective_message = preflight.session_id, preflight.phrase, preflight.effective_message
+        pending_retry = preflight.pending_retry
         opener = build_opener(ProxyHandler({}), NoRedirect())
-        # HA owns script permissions. Guest assignment is a separate privileged
-        # action and retains its existing voice confirmation protection.
-        session_id, phrase, effective_message, confirmation_reply = (
-            sensitive_confirmation_resolution.resolve_confirmation(
-                message, phrase, session_id, source=source,
-                satellite=satellite, origin_device=origin_device,
-                speaker=body.get("speaker"),
-                confirm=sensitive_confirmation_turn.confirmation_turn_result,
-                evaluate=sensitive_confirmation_decision.evaluate_result,
-                confirmation_response=sensitive_confirmation_response.confirmation_response,
-                normalize=history.normalize_phrase, guest_commands=GUEST_COMMANDS,
-                confirmations=SENSITIVE_CONFIRMATIONS,
-                record=history.record, diagnostic_id=diagnostics.current_id,
-                log_error=self.log_error,
-                resolve=sensitive_confirmation_resolution.resolved_confirmation,
-                effective_message=effective_message,
-            )
-        )
-        if confirmation_reply is not None:
-            self.send_json(200, confirmation_reply)
-            return
         routine_preview, timer_result = preview_timer_orchestration.preview_and_timer(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, opener=opener,
