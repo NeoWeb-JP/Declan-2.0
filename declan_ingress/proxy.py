@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 GET_PATHS = {
     "/", "/logo.png", "/api/ha-status", "/api/history", "/api/history/export", "/api/voicepipeline",
-    "/api/settings/export", "/api/settings/export-learning", "/api/settings/recovery", "/api/settings/recovery-learning", "/api/voice-profiles", "/api/diagnostics", "/api/settings/spotify", "/api/settings/media-players", "/api/updates", "/api/updates/status",
+    "/api/settings/export", "/api/settings/export-learning", "/api/settings/recovery", "/api/settings/recovery-learning", "/api/voice-profiles", "/api/diagnostics", "/api/diagnostics/metrics", "/api/native/diagnostics/metrics", "/api/settings/spotify", "/api/settings/media-players", "/api/updates", "/api/updates/status",
 }
 POST_PATHS = {
     "/api/chat", "/api/tts", "/api/stt", "/api/history/clear", "/api/voicepipeline",
