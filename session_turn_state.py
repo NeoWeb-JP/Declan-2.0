@@ -32,6 +32,8 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
     needs_retry = reply["reply"] == unmatched_reply
     reply["continue_conversation"] = needs_retry
     reply["follow_up_timeout"] = 10 if needs_retry else 0
+    # A completed turn or an invalid follow-up must not retain an older retry.
+    session.pop("pending_retry", None)
     if (needs_retry and scope is not None and valid_retry_phrase(message)
             and finite_number(now)):
         session["pending_retry"] = {"text": message, "scope": scope, "at": now}

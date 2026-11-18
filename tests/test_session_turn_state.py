@@ -87,6 +87,35 @@ class SessionTurnStateTests(unittest.TestCase):
                     actions=None, unmatched_reply="Unmatched", now=now)
                 self.assertNotIn("pending_retry", session)
 
+    def test_completed_turn_clears_previous_pending_retry(self):
+        session = {"pending_retry": {"text": "old", "scope": "kitchen", "at": 100}}
+        reply = {"reply": "Done."}
+        update_turn(session, reply, message="turn off kitchen", phrase="turn off kitchen",
+            outcome="confirmed", scope="kitchen", status_target=None,
+            information_context=None, light_result=None, action_results=[],
+            actions=None, unmatched_reply="Unmatched", now=123)
+        self.assertNotIn("pending_retry", session)
+        self.assertFalse(reply["continue_conversation"])
+
+    def test_invalid_new_retry_clears_previous_pending_retry(self):
+        session = {"pending_retry": {"text": "old", "scope": "kitchen", "at": 100}}
+        reply = {"reply": "Unmatched"}
+        update_turn(session, reply, message=" ", phrase="unknown",
+            outcome="unresolved", scope="kitchen", status_target=None,
+            information_context=None, light_result=None, action_results=[],
+            actions=None, unmatched_reply="Unmatched", now=123)
+        self.assertNotIn("pending_retry", session)
+
+    def test_new_unmatched_replaces_previous_pending_retry(self):
+        session = {"pending_retry": {"text": "old", "scope": "kitchen", "at": 100}}
+        reply = {"reply": "Unmatched"}
+        update_turn(session, reply, message="new command", phrase="new command",
+            outcome="unresolved", scope="kitchen", status_target=None,
+            information_context=None, light_result=None, action_results=[],
+            actions=None, unmatched_reply="Unmatched", now=123)
+        self.assertEqual(session["pending_retry"],
+                         {"text": "new command", "scope": "kitchen", "at": 123})
+
     def test_missing_scope_never_stores_retry(self):
         session, reply, _ = self.update(scope=None)
         self.assertTrue(reply["continue_conversation"])
