@@ -104,10 +104,20 @@ def transcript_for_ha(text: str, metadata: SpeakerMetadata) -> SpeakerTranscript
     )
 
 
-def speaker_request_payload(transcript):
-    """Legacy transcript adapter for the explicit Assist metadata boundary."""
+def snapshot_speaker_payload(transcript):
+    """Capture the HA conversation boundary metadata before text is normalised.
+
+    Returns only JSON-compatible values; never stores request-specific state.
+    A plain string deliberately produces no identity or capture payload.
+    """
+    metadata = metadata_from_transcript(transcript)
     return speaker_payload_from_metadata(
-        metadata_from_transcript(transcript),
+        metadata,
         speaker_present=(hasattr(transcript, "speaker")
                          or hasattr(transcript, "jarvis_speaker")),
     )
+
+
+def speaker_request_payload(transcript):
+    """Legacy transcript adapter for the explicit Assist metadata boundary."""
+    return snapshot_speaker_payload(transcript)
