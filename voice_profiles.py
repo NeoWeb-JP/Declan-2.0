@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import io
+import logging
 import math
 from pathlib import Path
 import re
@@ -12,9 +13,11 @@ from time import time
 import wave
 
 from voice_audio_crypto import encrypt, decrypt
+from state_backup import sanitize_retained_voice_snapshots
 from contextlib import closing, contextmanager
 
 DATABASE = Path(__file__).resolve().parent / '.data' / 'voice-profiles.sqlite3'
+_LOGGER = logging.getLogger('declan.voice_profiles')
 
 
 @contextmanager
@@ -106,12 +109,14 @@ def manage(body):
         audio, duration = validate_audio(body.get('audio'))
     if not isinstance(body.get('profile'), str) or not re.fullmatch(r'[a-f0-9]{24}', body['profile']):
         raise ValueError('Choose an existing voice profile.')
+    erase_samples = False
     with database() as db:
         db.execute('BEGIN IMMEDIATE')
         profile = db.execute('SELECT id, name, consent_at FROM profiles WHERE id = ?', (body.get('profile'),)).fetchone()
         if not profile:
             raise ValueError('Refresh and choose an existing voice profile.')
         if operation == 'revoke_consent' and body.get('confirm') is True:
+            erase_samples = True
             # Revoke storage permission and erase all live local samples atomically.
             db.execute('DELETE FROM samples WHERE profile = ?', (profile[0],))
             db.execute('UPDATE profiles SET consent_at = NULL WHERE id = ?', (profile[0],))
@@ -123,6 +128,7 @@ def manage(body):
             db.execute('INSERT INTO consent_events(profile, action, recorded_at) VALUES (?, ?, ?)',
                        (profile[0], 'granted', granted_at))
         elif operation == 'delete_profile' and body.get('confirm') is True:
+            erase_samples = True
             # Remove profile-specific consent identifiers in the same
             # transaction. Keeping orphaned audit IDs defeats profile erasure.
             db.execute('DELETE FROM consent_events WHERE profile = ?', (profile[0],))
@@ -140,6 +146,7 @@ def manage(body):
             db.execute('INSERT INTO samples VALUES (?, ?, ?, ?, ?, ?)',
                        (sample_id, profile[0], encrypted, duration, digest, time()))
         elif operation == 'delete_sample' and body.get('confirm') is True:
+            erase_samples = True
             if db.execute('DELETE FROM samples WHERE id = ? AND profile = ?', (body.get('sample'), profile[0])).rowcount != 1:
                 raise ValueError('That sample no longer exists.')
         elif operation in {'preview', 'export'}:
@@ -154,4 +161,18 @@ def manage(body):
                                  'duration': row[2], 'sha256': row[3]} for row in rows]}
         else:
             raise ValueError('Choose an operation and confirm before deleting.')
-    return listing()
+    # Never hold the live SQLite writer transaction while preparing/redacting
+    # retained snapshots. If historical cleanup fails, live deletion remains
+    # committed, but communicate that privacy cleanup still needs attention.
+    result = listing()
+    if erase_samples:
+        try:
+            sanitize_retained_voice_snapshots(DATABASE.parent)
+        except (OSError, ValueError, sqlite3.Error) as error:
+            _LOGGER.warning("Retained voice backup cleanup needs operator review (reason=%s)",
+                            type(error).__name__)
+            result['backup_cleanup_required'] = True
+            result['notice'] += ' Some retained upgrade backups could not be sanitised; run the voice backup cleanup command.'
+        else:
+            result['backup_cleanup_required'] = False
+    return result
