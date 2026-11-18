@@ -10,7 +10,7 @@ import subprocess  # nosec B404 - fixed-argument pip wheel download for offline 
 import sys
 from tempfile import TemporaryDirectory
 
-PACKAGES = ('websocket-client==1.9.2', 'cryptography==46.0.3')
+PACKAGES = ('websocket-client==1.9.2', 'cryptography==50.0.0')
 
 
 def generate(target, *, python=sys.executable, runner=subprocess.run):
