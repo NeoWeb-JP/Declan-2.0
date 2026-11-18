@@ -11,7 +11,8 @@ from wyoming.client import AsyncTcpClient
 from wyoming.asr import Transcribe, Transcript
 from wyoming.audio import AudioStart, AudioChunk, AudioStop
 from wyoming.error import Error
-from .speaker_models import SpeakerMetadata, metadata_from_transcript, transcript_for_ha
+from .speaker_models import (SpeakerMetadata, metadata_from_transcript,
+                             transcript_for_ha, valid_wyoming_speaker)
 from .capture_level import CaptureLevel
 _LOGGER=logging.getLogger(__name__)
 
