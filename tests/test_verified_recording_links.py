@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import history
+from database_schema_state import DatabaseSchemaState
 import server
 
 
@@ -48,8 +49,8 @@ class VerifiedRecordingLinksTests(unittest.TestCase):
         self.assertEqual(history.learned_intent("turn lampie on"), "turn lounge lamp on")
         with history.database() as connection:
             self.assertEqual(connection.execute("SELECT count(*) FROM learned_intents").fetchone()[0], 1)
-        history._initialized.clear()
-        self.assertEqual(history.learned_intent("turn lampie on"), "turn lounge lamp on")
+        with patch.object(history, "SCHEMA_STATE", DatabaseSchemaState()):
+            self.assertEqual(history.learned_intent("turn lampie on"), "turn lounge lamp on")
 
     def test_invalid_identifiers_rejected(self):
         for ids in (["invalid/id"], ["x"] * 101, [None]):

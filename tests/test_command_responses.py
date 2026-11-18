@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 import command_responses as commands
 import history
+from database_schema_state import DatabaseSchemaState
 import personality
 import server
 
@@ -72,8 +73,8 @@ class CommandResponseTests(TestCase):
         lines = [personality.add_sass("Study is on.", "lights_on", "off") for _ in range(8)]
         self.assertEqual(set(lines), {"Custom one Study is on.", "Custom two Study is on."})
         self.assertTrue(all(left != right for left, right in zip(lines, lines[1:])))
-        history._initialized.clear()
-        self.assertEqual(commands.snapshot(self.row)["profile"], state["profile"])
+        with patch.object(history, "SCHEMA_STATE", DatabaseSchemaState()):
+            self.assertEqual(commands.snapshot(self.row)["profile"], state["profile"])
 
     def test_guest_unknown_and_empty_lists_never_use_home_banter(self):
         self.save(["Private home line"], ["Guest line"])
