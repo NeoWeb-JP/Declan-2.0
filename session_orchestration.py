@@ -143,7 +143,9 @@ def _load_chat_session(sessions, recall, session_id, now, *, new_session_id):
             state = None
     if state is None:
         session_id = new_session_id()
-        state = {"last": None, "name": None, "recent_messages": []}
+        if not valid_session_id(session_id) or session_id in sessions:
+            raise ValueError("session ID factory must return a new bounded string ID")
+        state = _fresh_session()
     return session_id, state
 
 
