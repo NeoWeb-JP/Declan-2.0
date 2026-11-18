@@ -96,8 +96,6 @@ def _compose_chat_reply(state, *, kind, name, routine_reply, guest_mode, decorat
         if history:
             reply = decorate(reply, "memory", guest_mode)
     elif kind == "forget_chat":
-        if recall is not None:
-            recall.forget(session_id)
         state = _fresh_session()
         reply = "I have cleared this conversation's short-term memory."
     elif kind == "time":
@@ -132,6 +130,8 @@ def _finalize_chat_session(state, *, message, kind, routine_reply, lighting_cont
         state["lighting_context"] = lighting_context
         state["lighting_scope"] = scope
     _store_session(sessions, session_id, state)
+    if is_forget and recall is not None:
+        recall.forget(session_id)
     return state
 
 
