@@ -68,6 +68,7 @@ import turn_initialization
 import turn_preflight
 import turn_preview_stage
 import turn_direct_dispatch
+import turn_routine_stage
 import turn_response_composition
 import history
 import training_history_post
@@ -2141,29 +2142,25 @@ class Handler(BaseHTTPRequestHandler):
         ):
             routine_reply, outcome = direct_result.reply, direct_result.outcome
             routine_status = direct_result.routine_status
-        elif routine_dispatch := routine_registry_dispatch.dispatch_routine(
+        elif routine_result := turn_routine_stage.dispatch(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
+            scope=scope, last_lights=last_lights,
             registry_factory=command_registry.routine_registry,
             context_factory=command_registry.RequestContext,
             select=select_routine_turn_result, execute=execute_routine_result,
+            follow_on_execute=routine_follow_on.execute_result,
+            parse_music=music.parse, play_music=music.play_result,
+            connection=ha_device_connection,
+            music_inventory=read_music_inventory_result,
+            handle_lighting=handle_light_request_result,
+            chained_outcome=chained_outcome_result,
         ):
-            routine_status = routine_dispatch.routine_status
-            routine_turn = routine_dispatch.routine_selection
-            follow_on = routine_follow_on_dispatch.execute_follow_on_result(
-                routine_dispatch, origin_device=origin_device,
-                satellite=satellite, action_results=action_results,
-                scope=scope,
-                execute=routine_follow_on.execute_result,
-                parse_music=music.parse, play_music=music.play_result,
-                connection=ha_device_connection,
-                music_inventory=read_music_inventory_result,
-                handle_lighting=handle_light_request_result,
-                last_lights=last_lights, chained_outcome=chained_outcome_result,
-            )
-            routine_reply, outcome = follow_on.result.reply, follow_on.result.outcome
-            lighting_context = follow_on.lighting_context
-            routine_voice_result = follow_on.routine_voice_result
+            routine_status = routine_result.routine_status
+            routine_turn = routine_result.routine_turn
+            routine_reply, outcome = routine_result.reply, routine_result.outcome
+            lighting_context = routine_result.lighting_context
+            routine_voice_result = routine_result.routine_voice_result
         else:
             information_dispatch = information_command_dispatch.dispatch_information(
                 phrase, source=source,
