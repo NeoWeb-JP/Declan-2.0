@@ -76,6 +76,7 @@ import history
 import history_post_routes
 import history_intents_post
 import native_training_post
+import training_history_post
 import music
 import approved_media_players
 import spotify_playlists
@@ -2064,34 +2065,16 @@ class Handler(BaseHTTPRequestHandler):
                     apply=configuration.apply,
                 )
                 return
-            if self.path == "/api/native/routine-responses":
-                native_training_post.handle_routine_responses(
+            if training_history_post.handles(self.path):
+                training_history_post.dispatch(
                     self, body, command_responses=command_responses,
                     routine_responses=routine_responses,
                     discover=script_discovery.discover_result,
-                    connection=ha_device_connection,
-                )
-                return
-            if self.path == "/api/native/routines":
-                self.send_json(410, {"error": "Routine mappings are retired. Manage scripts in Home Assistant."})
-                return
-            if self.path == "/api/native/intents":
-                native_training_post.handle_native_intents(
-                    self, body, history=history, voicepipeline=voicepipeline,
-                    unmatched_reply=UNMATCHED_REPLY,
-                )
-                return
-            if self.path == "/api/history/intents":
-                history_intents_post.handle_history_intents(
-                    self, body, forget_intent=history.forget_intent,
+                    connection=ha_device_connection, history=history,
+                    voicepipeline=voicepipeline, unmatched_reply=UNMATCHED_REPLY,
+                    forget_intent=history.forget_intent,
                     edit_intent=history.edit_intent,
                     teach_intent=history.teach_intent,
-                    unmatched_reply=UNMATCHED_REPLY,
-                )
-                return
-            if self.path == "/api/history/clear":
-                history_post_routes.handle_history_clear(
-                    self, body, clear=history.clear,
                     storage_errors=(OSError, sqlite3.Error),
                 )
                 return
