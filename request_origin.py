@@ -1,5 +1,6 @@
 """Validated request-origin context for chat and Assist requests."""
 import re
+from retry_scope_validation import assist_scope, normalize_origin_id
 
 
 def request_context(path, body):
@@ -16,8 +17,6 @@ def request_context(path, body):
     if source == "assist":
         device_id = body.get("device_id")
         user_id = body.get("user_id")
-        origin = tuple(value if type(value) is str and 0 < len(value) <= 128 else None
-                       for value in (device_id, user_id))
-        origin_device = origin[0]
-        scope = (source, *origin, satellite) if any(origin) or satellite else None
+        origin_device = normalize_origin_id(device_id)
+        scope = assist_scope(origin_device, user_id, satellite)
     return source, scope, origin_device, satellite
