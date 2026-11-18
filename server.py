@@ -615,6 +615,8 @@ def search_media_result(phrase):
     url, headers, opener = connection
     try:
         agent = media_search_agents.resolve(connection, agent)
+    except media_search_agents.MediaAgentUnavailable as error:
+        return ExecutionResult(str(error), Outcome.UNAVAILABLE)
     except media_search_agents.MediaAgentError as error:
         return ExecutionResult(str(error), Outcome.NOT_CONFIGURED)
 
