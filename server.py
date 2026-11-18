@@ -60,8 +60,6 @@ import routine_follow_on_dispatch
 import information_result_response
 import device_result_response
 import lighting_result_dispatch
-import final_dispatch_orchestration
-import turn_finalization_dispatch
 import ingress_turn_orchestration
 import fallback_orchestration
 import guest_assignment_command
@@ -2479,10 +2477,9 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     status_target = device_response.status_target
                 else:
-                    lighting_result = final_dispatch_orchestration.dispatch_lighting(
+                    lighting_result = lighting_result_dispatch.dispatch_lighting_response(
                         phrase, source=source, origin_device=origin_device,
                         satellite=satellite,
-                        dispatch=lighting_result_dispatch.dispatch_lighting_response,
                         registry_factory=command_registry.lighting_registry,
                         context_factory=command_registry.RequestContext,
                         matches=lighting_intents.matches,
@@ -2490,7 +2487,7 @@ class Handler(BaseHTTPRequestHandler):
                         handle_light_request=handle_light_request_result,
                         action_results=action_results, last_lights=last_lights,
                         scope=scope,
-                        dispatch_lighting_command=lighting_command_dispatch.dispatch_lighting,
+                        dispatch_lighting=lighting_command_dispatch.dispatch_lighting,
                         confirmed_lighting_context=(
                             lighting_context_finalization.confirmed_lighting_context
                         ),
@@ -2499,13 +2496,12 @@ class Handler(BaseHTTPRequestHandler):
                         routine_reply, outcome = lighting_result.result.reply, lighting_result.result.outcome
                         lighting_context = lighting_result.lighting_context
                         light_result = lighting_result.result
-        fallback_result = final_dispatch_orchestration.resolve_fallback(
+        fallback_result = fallback_orchestration.resolve_fallback_result(
             effective_message, routine_reply=routine_reply,
             light_result=light_result, body=body,
             authorization=self.headers.get("Authorization", ""),
             bridge_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
             source=source, action_results=action_results,
-            resolve=fallback_orchestration.resolve_fallback_result,
             exposed_entities=fallback_entity_authorization.exposed_entities,
             dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback_result,
             fallback_handler=guarded_openai_fallback_result,
@@ -2514,24 +2510,21 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = fallback_result.reply, fallback_result.outcome
         chat_kind = effective_message.casefold().strip(" .?!")
         guest_mode, visitor_present, response_guest_mode = (
-            final_dispatch_orchestration.resolve_persona(
-                resolve=response_persona_context.resolve_response_persona,
-                guest_mode=read_guest_mode, visitors_present=read_visitors_present,
-                personality=personality_policy,
+            response_persona_context.resolve_response_persona(
+                read_guest_mode, read_visitors_present, personality_policy,
             )
         )
         if routine_reply is None and CHAT_COMMANDS.get(chat_kind) == "time":
             information_context = ("time", None, None)
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
-            actions, phrase_suggestion = turn_finalization_dispatch.prepare_context(
-                previous, prepare=turn_context_preparation.prepare_turn_context, action_results=action_results, light_result=light_result,
+            actions, phrase_suggestion = turn_context_preparation.prepare_turn_context(
+                previous, action_results=action_results, light_result=light_result,
                 outcome=outcome, scope=scope, message=message, now=monotonic(),
                 suggestion_factory=turn_finalization.lighting_phrase_suggestion,
             )
-            response = turn_finalization_dispatch.compose_response(
+            response = turn_response_composition.compose_turn_result(
                 effective_message, session_id, routine_reply,
-                compose_turn=turn_response_composition.compose_turn_result,
                 lighting_context=lighting_context, scope=scope,
                 response_guest_mode=response_guest_mode, outcome=outcome,
                 routine_turn=routine_turn, light_result=light_result,
@@ -2548,9 +2541,8 @@ class Handler(BaseHTTPRequestHandler):
                 render_failure=command_responses.failure,
                 composition=response_composition,
             )
-            response = turn_finalization_dispatch.persist_response(
-                response, persist=turn_persistence_dispatch.persist_turn_result,
-                sessions=SESSIONS,
+            response = turn_persistence_dispatch.persist_turn_result(
+                response, sessions=SESSIONS,
                 apply_outcome_metadata=turn_finalization.apply_outcome_metadata,
                 finalize=turn_persistence_orchestration.finalize_turn,
                 message=message, phrase=phrase,

@@ -10,7 +10,6 @@ CHAT = (ROOT / "custom_components/declan_two/chat_view.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
 AUTHORIZATION = (ROOT / "fallback_entity_authorization.py").read_text()
 FALLBACK = (ROOT / "fallback_orchestration.py").read_text()
-FINAL_DISPATCH = (ROOT / "final_dispatch_orchestration.py").read_text()
 
 
 class AIExposureContractTests(unittest.TestCase):
@@ -24,10 +23,7 @@ class AIExposureContractTests(unittest.TestCase):
         self.assertIn('"ai_exposed_entities": exposed_for_declan(hass)', CHAT)
 
     def test_backend_rejects_untrusted_exposure(self):
-        self.assertIn('final_dispatch_orchestration.resolve_fallback(', SERVER)
-        self.assertIn('resolve=fallback_orchestration.resolve_fallback_result', SERVER)
-        self.assertIn('return resolve(', FINAL_DISPATCH)
-        self.assertIn('exposed_entities=exposed_entities', FINAL_DISPATCH)
+        self.assertIn('fallback_orchestration.resolve_fallback_result(', SERVER)
         self.assertIn('exposed_entities=fallback_entity_authorization.exposed_entities', SERVER)
         self.assertIn('exposed = exposed_entities(body, authorization, bridge_token)', FALLBACK)
         self.assertIn('if authenticated_ha else ()', AUTHORIZATION)
