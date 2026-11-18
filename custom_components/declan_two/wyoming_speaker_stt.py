@@ -30,12 +30,16 @@ async def receive(client):
     speaker_arrived_after_transcript = False
     # Bound the wait after a transcript so missing speaker events cannot stall STT.
     late_speaker_timeout = 0.35
+    late_speaker_deadline = None
     while True:
         try:
-            event = (
-                await asyncio.wait_for(client.read_event(), timeout=late_speaker_timeout)
-                if transcript is not None else await client.read_event()
-            )
+            if late_speaker_deadline is None:
+                event = await client.read_event()
+            else:
+                remaining = late_speaker_deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    break
+                event = await asyncio.wait_for(client.read_event(), timeout=remaining)
         except asyncio.TimeoutError:
             break
         if event is None:
@@ -59,6 +63,8 @@ async def receive(client):
                 break
         elif Transcript.is_type(event.type):
             transcript = Transcript.from_event(event).text
+            if late_speaker_deadline is None:
+                late_speaker_deadline = asyncio.get_running_loop().time() + late_speaker_timeout
             if identity is not None:
                 break
         elif Error.is_type(event.type):
