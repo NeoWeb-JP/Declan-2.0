@@ -15,7 +15,7 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from random import choices
 from tempfile import NamedTemporaryFile
-from threading import Lock
+import music_runtime_state
 from time import monotonic, sleep
 from urllib.error import HTTPError
 from urllib.parse import urlencode
@@ -35,8 +35,7 @@ CONTROLS = {
     "skip": "media_next_track", "next": "media_next_track",
     "previous": "media_previous_track", "go back": "media_previous_track",
 }
-HANDOFF = Lock()
-SPOTIFY_TOKEN_LOCK = Lock()
+RUNTIME = music_runtime_state.MusicRuntimeState()
 FAVOURITE_TRACK = "https://open.spotify.com/track/0JkIre0YxNmKGMU5V7ZiDx"
 SPOTIFY_PRESETS = {
     "coward of the county": FAVOURITE_TRACK,
@@ -50,10 +49,8 @@ SPOTIFY_REFERENCE = re.compile(
     r"(?:https://open\.spotify\.com/|spotify(?:--[\w-]+)?://|spotify:)"
     r"(track|album|artist|playlist)[/:]([A-Za-z0-9]{22})/?(?:\?[^\s#]*)?"
 )
-spotify_token = None
 SPOTIFY_SETTINGS = Path(__file__).with_name(".data") / "spotify-settings.json"
 PREFERENCES = SPOTIFY_SETTINGS.with_name("music-preferences.sqlite3")
-recent_blacklist_skips: dict = {}
 
 
 def room_key(name):
@@ -147,7 +144,7 @@ def feedback(command, connection, read_inventory):
 
 def _feedback_provider(command, connection, read_inventory):
     phrase, room = command
-    if connection is None or not HANDOFF.acquire(blocking=False):
+    if connection is None or not RUNTIME.handoff.acquire(blocking=False):
         return ExecutionResult("I couldn't check the current music. Try again in a moment.", Outcome.UNAVAILABLE)
     try:
         inventory_result = ha_inventory.InventoryResult.coerce(read_inventory(connection))
@@ -182,11 +179,11 @@ def _feedback_provider(command, connection, read_inventory):
     except (OSError, ValueError, sqlite3.Error):
         return ExecutionResult("I couldn't save that music preference.", Outcome.UNAVAILABLE)
     finally:
-        HANDOFF.release()
+        RUNTIME.handoff.release()
 
 
 def skip_blocked_tracks(connection, read_inventory):
-    if connection is None or not PREFERENCES.exists() or not HANDOFF.acquire(blocking=False):
+    if connection is None or not PREFERENCES.exists() or not RUNTIME.handoff.acquire(blocking=False):
         return
     try:
         with preference_db() as db:
@@ -205,15 +202,14 @@ def skip_blocked_tracks(connection, read_inventory):
                                  (attrs.get("media_playlist_id"), attrs.get("media_content_id"))
                                  if isinstance(value, str) and
                                  media_key(value).startswith("spotify://playlist/")), None)
-            if player.get("state") == "playing" and (track in blocked or playlist_uri in blocked) and now >= recent_blacklist_skips.get(entity, 0):
-                recent_blacklist_skips[entity] = now + 10
+            if player.get("state") == "playing" and (track in blocked or playlist_uri in blocked) and RUNTIME.allow_blacklist_skip(entity, now):
                 request(connection, "/api/services/media_player/media_next_track", {"entity_id": entity}, timeout=2)
     except HTTPError as error:
         error.close()
     except (OSError, ValueError, sqlite3.Error):
         pass
     finally:
-        HANDOFF.release()
+        RUNTIME.handoff.release()
 
 
 class SpotifyNotConfigured(Exception):
@@ -236,7 +232,7 @@ def spotify_credentials():
 
 
 def save_spotify_credentials(client_id, client_secret):
-    with SPOTIFY_TOKEN_LOCK:
+    with RUNTIME.spotify_token_lock:
         if not all(isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", value.strip())
                    for value in (client_id, client_secret)):
             raise ValueError("Enter both the Spotify Client ID and Client Secret.")
@@ -253,13 +249,12 @@ def save_spotify_credentials(client_id, client_secret):
 
 @diagnostics.timed("spotify_search")
 def spotify_search(opener, title, artist, types):
-    global spotify_token
-    with SPOTIFY_TOKEN_LOCK:
+    with RUNTIME.spotify_token_lock:
         credentials, _ = spotify_credentials()
         if not all(credentials):
             raise SpotifyNotConfigured
         now = monotonic()
-        if spotify_token is None or spotify_token[0] != credentials or spotify_token[2] <= now:
+        if RUNTIME.spotify_token is None or RUNTIME.spotify_token[0] != credentials or RUNTIME.spotify_token[2] <= now:
             data = urlencode(dict(zip(("client_id", "client_secret"), credentials))
                              | {"grant_type": "client_credentials"}).encode()
             token_request = Request("https://accounts.spotify.com/api/token", data=data,
@@ -269,8 +264,8 @@ def spotify_search(opener, title, artist, types):
             access_token = token.get("access_token")
             if not isinstance(access_token, str) or not access_token:
                 raise ValueError("Spotify did not return an access token")
-            spotify_token = (credentials, access_token, now + max(0, int(token.get("expires_in", 0)) - 30))
-        access_token = spotify_token[1]
+            RUNTIME.spotify_token = (credentials, access_token, now + max(0, int(token.get("expires_in", 0)) - 30))
+        access_token = RUNTIME.spotify_token[1]
     def quoted(value):
         return value.replace('\\', '\\\\').replace('"', '\\"')
     query = f'track:"{quoted(title)}" artist:"{quoted(artist)}"' if artist else quoted(title)
@@ -294,9 +289,9 @@ def spotify_search(opener, title, artist, types):
                 results = json.load(response)
         except HTTPError as error:
             if error.code == 401:
-                with SPOTIFY_TOKEN_LOCK:
-                    if spotify_token is not None and spotify_token[1] == access_token:
-                        spotify_token = None
+                with RUNTIME.spotify_token_lock:
+                    if RUNTIME.spotify_token is not None and RUNTIME.spotify_token[1] == access_token:
+                        RUNTIME.spotify_token = None
             raise
         for kind in types:
             page = results.get(f"{kind}s", {})
@@ -429,7 +424,7 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
     action, room = command
     if connection is None:
         return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
-    if not HANDOFF.acquire(blocking=False):
+    if not RUNTIME.handoff.acquire(blocking=False):
         return ExecutionResult("A music request is already in progress.", Outcome.BUSY)
     location = "on the music player"
     try:
@@ -552,7 +547,7 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
     except (OSError, ValueError):
         return ExecutionResult(f"I couldn't verify the playback command {location}.", Outcome.UNVERIFIED)
     finally:
-        HANDOFF.release()
+        RUNTIME.handoff.release()
 
 
 def spotify_id(player):
@@ -684,7 +679,7 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
     room, title, provider = command
     if connection is None:
         return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
-    if not HANDOFF.acquire(blocking=False):
+    if not RUNTIME.handoff.acquire(blocking=False):
         return ExecutionResult("A music request is already in progress.", Outcome.BUSY)
     stopped = False
     try:
@@ -861,7 +856,7 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         return ExecutionResult("I stopped the previous Spotify stream, but couldn't verify the new request." if stopped
                 else "I couldn't verify the music request.", Outcome.UNVERIFIED)
     finally:
-        HANDOFF.release()
+        RUNTIME.handoff.release()
 
 
 
