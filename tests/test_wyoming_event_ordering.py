@@ -155,6 +155,22 @@ class WyomingOrderingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.result, State.SUCCESS)
         self.assertEqual(result.text.text, "lights on")
 
+    async def test_malformed_transcript_returns_stt_error(self):
+        for data in ({}, {"text": None}, {"text": 123}):
+            with self.subTest(data=data):
+                result = await receive(Client([Event("transcript", data)]))
+                self.assertEqual(result.result, State.ERROR)
+                self.assertIsNone(result.text)
+
+    async def test_malformed_duplicate_is_ignored_after_valid_transcript(self):
+        result = await receive(Client([
+            Event("transcript", {"text": "lights on"}),
+            Event("transcript", {}),
+            speaker("Jaco"),
+        ]))
+        self.assertEqual(result.result, State.SUCCESS)
+        self.assertEqual(result.text.text, "lights on")
+
     async def test_unknown_only_remains_anonymous(self):
         result = await receive(Client([
             speaker("none"), Event("transcript", {"text": "lights on"}),
