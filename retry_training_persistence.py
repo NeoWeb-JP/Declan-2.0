@@ -9,7 +9,9 @@ def save_retry_training(reply, *, pending_retry, retry_succeeded, message,
     original = pending_retry.get("text") if isinstance(pending_retry, dict) else None
     if not (retry_succeeded and isinstance(original, str) and original.strip()
             and len(original) <= 4096
-            and isinstance(message, str) and isinstance(effective_message, str)):
+            and isinstance(message, str) and message.strip() and len(message) <= 4096
+            and isinstance(effective_message, str) and effective_message.strip()
+            and len(effective_message) <= 4096):
         return False
     try:
         if (not similar(original, message)

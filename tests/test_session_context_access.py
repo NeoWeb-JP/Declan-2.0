@@ -58,6 +58,12 @@ class SessionContextAccessTests(unittest.TestCase):
         retrieve.assert_called_once_with(None, "kitchen", now=10, idle_seconds=30)
         consume.assert_called_once_with(None, "kitchen", now=10, window_seconds=30)
 
+    def test_string_subclass_session_id_cannot_execute_custom_hash(self):
+        class HostileSessionId(str):
+            def __hash__(self):
+                raise RuntimeError("untrusted hash")
+        self.assert_missing(HostileSessionId("one"), {"one": {"scope": "kitchen"}})
+
     def test_callback_runs_with_lock_held(self):
         lock = threading.Lock()
         def retrieve(*args, **kwargs):
