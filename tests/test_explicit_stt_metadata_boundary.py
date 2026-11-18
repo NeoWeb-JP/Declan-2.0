@@ -32,6 +32,22 @@ class ExplicitSTTMetadataBoundaryTests(unittest.TestCase):
         self.assertEqual(MODULE.speaker_request_payload(transcript),
                          {"speaker": {}, "capture": {"rms": 0.2}})
 
+    def test_wyoming_speaker_before_or_after_transcript_retains_identity(self):
+        identity = ("interaction-42", "speaker", 0.93)
+        first = MODULE.transcript_for_ha(
+            "lights on", MODULE.SpeakerMetadata(identity, None),
+        )
+        final = MODULE.transcript_for_ha(
+            first, MODULE.SpeakerMetadata(
+                MODULE.metadata_from_transcript(first).speaker, {"peak": 0.75},
+            ),
+        )
+        self.assertEqual(MODULE.speaker_request_payload(final), {
+            "speaker": {"interaction_id": "interaction-42",
+                        "name": "speaker", "confidence": 0.93},
+            "capture": {"peak": 0.75},
+        })
+
     def test_missing_capture_is_preserved(self):
         transcript = MODULE.transcript_for_ha(
             "hello", MODULE.SpeakerMetadata(None, None),

@@ -11,7 +11,7 @@ from wyoming.client import AsyncTcpClient
 from wyoming.asr import Transcribe, Transcript
 from wyoming.audio import AudioStart, AudioChunk, AudioStop
 from wyoming.error import Error
-from .speaker_models import SpeakerTranscript
+from .speaker_models import SpeakerMetadata, metadata_from_transcript, transcript_for_ha
 from .capture_level import CaptureLevel
 _LOGGER=logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ async def receive(client):
              else 'speaker_missing'),
         )
         return stt.SpeechResult(
-            SpeakerTranscript(transcript, identity),
+            transcript_for_ha(transcript, SpeakerMetadata(identity, None)),
             stt.SpeechResultState.SUCCESS,
         )
     _LOGGER.info(
@@ -139,8 +139,12 @@ class DeclanWyomingVoiceBridge(stt.SpeechToTextEntity):
                         upload_task.result()
                     result = await receive_task
                     text = getattr(result, "text", None)
-                    if isinstance(text, SpeakerTranscript):
-                        text.capture_level = level.snapshot()
+                    if result.result == stt.SpeechResultState.SUCCESS and isinstance(text, str):
+                        speaker = metadata_from_transcript(text).speaker
+                        return stt.SpeechResult(
+                            transcript_for_ha(text, SpeakerMetadata(speaker, level.snapshot())),
+                            stt.SpeechResultState.SUCCESS,
+                        )
                     return result
                 finally:
                     upload_task.cancel()
