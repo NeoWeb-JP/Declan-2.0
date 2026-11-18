@@ -43,6 +43,26 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertNotIsInstance(transformed, SpeakerTranscript)
         self.assertFalse(hasattr(transformed, "speaker"))
 
+    def test_canonical_speaker_is_preferred_for_fallback(self):
+        self.assertEqual(MODULE.speaker_from_transcript(
+            SpeakerTranscript("hello", speaker="speaker-1")), "speaker-1")
+
+    def test_legacy_only_speaker_is_supported(self):
+        class LegacyTranscript(str):
+            jarvis_speaker = "speaker-2"
+        self.assertEqual(MODULE.speaker_from_transcript(
+            LegacyTranscript("hello")), "speaker-2")
+
+    def test_plain_transcript_has_no_identity(self):
+        self.assertIsNone(MODULE.speaker_from_transcript("hello"))
+
+    def test_canonical_identity_wins_over_stale_legacy(self):
+        class MixedTranscript(str):
+            speaker = "speaker-3"
+            jarvis_speaker = "old-speaker"
+        self.assertEqual(MODULE.speaker_from_transcript(
+            MixedTranscript("hello")), "speaker-3")
+
 
 if __name__ == "__main__":
     unittest.main()
