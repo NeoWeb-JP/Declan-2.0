@@ -117,3 +117,5 @@ that every listed key is a direct environment override.
 Do not commit populated `.env` files, live access tokens, Spotify credentials or OpenAI keys. The Home Assistant Assist bridge token and the Ingress token serve different purposes and must not be reused.
 
 For deployment instructions, see [installation](installation.md) and [Proxmox updates](../PROXMOX-UPDATES.md).
+
+| `DECLAN_VOICE_AUDIO_KEY` | Base64url-encoded 32-byte AES-GCM key for local voice sample encryption; provision securely outside `.data` and never commit it. | `DECLAN_VOICE_AUDIO_KEY=<secure-base64url-32-byte-key>` |
