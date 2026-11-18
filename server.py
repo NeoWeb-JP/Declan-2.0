@@ -80,6 +80,7 @@ import music_playlists_post
 import timers
 import updates
 import operational_post_routes
+import operational_post_dispatch
 import media_settings_routes
 import native_read_routes
 import operational_read_routes
@@ -2051,8 +2052,8 @@ class Handler(BaseHTTPRequestHandler):
                     storage_errors=(OSError, sqlite3.Error),
                 )
                 return
-            if self.path == "/api/updates":
-                operational_post_routes.handle_updates(
+            if operational_post_dispatch.handles_pre_validation(self.path):
+                operational_post_dispatch.dispatch_update(
                     self, body, check=updates.check,
                     status_result=updates.status_result,
                     prerelease_versions=updates.prerelease_versions,
@@ -2063,13 +2064,11 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError, KeyError, AttributeError):
             post_validation_errors_http.send_validation_error(self)
             return
-        if self.path == "/api/tts":
-            speech_http_routes.render_tts(self, message, render=render_web_voice)
-            return
-        if self.path == "/api/assist/history":
-            operational_post_routes.handle_assist_history(
+        if operational_post_dispatch.handles_after_validation(self.path):
+            operational_post_dispatch.dispatch_validated(
                 self, body, message=message, session_id=session_id,
-                record=history.record, token_urlsafe=secrets.token_urlsafe,
+                render=render_web_voice, record=history.record,
+                token_urlsafe=secrets.token_urlsafe,
                 action_results=routine_action_results_typed,
             )
             return
