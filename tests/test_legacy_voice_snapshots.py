@@ -1,5 +1,6 @@
 """Legacy upgrade snapshots must not retain local voice WAV blobs."""
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,17 +16,18 @@ class LegacyVoiceSnapshotTests(unittest.TestCase):
             old.mkdir(parents=True)
             marker = b'RIFF' + b'private-audio' * 100
             for path in (root / 'voice-profiles.sqlite3', old / 'voice-profiles.sqlite3'):
-                with sqlite3.connect(path) as db:
+                with closing(sqlite3.connect(path)) as db:
                     db.execute('CREATE TABLE profiles (id TEXT, name TEXT)')
                     db.execute('CREATE TABLE samples (id TEXT, audio BLOB)')
                     db.execute('INSERT INTO profiles VALUES (?, ?)', ('p1', 'Test'))
                     db.execute('INSERT INTO samples VALUES (?, ?)', ('s1', marker))
+                    db.commit()
             self.assertEqual(state_backup.sanitize_retained_voice_snapshots(root), 1)
-            with sqlite3.connect(old / 'voice-profiles.sqlite3') as db:
+            with closing(sqlite3.connect(old / 'voice-profiles.sqlite3')) as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM samples').fetchone()[0], 0)
                 self.assertEqual(db.execute('SELECT name FROM profiles').fetchone()[0], 'Test')
             self.assertNotIn(marker, (old / 'voice-profiles.sqlite3').read_bytes())
-            with sqlite3.connect(root / 'voice-profiles.sqlite3') as db:
+            with closing(sqlite3.connect(root / 'voice-profiles.sqlite3')) as db:
                 self.assertEqual(db.execute('SELECT audio FROM samples').fetchone()[0], marker)
 
     def test_rejects_symlinked_snapshot(self):
