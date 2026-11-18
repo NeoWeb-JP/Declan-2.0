@@ -79,6 +79,20 @@ class RetryContextTests(unittest.TestCase):
                                                         window_seconds=window))
                 self.assertNotIn("pending_retry", session)
 
+    def test_corrupt_stored_scope_is_consumed_without_comparison(self):
+        class HostileText(str):
+            def __eq__(self, other):
+                raise RuntimeError("stored scope must not be compared")
+        for stored in (HostileText("kitchen"),
+                       ("assist", "device", HostileText("user"), None),
+                       ("assist", None, None, None)):
+            with self.subTest(stored=repr(stored)):
+                session = {"pending_retry": {"text": "turn on lights",
+                                              "scope": stored, "at": 100}}
+                self.assertIsNone(consume_pending_retry(session, "kitchen",
+                                                         now=101, window_seconds=10))
+                self.assertNotIn("pending_retry", session)
+
     def test_invalid_origin_scopes_are_consumed_once(self):
         for scope in (("assist", None, None, None), ("assist", "device"),
                       "x" * 257, "  "):

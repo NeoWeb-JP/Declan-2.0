@@ -21,9 +21,9 @@ class SatelliteContextTests(unittest.TestCase):
         context_source = Path(__file__).resolve().parents[1].joinpath(
             "session_context_retrieval.py").read_text()
         ast.parse(context_source)
-        self.assertIn('previous.get("information_scope") == scope', context_source)
-        self.assertIn('previous.get("lighting_scope") == scope', context_source)
-        self.assertIn('previous.get("device_status_scope") == scope', context_source)
+        for field in ("information_scope", "lighting_scope", "device_status_scope"):
+            self.assertIn(f'valid_retry_scope(previous.get("{field}"))', context_source)
+            self.assertIn(f'previous["{field}"] == scope', context_source)
         access_source = Path(__file__).resolve().parents[1].joinpath(
             "session_context_access.py").read_text()
         ast.parse(access_source)

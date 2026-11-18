@@ -43,6 +43,19 @@ class SessionContextRetrievalTests(unittest.TestCase):
         self.assertEqual(recent_context(previous, scope, now=101,
                                         idle_seconds=10), ((), None, None))
 
+    def test_corrupt_stored_scopes_cannot_restore_context_or_raise(self):
+        class HostileText(str):
+            def __eq__(self, other):
+                raise RuntimeError("stored scope must not be compared")
+        for stored in (HostileText("kitchen"),
+                       ("assist", "device", HostileText("user"), None),
+                       ("assist", None, None, None)):
+            with self.subTest(stored=repr(stored)):
+                previous = {**self.previous, "device_status_scope": stored,
+                            "lighting_scope": stored, "information_scope": stored}
+                self.assertEqual(recent_context(previous, "kitchen", now=101,
+                                                idle_seconds=10), ((), None, None))
+
     def test_missing_scope_does_not_leak_context(self):
         self.assertEqual(recent_context(self.previous, None, now=101, idle_seconds=10),
                          ((), None, None))

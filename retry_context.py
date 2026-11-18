@@ -14,7 +14,9 @@ def consume_pending_retry(session, scope, *, now, window_seconds):
     at = pending.get("at")
     text = pending.get("text")
     if (not valid_retry_phrase(text)
-            or not valid_retry_scope(scope) or pending.get("scope") != scope
+            or not valid_retry_scope(scope)
+            or not valid_retry_scope(pending.get("scope"))
+            or pending.get("scope") != scope
             or not finite_number(now)
             or not finite_number(window_seconds) or window_seconds < 0
             or not finite_number(at)
