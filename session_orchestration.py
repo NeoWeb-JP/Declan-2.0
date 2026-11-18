@@ -32,10 +32,18 @@ def _safe_session_name(state):
     return state["name"]
 
 
+def _safe_recent_messages(state):
+    """Discard malformed and unsafe legacy history before speaking or storing it."""
+    history = state.get("recent_messages")
+    if not isinstance(history, (list, tuple)):
+        return []
+    return [safe for item in history
+            if (safe := safe_chat_text(item)) is not None][-3:]
+
+
 def _remember_safe_chat(state, message, *, routine_reply):
     """Only retain harmless chat in the bounded spoken-recall history."""
-    messages = [safe for item in state.get("recent_messages", [])
-                if (safe := safe_chat_text(item)) is not None]
+    messages = _safe_recent_messages(state)
     safe_message = safe_chat_text(message)
     if safe_message is not None and routine_reply is None:
         messages.append(safe_message)
@@ -66,8 +74,7 @@ def _compose_chat_reply(state, *, kind, name, routine_reply, guest_mode, decorat
         if safe_last:
             reply = decorate(reply, "memory", guest_mode)
     elif kind == "recall_earlier":
-        history = [safe for item in state.get("recent_messages", [])
-                   if (safe := safe_chat_text(item)) is not None][-3:]
+        history = _safe_recent_messages(state)
         reply = ("Earlier you said: " + " | ".join(history)) if history else "I don't have earlier messages to recall."
         if history:
             reply = decorate(reply, "memory", guest_mode)
