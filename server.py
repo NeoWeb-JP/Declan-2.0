@@ -47,8 +47,6 @@ import sensitive_confirmation_decision
 import sensitive_confirmation_turn
 import routine_preview_detection
 import routine_preview_dispatch
-import routine_registry_dispatch
-import routine_follow_on_dispatch
 import information_result_response
 import device_result_response
 import lighting_result_dispatch
