@@ -13,7 +13,7 @@ from declan_ingress.security import response_headers, secure_page
 import ha_inventory
 from pathlib import Path
 from collections import OrderedDict as OrderedDict  # Re-export for existing test fixtures.
-from threading import Lock, Thread
+from threading import Thread
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -121,6 +121,7 @@ import session_orchestration
 import session_store
 import routine_cooldown
 import active_routine_registry
+import routine_execution_gates
 import session_turn_state
 import lighting_intents
 import roast
@@ -134,8 +135,7 @@ SESSIONS = SESSION_STORE.sessions  # Compatibility for existing orchestration ca
 SESSION_LOCK = SESSION_STORE.lock
 CAPTURE_ARBITER = CaptureArbiter()
 SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
-ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
-ROUTINE_LOCKS["movie_bedroom"] = Lock()
+ROUTINE_EXECUTION_GATES = routine_execution_gates.RoutineExecutionGates()
 ROUTINE_COOLDOWN = routine_cooldown.RoutineCooldown()
 ACTIVE_ROUTINE_REGISTRY = active_routine_registry.ActiveRoutineRegistry()
 
@@ -184,7 +184,6 @@ SEXY_TIME_COMMANDS = {
     **{phrase: "end" for name in ("sexy time", "sixty time", "60 time", "bedroom mood", "romance mode")
        for phrase in (f"end {name}", f"stop {name}")},
 }
-SEXY_TIME_LOCK = Lock()
 DINNER_PHRASES = {
     "dinner is served", "it's dinner time", "time for dinner", "it's time for dinner",
     "announce dinner", "start dinner time", "dinner time",
@@ -741,7 +740,7 @@ def verify_legacy_lounge_start(connection, script):
 def run_routine_result(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None, approved=False):
     """Call the configured Home Assistant routine once and read its result."""
     salutation = "Movie Time." if movie_action else f"Good {period}."
-    lock = ROUTINE_LOCKS["movie_bedroom" if movie_action and movie_room == "bedroom" else period]
+    lock = ROUTINE_EXECUTION_GATES.for_routine(period, movie_action=movie_action, movie_room=movie_room)
     connection = ha_device_connection()
     if connection is None:
         return ExecutionResult(f"{salutation} The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED), None
@@ -963,7 +962,7 @@ def run_sexy_time_result(operation, connection, *, approved=False):
     if sexy_mapping["sensitive"] and not approved:
         return ExecutionResult("Sexy Time requires explicit confirmation.", Outcome.UNRESOLVED), None
     sexy_script = sexy_mapping["script"]
-    if not SEXY_TIME_LOCK.acquire(blocking=False):
+    if not ROUTINE_EXECUTION_GATES.sexy_time.acquire(blocking=False):
         return ExecutionResult("I'm still handling the previous Sexy Time request.", Outcome.BUSY), None
     try:
         inventory_result = ha_inventory.InventoryResult.coerce(read_music_inventory_result(connection))
@@ -1025,7 +1024,7 @@ def run_sexy_time_result(operation, connection, *, approved=False):
         volume_detail = "" if volume_ok else " Bedroom music volume could not be set."
         return ExecutionResult(spoken, Outcome.PARTIAL), f"Bedroom lights set. {reply}{volume_detail}"
     finally:
-        SEXY_TIME_LOCK.release()
+        ROUTINE_EXECUTION_GATES.sexy_time.release()
 
 
 @diagnostics.timed("dinner_dispatch")
