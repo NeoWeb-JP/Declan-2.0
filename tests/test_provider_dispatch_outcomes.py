@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import command_registry
+from active_routine_registry import ActiveRoutineRegistry
 import server
 import script_discovery
 from execution_results import ExecutionResult, Outcome
@@ -73,8 +74,9 @@ class ProviderDispatchOutcomeTests(unittest.TestCase):
         opener = Mock()
         opener.open.return_value = io.BytesIO(b"[]")
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
-             patch.object(server, "ACTIVE_ROUTINES", {"tea": "script.make_tea"}):
-            result, status = server.stop_pending_routines_result()
+             patch.object(server, "ACTIVE_ROUTINE_REGISTRY", ActiveRoutineRegistry()):
+            with server.track_routine("tea", "script.make_tea"):
+                result, status = server.stop_pending_routines_result()
         self.assertIs(result.outcome, Outcome.UNVERIFIED)
         self.assertIsNone(status)
         opener.open.assert_called_once()
