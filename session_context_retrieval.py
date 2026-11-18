@@ -1,11 +1,12 @@
 """Scope-bound retrieval of recent conversation context."""
 
 from context_numeric_validation import finite_number
+from retry_scope_validation import valid_retry_scope
 
 def recent_context(previous, scope, *, now, idle_seconds):
     """Return recent lighting, device and information context for this scope."""
     lights, device, information = (), None, None
-    if (scope is None or not isinstance(previous, dict)
+    if (not valid_retry_scope(scope) or not isinstance(previous, dict)
             or not finite_number(now)
             or not finite_number(idle_seconds) or idle_seconds <= 0):
         return lights, device, information
