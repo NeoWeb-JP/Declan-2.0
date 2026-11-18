@@ -26,6 +26,7 @@ import sensitive_confirmations
 import diagnostics
 import declan_logs
 import configuration
+import media_search_agents
 import household_entities
 import health_readiness
 import voice_profiles
@@ -612,35 +613,13 @@ def search_media_result(phrase):
     if connection is None:
         return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
     url, headers, opener = connection
-    if not re.fullmatch(r"conversation\.(?:declan_local|jarvis_local)(?:_[a-z0-9]+)*", agent):
-        template = (
-            "{% set local = integration_entities('declan_local') + integration_entities('jarvis_local') %}"
-            "{{ states.conversation | rejectattr('state', 'eq', 'unavailable') "
-            "| map(attribute='entity_id') | select('in', local) | list | to_json }}"
-        )
-        request = Request(f"{url}/api/template", headers=headers,
-                          data=json.dumps({"template": template}).encode())
-        try:
-            with opener.open(request, timeout=1.5) as response:
-                entities = json.loads(response.read(65536))
-            if not isinstance(entities, list):
-                raise ValueError("Expected a list of conversation entities")
-        except (OSError, ValueError) as error:
-            if isinstance(error, HTTPError):
-                error.close()
-            return ExecutionResult("I couldn't check Home Assistant for the Declan Local media search agent.", Outcome.UNAVAILABLE)
-        candidates = {
-            entity for entity in entities if isinstance(entity, str)
-            and re.fullmatch(r"conversation\.[a-z0-9_]+", entity)
-        }
-        if agent and agent not in candidates:
-            return ExecutionResult("The configured media search agent isn't available in Declan Local.", Outcome.NOT_CONFIGURED)
-        if not agent:
-            if not candidates:
-                return ExecutionResult("I couldn't find an active Declan Local conversation agent in Home Assistant.", Outcome.NOT_CONFIGURED)
-            if len(candidates) > 1:
-                return ExecutionResult("I found multiple Declan Local agents. Set DECLAN_MEDIA_SEARCH_AGENT to the one you use for media search.", Outcome.NOT_CONFIGURED)
-            agent = candidates.pop()
+    try:
+        agent = media_search_agents.resolve(connection, agent)
+    except media_search_agents.MediaAgentUnavailable as error:
+        return ExecutionResult(str(error), Outcome.UNAVAILABLE)
+    except media_search_agents.MediaAgentError as error:
+        return ExecutionResult(str(error), Outcome.NOT_CONFIGURED)
+
     try:
         request = Request(f"{url}/api/services/conversation/process?return_response",
                           data=json.dumps({"agent_id": agent, "text": f"where can i watch {title}"}).encode(),

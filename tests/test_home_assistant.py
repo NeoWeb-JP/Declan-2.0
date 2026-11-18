@@ -288,18 +288,23 @@ class ServiceTests(TestCase):
     def test_media_search_requires_configured_agent_and_valid_response(self):
         environment = HA_ENV | {"DECLAN_MEDIA_SEARCH_AGENT": "conversation.declan_local"}
         with patch.dict(os.environ, environment), patch.object(server, "build_opener") as build:
-            reply = {"speech": {"plain": {"speech": "It's on Netflix."}}, "response_type": "action_done"}
             opener = build.return_value
-            opener.open.return_value = io.BytesIO(json.dumps({"service_response": {"response": reply}}).encode())
+            reply = {"speech": {"plain": {"speech": "It's on Netflix."}}, "response_type": "action_done"}
+            opener.open.side_effect = [
+                io.BytesIO(json.dumps({"legacy": ["conversation.declan_local"],
+                                       "self": []}).encode()),
+                io.BytesIO(b'{"entity_id":"conversation.declan_local","state":"unknown"}'),
+                io.BytesIO(json.dumps({"service_response": {"response": reply}}).encode()),
+            ]
             self.assertEqual(server.search_media("where can i watch dune"), ("It's on Netflix.", "search_result"))
             request = opener.open.call_args.args[0]
             self.assertEqual(json.loads(request.data)["agent_id"], "conversation.declan_local")
             self.assertEqual(server.search_media("where can i watch dune and turn on the lights")[1], "unresolved")
             opener.open.side_effect = TimeoutError()
-            self.assertEqual(server.search_media("where can i watch dune")[1], "unverified")
+            self.assertEqual(server.search_media("where can i watch dune")[1], "unavailable")
             with patch.dict(os.environ, {"DECLAN_MEDIA_SEARCH_AGENT": ""}):
                 opener.open.side_effect = None
-                opener.open.return_value = io.BytesIO(b"[]")
+                opener.open.return_value = io.BytesIO(b'{"legacy":[],"self":[]}')
                 self.assertEqual(server.search_media("where can i watch dune")[1], "not_configured")
 
     def test_media_search_discovers_only_an_unambiguous_local_agent(self):
@@ -308,17 +313,22 @@ class ServiceTests(TestCase):
         reply = {"service_response": {"response": {"speech": {"plain": {"speech": "Test result."}}}}}
         with patch.dict(os.environ, environment), patch.object(server, "build_opener") as build:
             opener = build.return_value
-            opener.open.side_effect = [io.BytesIO(json.dumps(value).encode()) for value in (agents, reply)]
+            opener.open.side_effect = [
+                io.BytesIO(json.dumps({"legacy": agents, "self": []}).encode()),
+                io.BytesIO(json.dumps(reply).encode()),
+            ]
             self.assertEqual(server.search_media("where can i watch friends"), ("Test result.", "search_result"))
             discovery = opener.open.call_args_list[0].args[0]
             self.assertEqual(urlsplit(discovery.full_url).path, "/api/template")
             self.assertIn("integration_entities('declan_local')", json.loads(discovery.data)["template"])
+            self.assertIn("integration_entities('declan_two')", json.loads(discovery.data)["template"])
             self.assertEqual(json.loads(opener.open.call_args.args[0].data), {
                 "agent_id": "conversation.house_voice", "text": "where can i watch friends",
             })
             agents.append("conversation.jarvis_local")
             opener.reset_mock()
-            opener.open.side_effect = [io.BytesIO(json.dumps(agents).encode())]
+            opener.open.side_effect = [
+                io.BytesIO(json.dumps({"legacy": agents, "self": []}).encode())]
             self.assertEqual(server.search_media("where can i watch friends")[1], "not_configured")
             self.assertEqual(opener.open.call_count, 1)
 

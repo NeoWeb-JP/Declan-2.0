@@ -57,6 +57,7 @@ class AuxiliaryProviderOutcomeTests(unittest.TestCase):
         opener.open.return_value = io.BytesIO(json.dumps(payload).encode())
         with patch.object(server.configuration, "get", return_value="conversation.declan_local"), \
              patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
+             patch.object(server.media_search_agents, "resolve", return_value="conversation.declan_local"), \
              patch.object(server, "search_media", side_effect=AssertionError("legacy provider")):
             expected = server.search_media_result("where can i watch Dune")
         self.assertIs(expected.outcome, Outcome.SEARCH_RESULT)
