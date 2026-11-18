@@ -59,3 +59,24 @@ def speaker_from_transcript(transcript):
     if speaker is not None:
         return speaker
     return getattr(transcript, "jarvis_speaker", None)
+
+
+def speaker_request_payload(transcript):
+    """Project transcript identity into the existing Assist JSON contract."""
+    metadata = metadata_from_transcript(transcript)
+    payload = {}
+    speaker = metadata.speaker
+    if isinstance(speaker, tuple) and len(speaker) == 3:
+        interaction_id, name, confidence = speaker
+        if (isinstance(interaction_id, str) and isinstance(name, str)
+                and type(confidence) in (int, float) and 0 <= confidence <= 1):
+            payload["speaker"] = {
+                "interaction_id": interaction_id,
+                "name": name,
+                "confidence": confidence,
+            }
+    elif hasattr(transcript, "speaker") or hasattr(transcript, "jarvis_speaker"):
+        payload["speaker"] = {}
+    if isinstance(metadata.capture_level, dict):
+        payload["capture"] = metadata.capture_level
+    return payload
