@@ -13,7 +13,7 @@ from declan_ingress.security import response_headers, secure_page
 import ha_inventory
 from pathlib import Path
 from collections import OrderedDict as OrderedDict  # Re-export for existing test fixtures.
-from threading import Lock, Thread
+from threading import Thread
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
