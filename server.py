@@ -269,6 +269,14 @@ def home_assistant_status_result() -> HomeAssistantStatusResult:
     return HomeAssistantStatusResult(HomeAssistantStatus.DISCONNECTED)
 
 
+def configured_guest_mode_entity():
+    """Avoid a default household ID or HTTP failure for invalid settings."""
+    try:
+        return household_entities.guest_mode()
+    except (OSError, sqlite3.Error, ValueError):
+        return ""
+
+
 def read_guest_mode():
     url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
     token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
@@ -2167,7 +2175,7 @@ class Handler(BaseHTTPRequestHandler):
                 device_status=device_status,
                 ha_device_connection=ha_device_connection,
                 read_ha_inventory_result=read_ha_inventory_result,
-                GUEST_MODE_ENTITY=household_entities.guest_mode() if read_guest_mode() is not None else "",
+                GUEST_MODE_ENTITY=configured_guest_mode_entity(),
                 music=music,
                 read_music_inventory_result=read_music_inventory_result,
                 read_ha_areas=read_ha_areas,
