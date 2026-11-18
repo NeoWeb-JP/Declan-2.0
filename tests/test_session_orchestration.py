@@ -179,6 +179,36 @@ class SessionOrchestrationTests(unittest.TestCase):
         self.assertEqual(result["reply"], "I don't know your name yet.")
         self.assertNotEqual(result["session_id"], "expired")
 
+    def test_failed_name_reply_does_not_commit_new_name(self):
+        first = session_orchestration.converse(
+            "my name is Alex", None, clock=lambda: 100, **self.kwargs)
+        sid = first["session_id"]
+        original = self.sessions[sid]
+        def fail_decorate(reply, category, guest):
+            raise RuntimeError("formatter unavailable")
+        kwargs = {**self.kwargs, "decorate": fail_decorate}
+        with self.assertRaisesRegex(RuntimeError, "formatter unavailable"):
+            session_orchestration.converse(
+                "my name is Bob", sid, clock=lambda: 101, **kwargs)
+        self.assertIs(self.sessions[sid], original)
+        self.assertEqual(original["name"], "Alex")
+        self.assertEqual(original["recent_messages"], ["my name is Alex"])
+
+    def test_failed_memory_reply_does_not_sanitize_committed_history(self):
+        first = session_orchestration.converse(
+            "hello", None, clock=lambda: 100, **self.kwargs)
+        sid = first["session_id"]
+        self.sessions[sid]["recent_messages"] = ["hello", "password is private"]
+        original = self.sessions[sid]
+        def fail_decorate(reply, category, guest):
+            raise RuntimeError("formatter unavailable")
+        kwargs = {**self.kwargs, "decorate": fail_decorate}
+        with self.assertRaisesRegex(RuntimeError, "formatter unavailable"):
+            session_orchestration.converse(
+                "my name is Bob", sid, clock=lambda: 101, **kwargs)
+        self.assertIs(self.sessions[sid], original)
+        self.assertEqual(original["recent_messages"], ["hello", "password is private"])
+
     def test_session_count_is_bounded(self):
         for index in range(130):
             session_orchestration.converse("hello", None, **self.kwargs)
