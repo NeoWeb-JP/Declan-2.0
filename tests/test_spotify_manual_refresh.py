@@ -6,6 +6,7 @@ import unittest
 from urllib.error import HTTPError
 from unittest.mock import patch
 import spotify_playlists as sp
+from playlist_refresh_state import PlaylistRefreshState
 
 
 class PlaylistRefreshTests(unittest.TestCase):
@@ -15,7 +16,7 @@ class PlaylistRefreshTests(unittest.TestCase):
         env = patch.dict(os.environ, {"DECLAN_SPOTIFY_PLAYLISTS_FILE": temp.name + "/playlists.json"})
         env.start()
         self.addCleanup(env.stop)
-        sp._REFRESH.update(running=False, category=None, error=None, completed=None)
+        self.enterContext(patch.object(sp, "RUNTIME", PlaylistRefreshState()))
 
     def wait(self):
         for _ in range(100):

@@ -5,16 +5,16 @@ import re
 import logging
 from urllib.error import HTTPError
 from pathlib import Path
-from threading import RLock, Thread
+from threading import Thread
+from playlist_refresh_state import PlaylistRefreshState
 
 CATEGORIES = ("country", "braai", "romantic", "sexy_time", "rock", "afrikaans",
               "80s", "90s", "work_focus", "adhd_focus", "massage")
 CAPACITY = 25
 URI = re.compile(r"(?:spotify(?::|://)playlist[:/]|https://open\.spotify\.com/playlist/)([A-Za-z0-9]{22})(?:\?[^#]*)?\Z")
-LOCK = RLock()
+RUNTIME = PlaylistRefreshState()
 LOGGER = logging.getLogger(__name__)
 DEFAULT_PATH = Path(__file__).with_name(".data") / "spotify-playlists.json"
-_REFRESH = {"running": False, "category": None, "error": None, "completed": None}
 
 
 def canonical(value):
@@ -43,7 +43,7 @@ def add_genre(name):
     slug = re.sub(r"[^a-z0-9]+", "_", name.casefold()).strip("_")
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,39}", slug):
         raise ValueError("Genre must contain letters or numbers")
-    with LOCK:
+    with RUNTIME.lock:
         data = load()
         if slug in data:
             raise ValueError("Genre already exists")
@@ -135,7 +135,7 @@ def manage(body):
         with music.preference_db() as db:
             db.execute("DELETE FROM preferences WHERE uri = ? AND weight = 0", (value,))
         if kind == "playlist":
-            with LOCK:
+            with RUNTIME.lock:
                 data = load()
                 for item in data.values():
                     item["excluded"] = [uri for uri in item["excluded"] if uri != value]
@@ -144,7 +144,7 @@ def manage(body):
     selected = canonical(body["playlist"])
     if category not in load() or operation not in ("add", "remove", "delete", "favourite", "unfavourite", "dislike", "restore") or not selected:
         raise ValueError("Invalid playlist change")
-    with LOCK:
+    with RUNTIME.lock:
         data = load()
         item = data[category]
         if operation in {"favourite", "unfavourite", "dislike", "restore"}:
@@ -203,14 +203,14 @@ def manage(body):
 
 
 def listing():
-    with LOCK:
+    with RUNTIME.lock:
         import music
         with music.preference_db() as db:
             weights = dict(db.execute("SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://playlist/%'"))
             plays = dict(db.execute("SELECT uri, plays FROM playlist_play_counts"))
             disliked_songs = [uri for uri, weight in db.execute(
                 "SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://track/%'") if weight == 0]
-        return {"categories": load(), "max_playlists": CAPACITY, "refresh": dict(_REFRESH),
+        return {"categories": load(), "max_playlists": CAPACITY, "refresh": RUNTIME.snapshot(),
                 "preferences": {"favourites": [uri for uri, weight in weights.items() if weight > 1],
                                 "disliked_playlists": [uri for uri, weight in weights.items() if weight == 0],
                                 "disliked_songs": disliked_songs,
@@ -219,7 +219,7 @@ def listing():
 
 def refresh(discovered, titles=None):
     """Merge Spotify search results without losing manual pins or exclusions."""
-    with LOCK:
+    with RUNTIME.lock:
         data = load()
         for category in data:
             if category in discovered:
@@ -284,10 +284,9 @@ def start_refresh(category, opener_factory):
     """Start one bounded refresh outside the HTTP request thread."""
     if category not in load():
         raise ValueError("Unknown Spotify category")
-    with LOCK:
-        if _REFRESH["running"]:
-            return {"refresh": dict(_REFRESH), "categories": load(), "max_playlists": CAPACITY}
-        _REFRESH.update(running=True, category=category, error=None, completed=None)
+    with RUNTIME.lock:
+        if not RUNTIME.claim(category):
+            return {"refresh": RUNTIME.snapshot(), "categories": load(), "max_playlists": CAPACITY}
 
     def work():
         from datetime import datetime, timezone
@@ -304,16 +303,22 @@ def start_refresh(category, opener_factory):
             }.get(status, f"Spotify returned HTTP {status}.")
             LOGGER.warning("Spotify playlist discovery failed: %s HTTP %s", endpoint, status)
             error.close()
-            with LOCK:
-                _REFRESH["error"] = f"{endpoint}: {message}"
+            with RUNTIME.lock:
+                RUNTIME.failure(f"{endpoint}: {message}")
         except Exception as error:
             LOGGER.exception("Spotify playlist discovery failed")
-            with LOCK:
-                _REFRESH["error"] = "Spotify discovery failed: " + type(error).__name__
+            with RUNTIME.lock:
+                RUNTIME.failure("Spotify discovery failed: " + type(error).__name__)
         finally:
-            with LOCK:
-                _REFRESH["running"] = False
-                _REFRESH["completed"] = datetime.now(timezone.utc).isoformat()
+            with RUNTIME.lock:
+                RUNTIME.finish(datetime.now(timezone.utc).isoformat())
 
-    Thread(target=work, daemon=True, name="spotify-playlist-refresh").start()
+    try:
+        Thread(target=work, daemon=True, name="spotify-playlist-refresh").start()
+    except Exception as error:
+        # A failed worker launch must not permanently block later refreshes.
+        from datetime import datetime, timezone
+        RUNTIME.failure("Spotify discovery worker failed: " + type(error).__name__)
+        RUNTIME.finish(datetime.now(timezone.utc).isoformat())
+        raise
     return listing()
