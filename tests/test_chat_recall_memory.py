@@ -132,11 +132,24 @@ class ChatRecallTests(unittest.TestCase):
                                       "my passcode is 123456",
                                       "a harmless note",
                                   ]}, 100)
-        record = self.recall.restore("s", 101)
+        self.assertIsNone(self.recall.restore("s", 101))
+        self.recall.remember("s", {"last": "a harmless note",
+                                   "recent_messages": ["hello", "set thermostat to 30 degrees",
+                                                       "my passcode is 123456", "a harmless note"]}, 102)
+        record = self.recall.restore("s", 103)
         self.assertEqual(record["recent_messages"], ["hello", "a harmless note"])
-        self.assertIsNone(record["last"])
         self.assertNotIn("passcode", str(record))
         self.assertNotIn("thermostat", str(record))
+
+    def test_sensitive_turn_cannot_extend_existing_recall_lifetime(self):
+        self.recall.remember("s", {"name": "Alex", "last": "hello",
+                                   "recent_messages": ["hello"]}, 100)
+        original = dict(self.recall.entries["s"])
+        self.recall.remember("s", {"name": "Alex",
+                                   "last": "my password is a test secret",
+                                   "recent_messages": ["hello"]}, 100 + RECALL_SECONDS - 1)
+        self.assertEqual(self.recall.entries["s"], original)
+        self.assertIsNone(self.recall.restore("s", 100 + RECALL_SECONDS))
 
     def test_memory_only_survives_in_same_process_store(self):
         first = self.say("my name is Alex")
