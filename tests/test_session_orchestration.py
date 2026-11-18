@@ -56,6 +56,38 @@ class SessionOrchestrationTests(unittest.TestCase):
                 self.assertIs(type(result["session_id"]), str)
                 self.assertNotEqual(result["session_id"], invalid)
 
+    def test_injected_clock_and_identity_factory(self):
+        result = session_orchestration.converse(
+            "hello", None, clock=lambda: 123, new_session_id=lambda: "injected-id",
+            **self.kwargs)
+        self.assertEqual(result["session_id"], "injected-id")
+        self.assertEqual(self.sessions["injected-id"]["at"], 123)
+
+    def test_invalid_clock_fails_without_mutating_sessions(self):
+        self.sessions["known"] = {"at": 100, "name": "Alex"}
+        for now in (None, True, float("nan"), float("inf"), 10 ** 1000):
+            with self.subTest(now=repr(now)):
+                with self.assertRaises(ValueError):
+                    session_orchestration.converse("hello", "known",
+                        clock=lambda value=now: value, **self.kwargs)
+                self.assertIn("known", self.sessions)
+
+    def test_invalid_idle_window_drops_stale_context(self):
+        self.sessions["known"] = {"at": 100, "name": "Alex"}
+        kwargs = {**self.kwargs, "idle_seconds": float("nan")}
+        result = session_orchestration.converse(
+            "what's my name", "known", clock=lambda: 101, **kwargs)
+        self.assertNotEqual(result["session_id"], "known")
+        self.assertEqual(result["reply"], "I don't know your name yet.")
+
+    def test_invalid_lighting_origin_is_not_stored(self):
+        for scope in (None, "  ", ("assist", None, None, None)):
+            with self.subTest(scope=scope):
+                result = session_orchestration.converse(
+                    "lights on", None, "Done", lighting_context=("light.study",),
+                    scope=scope, **self.kwargs)
+                self.assertNotIn("lighting_context", self.sessions[result["session_id"]])
+
     def test_session_count_is_bounded(self):
         for index in range(130):
             session_orchestration.converse("hello", None, **self.kwargs)
