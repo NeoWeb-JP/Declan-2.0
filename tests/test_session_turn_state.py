@@ -139,6 +139,15 @@ class SessionTurnStateTests(unittest.TestCase):
         self.assertEqual(session["pending_retry"],
                          {"text": "new command", "scope": "kitchen", "at": 123})
 
+    def test_invalid_origin_scope_does_not_open_followup(self):
+        for scope in (("assist", None, None, None), ("assist", "device"),
+                      "x" * 257, "  "):
+            with self.subTest(scope=scope):
+                session, reply, _ = self.update(scope=scope)
+                self.assertFalse(reply["continue_conversation"])
+                self.assertEqual(reply["follow_up_timeout"], 0)
+                self.assertNotIn("pending_retry", session)
+
     def test_missing_scope_never_stores_retry(self):
         session, reply, _ = self.update(scope=None)
         self.assertFalse(reply["continue_conversation"])
