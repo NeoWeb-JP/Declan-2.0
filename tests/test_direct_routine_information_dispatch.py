@@ -7,11 +7,13 @@ SERVER = (Path(__file__).resolve().parents[1] / "server.py").read_text()
 
 class DirectRoutineInformationTests(unittest.TestCase):
     def test_routine_dispatch_precedes_information_fallback(self):
-        routine = SERVER.index("routine_registry_dispatch.dispatch_routine(")
-        follow_on = SERVER.index("routine_follow_on_dispatch.execute_follow_on_result(", routine)
-        information = SERVER.index("information_command_dispatch.dispatch_information(", follow_on)
-        self.assertLess(routine, follow_on)
-        self.assertLess(follow_on, information)
+        routine = SERVER.index("turn_routine_stage.dispatch(")
+        information = SERVER.index("information_command_dispatch.dispatch_information(", routine)
+        self.assertLess(routine, information)
+        stage = (Path(__file__).resolve().parents[1] / "turn_routine_stage.py").read_text()
+        selection = stage.index("routine_registry_dispatch.dispatch_routine(")
+        follow_on = stage.index("routine_follow_on_dispatch.execute_follow_on_result(", selection)
+        self.assertLess(selection, follow_on)
         self.assertIn("select=select_routine_turn_result", SERVER)
         self.assertIn("execute=execute_routine_result", SERVER)
 
