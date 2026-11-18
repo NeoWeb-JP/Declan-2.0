@@ -102,14 +102,15 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
         state, kind=kind, name=name, routine_reply=routine_reply,
         guest_mode=guest_mode, decorate=decorate, unmatched_reply=unmatched_reply,
         recall=recall, session_id=session_id)
-    if kind != "forget_chat":
+    is_forget = kind == "forget_chat" and routine_reply is None
+    if not is_forget:
         # Never turn a private command or credential-bearing utterance into
         # a repeatable, 30-minute spoken chat memory.
         _remember_safe_chat(state, message, routine_reply=routine_reply)
-    state.update(last=None if kind == "forget_chat" else message, at=now)
-    if recall is not None and kind != "forget_chat" and routine_reply is None:
+    state.update(last=None if is_forget else message, at=now)
+    if recall is not None and not is_forget and routine_reply is None:
         recall.remember(session_id, state, now)
-    if kind != "forget_chat" and lighting_context is not None:
+    if not is_forget and lighting_context is not None:
         state["lighting_context"] = lighting_context
         state["lighting_scope"] = scope
     _store_session(sessions, session_id, state)
