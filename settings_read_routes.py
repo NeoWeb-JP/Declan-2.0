@@ -2,7 +2,7 @@
 import sqlite3
 
 ROUTES = frozenset({
-    "/api/voicepipeline", "/api/voice-profiles", "/api/diagnostics",
+    "/api/voicepipeline", "/api/voice-profiles", "/api/diagnostics", "/api/diagnostics/metrics",
     "/api/settings/spotify", "/api/settings/ai",
     "/api/settings/media-players", "/api/settings/music-playlists",
 })
@@ -25,6 +25,11 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
             handler.send_json(200, voice_profiles.listing())
         except (OSError, sqlite3.Error):
             handler.send_json(503, {"error": "Voice profiles are unavailable."})
+    elif path == "/api/diagnostics/metrics":
+        try:
+            handler.send_json(200, {"metrics": diagnostics.metrics()})
+        except (OSError, sqlite3.Error, ValueError):
+            handler.send_json(503, {"error": "Diagnostic metrics unavailable."})
     elif path == "/api/diagnostics":
         try:
             handler.send_json(200, {"traces": diagnostics.recent()})
