@@ -1,6 +1,6 @@
 """Retry scope contract tests."""
 import unittest
-from retry_scope_validation import assist_scope, normalize_origin_id, valid_retry_scope
+from retry_scope_validation import assist_scope, normalize_origin_id, same_origin_scope, valid_retry_scope
 
 
 class RetryScopeValidationTests(unittest.TestCase):
@@ -36,6 +36,20 @@ class RetryScopeValidationTests(unittest.TestCase):
         self.assertFalse(valid_retry_scope(("assist", "device", HostileText("user"), None)))
         self.assertEqual(assist_scope("device", HostileText("user"), None),
                          ("assist", "device", None, None))
+
+    def test_same_origin_scope_requires_valid_stored_and_requested(self):
+        self.assertTrue(same_origin_scope("kitchen", "kitchen"))
+        self.assertTrue(same_origin_scope(("assist", "device", None, None),
+                                          ("assist", "device", None, None)))
+        for stored, requested in (
+            ("kitchen", "bedroom"),
+            (("assist", "device", None, None), ("assist", "other", None, None)),
+            (("assist", None, None, None), ("assist", None, None, None)),
+            ("  ", "  "),
+            ("kitchen", None),
+        ):
+            with self.subTest(stored=stored, requested=requested):
+                self.assertFalse(same_origin_scope(stored, requested))
 
     def test_invalid_scopes(self):
         for scope in (None, "", "  ", "x" * 257, 42, [], {},
