@@ -6,7 +6,7 @@ until every required wheel has been downloaded and hashed successfully.
 import argparse
 import hashlib
 from pathlib import Path
-import subprocess
+import subprocess  # nosec B404 - fixed-argument pip wheel download for offline lock generation
 import sys
 from tempfile import TemporaryDirectory
 
