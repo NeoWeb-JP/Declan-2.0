@@ -34,6 +34,24 @@ class ChatRecallTests(unittest.TestCase):
         with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
             return session_orchestration.converse(message, sid, **self.kwargs, **extra)
 
+    def test_routine_reply_keeps_action_context_when_forget_phrase_overridden(self):
+        first = self.say("my name is Alex")
+        sid = first["session_id"]
+        result = self.say("forget this conversation", sid, routine_reply="Done",
+                          lighting_context=("light.study",), scope="study")
+        self.assertEqual(result["reply"], "Done")
+        self.assertEqual(self.sessions[sid]["lighting_context"], ("light.study",))
+        self.assertEqual(self.sessions[sid]["lighting_scope"], "study")
+        self.assertEqual(self.recall.entries[sid]["name"], "Alex")
+
+    def test_forget_command_cannot_restore_expired_action_context(self):
+        first = self.say("hello", lighting_context=("light.study",), scope="study")
+        sid = first["session_id"]
+        self.clock[0] += 301
+        self.say("forget this conversation", sid)
+        self.assertNotIn("lighting_context", self.sessions[sid])
+        self.assertNotIn(sid, self.recall.entries)
+
     def test_routine_reply_takes_precedence_over_chat_commands(self):
         first = self.say("my name is Alex")
         sid = first["session_id"]
