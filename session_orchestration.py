@@ -38,12 +38,14 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
         if state["name"]:
             reply = decorate(reply, "memory", guest_mode)
     elif kind == "recall_message":
-        reply = f"You said: {state['last']}" if state["last"] else "This is your first message."
-        if state["last"]:
+        safe_last = safe_chat_text(state.get("last"))
+        reply = f"You said: {safe_last}" if safe_last else "I don\'t have a safe earlier message to repeat."
+        if safe_last:
             reply = decorate(reply, "memory", guest_mode)
     elif kind == "recall_earlier":
-        history = state.get("recent_messages", [])
-        reply = ("Earlier you said: " + " | ".join(history[-3:])) if history else "I don't have earlier messages to recall."
+        history = [safe for item in state.get("recent_messages", [])
+                   if (safe := safe_chat_text(item)) is not None][-3:]
+        reply = ("Earlier you said: " + " | ".join(history)) if history else "I don't have earlier messages to recall."
         if history:
             reply = decorate(reply, "memory", guest_mode)
     elif kind == "forget_chat":
