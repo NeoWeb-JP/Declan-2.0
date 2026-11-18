@@ -62,10 +62,10 @@ class ChatRecallTests(unittest.TestCase):
 
     def test_recalled_legacy_name_is_sanitised_and_bounded(self):
         self.recall.entries["legacy"] = {"at": self.clock[0],
-            "last": "hello", "name": "A" * 100,
+            "last": "hello", "name": "Z" * 100,
             "recent_messages": ("hello", "my password is synthetic-test-value")}
         restored = self.recall.restore("legacy", self.clock[0])
-        self.assertEqual(restored["name"], "A" * 40)
+        self.assertEqual(restored["name"], "Z" * 40)
         self.assertEqual(restored["recent_messages"], ["hello"])
 
     def test_malformed_history_does_not_break_remember(self):
