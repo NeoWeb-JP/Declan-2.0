@@ -1,4 +1,5 @@
-"""Preview-first timer dispatch orchestration."""
+"""Preview-first timer dispatch and typed early-result resolution."""
+from execution_results import ExecutionResult
 
 
 def preview_and_timer(
@@ -19,3 +20,15 @@ def preview_and_timer(
         guest_mode=guest_mode, decorate=decorate,
     )
     return preview, timer
+
+
+def select_early_result(routine_preview, timer_result):
+    """Return the typed preview or timer outcome without changing priority."""
+    if routine_preview:
+        return (routine_preview if isinstance(routine_preview, ExecutionResult)
+                else ExecutionResult(*routine_preview))
+    if timer_result:
+        if not isinstance(timer_result.result, ExecutionResult):
+            raise ValueError("Timer dispatch requires a typed execution result")
+        return timer_result.result
+    return None
