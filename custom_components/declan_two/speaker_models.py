@@ -62,6 +62,18 @@ def speaker_from_transcript(transcript):
     return getattr(transcript, "jarvis_speaker", None)
 
 
+def valid_wyoming_speaker(interaction_id, name, confidence) -> bool:
+    """Accept a recognised Wyoming speaker, never an unknown identity marker."""
+    return (
+        isinstance(interaction_id, str) and bool(interaction_id.strip())
+        and len(interaction_id) <= 80
+        and isinstance(name, str) and bool(name.strip()) and len(name) <= 80
+        and name.strip().casefold() not in {"unknown", "unidentified", "none"}
+        and type(confidence) in (int, float) and math.isfinite(confidence)
+        and 0 <= confidence <= 1
+    )
+
+
 def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present: bool = False):
     """Project explicit metadata into the existing Assist JSON contract."""
     payload: dict[str, object] = {}

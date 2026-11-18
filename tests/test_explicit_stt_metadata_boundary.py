@@ -106,6 +106,21 @@ class ExplicitSTTMetadataBoundaryTests(unittest.TestCase):
             "speaker": {}, "capture": {"peak": 0.5},
         })
 
+    def test_wyoming_unknown_or_invalid_speaker_is_not_recognised(self):
+        self.assertTrue(MODULE.valid_wyoming_speaker("id", "J", 0.8))
+        for interaction_id, name, confidence in [
+            ("", "J", 0.8), (" ", "J", 0.8),
+            ("id", "", 0.8), ("id", "  ", 0.8),
+            ("id", "unknown", 0.8), ("id", " Unidentified ", 0.8),
+            ("id", "NONE", 0.8), ("id", "J", True),
+            ("id", "J", float("nan")), ("id", "J", 1.1),
+            ("x" * 81, "J", 0.8), ("id", "x" * 81, 0.8),
+        ]:
+            with self.subTest(interaction_id=interaction_id, name=name):
+                self.assertFalse(MODULE.valid_wyoming_speaker(
+                    interaction_id, name, confidence,
+                ))
+
     def test_missing_capture_is_preserved(self):
         transcript = MODULE.transcript_for_ha(
             "hello", MODULE.SpeakerMetadata(None, None),

@@ -4,14 +4,14 @@ Accepts Wyoming speaker events before or shortly after Transcript.
 """
 import asyncio
 import logging
-import math
 from collections.abc import AsyncIterable
 from homeassistant.components import stt
 from wyoming.client import AsyncTcpClient
 from wyoming.asr import Transcribe, Transcript
 from wyoming.audio import AudioStart, AudioChunk, AudioStop
 from wyoming.error import Error
-from .speaker_models import SpeakerMetadata, metadata_from_transcript, transcript_for_ha
+from .speaker_models import (SpeakerMetadata, metadata_from_transcript,
+                             transcript_for_ha, valid_wyoming_speaker)
 from .capture_level import CaptureLevel
 _LOGGER=logging.getLogger(__name__)
 
@@ -47,13 +47,8 @@ async def receive(client):
             name = value.get('speaker')
             confidence = value.get('confidence')
             identity_id = value.get('interaction_id')
-            speaker_unknown = isinstance(name, str) and name.casefold() in ('unknown', 'unidentified', 'none')
-            valid = (
-                isinstance(name, str) and bool(name) and len(name) <= 80
-                and isinstance(identity_id, str) and len(identity_id) <= 80
-                and isinstance(confidence, (int, float)) and not isinstance(confidence, bool)
-                and math.isfinite(confidence) and 0 <= confidence <= 1
-            )
+            speaker_unknown = isinstance(name, str) and name.strip().casefold() in ('unknown', 'unidentified', 'none')
+            valid = valid_wyoming_speaker(identity_id, name, confidence)
             if valid:
                 identity = (identity_id, name, confidence)
             _LOGGER.info(
