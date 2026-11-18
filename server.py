@@ -12,7 +12,6 @@ from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
 from declan_ingress.security import response_headers, secure_page
 import ha_inventory
 from pathlib import Path
-from collections import OrderedDict as OrderedDict  # Re-export for existing test fixtures.
 from threading import Thread
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
@@ -131,8 +130,6 @@ DECLAN_EVENT_LOG = logging.getLogger("declan.server")
 DECLAN_EVENT_LOG.setLevel(logging.INFO)
 
 SESSION_STORE = session_store.DEFAULT_SESSION_STORE
-SESSIONS = SESSION_STORE.sessions  # Compatibility for existing orchestration callers.
-SESSION_LOCK = SESSION_STORE.lock
 CAPTURE_ARBITER = CaptureArbiter()
 SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_EXECUTION_GATES = routine_execution_gates.RoutineExecutionGates()
@@ -1844,10 +1841,10 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=()):
 
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
-    """Compatibility entry point; caller holds SESSION_LOCK."""
+    """Compatibility entry point; caller holds SESSION_STORE.lock."""
     return session_orchestration.converse(
         message, session_id, routine_reply, lighting_context=lighting_context,
-        scope=scope, guest_mode=guest_mode, sessions=SESSIONS,
+        scope=scope, guest_mode=guest_mode, sessions=SESSION_STORE.sessions,
         idle_seconds=IDLE_SECONDS, name_pattern=NAME_PATTERN,
         chat_commands=CHAT_COMMANDS, unmatched_reply=UNMATCHED_REPLY,
         decorate=add_sass,
@@ -2054,8 +2051,8 @@ class Handler(BaseHTTPRequestHandler):
         turn = turn_initialization.prepare(
             self, body, message=message, session_id=session_id,
             arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
-            new_session_id=secrets.token_urlsafe, sessions=SESSIONS,
-            lock=SESSION_LOCK, now=monotonic(), idle_seconds=IDLE_SECONDS,
+            new_session_id=secrets.token_urlsafe, sessions=SESSION_STORE.sessions,
+            lock=SESSION_STORE.lock, now=monotonic(), idle_seconds=IDLE_SECONDS,
             retrieve=session_context_retrieval.recent_context,
         )
         if turn is None:
@@ -2071,8 +2068,8 @@ class Handler(BaseHTTPRequestHandler):
         preflight = turn_preflight.resolve(
             self, body, message=message, session_id=session_id,
             scope=scope, source=source, satellite=satellite,
-            origin_device=origin_device, sessions=SESSIONS,
-            lock=SESSION_LOCK, now=monotonic(),
+            origin_device=origin_device, sessions=SESSION_STORE.sessions,
+            lock=SESSION_STORE.lock, now=monotonic(),
             preprocess=preprocess_speech, normalize=history.normalize_phrase,
             learned_intent=history.learned_intent,
             retry_window=retry_learning.WINDOW_SECONDS,
@@ -2194,7 +2191,7 @@ class Handler(BaseHTTPRequestHandler):
         information_context = response_preparation.information_context
         response = turn_atomic_finalization.finalize(
             session_id, action_results, light_result, outcome, scope, message, effective_message, routine_reply, lighting_context, response_guest_mode, routine_turn, phrase, guest_mode, visitor_present, routine_voice_result, routine_status, status_target, information_context, pending_retry, source, body,
-            sessions=SESSIONS, session_lock=SESSION_LOCK, clock=monotonic,
+            sessions=SESSION_STORE.sessions, session_lock=SESSION_STORE.lock, clock=monotonic,
             turn_context_preparation=turn_context_preparation,
             turn_finalization=turn_finalization,
             turn_response_composition=turn_response_composition,
