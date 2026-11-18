@@ -53,6 +53,22 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertEqual(MODULE.speaker_from_transcript(
             LegacyTranscript("hello")), "speaker-2")
 
+    def test_metadata_snapshot_survives_transcript_normalization(self):
+        original = SpeakerTranscript("HELLO", "speaker-1", {"confidence": 0.9})
+        metadata = MODULE.metadata_from_transcript(original)
+        normalized = original.lower()
+        self.assertEqual(normalized, "hello")
+        self.assertFalse(hasattr(normalized, "speaker"))
+        self.assertEqual(metadata.speaker, "speaker-1")
+        self.assertEqual(metadata.capture_level, {"confidence": 0.9})
+
+    def test_legacy_metadata_snapshot(self):
+        class LegacyTranscript(str):
+            jarvis_speaker = "speaker-2"
+        metadata = MODULE.metadata_from_transcript(LegacyTranscript("hello"))
+        self.assertEqual(metadata.speaker, "speaker-2")
+        self.assertIsNone(metadata.capture_level)
+
     def test_plain_transcript_has_no_identity(self):
         self.assertIsNone(MODULE.speaker_from_transcript("hello"))
 

@@ -5,6 +5,25 @@ must extract speaker/capture metadata before normalizing or transforming text.
 """
 
 
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class SpeakerMetadata:
+    """Explicit per-request identity snapshot, independent of transcript text."""
+
+    speaker: str | None
+    capture_level: dict[str, float] | None
+
+
+def metadata_from_transcript(transcript):
+    """Snapshot identity before string operations can discard its attributes."""
+    return SpeakerMetadata(
+        speaker=speaker_from_transcript(transcript),
+        capture_level=getattr(transcript, "capture_level", None),
+    )
+
+
 class SpeakerTranscript(str):
     """Compatibility carrier for existing Home Assistant STT consumers."""
 
