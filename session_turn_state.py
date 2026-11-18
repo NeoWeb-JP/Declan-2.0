@@ -24,7 +24,9 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
     session.pop("failed_light_phrase", None)
     decision_outcome = parse_outcome(outcome)
     if (light_result and decision_outcome is Outcome.UNRESOLVED and scope is not None
+            and valid_retry_phrase(message) and type(phrase) is str
             and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
+            and isinstance(action_results, (list, tuple))
             and any(evidence_lighting_reason(step) is LightingActionReason.UNRESOLVED for step in action_results)):
         session["failed_light_phrase"] = {
             "text": message, "scope": scope, "actions": actions,
