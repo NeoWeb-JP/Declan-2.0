@@ -9,6 +9,7 @@ AI_POST = (ROOT / "ai_settings_post.py").read_text()
 DISPATCH = (ROOT / "settings_voice_post.py").read_text()
 AUTHORIZATION = (ROOT / "fallback_entity_authorization.py").read_text()
 FALLBACK = (ROOT / "fallback_orchestration.py").read_text()
+PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/ai_settings_view.py").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
 JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
@@ -63,7 +64,8 @@ class NativeAISettingsContractTests(unittest.TestCase):
 
     def test_fallback_local_first_and_allowlist(self):
         self.assertIn("if routine_reply is not None or light_result is not None:", FALLBACK)
-        self.assertIn('fallback_orchestration.resolve_fallback_result(', BACKEND)
+        self.assertIn('turn_response_preparation.prepare(', BACKEND)
+        self.assertIn('fallback_orchestration.resolve_fallback_result(', PREPARATION)
         self.assertIn('exposed_entities=fallback_entity_authorization.exposed_entities', BACKEND)
         self.assertIn('exposed = exposed_entities(body, authorization, bridge_token)', FALLBACK)
         self.assertIn('ai_exposed_entities', AUTHORIZATION)
