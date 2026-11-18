@@ -40,7 +40,7 @@ class RoutineResultTests(unittest.TestCase):
         self.assertIn('spoken = "Sorted." if verified else reply', source)
         self.assertIn('decorated = personality.decorate(', source)
         import personality_policy
-        with patch.object(personality_policy._RANDOM, "choice", side_effect=lambda lines: lines[0]):
+        with patch.object(personality_policy.ROTATION.random, "choice", side_effect=lambda lines: lines[0]):
             success = personality_policy.decorate(
                 "Good Morning completed successfully.", outcome="confirmed",
                 guest=False, visitor_present=False)
