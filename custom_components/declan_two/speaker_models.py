@@ -80,11 +80,13 @@ def speaker_request_payload(transcript):
         payload["speaker"] = {}
     if isinstance(metadata.capture_level, dict):
         capture = metadata.capture_level
-        # Only forward the numeric fields produced by CaptureLevel.snapshot().
-        # Arbitrary provider objects must not break JSON serialization.
-        if all(type(capture.get(key)) in (int, float)
-               and math.isfinite(capture[key]) and capture[key] >= 0
-               for key in ("ended_at", "duration", "rms")):
-            payload["capture"] = {key: capture[key]
-                                  for key in ("ended_at", "duration", "rms")}
+        # Preserve valid provider numeric fields while excluding objects that
+        # would make the entire Assist JSON request fail serialization.
+        safe_capture = {
+            key: value for key, value in capture.items()
+            if isinstance(key, str) and type(value) in (int, float)
+            and math.isfinite(value) and value >= 0
+        }
+        if safe_capture:
+            payload["capture"] = safe_capture
     return payload
