@@ -1,7 +1,7 @@
 """Turn persistence dispatch regression tests."""
 import unittest
 from unittest.mock import Mock
-from turn_persistence_dispatch import persist_turn
+from turn_persistence_orchestration import persist_turn
 
 
 class TurnPersistenceDispatchTests(unittest.TestCase):
