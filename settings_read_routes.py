@@ -1,0 +1,52 @@
+"""Read-only voice, diagnostics, and AI/media settings routes."""
+import sqlite3
+
+ROUTES = frozenset({
+    "/api/voicepipeline", "/api/voice-profiles", "/api/diagnostics",
+    "/api/settings/spotify", "/api/settings/ai",
+    "/api/settings/media-players", "/api/settings/music-playlists",
+})
+
+
+def handles(path):
+    return path in ROUTES
+
+
+def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
+             ai_budget, ai_settings, ai_credentials, spotify_playlists):
+    path = handler.path
+    if path == "/api/voicepipeline":
+        try:
+            handler.send_json(200, voicepipeline.listing())
+        except voicepipeline.PipelineError as error:
+            handler.send_json(error.status, {"error": str(error)})
+    elif path == "/api/voice-profiles":
+        try:
+            handler.send_json(200, voice_profiles.listing())
+        except (OSError, sqlite3.Error):
+            handler.send_json(503, {"error": "Voice profiles are unavailable."})
+    elif path == "/api/diagnostics":
+        try:
+            handler.send_json(200, {"traces": diagnostics.recent()})
+        except (OSError, sqlite3.Error, ValueError):
+            handler.send_json(503, {"error": "Diagnostics are unavailable."})
+    elif path == "/api/settings/spotify":
+        handler.spotify_settings()
+    elif path == "/api/settings/ai":
+        try:
+            with history.database() as db:
+                usage_micro_usd = ai_budget.monthly_reserved(db)
+            handler.send_json(200, {"settings": ai_settings.read(),
+                                    "key_configured": ai_credentials.configured(),
+                                    "month_usage_micro_usd": usage_micro_usd})
+        except (OSError, sqlite3.Error, ValueError):
+            handler.send_json(503, {"error": "AI settings unavailable."})
+    elif path == "/api/settings/media-players":
+        handler.approved_player_settings()
+    elif path == "/api/settings/music-playlists":
+        try:
+            handler.send_json(200, spotify_playlists.listing())
+        except (OSError, ValueError):
+            handler.send_json(503, {"error": "Spotify playlists unavailable."})
+    else:
+        raise ValueError("Unsupported settings read route")
