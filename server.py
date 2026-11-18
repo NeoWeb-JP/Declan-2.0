@@ -88,6 +88,7 @@ import updates
 import operational_post_routes
 import media_settings_routes
 import speech_http_routes
+import assist_capture_http
 import web_stt
 import openai_planner
 import ai_settings
@@ -2380,16 +2381,13 @@ class Handler(BaseHTTPRequestHandler):
         routine_reply = outcome = routine_status = None
         action_results = ActionEvidenceBuffer()
         light_result = None
-        if source == "assist":
-            speaker = body.get("speaker")
-            speaker_name = (speaker.get("name") if isinstance(speaker, dict)
-                            and type(speaker.get("confidence")) in (int, float)
-                            and speaker["confidence"] >= 0.85 and isinstance(speaker.get("name"), str) else None)
-            if not CAPTURE_ARBITER.claim(history.normalize_phrase(message), satellite or origin_device,
-                                         body.get("capture"), speaker_name):
-                self.send_json(200, {"reply": "", "session_id": session_id or secrets.token_urlsafe(24),
-                                     "outcome": "duplicate"})
-                return
+        if assist_capture_http.suppress_duplicate(
+            self, source=source, body=body, message=message,
+            session_id=session_id, satellite=satellite, origin_device=origin_device,
+            arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
+            new_session_id=secrets.token_urlsafe,
+        ):
+            return
         with SESSION_LOCK:
             last_lights, last_device, last_information = (
                 session_context_retrieval.recent_context(
