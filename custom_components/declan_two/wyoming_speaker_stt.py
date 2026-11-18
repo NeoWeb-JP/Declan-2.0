@@ -148,7 +148,15 @@ class DeclanWyomingVoiceBridge(stt.SpeechToTextEntity):
                         (upload_task, receive_task), return_when=asyncio.FIRST_COMPLETED,
                     )
                     if upload_task in done:
-                        upload_task.result()
+                        try:
+                            upload_task.result()
+                        except Exception:
+                            _LOGGER.warning(
+                                "Declan Wyoming audio upload failed", exc_info=True,
+                            )
+                            return stt.SpeechResult(
+                                None, stt.SpeechResultState.ERROR,
+                            )
                     result = await receive_task
                     text = getattr(result, "text", None)
                     if result.result == stt.SpeechResultState.SUCCESS and isinstance(text, str):
