@@ -59,7 +59,7 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
             result, _ = server.run_routine_result("morning")
         self.assertIs(result.outcome, Outcome.REJECTED)
         opener.open.assert_called_once()
-        self.assertFalse(server.ROUTINE_LOCKS["morning"].locked())
+        self.assertFalse(server.ROUTINE_EXECUTION_GATES.for_routine("morning").locked())
 
     def test_bedroom_stop_uses_typed_music_without_legacy_roundtrip(self):
         opener = Mock()
