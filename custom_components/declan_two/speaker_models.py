@@ -27,3 +27,15 @@ class SpeakerTranscript(str):
 
     def __reduce_ex__(self, protocol):
         return (type(self), (str(self), self.speaker, self.capture_level))
+
+
+def speaker_from_transcript(transcript):
+    """Read speaker identity before any string normalization loses metadata.
+
+    Prefer the canonical field while accepting older STT providers that still
+    attach only the legacy attribute to a string subclass.
+    """
+    speaker = getattr(transcript, "speaker", None)
+    if speaker is not None:
+        return speaker
+    return getattr(transcript, "jarvis_speaker", None)
