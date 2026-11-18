@@ -121,7 +121,7 @@ class WyomingOrderingTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(elapsed, 0.8)
 
     async def test_blank_transcripts_are_not_successful_commands(self):
-        for text in ("", "   ", "\\t"):
+        for text in ("", "   ", "\t"):
             with self.subTest(text=text):
                 result = await receive(Client([
                     speaker("Jaco"), Event("transcript", {"text": text}),
