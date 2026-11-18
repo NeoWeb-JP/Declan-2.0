@@ -271,7 +271,6 @@ def home_assistant_status_result() -> HomeAssistantStatusResult:
                 or parsed.username or parsed.password or parsed.query or parsed.fragment):
             return HomeAssistantStatusResult(HomeAssistantStatus.NOT_CONFIGURED)
         request = Request(url + "/api/", headers={"Authorization": f"Bearer {token}"})
-        pending_retry = preflight.pending_retry
         opener = build_opener(ProxyHandler({}), NoRedirect())
         with opener.open(request, timeout=3) as response:
             payload = json.loads(response.read(4096))
@@ -2107,6 +2106,7 @@ class Handler(BaseHTTPRequestHandler):
         if preflight is None:
             return
         session_id, phrase, effective_message = preflight.session_id, preflight.phrase, preflight.effective_message
+        pending_retry = preflight.pending_retry
         opener = build_opener(ProxyHandler({}), NoRedirect())
         routine_preview, timer_result = preview_timer_orchestration.preview_and_timer(
             phrase, source=source, origin_device=origin_device,
