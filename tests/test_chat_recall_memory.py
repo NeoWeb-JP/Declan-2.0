@@ -34,6 +34,23 @@ class ChatRecallTests(unittest.TestCase):
         with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
             return session_orchestration.converse(message, sid, **self.kwargs, **extra)
 
+    def test_non_string_messages_fail_before_mutating_sessions(self):
+        self.say("hello")
+        before = list(self.sessions.items())
+        for bad in (None, 123, [], {}):
+            with self.subTest(bad=repr(bad)):
+                with self.assertRaisesRegex(ValueError, "chat message must be a string"):
+                    self.say(bad)
+                self.assertEqual(list(self.sessions.items()), before)
+
+    def test_corrupt_active_sessions_are_pruned_without_crashing(self):
+        self.sessions["missing-at"] = {"name": "Alex"}
+        self.sessions["not-a-dict"] = None
+        self.sessions["bad-at"] = {"at": "yesterday"}
+        self.say("hello")
+        for key in ("missing-at", "not-a-dict", "bad-at"):
+            self.assertNotIn(key, self.sessions)
+
     def test_invalid_client_session_ids_get_fresh_opaque_ids(self):
         for bad in ([], {}, 123, True, "", "x" * 257):
             with self.subTest(bad=repr(bad)):
