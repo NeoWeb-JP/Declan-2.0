@@ -168,6 +168,7 @@ class ManagementTests(TestCase):
             with diagnostics.request('/api/chat'):
                 self.assertTrue(True)
 
+    @patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': base64.urlsafe_b64encode(b't' * 32).decode()})
     def test_voice_samples_require_consent_review_and_can_be_exported_and_deleted(self):
         self.assertEqual(voice_profiles.listing()['profiles'], [])
         for body in ({'operation': 'create', 'name': 'Jaco'}, {'operation': 'create', 'name': '../bad', 'consent': True}):

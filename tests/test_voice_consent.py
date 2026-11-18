@@ -1,5 +1,7 @@
 """Regression coverage for local voice consent state and revocation."""
 import tempfile
+import os
+import base64
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -7,6 +9,7 @@ from unittest.mock import patch
 import voice_profiles
 
 
+@patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': base64.urlsafe_b64encode(b'k' * 32).decode()})
 class LocalVoiceConsentTests(unittest.TestCase):
     def test_revoke_removes_samples_and_requires_new_consent(self):
         with tempfile.TemporaryDirectory() as temp:
