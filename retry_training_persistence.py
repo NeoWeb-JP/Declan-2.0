@@ -1,17 +1,17 @@
 """Persistence boundary for successful conversational retry training."""
 import sqlite3
 
+from retry_phrase_validation import valid_retry_phrase
+
 
 def save_retry_training(reply, *, pending_retry, retry_succeeded, message,
                         effective_message, similar, normalize_phrase,
                         teach_phrase, log_error):
     """Learn only a similar, successful rephrasing; tolerate storage failures."""
     original = pending_retry.get("text") if isinstance(pending_retry, dict) else None
-    if not (retry_succeeded and isinstance(original, str) and original.strip()
-            and len(original) <= 4096
-            and isinstance(message, str) and message.strip() and len(message) <= 4096
-            and isinstance(effective_message, str) and effective_message.strip()
-            and len(effective_message) <= 4096):
+    if not (retry_succeeded and valid_retry_phrase(original)
+            and valid_retry_phrase(message)
+            and valid_retry_phrase(effective_message)):
         return False
     try:
         if (not similar(original, message)
