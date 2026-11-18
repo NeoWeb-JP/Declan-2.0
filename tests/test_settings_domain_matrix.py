@@ -12,7 +12,8 @@ class SettingsDomainMatrixTests(unittest.TestCase):
 
     def test_every_allowlisted_field_accepts_its_domain(self):
         for key, domain in configuration.FIELDS.items():
-            value = "default-pipeline" if domain == "pipeline" else f"{domain}.declan_test"
+            value = ("default-pipeline" if domain == "pipeline" else
+                     "Test Resident" if domain == "display_name" else f"{domain}.declan_test")
             with self.subTest(key=key, domain=domain):
                 self.assertEqual(
                     configuration.validate(self.document(key, value))["settings"][key],
