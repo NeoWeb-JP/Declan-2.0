@@ -65,7 +65,11 @@ async def receive(client):
             # Preserve the first command while waiting for late speaker identity.
             if transcript is not None:
                 continue
-            candidate = Transcript.from_event(event).text
+            try:
+                candidate = Transcript.from_event(event).text
+            except (KeyError, TypeError, ValueError, AttributeError):
+                _LOGGER.warning("DECLAN_WYOMING_SPEAKER event=malformed_transcript")
+                return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
             if not isinstance(candidate, str) or not candidate.strip():
                 _LOGGER.info("DECLAN_WYOMING_SPEAKER event=empty_transcript")
                 return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
