@@ -18,6 +18,7 @@ class ChatRecallTests(unittest.TestCase):
         self.commands = {
             "what's my name": "recall_name",
             "what did i say earlier": "recall_earlier",
+            "what did i just say": "recall_message",
             "forget this conversation": "forget_chat",
         }
         self.kwargs = {
@@ -141,6 +142,24 @@ class ChatRecallTests(unittest.TestCase):
         self.assertEqual(record["recent_messages"], ["hello", "a harmless note"])
         self.assertNotIn("passcode", str(record))
         self.assertNotIn("thermostat", str(record))
+
+    def test_active_session_never_repeats_private_last_message(self):
+        first = self.say("hello")
+        sid = first["session_id"]
+        self.say("my password is synthetic-test-value", sid)
+        response = self.say("what did i just say", sid)
+        self.assertNotIn("synthetic-test-value", response["reply"])
+        self.assertIn("safe earlier message", response["reply"])
+
+    def test_active_session_filters_private_recent_messages_at_read_time(self):
+        first = self.say("hello")
+        sid = first["session_id"]
+        self.sessions[sid]["recent_messages"] = [
+            "hello", "my password is synthetic-test-value", "the weather is lovely"]
+        response = self.say("what did i say earlier", sid)
+        self.assertIn("hello", response["reply"])
+        self.assertIn("the weather is lovely", response["reply"])
+        self.assertNotIn("synthetic-test-value", response["reply"])
 
     def test_sensitive_name_is_rejected_even_before_session_expiry(self):
         first = self.say("my name is Alex")
