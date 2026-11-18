@@ -469,7 +469,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.response.json.return_value = {"text": "Switch on study light"}
 
         async def audio():
-            yield b"\\x00\\x01\\x02\\x03"
+            yield b"\x00\x01\x02\x03"
 
         await entity.async_process_audio_stream(None, audio())
         self.assertIn(("prompt", provider.PROMPT + " Vocabulary: Study, Braai."),
