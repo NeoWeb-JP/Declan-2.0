@@ -24,7 +24,10 @@ class RetirementTests(unittest.TestCase):
         origin_source = Path(__file__).resolve().parents[1].joinpath(
             "request_origin.py").read_text()
         self.assertIn('path == "/api/assist"', origin_source)
-        self.assertIn("request_origin.request_context(", source)
+        self.assertIn("ingress_turn_orchestration.resolve_origin(", source)
+        self.assertIn("resolve=request_origin.request_context", source)
+        ingress = Path(__file__).resolve().parents[1].joinpath("ingress_turn_orchestration.py").read_text()
+        self.assertIn("return resolve(path, body)", ingress)
         self.assertNotIn("webbrowser.open(", source)
         self.assertTrue(Path(__file__).resolve().parents[1].joinpath(
             "custom_components/declan_two/frontend/panel.js").exists())
