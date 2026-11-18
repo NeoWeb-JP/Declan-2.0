@@ -34,6 +34,15 @@ class RetryContextTests(unittest.TestCase):
         self.assertIsNone(consume_pending_retry(session, "kitchen",
                                                 now=105, window_seconds=10))
 
+    def test_string_subclass_retry_text_is_discarded_without_evaluation(self):
+        class HostileText(str):
+            def strip(self):
+                raise RuntimeError("unexpected string operation")
+        session = {"pending_retry": {**self.retry, "text": HostileText("lights off")}}
+        self.assertIsNone(consume_pending_retry(session, "kitchen",
+                                                now=105, window_seconds=10))
+        self.assertNotIn("pending_retry", session)
+
     def test_malformed_session_is_ignored(self):
         for session in ("text", [], 42):
             with self.subTest(session=repr(session)):
