@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 SERVER = (ROOT / "server.py").read_text()
 POST_ROUTES = (ROOT / "operational_post_routes.py").read_text()
+NATIVE_READ = (ROOT / "native_read_routes.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/management_view.py").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
 
@@ -40,9 +41,9 @@ class NativeManagementContracts(unittest.TestCase):
     def test_read_only_backup_recovery_and_diagnostics(self):
         for endpoint in ("settings-export", "settings-recovery", "diagnostics"):
             self.assertIn("/api/native/" + endpoint, SERVER)
-        self.assertIn("configuration.export()", SERVER)
-        self.assertIn("configuration.recovery()", SERVER)
-        self.assertIn("diagnostics.recent()", SERVER)
+        self.assertIn("configuration.export()", NATIVE_READ)
+        self.assertIn("configuration.recovery()", NATIVE_READ)
+        self.assertIn("diagnostics.recent()", NATIVE_READ)
         self.assertIn("declan_two/management/", PANEL)
         self.assertIn("URL.createObjectURL", PANEL)
 
