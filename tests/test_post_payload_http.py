@@ -18,7 +18,7 @@ class PostPayloadHttpTests(unittest.TestCase):
 
     def test_valid_json(self):
         handler = Mock(path="/api/chat")
-        handler.headers.get.return_value = "12"
+        handler.headers.get.return_value = "13"
         handler.rfile = io.BytesIO(b'{"text":"hi"}')
         self.assertEqual(read_json_body(handler), {"text": "hi"})
 
