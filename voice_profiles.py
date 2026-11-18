@@ -10,6 +10,8 @@ import sqlite3
 import struct
 from time import time
 import wave
+
+from voice_audio_crypto import encrypt, decrypt
 from contextlib import closing, contextmanager
 
 DATABASE = Path(__file__).resolve().parent / '.data' / 'voice-profiles.sqlite3'
@@ -120,8 +122,10 @@ def manage(body):
             digest = hashlib.sha256(audio).hexdigest()
             if db.execute('SELECT 1 FROM samples WHERE profile = ? AND digest = ?', (profile[0], digest)).fetchone():
                 raise ValueError('This recording has already been saved.')
+            sample_id = secrets.token_hex(12)
+            encrypted = encrypt(audio, sample_id)
             db.execute('INSERT INTO samples VALUES (?, ?, ?, ?, ?, ?)',
-                       (secrets.token_hex(12), profile[0], audio, duration, digest, time()))
+                       (sample_id, profile[0], encrypted, duration, digest, time()))
         elif operation == 'delete_sample' and body.get('confirm') is True:
             if db.execute('DELETE FROM samples WHERE id = ? AND profile = ?', (body.get('sample'), profile[0])).rowcount != 1:
                 raise ValueError('That sample no longer exists.')
@@ -133,7 +137,7 @@ def manage(body):
                     raise ValueError('That sample no longer exists.')
             return {'format': 'declan-voice-samples', 'schema_version': 1, 'name': profile[1],
                     'consent_at': profile[2], 'recogniser_connected': False,
-                    'samples': [{'id': row[0], 'audio': base64.b64encode(row[1]).decode(),
+                    'samples': [{'id': row[0], 'audio': base64.b64encode(decrypt(row[1], row[0])).decode(),
                                  'duration': row[2], 'sha256': row[3]} for row in rows]}
         else:
             raise ValueError('Choose an operation and confirm before deleting.')
