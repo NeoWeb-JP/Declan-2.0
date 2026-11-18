@@ -23,6 +23,12 @@ def home_assistant_ready(status: HomeAssistantStatusResult) -> bool:
     return status.status is HomeAssistantStatus.CONNECTED
 
 
+def database_health_response() -> tuple[int, dict[str, str]]:
+    """Preserve the lightweight database-only health response contract."""
+    ready = database_ready()
+    return (200 if ready else 503, {"status": "ok" if ready else "unavailable"})
+
+
 @dataclass(frozen=True)
 class DependencyHealth:
     database: bool

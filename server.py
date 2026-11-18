@@ -2040,8 +2040,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/logo.png":
             self.send_body(200, Path(__file__).with_name("logo.png").read_bytes(), "image/png")
         elif self.path == "/health":
-            ready = health_readiness.database_ready()
-            self.send_json(200 if ready else 503, {"status": "ok" if ready else "unavailable"})
+            status, payload = health_readiness.database_health_response()
+            self.send_json(status, payload)
         elif self.path == "/health/dependencies":
             health = health_readiness.DependencyHealth(
                 database=health_readiness.database_ready(),
