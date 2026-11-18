@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VIEW = (ROOT / "custom_components/declan_two/voice_review_view.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 SERVER = (ROOT / "server.py").read_text()
+ACCESS = (ROOT / "voicepipeline_access_http.py").read_text()
 
 
 class NativeVoicePlaybackContract(unittest.TestCase):
@@ -19,8 +20,10 @@ class NativeVoicePlaybackContract(unittest.TestCase):
         self.assertIn('allow_redirects=False', VIEW)
 
     def test_backend_limits_remote_audio_requests(self):
-        self.assertIn('body.get("operation") not in {"resolve", "audio", "history", "correct"}', SERVER)
-        self.assertIn('set(body) != {"operation", "interaction_id"}', SERVER)
+        ast.parse(ACCESS)
+        self.assertIn('operation not in {"resolve", "audio", "history", "correct"}', ACCESS)
+        self.assertIn('return set(body) != {"operation", "interaction_id"}', ACCESS)
+        self.assertIn("voicepipeline_access_http.enforce_access(", SERVER)
 
     def test_native_panel_handles_unknown_and_audio(self):
         self.assertIn("item.matched_speaker", PANEL)

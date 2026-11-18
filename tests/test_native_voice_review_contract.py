@@ -5,6 +5,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
+ACCESS = (ROOT / "voicepipeline_access_http.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/voice_review_view.py").read_text()
 JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
@@ -16,10 +17,12 @@ class VoiceReviewContractTests(unittest.TestCase):
         post = SERVER[SERVER.index("    def handle_post(self):"):]
         self.assertIn('self.path == "/api/voicepipeline"', get)
         self.assertIn('not voice_review_auth', get)
-        self.assertIn('body.get("operation") not in {"resolve", "audio", "history", "correct"}', post)
-        self.assertIn('body.get("action") not in {"confirm", "assign", "dismiss", "enrol"}', post)
-        self.assertIn('set(body) != {"operation", "interaction_id"}', post)
-        self.assertIn('set(body) != {"operation"}', post)
+        ast.parse(ACCESS)
+        self.assertIn("voicepipeline_access_http.enforce_access(", post)
+        self.assertIn('operation not in {"resolve", "audio", "history", "correct"}', ACCESS)
+        self.assertIn('body.get("action") not in {"confirm", "assign", "dismiss", "enrol"}', ACCESS)
+        self.assertIn('return set(body) != {"operation", "interaction_id"}', ACCESS)
+        self.assertIn('return set(body) != {"operation"}', ACCESS)
 
     def test_ha_view_requires_admin_and_scopes_writes(self):
         ast.parse(VIEW)

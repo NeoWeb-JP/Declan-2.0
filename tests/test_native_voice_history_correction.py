@@ -6,6 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 VIEW = (ROOT / "custom_components/declan_two/voice_review_view.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
+ACCESS = (ROOT / "voicepipeline_access_http.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 
 class NativeVoiceCorrectionContract(unittest.TestCase):
@@ -18,8 +19,9 @@ class NativeVoiceCorrectionContract(unittest.TestCase):
         self.assertIn('"current_resolution_id": row.get("current_resolution_id")', VIEW)
 
     def test_backend_limits_remote_correction_shape(self):
-        self.assertIn('body.get("operation") == "correct"', SERVER)
-        self.assertIn('body.get("confirm") is not True', SERVER)
+        ast.parse(ACCESS)
+        self.assertIn('body.get("confirm") is not True', ACCESS)
+        self.assertIn("voicepipeline_access_http.enforce_access(", SERVER)
 
     def test_ui_requires_review_revision_and_confirmation(self):
         self.assertNotIn('!item.current_resolution_id || !speaker) return;', PANEL)

@@ -90,6 +90,7 @@ import media_settings_routes
 import speech_http_routes
 import assist_capture_http
 import assist_auth_http
+import voicepipeline_access_http
 import web_stt
 import openai_planner
 import ai_settings
@@ -2251,18 +2252,11 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= max_size:
                 raise ValueError
             body = json.loads(self.rfile.read(size))
-            # The HA Assist token only authorizes pending match resolution, never
-            # speaker deletion, clip clearing or correction of historical records.
-            if (self.path == "/api/voicepipeline"
-                    and not self.has_ingress_access()
-                    and self.client_address[0] != "127.0.0.1"
-                    and (not isinstance(body, dict)
-                         or body.get("operation") not in {"resolve", "audio", "history", "correct"}
-                         or (body.get("operation") == "resolve" and body.get("action") not in {"confirm", "assign", "dismiss", "enrol"})
-                         or (body.get("operation") == "audio" and set(body) != {"operation", "interaction_id"})
-                         or (body.get("operation") == "history" and set(body) != {"operation"})
-                         or (body.get("operation") == "correct" and (set(body) != {"operation", "interaction_id", "assigned_to", "expected_resolution_id", "confirm"} or body.get("confirm") is not True)))):
-                self.send_json(403, {"error": "This VoicePipeline action requires local access."})
+            # Assist-token callers may review or resolve pending matches, but not
+            # perform destructive VoicePipeline management operations.
+            if not voicepipeline_access_http.enforce_access(
+                self, body, ingress=self.has_ingress_access(),
+            ):
                 return
             if self.path == "/api/native/spotify-credentials":
                 operational_post_routes.handle_spotify_credentials(
