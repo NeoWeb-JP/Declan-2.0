@@ -62,6 +62,7 @@ import device_result_response
 import lighting_result_dispatch
 import final_dispatch_orchestration
 import turn_finalization_dispatch
+import ingress_turn_orchestration
 import fallback_orchestration
 import guest_assignment_command
 import roast_command_dispatch
@@ -2300,8 +2301,8 @@ class Handler(BaseHTTPRequestHandler):
                 action_results=routine_action_results_typed,
             )
             return
-        source, scope, origin_device, satellite = request_origin.request_context(
-            self.path, body,
+        source, scope, origin_device, satellite = ingress_turn_orchestration.resolve_origin(
+            self.path, body, resolve=request_origin.request_context,
         )
         routine_reply = outcome = routine_status = None
         action_results = ActionEvidenceBuffer()
@@ -2324,12 +2325,13 @@ class Handler(BaseHTTPRequestHandler):
         status_target = None
         information_context = None
         # Resolve self-corrections and learned aliases before command side effects.
-        effective_message, phrase = learned_intent_resolution.resolve(
-            message, preprocess=preprocess_speech,
+        effective_message, phrase = ingress_turn_orchestration.resolve_learned_message(
+            message, resolve=learned_intent_resolution.resolve, preprocess=preprocess_speech,
             normalize=history.normalize_phrase,
             learned_intent=history.learned_intent, log_error=self.log_error,
         )
-        pending_retry = session_context_access.consume_retry_context(
+        pending_retry = ingress_turn_orchestration.consume_retry(
+            consume_context=session_context_access.consume_retry_context,
             session_id=session_id, scope=scope, sessions=SESSIONS,
             lock=SESSION_LOCK, now=monotonic(),
             window_seconds=retry_learning.WINDOW_SECONDS,
@@ -2348,20 +2350,20 @@ class Handler(BaseHTTPRequestHandler):
         opener = build_opener(ProxyHandler({}), NoRedirect())
         # HA owns script permissions. Guest assignment is a separate privileged
         # action and retains its existing voice confirmation protection.
-        confirmation = sensitive_confirmation_turn.confirmation_turn_result(
-            message, phrase, session_id, source=source,
-            satellite=satellite, origin_device=origin_device,
-            speaker=body.get("speaker"),
-            evaluate=sensitive_confirmation_decision.evaluate_result,
-            confirmation_response=sensitive_confirmation_response.confirmation_response,
-            normalize=history.normalize_phrase, guest_commands=GUEST_COMMANDS,
-            confirmations=SENSITIVE_CONFIRMATIONS,
-            record=history.record, diagnostic_id=diagnostics.current_id,
-            log_error=self.log_error,
-        )
         session_id, phrase, effective_message, confirmation_reply = (
-            sensitive_confirmation_resolution.resolved_confirmation(
-                confirmation, phrase, effective_message,
+            ingress_turn_orchestration.resolve_confirmation(
+                message, phrase, session_id, source=source,
+                satellite=satellite, origin_device=origin_device,
+                speaker=body.get("speaker"),
+                confirm=sensitive_confirmation_turn.confirmation_turn_result,
+                evaluate=sensitive_confirmation_decision.evaluate_result,
+                confirmation_response=sensitive_confirmation_response.confirmation_response,
+                normalize=history.normalize_phrase, guest_commands=GUEST_COMMANDS,
+                confirmations=SENSITIVE_CONFIRMATIONS,
+                record=history.record, diagnostic_id=diagnostics.current_id,
+                log_error=self.log_error,
+                resolve=sensitive_confirmation_resolution.resolved_confirmation,
+                effective_message=effective_message,
             )
         )
         if confirmation_reply is not None:
