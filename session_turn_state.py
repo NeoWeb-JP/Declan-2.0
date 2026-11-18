@@ -5,6 +5,7 @@ from action_evidence_buffer import evidence_lighting_reason
 from lighting_action_evidence import LightingActionReason
 from context_numeric_validation import finite_number
 from retry_phrase_validation import valid_retry_phrase
+from retry_scope_validation import valid_retry_scope
 
 SUCCESS_OUTCOMES = frozenset({
     Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED,
@@ -23,7 +24,7 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
     session["information_scope"] = scope
     session.pop("failed_light_phrase", None)
     decision_outcome = parse_outcome(outcome)
-    if (light_result and decision_outcome is Outcome.UNRESOLVED and scope is not None
+    if (light_result and decision_outcome is Outcome.UNRESOLVED and valid_retry_scope(scope)
             and valid_retry_phrase(message) and type(phrase) is str
             and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
             and isinstance(action_results, (list, tuple))
@@ -31,7 +32,7 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
         session["failed_light_phrase"] = {
             "text": message, "scope": scope, "actions": actions,
         }
-    needs_retry = (reply["reply"] == unmatched_reply and scope is not None
+    needs_retry = (reply["reply"] == unmatched_reply and valid_retry_scope(scope)
                    and valid_retry_phrase(message) and finite_number(now))
     # Never advertise a listening follow-up without a usable pending retry.
     reply["continue_conversation"] = needs_retry
