@@ -3,7 +3,6 @@
 import importlib.util
 from pathlib import Path
 import unittest
-from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 FILE = ROOT / "custom_components" / "declan_two" / "stt_vocabulary.py"
