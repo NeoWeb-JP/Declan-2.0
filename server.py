@@ -52,7 +52,6 @@ import sensitive_confirmation_decision
 import sensitive_confirmation_turn
 import routine_preview_detection
 import routine_preview_dispatch
-import early_command_result
 import stop_result_response
 import roast_guest_dispatch
 import routine_registry_dispatch
@@ -2375,7 +2374,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         routine_turn = None
         routine_voice_result = None
-        early_result = early_command_result.select_early_result(
+        early_result = preview_timer_orchestration.select_early_result(
             routine_preview, timer_result,
         )
         if early_result is not None:

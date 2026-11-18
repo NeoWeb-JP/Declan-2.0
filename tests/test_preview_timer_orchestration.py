@@ -3,7 +3,8 @@
 import unittest
 from unittest.mock import Mock
 
-from preview_timer_orchestration import preview_and_timer
+from preview_timer_orchestration import preview_and_timer, select_early_result
+from execution_results import ExecutionResult
 
 
 class PreviewTimerOrchestrationTests(unittest.TestCase):
@@ -33,6 +34,19 @@ class PreviewTimerOrchestrationTests(unittest.TestCase):
         self.assertEqual(calls[1][2]["satellite"], "satellite")
         self.assertEqual(calls[1][2]["source"], "assist")
         self.assertEqual(calls[1][2]["opener"], "opener")
+
+    def test_typed_preview_precedes_timer(self):
+        preview = ExecutionResult("preview", "confirmed")
+        timer = Mock(result=ExecutionResult("timer", "confirmed"))
+        self.assertIs(select_early_result(preview, timer), preview)
+
+    def test_typed_timer_selected_without_preview(self):
+        result = ExecutionResult("timer", "confirmed")
+        self.assertIs(select_early_result(None, Mock(result=result)), result)
+
+    def test_untyped_timer_rejected(self):
+        with self.assertRaisesRegex(ValueError, "typed execution result"):
+            select_early_result(None, Mock(result=("timer", "confirmed")))
 
     def test_no_preview_still_dispatches_timer(self):
         timer = Mock(return_value=None)
