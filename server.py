@@ -213,6 +213,8 @@ CHAT_COMMANDS = {
     "what's my name": "recall_name", "what is my name": "recall_name",
     "do you remember my name": "recall_name",
     "what did i just say": "recall_message", "what did i say": "recall_message",
+    "what did i say earlier": "recall_earlier", "what have i said": "recall_earlier",
+    "forget this conversation": "forget_chat", "forget our conversation": "forget_chat",
     "what time is it": "time", "what is the time": "time", "tell me the time": "time",
     "what's the time": "time", "what’s the time": "time",
     "hello": "greeting", "hi": "greeting", "hey": "greeting", "hello declan": "greeting",
@@ -1849,7 +1851,7 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
         scope=scope, guest_mode=guest_mode, sessions=SESSION_STORE.sessions,
         idle_seconds=IDLE_SECONDS, name_pattern=NAME_PATTERN,
         chat_commands=CHAT_COMMANDS, unmatched_reply=UNMATCHED_REPLY,
-        decorate=add_sass,
+        decorate=add_sass, recall=SESSION_STORE.chat_recall,
     )
 
 
