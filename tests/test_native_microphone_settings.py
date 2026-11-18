@@ -6,6 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = ROOT / "custom_components" / "declan_two"
 SERVER = (ROOT / "server.py").read_text()
+NATIVE_READ = (ROOT / "native_read_routes.py").read_text()
 PANEL = (COMPONENT / "frontend" / "panel.js").read_text()
 INIT = (COMPONENT / "__init__.py").read_text()
 
@@ -32,7 +33,7 @@ class NativeMicrophoneSettingsTests(unittest.TestCase):
         self.assertIn("window.confirm(", PANEL)
         self.assertIn("form.reset()", PANEL)
         self.assertNotIn("client_secret", source)
-        self.assertIn('source in {"saved", "environment"}', SERVER)
+        self.assertIn('source in {"saved", "environment"}', NATIVE_READ)
         self.assertIn("Existing credentials have not been changed", PANEL)
 
     def test_microphone_permissions_and_stop_controls(self):
