@@ -26,7 +26,7 @@ class SettingsExportEnvironmentSnapshotTests(unittest.TestCase):
 
     def test_export_resolves_all_defaults_from_one_snapshot(self):
         snapshot = {key: (f"pipeline-{i}" if domain == "pipeline" else
-                          f"Resident {i}" if domain == "display_name" else
+                          "Test Resident" if domain == "display_name" else
                           f"{domain}.value_{i}")
                     for i, (key, domain) in enumerate(configuration.FIELDS.items())}
         with patch.dict(os.environ, {}, clear=True):
