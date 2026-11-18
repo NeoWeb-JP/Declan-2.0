@@ -68,7 +68,7 @@ namespace = {
     "SpeakerMetadata": lambda speaker, capture: SimpleNamespace(speaker=speaker),
     "transcript_for_ha": lambda text, metadata: SimpleNamespace(
         text=text, speaker=metadata.speaker),
-    "_LOGGER": SimpleNamespace(info=lambda *args: None),
+    "_LOGGER": SimpleNamespace(info=lambda *args: None, warning=lambda *args: None),
 }
 exec(compile(ast.Module(body=[RECEIVE], type_ignores=[]), "<wyoming-receive>", "exec"), namespace)
 receive = namespace["receive"]
@@ -150,6 +150,22 @@ class WyomingOrderingTests(unittest.IsolatedAsyncioTestCase):
         result = await receive(Client([
             Event("transcript", {"text": "lights on"}),
             Event("transcript", {"text": " "}),
+            speaker("Jaco"),
+        ]))
+        self.assertEqual(result.result, State.SUCCESS)
+        self.assertEqual(result.text.text, "lights on")
+
+    async def test_malformed_transcript_returns_stt_error(self):
+        for data in ({}, {"text": None}, {"text": 123}):
+            with self.subTest(data=data):
+                result = await receive(Client([Event("transcript", data)]))
+                self.assertEqual(result.result, State.ERROR)
+                self.assertIsNone(result.text)
+
+    async def test_malformed_duplicate_is_ignored_after_valid_transcript(self):
+        result = await receive(Client([
+            Event("transcript", {"text": "lights on"}),
+            Event("transcript", {}),
             speaker("Jaco"),
         ]))
         self.assertEqual(result.result, State.SUCCESS)
