@@ -6,7 +6,10 @@ from math import isfinite
 def recent_context(previous, scope, *, now, idle_seconds):
     """Return recent lighting, device and information context for this scope."""
     lights, device, information = (), None, None
-    if scope is None or not isinstance(previous, dict):
+    if (scope is None or not isinstance(previous, dict)
+            or type(now) not in (int, float) or not isfinite(now)
+            or type(idle_seconds) not in (int, float)
+            or not isfinite(idle_seconds) or idle_seconds <= 0):
         return lights, device, information
     # Reject corrupt, non-finite and future timestamps just like active-session expiry.
     at = previous.get("at")
