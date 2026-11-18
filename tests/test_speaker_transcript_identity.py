@@ -158,6 +158,25 @@ class SpeakerTranscriptTests(unittest.TestCase):
                     confidence,
                 )
 
+    def test_assist_payload_rejects_huge_integer_confidence(self):
+        transcript = SpeakerTranscript(
+            "hello", ("id", "Jaco", 10 ** 1000), {"rms": 0.2}
+        )
+        self.assertEqual(MODULE.speaker_request_payload(transcript), {
+            "capture": {"rms": 0.2},
+        })
+
+    def test_assist_payload_ignores_huge_integer_capture(self):
+        transcript = SpeakerTranscript("hello", ("id", "Jaco", 0.9), {
+            "duration": 1.5, "invalid": 10 ** 1000,
+            "negative": -(10 ** 1000),
+        })
+        self.assertEqual(MODULE.speaker_request_payload(transcript), {
+            "speaker": {"interaction_id": "id", "name": "Jaco",
+                        "confidence": 0.9},
+            "capture": {"duration": 1.5},
+        })
+
     def test_assist_payload_rejects_boolean_confidence(self):
         self.assertEqual(MODULE.speaker_request_payload(
             SpeakerTranscript("hello", ("id", "Jaco", True))), {})
