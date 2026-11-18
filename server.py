@@ -80,6 +80,7 @@ import history_post_routes
 import music
 import approved_media_players
 import spotify_playlists
+import music_playlists_post
 import timers
 import updates
 import web_stt
@@ -2365,20 +2366,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.approved_player_settings(body)
                 return
             if self.path == "/api/settings/music-playlists":
-                try:
-                    if isinstance(body, dict) and set(body) == {"category", "operation"} and body.get("operation") == "refresh":
-                        credentials, _ = music.spotify_credentials()
-                        if not all(credentials):
-                            self.send_json(409, {"error": "Configure Spotify credentials before refreshing playlists."})
-                            return
-                        self.send_json(200, spotify_playlists.start_refresh(
-                            body["category"], lambda: build_opener(ProxyHandler({}))))
-                    else:
-                        self.send_json(200, spotify_playlists.manage(body))
-                except ValueError as error:
-                    self.send_json(400, {"error": str(error)})
-                except OSError:
-                    self.send_json(503, {"error": "Spotify playlist storage unavailable."})
+                music_playlists_post.handle_music_playlists(
+                    self, body, credentials=music.spotify_credentials,
+                    start_refresh=spotify_playlists.start_refresh,
+                    manage=spotify_playlists.manage,
+                    opener_factory=lambda: build_opener(ProxyHandler({})),
+                )
                 return
             if self.path == "/api/voicepipeline":
                 voice_post_routes.handle_voicepipeline(
