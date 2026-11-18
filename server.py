@@ -17,7 +17,7 @@ from threading import Lock, Thread
 from contextlib import contextmanager
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from execution_results import ExecutionResult, Outcome, MovieLaunchResult, MovieLaunchStatus
@@ -87,6 +87,7 @@ import media_settings_routes
 import native_read_routes
 import operational_read_routes
 import settings_read_routes
+import history_read_routes
 import media_settings_post
 import speech_http_routes
 import assist_capture_http
@@ -2045,51 +2046,8 @@ class Handler(BaseHTTPRequestHandler):
                 ai_settings=ai_settings, ai_credentials=ai_credentials,
                 spotify_playlists=spotify_playlists,
             )
-        elif self.path == "/api/history/export":
-            try:
-                turns = history.recent(limit=None)
-            except (OSError, sqlite3.Error):
-                self.send_json(503, {"error": "Conversation history is unavailable."})
-                return
-            self.send_body(
-                200, json.dumps({"turns": list(reversed(turns))}, ensure_ascii=False).encode("utf-8"),
-                "application/json", "declan-conversation-history.json",
-            )
-        elif self.path.startswith("/api/history/recording-links?"):
-            try:
-                params = parse_qs(urlsplit(self.path).query)
-                if set(params) != {"ids"} or len(params["ids"]) != 1:
-                    raise ValueError("Missing recording identifiers.")
-                identifiers = params["ids"][0].split(",")
-                links = history.verified_recording_turns(identifiers)
-                linked = set(links.values())
-                turns = {str(row["id"]): row for row in history.recent(limit=None) if row["id"] in linked}
-                self.send_json(200, {"links": links, "turns": turns})
-            except ValueError:
-                self.send_json(400, {"error": "Invalid recording identifiers."})
-            except (OSError, sqlite3.Error):
-                self.send_json(503, {"error": "Recording links unavailable."})
-        elif self.path == "/api/history" or self.path.startswith("/api/history?"):
-            try:
-                params = parse_qs(urlsplit(self.path).query)
-                before = int(params["before"][0]) if "before" in params else None
-                if before is not None and not 0 < before < 2**63:
-                    raise ValueError
-                turns = history.recent(before, limit=51)
-                aliases = history.learned_intents() if before is None else None
-                for turn in turns:
-                    turn["teachable"] = (turn["source"] in {"assist", "browser_voice", "browser_keyboard", "ha_sentence"}
-                                         and 0 < len(history.normalize_phrase(turn["message"])) <= 120)
-            except ValueError:
-                self.send_json(400, {"error": "Invalid history cursor."})
-                return
-            except (OSError, sqlite3.Error):
-                self.send_json(503, {"error": "Conversation history is unavailable."})
-                return
-            self.send_json(200, {
-                "turns": turns[:50], "next": turns[49]["id"] if len(turns) > 50 else None,
-                "learned_intents": aliases,
-            })
+        elif history_read_routes.handles(self.path):
+            history_read_routes.dispatch(self, history=history)
         else:
             self.send_json(404, {"error": "Not found."})
 
