@@ -1,5 +1,4 @@
 """Atomic finalization stage regression tests."""
-import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
