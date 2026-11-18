@@ -5,13 +5,16 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
+STAGE = (ROOT / "turn_fallback_dispatch.py").read_text()
 
 
 class DirectFinalDispatchTests(unittest.TestCase):
     def test_domain_boundaries_used_without_forwarding_wrappers(self):
         ast.parse(SERVER)
+        ast.parse(STAGE)
+        self.assertIn("lighting_result_dispatch.dispatch_lighting_response(", STAGE)
+        self.assertIn("turn_fallback_dispatch.dispatch(", SERVER)
         for call in (
-            "lighting_result_dispatch.dispatch_lighting_response(",
             "fallback_orchestration.resolve_fallback_result(",
             "response_persona_context.resolve_response_persona(",
             "turn_context_preparation.prepare_turn_context(",
