@@ -209,6 +209,33 @@ class SessionOrchestrationTests(unittest.TestCase):
         self.assertIs(self.sessions[sid], original)
         self.assertEqual(original["recent_messages"], ["hello", "password is private"])
 
+    def test_recall_provider_receives_only_safe_chat_fields(self):
+        from unittest.mock import Mock
+        recall = Mock()
+        result = session_orchestration.converse(
+            "lights on", None, "Done", lighting_context=("light.study",),
+            scope="kitchen", recall=recall, clock=lambda: 100, **self.kwargs)
+        self.assertFalse(recall.remember.called)
+        session_orchestration.converse(
+            "hello", result["session_id"], recall=recall,
+            clock=lambda: 101, **self.kwargs)
+        saved = recall.remember.call_args.args[1]
+        self.assertEqual(set(saved), {"last", "name", "recent_messages"})
+        self.assertNotIn("lighting_context", saved)
+        self.assertNotIn("lighting_scope", saved)
+        self.assertEqual(saved["last"], "hello")
+        self.assertEqual(self.sessions[result["session_id"]]["lighting_scope"], "kitchen")
+
+    def test_recall_provider_never_receives_secret_last_message(self):
+        from unittest.mock import Mock
+        recall = Mock()
+        session_orchestration.converse(
+            "my password is 123456", None, recall=recall,
+            clock=lambda: 100, **self.kwargs)
+        saved = recall.remember.call_args.args[1]
+        self.assertIsNone(saved["last"])
+        self.assertEqual(saved["recent_messages"], [])
+
     def test_session_count_is_bounded(self):
         for index in range(130):
             session_orchestration.converse("hello", None, **self.kwargs)
