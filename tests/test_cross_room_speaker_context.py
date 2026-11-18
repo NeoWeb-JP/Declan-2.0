@@ -9,7 +9,11 @@ class SatelliteContextTests(unittest.TestCase):
         ast.parse(source)
         self.assertNotIn("SPEAKER_CONTEXTS", source)
         self.assertNotIn("speaker_scope", source)
-        self.assertIn('speaker["confidence"] >= 0.85', source)
+        capture_source = Path(__file__).resolve().parents[1].joinpath(
+            "assist_capture_http.py").read_text()
+        ast.parse(capture_source)
+        self.assertIn("assist_capture_http.suppress_duplicate(", source)
+        self.assertIn('speaker["confidence"] >= 0.85', capture_source)
         # Scope checks live in the extracted session context retrieval module.
         context_source = Path(__file__).resolve().parents[1].joinpath(
             "session_context_retrieval.py").read_text()
