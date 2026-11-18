@@ -105,6 +105,7 @@ import roast_guest_orchestration
 import routine_follow_on_orchestration
 import routine_registry_orchestration
 import information_response_orchestration
+import device_response_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2451,13 +2452,16 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 information_context = information_response.information_context
             else:
-                local = device_command_dispatch.dispatch_device(
+                device_response = device_response_orchestration.dispatch_device_response(
                     phrase, source=source, last_device=last_device,
                     origin_device=origin_device, satellite=satellite,
+                    dispatch=device_command_dispatch.dispatch_device,
+                    adapt=device_result_response.device_response,
                     registry_factory=command_registry.registry,
                     dependencies_factory=command_registry.Dependencies,
                     context_factory=command_registry.RequestContext,
-                    parse_status=device_status.parse, describe_status=device_status.describe_result,
+                    parse_status=device_status.parse,
+                    describe_status=device_status.describe_result,
                     connection=ha_device_connection, inventory=read_ha_inventory_result,
                     decorate=add_sass, guest_mode_entity=GUEST_MODE_ENTITY,
                     parse_feedback=music.parse_feedback, feedback=music.feedback_result,
@@ -2466,10 +2470,11 @@ class Handler(BaseHTTPRequestHandler):
                     music_inventory=read_music_inventory_result, areas=read_ha_areas,
                     search_media=search_media_result,
                 )
-                if local is not None:
-                    response = device_result_response.device_response(local)
-                    routine_reply, outcome = response.result.reply, response.result.outcome
-                    status_target = response.status_target
+                if device_response is not None:
+                    routine_reply, outcome = (
+                        device_response.result.reply, device_response.result.outcome
+                    )
+                    status_target = device_response.status_target
                 else:
                     lighting_result = lighting_result_dispatch.dispatch_lighting_response(
                         phrase, source=source, origin_device=origin_device,
