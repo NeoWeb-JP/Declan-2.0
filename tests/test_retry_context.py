@@ -23,6 +23,17 @@ class RetryContextTests(unittest.TestCase):
                 self.assertIsNone(self.consume())
                 self.assertNotIn("pending_retry", self.session)
 
+    def test_missing_or_invalid_retry_text_is_discarded_once(self):
+        for text in (None, "", "  ", 123, [], "x" * 4097):
+            with self.subTest(text_type=type(text).__name__):
+                session = {"pending_retry": {**self.retry, "text": text}}
+                self.assertIsNone(consume_pending_retry(session, "kitchen",
+                                                        now=105, window_seconds=10))
+                self.assertNotIn("pending_retry", session)
+        session = {"pending_retry": {"scope": "kitchen", "at": 100}}
+        self.assertIsNone(consume_pending_retry(session, "kitchen",
+                                                now=105, window_seconds=10))
+
     def test_malformed_session_is_ignored(self):
         for session in ("text", [], 42):
             with self.subTest(session=repr(session)):
@@ -48,6 +59,16 @@ class RetryContextTests(unittest.TestCase):
         self.assertIs(consume_pending_retry(session, scope, now=105,
                                             window_seconds=30), pending)
         self.assertNotIn("pending_retry", session)
+
+    def test_oversized_integer_retry_metadata_is_consumed_safely(self):
+        huge = 10 ** 1000
+        for now, window, at in ((huge, 30, 100), (105, huge, 100),
+                                (105, 30, huge)):
+            with self.subTest(oversized=(now == huge, window == huge, at == huge)):
+                session = {"pending_retry": {**self.retry, "at": at}}
+                self.assertIsNone(consume_pending_retry(session, "kitchen", now=now,
+                                                        window_seconds=window))
+                self.assertNotIn("pending_retry", session)
 
     def test_matching_retry_is_returned(self):
         self.assertIs(self.consume(), self.retry)

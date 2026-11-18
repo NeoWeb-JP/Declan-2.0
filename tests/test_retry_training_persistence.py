@@ -53,6 +53,32 @@ class RetryTrainingPersistenceTests(unittest.TestCase):
         self.assertNotIn("learned_from_retry", reply)
         self.log.assert_called_once()
 
+    def test_corrupt_pending_retry_does_not_learn_or_call_similarity(self):
+        for pending in ([], {}, {"text": None}, {"text": 42},
+                        {"text": ""}, {"text": " "}, {"text": "x" * 4097}):
+            with self.subTest(pending=repr(type(pending))):
+                self.similar.reset_mock()
+                self.teach.reset_mock()
+                reply, result = self.save(pending=pending)
+                self.assertFalse(result)
+                self.assertNotIn("learned_from_retry", reply)
+                self.similar.assert_not_called()
+                self.teach.assert_not_called()
+
+    def test_similarity_or_normalization_errors_do_not_break_turn(self):
+        for stage in ("similarity", "normalization"):
+            with self.subTest(stage=stage):
+                self.setUp()
+                if stage == "similarity":
+                    self.similar.side_effect = TypeError("invalid similarity input")
+                else:
+                    self.normalize = Mock(side_effect=ValueError("bad normalization"))
+                reply, result = self.save()
+                self.assertFalse(result)
+                self.assertNotIn("learned_from_retry", reply)
+                self.teach.assert_not_called()
+                self.log.assert_called_once()
+
     def test_missing_pending_retry_does_not_learn(self):
         reply = {}
         result = save_retry_training(reply, pending_retry=None, retry_succeeded=True,
