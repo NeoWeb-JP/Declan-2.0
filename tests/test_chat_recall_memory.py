@@ -34,6 +34,19 @@ class ChatRecallTests(unittest.TestCase):
         with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
             return session_orchestration.converse(message, sid, **self.kwargs, **extra)
 
+    def test_invalid_client_session_ids_get_fresh_opaque_ids(self):
+        for bad in ([], {}, 123, True, "", "x" * 257):
+            with self.subTest(bad=repr(bad)):
+                result = self.say("hello", bad)
+                self.assertIsInstance(result["session_id"], str)
+                self.assertNotEqual(result["session_id"], bad)
+                self.assertIn(result["session_id"], self.sessions)
+
+    def test_unknown_string_session_id_is_not_adopted(self):
+        result = self.say("hello", "attacker-chosen-session")
+        self.assertNotEqual(result["session_id"], "attacker-chosen-session")
+        self.assertNotIn("attacker-chosen-session", self.sessions)
+
     def test_routine_reply_keeps_action_context_when_forget_phrase_overridden(self):
         first = self.say("my name is Alex")
         sid = first["session_id"]
