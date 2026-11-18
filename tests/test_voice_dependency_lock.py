@@ -15,7 +15,7 @@ class VoiceLockTests(unittest.TestCase):
             def fake_run(args, **kwargs):
                 folder = Path(args[args.index('--dest') + 1])
                 for name in ('websocket_client-1.9.2-py3-none-any.whl',
-                             'cryptography-46.0.3-cp312-abi3-manylinux.whl',
+                             'cryptography-50.0.0-cp312-abi3-manylinux.whl',
                              'cffi-2.0.0-cp312-abi3-manylinux.whl',
                              'pycparser-2.23-py3-none-any.whl'):
                     (folder / name).write_bytes(name.encode())
@@ -24,7 +24,7 @@ class VoiceLockTests(unittest.TestCase):
             self.assertEqual(len(text.splitlines()), 5)
             self.assertTrue(text.endswith(chr(10)))
             self.assertNotIn(chr(92) + 'n', text)
-            for package in ('websocket-client==1.9.2', 'cryptography==46.0.3',
+            for package in ('websocket-client==1.9.2', 'cryptography==50.0.0',
                             'cffi==2.0.0', 'pycparser==2.23'):
                 self.assertIn(package + ' --hash=sha256:', text)
             self.assertEqual(target.read_text(), 'old lock\\n')
