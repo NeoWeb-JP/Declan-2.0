@@ -19,7 +19,8 @@ class RetirementTests(unittest.TestCase):
 
     def test_backend_endpoints_and_native_panel_preserved(self):
         source = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
-        self.assertIn('elif self.path == "/health":', source)
+        self.assertIn('system_read_routes.handles(self.path)', source)
+        self.assertIn('path == "/health"', Path(__file__).resolve().parents[1].joinpath("system_read_routes.py").read_text())
         # Request-origin routing now lives in the extracted request_origin module.
         origin_source = Path(__file__).resolve().parents[1].joinpath(
             "request_origin.py").read_text()
