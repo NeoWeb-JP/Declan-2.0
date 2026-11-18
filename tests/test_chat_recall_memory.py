@@ -20,6 +20,7 @@ class ChatRecallTests(unittest.TestCase):
             "what did i say earlier": "recall_earlier",
             "what did i just say": "recall_message",
             "forget this conversation": "forget_chat",
+            "hello declan": "greeting",
         }
         self.kwargs = {
             "sessions": self.sessions, "idle_seconds": 300,
@@ -32,6 +33,21 @@ class ChatRecallTests(unittest.TestCase):
     def say(self, message, sid=None, **extra):
         with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
             return session_orchestration.converse(message, sid, **self.kwargs, **extra)
+
+    def test_greeting_never_speaks_unsafe_legacy_session_name(self):
+        first = self.say("hello")
+        sid = first["session_id"]
+        self.sessions[sid]["name"] = "my password is synthetic-test-value"
+        result = self.say("hello declan", sid)
+        self.assertEqual(result["reply"], "Hello. I\'m Declan.")
+        self.assertIsNone(self.sessions[sid]["name"])
+
+    def test_safe_history_is_revalidated_before_adding_new_turn(self):
+        first = self.say("hello")
+        sid = first["session_id"]
+        self.sessions[sid]["recent_messages"] = ["my password is synthetic-test-value", "hi"]
+        self.say("the weather is lovely", sid)
+        self.assertEqual(self.sessions[sid]["recent_messages"], ["hi", "the weather is lovely"])
 
     def test_expiry_prunes_all_sessions_even_if_order_is_not_chronological(self):
         self.sessions["fresh"] = {"at": 999.0}
