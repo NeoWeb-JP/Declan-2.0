@@ -79,7 +79,7 @@ class ChatRecallTests(unittest.TestCase):
         recall = ChatRecallMemory()
         for n in range(140):
             recall.remember(f"session-{n}", {
-                "name": "A" * 100,
+                "name": "Z" * 100,
                 "last": "x" * 1000,
                 "recent_messages": ["y" * 400] * 8,
                 "lighting_context": ("light.private",),
