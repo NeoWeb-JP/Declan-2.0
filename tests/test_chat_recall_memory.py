@@ -142,6 +142,14 @@ class ChatRecallTests(unittest.TestCase):
         self.assertNotIn("passcode", str(record))
         self.assertNotIn("thermostat", str(record))
 
+    def test_private_name_is_not_retained_for_later_spoken_recall(self):
+        self.recall.remember("s", {"name": "my API key is sk-abcdefghijklmnop",
+                                   "last": "hello", "recent_messages": ["hello"]}, 100)
+        record = self.recall.restore("s", 101)
+        self.assertIsNone(record["name"])
+        self.assertEqual(record["last"], "hello")
+        self.assertNotIn("sk-abcdefghijklmnop", str(record))
+
     def test_sensitive_turn_cannot_extend_existing_recall_lifetime(self):
         self.recall.remember("s", {"name": "Alex", "last": "hello",
                                    "recent_messages": ["hello"]}, 100)
