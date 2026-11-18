@@ -19,7 +19,7 @@ def routine_execution_result(value):
     """Return a typed result and the routine status for legacy or typed providers."""
     if isinstance(value, ExecutionResult):
         return value, None
-    if not isinstance(value, (tuple, list)):
+    if type(value) not in (tuple, list):
         raise ValueError("Routine provider must return a typed result or legacy triple")
     if len(value) == 2 and isinstance(value[0], ExecutionResult):
         result, status = value
