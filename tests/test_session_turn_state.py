@@ -66,6 +66,24 @@ class SessionTurnStateTests(unittest.TestCase):
             light=("Unknown.", "unresolved"), steps=[{"detail": "unresolved"}])
         self.assertNotIn("failed_light_phrase", session)
 
+    def test_failed_light_context_requires_valid_phrase_and_evidence(self):
+        for message, phrase, steps in (
+            (None, "turn off kitchen", [{"detail": "unresolved"}]),
+            (" ", "turn off kitchen", [{"detail": "unresolved"}]),
+            ("x" * 4097, "turn off kitchen", [{"detail": "unresolved"}]),
+            ("turn off kitchen", None, [{"detail": "unresolved"}]),
+            ("turn off kitchen", 42, [{"detail": "unresolved"}]),
+            ("turn off kitchen", "turn off kitchen", None),
+            ("turn off kitchen", "turn off kitchen", "unresolved"),
+        ):
+            with self.subTest(message_type=type(message).__name__, phrase_type=type(phrase).__name__):
+                session, reply = {}, {"reply": "Unmatched"}
+                update_turn(session, reply, message=message, phrase=phrase,
+                    outcome="unresolved", scope="kitchen", status_target=None,
+                    information_context=None, light_result=True, action_results=steps,
+                    actions={"off"}, unmatched_reply="Unmatched", now=123.0)
+                self.assertNotIn("failed_light_phrase", session)
+
     def test_invalid_original_phrase_never_stores_retry(self):
         for message in (None, 42, "", " ", "x" * 4097):
             with self.subTest(message_type=type(message).__name__):
