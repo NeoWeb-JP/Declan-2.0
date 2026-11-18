@@ -4,6 +4,7 @@ from contextlib import closing
 from pathlib import Path
 import sqlite3
 
+from cryptography.exceptions import InvalidTag
 from voice_audio_crypto import MAGIC, _aesgcm, decrypt
 
 
@@ -36,7 +37,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         result = inspect(args.database)
-    except (OSError, ValueError, RuntimeError, sqlite3.Error) as error:
+    except (OSError, ValueError, RuntimeError, sqlite3.Error, InvalidTag) as error:
         parser.exit(1, f'Voice encryption readiness check failed: {error}' + chr(10))
     print(f"Encrypted samples: {result['encrypted']}; plaintext samples: {result['plaintext']}")
     if result['plaintext']:
