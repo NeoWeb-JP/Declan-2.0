@@ -2,6 +2,7 @@
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from math import isfinite
 from chat_recall_privacy import safe_chat_text
 
 MAX_SESSIONS = 128
@@ -20,7 +21,9 @@ class ChatRecallMemory:
 
     def prune(self, now):
         for key, value in list(self.entries.items()):
-            if now - value["at"] >= RECALL_SECONDS:
+            at = value.get("at") if isinstance(value, dict) else None
+            if (type(at) not in (int, float) or not isfinite(at)
+                    or at > now or now - at >= RECALL_SECONDS):
                 self.entries.pop(key, None)
         while len(self.entries) > MAX_SESSIONS:
             self.entries.popitem(last=False)
@@ -32,9 +35,16 @@ class ChatRecallMemory:
         previous = self.entries.get(session_id)
         if previous is None:
             return None
+        # Reject malformed entries instead of restoring unsafe or partial state.
+        if (not isinstance(previous.get("recent_messages"), (tuple, list))
+                or not isinstance(previous.get("last"), str)):
+            self.entries.pop(session_id, None)
+            return None
         self.entries.move_to_end(session_id)
-        return {"name": previous["name"], "last": previous["last"],
-                "recent_messages": list(previous["recent_messages"])}
+        return {"name": safe_chat_text(previous.get("name")),
+                "last": safe_chat_text(previous["last"]),
+                "recent_messages": [safe for item in previous["recent_messages"]
+                                    if (safe := safe_chat_text(item)) is not None][-MAX_RECENT_MESSAGES:]}
 
     def remember(self, session_id, state, now):
         if not isinstance(session_id, str) or not session_id:
