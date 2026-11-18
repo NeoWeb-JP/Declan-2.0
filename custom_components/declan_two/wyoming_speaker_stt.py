@@ -47,7 +47,7 @@ async def receive(client):
             name = value.get('speaker')
             confidence = value.get('confidence')
             identity_id = value.get('interaction_id')
-            speaker_unknown = isinstance(name, str) and name.casefold() in ('unknown', 'unidentified', 'none')
+            speaker_unknown = isinstance(name, str) and name.strip().casefold() in ('unknown', 'unidentified', 'none')
             valid = (
                 isinstance(name, str) and bool(name) and len(name) <= 80
                 and isinstance(identity_id, str) and len(identity_id) <= 80
