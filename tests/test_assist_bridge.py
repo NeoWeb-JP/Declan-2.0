@@ -267,14 +267,10 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.session.post.reset_mock()
         await internal("not a dictionary")
         self.session.post.assert_not_called()
-        name, handler = hass.bus.async_listen.call_args.args
-        self.assertEqual(name, "declan_two_assist_reply")
-        for invalid_data in (None, "invalid", [], 42):
-            await handler(SimpleNamespace(data=invalid_data))
-        self.session.post.assert_not_called()
-        await handler(SimpleNamespace(data={"message": ""}))
-        self.session.post.assert_not_called()
-        await handler(SimpleNamespace(data={"message": "good morning", "reply": "Morning", "outcome": "partial"}))
+        # An arbitrary HA integration can publish bus events. Never register a
+        # listener that would forward their payload to privileged history storage.
+        hass.bus.async_listen.assert_not_called()
+        await internal({"message": "good morning", "reply": "Morning", "outcome": "partial"})
         self.assertTrue(self.session.post.call_args.args[0].endswith("/api/assist/history"))
         self.assertEqual(self.session.post.call_args.kwargs["json"]["outcome"], "partial")
         self.session.post.reset_mock()
@@ -287,10 +283,10 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             {"message": "hello", "reply": "ok", "steps": [None]},
         ):
             with self.subTest(event=bad_event):
-                await handler(SimpleNamespace(data=bad_event))
+                await internal(bad_event)
                 self.session.post.assert_not_called()
-        await handler(SimpleNamespace(data={"message": "hello", "reply": "ok",
-                                            "session_id": "session-1", "steps": ["step"]}))
+        await internal({"message": "hello", "reply": "ok",
+                        "session_id": "session-1", "steps": ["step"]})
         self.assertEqual(self.session.post.call_args.kwargs["json"]["steps"], ["step"])
         self.assertTrue(await self.component.async_unload_entry(hass, self.entry))
 

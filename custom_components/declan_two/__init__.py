@@ -94,11 +94,6 @@ async def _forward_assist_history(hass, entry, data):
 async def async_setup_entry(hass, entry):
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    async def record_assist_reply(event):
-        if not isinstance(getattr(event, "data", None), dict):
-            return
-        await _forward_assist_history(hass, entry, event.data)
-
     # Central gate for unsolicited speech. Home Assistant automations can
     # invoke declan_two.announce, but never bypass the overnight allowlist.
     async def announce(call):
@@ -183,7 +178,7 @@ async def async_setup_entry(hass, entry):
     entry.async_on_unload(lambda: hass.services.async_remove("declan_two", "announce"))
 
     # Internal callers can record replies without publishing a spoofable global event.
-    # The legacy bus listener remains until its producers have migrated.
+    # Never subscribe to the global HA event bus: other integrations can spoof events.
     async def record_internal_reply(data):
         if isinstance(data, dict):
             await _forward_assist_history(hass, entry, data)
@@ -196,7 +191,6 @@ async def async_setup_entry(hass, entry):
 
     entry.async_on_unload(unregister_internal_reply)
 
-    entry.async_on_unload(hass.bus.async_listen("declan_two_assist_reply", record_assist_reply))
     return True
 
 
