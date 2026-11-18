@@ -93,6 +93,7 @@ import assist_auth_http
 import voicepipeline_access_http
 import post_payload_http
 import post_origin_auth_http
+import post_route_gate_http
 import web_stt
 import openai_planner
 import ai_settings
@@ -2168,8 +2169,7 @@ class Handler(BaseHTTPRequestHandler):
                 self, token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
             ):
                 return
-        elif self.path not in {"/api/chat", "/api/settings/spotify", "/api/tts", "/api/stt", "/api/updates", "/api/history/clear", "/api/history/intents", "/api/settings/import", "/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai", "/api/voice-profiles", "/api/voicepipeline", "/api/native/spotify-credentials", "/api/native/settings-import", "/api/native/intents", "/api/native/routines", "/api/native/routine-responses"}:
-            self.send_json(404, {"error": "Not found."})
+        elif not post_route_gate_http.enforce_known_route(self):
             return
         elif not post_origin_auth_http.enforce_access(
             self, token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
