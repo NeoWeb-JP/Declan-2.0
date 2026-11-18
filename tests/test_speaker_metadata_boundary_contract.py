@@ -1,13 +1,13 @@
 """Explicit speaker metadata projection and compatibility adapter tests."""
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "custom_components" / "declan_two" / "speaker_models.py"
 spec = importlib.util.spec_from_file_location("declan_speaker_models_contract", MODULE_PATH)
 models = importlib.util.module_from_spec(spec)
-import sys
 sys.modules[spec.name] = models
 spec.loader.exec_module(models)
 
