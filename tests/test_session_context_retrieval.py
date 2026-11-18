@@ -58,6 +58,18 @@ class SessionContextRetrievalTests(unittest.TestCase):
                                                 idle_seconds=idle_seconds),
                                  ((), None, None))
 
+    def test_extremely_large_integer_metadata_fails_closed(self):
+        huge = 10 ** 1000
+        for previous, now, idle_seconds in (
+            (self.previous, huge, 10),
+            (self.previous, 101, huge),
+            ({**self.previous, "at": huge}, 101, 10),
+        ):
+            with self.subTest(now=now, idle_seconds=idle_seconds):
+                self.assertEqual(recent_context(previous, "kitchen", now=now,
+                                                idle_seconds=idle_seconds),
+                                 ((), None, None))
+
     def test_assist_tuple_scope_retains_valid_context(self):
         scope = ("assist", "device-1", None, "assist_satellite.kitchen")
         previous = {**self.previous, "device_status_scope": scope,
