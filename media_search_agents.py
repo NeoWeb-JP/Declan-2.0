@@ -20,7 +20,11 @@ AGENT_TEMPLATE = (
 
 
 class MediaAgentError(ValueError):
-    """A configured media agent is unavailable or cannot be verified."""
+    """An independent media search agent cannot be selected."""
+
+
+class MediaAgentUnavailable(MediaAgentError):
+    """Home Assistant could not verify the agent inventory or its state."""
 
 
 def resolve(connection, configured):
@@ -35,13 +39,13 @@ def resolve(connection, configured):
             payload = json.loads(response.read(65536))
     except HTTPError as error:
         error.close()
-        raise MediaAgentError("I couldn't check Home Assistant media-search agents.") from None
+        raise MediaAgentUnavailable("I couldn't check Home Assistant media-search agents.") from None
     except (OSError, ValueError, TypeError):
-        raise MediaAgentError("I couldn't check Home Assistant media-search agents.") from None
+        raise MediaAgentUnavailable("I couldn't check Home Assistant media-search agents.") from None
     if (not isinstance(payload, dict)
             or not isinstance(payload.get("legacy"), list)
             or not isinstance(payload.get("self"), list)):
-        raise MediaAgentError("Home Assistant returned an invalid media-agent inventory.")
+        raise MediaAgentUnavailable("Home Assistant returned an invalid media-agent inventory.")
     self_agents = {agent for agent in payload["self"] if isinstance(agent, str)}
     if configured:
         if configured in self_agents:
