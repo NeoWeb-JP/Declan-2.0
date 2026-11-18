@@ -7,7 +7,6 @@ import os
 import re
 import secrets
 import sqlite3
-import subprocess  # nosec B404 - used by the controlled update/restart paths
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
 from declan_ingress.security import response_headers, secure_page
