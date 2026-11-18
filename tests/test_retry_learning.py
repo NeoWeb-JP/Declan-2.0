@@ -17,7 +17,7 @@ class RetryLearningTests(unittest.TestCase):
     def setUp(self):
         directory = self.enterContext(tempfile.TemporaryDirectory())
         self.enterContext(patch.object(history, 'DATABASE', Path(directory) / 'history.db'))
-        self.enterContext(patch.object(server, 'SESSIONS', server.OrderedDict()))
+        self.enterContext(patch.object(server, "SESSION_STORE", server.session_store.SessionStore()))
         self.enterContext(patch.object(server, 'read_guest_mode', return_value='off'))
         self.enterContext(patch.object(server, 'read_visitors_present', return_value=False))
         self.enterContext(patch.object(server, 'guarded_openai_fallback_result', return_value=None))
@@ -88,7 +88,7 @@ class RetryLearningTests(unittest.TestCase):
         for expired in (True, False):
             first = self.ask('office light on it')
             if expired:
-                server.SESSIONS[first['session_id']]['pending_retry']['at'] -= 31
+                server.SESSION_STORE.sessions[first['session_id']]['pending_retry']['at'] -= 31
             with self.succeed():
                 self.ask('office light on', first['session_id'], device='kitchen' if expired else 'bedroom')
             self.assertEqual(history.learned_intents(), {})
