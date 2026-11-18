@@ -8,8 +8,8 @@ import declan_logs
 
 class DeclanLogTests(unittest.TestCase):
     def setUp(self):
-        with declan_logs._LOCK:
-            declan_logs._ENTRIES.clear()
+        with declan_logs.STATE.lock:
+            declan_logs.STATE.entries.clear()
         declan_logs.install()
 
     def test_captures_only_declan_logs_and_redacts_tokens(self):
@@ -44,6 +44,22 @@ class DeclanLogTests(unittest.TestCase):
         logging.getLogger("declan.server").info("HTTP 200 POST /api/assist")
         self.assertEqual(declan_logs.recent("INFO")[0]["message"],
                          "HTTP 200 POST /api/assist")
+
+    def test_log_feed_keeps_public_response_shape(self):
+        logging.getLogger("declan.server").warning("Test diagnostic")
+        item = declan_logs.recent("WARNING")[0]
+        self.assertEqual(set(item), {"time", "level", "source", "message"})
+        self.assertEqual(item["message"], "Test diagnostic")
+
+    def test_reattaches_handler_after_root_logger_reset(self):
+        root = logging.getLogger()
+        handler = declan_logs.STATE.handler
+        root.removeHandler(handler)
+        try:
+            declan_logs.install()
+            self.assertEqual(sum(item is handler for item in root.handlers), 1)
+        finally:
+            declan_logs.install()
 
     def test_install_is_idempotent(self):
         declan_logs.install()
