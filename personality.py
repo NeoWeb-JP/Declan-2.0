@@ -1,6 +1,7 @@
 """Short, outcome-specific replies for Declan's built-in commands."""
 
 from response_rotation_state import ResponseRotationState
+import household_language
 
 
 LINES = {
@@ -28,50 +29,50 @@ LINES = {
     ),
     "dinner_announcement": (
         ("Dinner is served, gentlemen. Abandon your screens and pretend to be civilised.",
-         "Jaco has prepared dinner. Edd, your presence and appreciation are now required.",
+         "{resident_one} has prepared dinner. {resident_two}, your presence and appreciation are now required.",
          "Attention household. Actual food is ready. The automations can have a night off.",
-         "Dinner is served. Finn has already volunteered as the official taste tester.",
-         "Gentlemen, your meal awaits. Tux has declined due to inadequate service.",
+         "Dinner is served. {pet_dog} has already volunteered as the official taste tester.",
+         "Gentlemen, your meal awaits. {pet_cat} has declined due to inadequate service.",
          "The dining room is ready. Arrive before the food develops abandonment issues.",
-         "Edd, dinner is ready. Jaco would appreciate applause, compliments, and possibly a foot massage.",
+         "{resident_two}, dinner is ready. {resident_one} would appreciate applause, compliments, and possibly a foot massage.",
          "Dinner time. All engineering projects are suspended until further notice.",
          "Your culinary experience is ready. Michelin stars are pending inspection.",
-         "Jaco and Edd, it's time to feed the humans before their behaviour deteriorates.",
+         "{resident_one} and {resident_two}, it's time to feed the humans before their behaviour deteriorates.",
          "Dinner is served, boys. Pants are preferred but apparently negotiable.",
          "Gentlemen, dinner is brought to you by hunger, determination, and questionable planning.",
-         "Food is ready. Finn has been informed this does not constitute an invitation.",
-         "Jaco and Edd, report to the dining room. The potatoes are getting cold.",
+         "Food is ready. {pet_dog} has been informed this does not constitute an invitation.",
+         "{resident_one} and {resident_two}, report to the dining room. The potatoes are getting cold.",
          "Dinner is ready. Kindly put down the technology and interact like actual humans.",
          "Your table awaits, gentlemen. The management requests minimal complaining.",
          "Dinner time, boys. Please refrain from discussing server upgrades between mouthfuls.",
          "The chef has spoken. Dinner is ready, and criticism may result in washing-up duty.",
          "Attention household. Calories have been prepared for your consumption.",
-         "Dinner is served. Tux has already submitted a formal complaint about the menu.",
+         "Dinner is served. {pet_cat} has already submitted a formal complaint about the menu.",
          "Gentlemen, your romantic dinner awaits. Try not to spend the evening discussing Wi-Fi.",
-         "Jaco, Edd, dinner is ready. Consider this your official summons from Domestic Affairs.",
+         "{resident_one}, {resident_two}, dinner is ready. Consider this your official summons from Domestic Affairs.",
          "The kitchen has done its bit. Now it's time for the humans to perform theirs.",
-         "Food is ready. Form an orderly queue. Finn, that includes you.",
+         "Food is ready. Form an orderly queue. {pet_dog}, that includes you.",
          "Dinner is served. I recommend compliments to the chef, even if you have reservations.",
          "Dinner is ready. Tonight's entertainment includes food, conversation, and hopefully no electrical failures.",
          "Dinner is ready. I've handled the ambience. Romance is your responsibility.",
          "Gentlemen, the meal is ready. Please leave any bedroom-related activities until after dessert.",
          "Dinner time. I've set the mood. The rest is up to your questionable charm.",
-         "Jaco and Edd, dinner is served. May the food be delicious and Finn's begging unsuccessful."),
+         "{resident_one} and {resident_two}, dinner is served. May the food be delicious and {pet_dog}'s begging unsuccessful."),
         ("Dinner is served. Please make your way to the table.",
          "Dinner is ready. See you in the dining room.",
          "Time for dinner. I hope everyone's hungry."),
     ),
     "guest_inactive": (
-        ("Jaco and Edd hold the mortgage, Tux holds the throne, Finn holds a tennis ball, and I hold this circus together.",
-         "Technically you two are in charge. Tux is willing to let you believe that.",
-         "Jaco and Edd are on the paperwork. Tux has veto power and Finn has the ball."),
+        ("{resident_one} and {resident_two} hold the mortgage, {pet_cat} holds the throne, {pet_dog} holds a tennis ball, and I hold this circus together.",
+         "Technically you two are in charge. {pet_cat} is willing to let you believe that.",
+         "{resident_one} and {resident_two} are on the paperwork. {pet_cat} has veto power and {pet_dog} has the ball."),
         ("The usual household arrangements apply.",
          "There is no active guest assignment.",
          "The household is back to its usual arrangements."),
     ),
     "guest_cleared": (
         ("The guest register is clean. The rest of the house is your problem, my bru.",
-         "Tux has resumed his ceremonial duties. You two can handle the actual work.",
+         "{pet_cat} has resumed his ceremonial duties. You two can handle the actual work.",
          "The house is yours again. I trust you'll use that authority irresponsibly."),
         ("The guest handover is complete.",
          "The household is back to its usual arrangements.",
@@ -188,7 +189,7 @@ LINES = {
          "Screening over. I’ll leave the closing credits to you."),
     ),
     "good_morning": (
-        ("Finn wants breakfast, Tux wants tribute, and somebody needs to put the kettle on.",
+        ("{pet_dog} wants breakfast, {pet_cat} wants tribute, and somebody needs to put the kettle on.",
          "The house is awake. I’ll give management a few more minutes.",
          "Another day, my bru. Try coffee before any major policy decisions.",
          "Rise and shine. The pets have already lodged their first complaint.",
@@ -200,7 +201,7 @@ LINES = {
     ),
     "good_night": (
         ("Sleep lekker, my bru. The dashboard will survive a few hours without you.",
-         "Finn and Tux have probably claimed the bed. Do try to negotiate from a position of weakness.",
+         "{pet_dog} and {pet_cat} have probably claimed the bed. Do try to negotiate from a position of weakness.",
          "Off to bed. Let’s see if the household can go eight hours without a configuration change.",
          "The house can rest now. I suggest management follows its example.",
          "Sleep well. Tomorrow’s problems have politely agreed to wait until coffee."),
@@ -211,7 +212,7 @@ LINES = {
     ),
     "bedtime_ev": (
         ("The car can’t plug itself in, despite what management seems to believe.",
-         "Even Finn remembers where his lead is.",
+         "Even {pet_dog} remembers where his lead is.",
          "That’s your cue to find the cable, my bru."),
         ("It may appreciate being plugged in before everyone clocks off.",
          "The cable is still waiting for its moment.",
@@ -330,10 +331,10 @@ def choose_line(category, guest_mode):
     import command_responses
     custom = command_responses.selected(category, guest)
     if custom is not None:
-        return custom
+        return household_language.render(custom)
     key = category, guest
     lines = LINES[category][guest]
-    return ROTATION.choose(key, lines)
+    return household_language.render(ROTATION.choose(key, lines))
 
 
 def add_sass(reply, category, guest_mode):
