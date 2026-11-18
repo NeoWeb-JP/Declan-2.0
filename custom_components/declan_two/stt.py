@@ -6,6 +6,7 @@ import asyncio
 import logging
 import wave
 
+from .stt_vocabulary import DEFAULT_PROMPT, prompt
 from .capture_level import CaptureLevel
 from .speaker_models import SpeakerMetadata, metadata_from_transcript, transcript_for_ha
 
@@ -16,10 +17,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 _LOGGER = logging.getLogger(__name__)
 ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
 MAX_AUDIO_BYTES = 16_000 * 2 * 60  # one minute of 16 kHz, 16-bit mono PCM
-PROMPT = (
-    "Home Assistant voice commands, room names, lighting, timers, routines, "
-    "media playback and music requests."
-)
+PROMPT = DEFAULT_PROMPT
 
 
 def pcm_to_wav(raw: bytes, *, sample_rate: int = 16000) -> bytes:
@@ -96,7 +94,7 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
                            filename="utterance.wav", content_type="audio/wav")
             form.add_field("model", options.get("openai_stt_model", "gpt-4o-mini-transcribe"))
             form.add_field("language", "en")
-            form.add_field("prompt", PROMPT)
+            form.add_field("prompt", prompt(options.get("openai_stt_vocabulary", "")))
             form.add_field("response_format", "json")
             headers = {"Authorization": "Bearer " + options["openai_stt_api_key"]}
             timeout = aiohttp.ClientTimeout(total=8, sock_connect=3)

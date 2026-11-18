@@ -453,7 +453,42 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             self.assertEqual((recording.getframerate(), recording.getnchannels(), recording.getsampwidth()), (16000, 1, 2))
             self.assertEqual(recording.readframes(2), b"\x00\x01\x02\x03")
         self.assertIn(("model", "gpt-4o-mini-transcribe"), [field.args for field in fields])
+        self.assertIn(("prompt", provider.PROMPT), [field.args for field in fields])
         self.assertFalse(self.session.post.call_args.kwargs["allow_redirects"])
+
+    async def test_stt_custom_vocabulary_is_sent_only_when_enabled(self):
+        provider = import_module("custom_components.declan_two.stt")
+        self.entry.options = {
+            "openai_stt_api_key": "test-key",
+            "openai_stt_enabled": True,
+            "openai_stt_vocabulary": "Study, Braai",
+        }
+        entities = Mock()
+        await provider.async_setup_entry(None, self.entry, entities)
+        entity = entities.call_args.args[0][0]
+        self.response.json.return_value = {"text": "Switch on study light"}
+
+        async def audio():
+            yield b"\x00\x01\x02\x03"
+
+        await entity.async_process_audio_stream(None, audio())
+        self.assertIn(("prompt", provider.PROMPT + " Vocabulary: Study, Braai."),
+                      [call.args for call in self.form.return_value.add_field.call_args_list])
+
+    async def test_options_reject_unsafe_vocabulary_and_preserve_existing(self):
+        flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
+        flow.config_entry = SimpleNamespace(options={"openai_stt_vocabulary": "Kitchen"})
+        flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
+        flow.async_create_entry = Mock(side_effect=lambda **kwargs: kwargs["data"])
+        settings = {"openai_stt_enabled": False, "openai_stt_model": "gpt-transcribe"}
+        self.assertEqual(
+            await flow.async_step_init({**settings, "openai_stt_vocabulary": "Kitchen\\nBad"}),
+            {"openai_stt_vocabulary": "invalid_stt_vocabulary"},
+        )
+        saved = await flow.async_step_init(settings)
+        self.assertEqual(saved["openai_stt_vocabulary"], "Kitchen")
+        cleared = await flow.async_step_init({**settings, "openai_stt_vocabulary": ""})
+        self.assertEqual(cleared["openai_stt_vocabulary"], "")
 
     async def test_wyoming_is_registered_and_retains_speaker_event(self):
         provider = import_module("custom_components.declan_two.stt")
