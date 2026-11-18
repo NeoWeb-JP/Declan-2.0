@@ -14,7 +14,7 @@ class VoiceCryptoReleasePreflightTests(unittest.TestCase):
                      and 'voice_audio_crypto.py' in ast.get_source_segment(source, node.test))
         guard_text = '\\n'.join(lines[guard.lineno - 1:guard.end_lineno])
         self.assertIn('cryptography.hazmat.primitives.ciphers.aead', guard_text)
-        self.assertLess(guard.lineno, source.index('state_backup.snapshot(APP / ".data")') // 1 + 1)
+        self.assertLess(guard.lineno, next(i for i, line in enumerate(lines, 1) if 'state_backup.snapshot(APP / ".data")' in line))
         self.assertLess(guard.lineno, next(node.lineno for node in ast.walk(install)
                                          if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                                          and node.func.attr == 'symlink_to'))
