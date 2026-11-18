@@ -28,7 +28,7 @@ def _prune_expired_sessions(sessions, now, idle_seconds):
         sessions.clear()
         return
     for key, state in list(sessions.items()):
-        at = state.get("at") if isinstance(state, dict) else None
+        at = state.get("at") if type(state) is dict else None
         if (not finite_number(at)
                 or at > now or now - at >= idle_seconds):
             sessions.pop(key, None)
@@ -133,13 +133,13 @@ def _load_chat_session(sessions, recall, session_id, now, *, new_session_id):
     """Accept only opaque string IDs; never trust arbitrary client values as keys."""
     if not valid_session_id(session_id):
         session_id = None
-    state = sessions.pop(session_id, None) if session_id is not None else None
-    if not isinstance(state, dict):
+    state = sessions.get(session_id) if session_id is not None else None
+    if type(state) is not dict:
         state = None
     if state is None and recall is not None and session_id is not None:
         # Chat-only recall must never restore expired action context.
         restored = recall.restore(session_id, now)
-        if isinstance(restored, dict):
+        if type(restored) is dict:
             state = {
                 "last": None,
                 "name": safe_chat_text(restored.get("name")),

@@ -140,6 +140,45 @@ class SessionOrchestrationTests(unittest.TestCase):
             session_orchestration.converse(HostileText("hello"), None, **self.kwargs)
         self.assertFalse(self.sessions)
 
+    def test_failed_reply_does_not_remove_existing_session(self):
+        first = session_orchestration.converse(
+            "my name is Alex", None, clock=lambda: 100, **self.kwargs)
+        sid = first["session_id"]
+        def fail_decorate(reply, category, guest):
+            raise RuntimeError("formatter unavailable")
+        kwargs = {**self.kwargs, "decorate": fail_decorate}
+        with self.assertRaisesRegex(RuntimeError, "formatter unavailable"):
+            session_orchestration.converse(
+                "what's my name", sid, clock=lambda: 101, **kwargs)
+        self.assertIn(sid, self.sessions)
+        self.assertEqual(self.sessions[sid]["name"], "Alex")
+
+    def test_failed_recall_restore_does_not_remove_active_session(self):
+        from unittest.mock import Mock
+        recall = Mock()
+        recall.restore.side_effect = RuntimeError("recall unavailable")
+        first = session_orchestration.converse(
+            "my name is Alex", None, clock=lambda: 100, **self.kwargs)
+        sid = first["session_id"]
+        result = session_orchestration.converse(
+            "what's my name", sid, clock=lambda: 101,
+            recall=recall, **self.kwargs)
+        self.assertEqual(result["reply"], "Your name is Alex.")
+        recall.restore.assert_not_called()
+
+    def test_subclassed_restored_state_is_not_accepted(self):
+        from unittest.mock import Mock
+        class UntrustedState(dict):
+            def get(self, key, default=None):
+                raise RuntimeError("untrusted get")
+        recall = Mock()
+        recall.restore.return_value = UntrustedState(name="Alex")
+        result = session_orchestration.converse(
+            "what's my name", "expired", recall=recall,
+            clock=lambda: 100, **self.kwargs)
+        self.assertEqual(result["reply"], "I don't know your name yet.")
+        self.assertNotEqual(result["session_id"], "expired")
+
     def test_session_count_is_bounded(self):
         for index in range(130):
             session_orchestration.converse("hello", None, **self.kwargs)
