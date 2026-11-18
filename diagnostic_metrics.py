@@ -36,7 +36,7 @@ def aggregate(traces, *, sampled_at=None):
         if not isinstance(trace, dict):
             continue
         route = trace.get("route")
-        if route not in ROUTES:
+        if not isinstance(route, str) or route not in ROUTES:
             continue
         row = grouped[route]
         row["count"] += 1
