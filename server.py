@@ -52,7 +52,6 @@ import sensitive_confirmation_decision
 import sensitive_confirmation_turn
 import routine_preview_detection
 import routine_preview_dispatch
-import early_command_result
 import stop_result_response
 import roast_guest_dispatch
 import routine_registry_dispatch
