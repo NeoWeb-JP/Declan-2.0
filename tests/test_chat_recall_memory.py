@@ -34,6 +34,51 @@ class ChatRecallTests(unittest.TestCase):
         with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
             return session_orchestration.converse(message, sid, **self.kwargs, **extra)
 
+    def test_recall_rejects_invalid_clock_without_retaining_entries(self):
+        for bad in (None, True, float("nan"), float("inf"), 10 ** 1000):
+            with self.subTest(bad=repr(bad)):
+                recall = ChatRecallMemory()
+                recall.entries["known"] = {
+                    "at": 1000, "last": "hello", "recent_messages": (),
+                }
+                recall.prune(bad)
+                self.assertFalse(recall.entries)
+                recall.remember("new", {"last": "hello"}, bad)
+                self.assertFalse(recall.entries)
+
+    def test_recall_rejects_hostile_ids_and_mappings(self):
+        class HostileId(str):
+            def __hash__(self):
+                raise RuntimeError("hostile hash")
+        class HostileState(dict):
+            def get(self, key, default=None):
+                raise RuntimeError("hostile get")
+        self.recall.remember(HostileId("known"), {"last": "hello"}, 1000)
+        self.assertFalse(self.recall.entries)
+        self.assertIsNone(self.recall.restore(HostileId("known"), 1000))
+        self.recall.forget(HostileId("known"))
+        self.recall.remember("known", HostileState(last="hello"), 1000)
+        self.assertFalse(self.recall.entries)
+        self.recall.entries["known"] = HostileState(
+            at=1000, last="hello", recent_messages=())
+        self.assertIsNone(self.recall.restore("known", 1000))
+
+    def test_recall_rejects_hostile_history_and_last_subclasses(self):
+        class HostileHistory(list):
+            def __iter__(self):
+                raise RuntimeError("hostile iteration")
+        class HostileText(str):
+            def strip(self):
+                raise RuntimeError("hostile strip")
+        self.recall.remember("sid", {
+            "last": "hello", "recent_messages": HostileHistory(["safe"]),
+        }, 1000)
+        self.assertEqual(self.recall.restore("sid", 1000)["recent_messages"], [])
+        self.recall.entries["sid"] = {
+            "at": 1000, "last": HostileText("hello"), "recent_messages": (),
+        }
+        self.assertIsNone(self.recall.restore("sid", 1000))
+
     def test_non_string_messages_fail_before_mutating_sessions(self):
         self.say("hello")
         before = list(self.sessions.items())
