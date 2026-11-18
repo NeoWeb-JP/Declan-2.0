@@ -69,6 +69,7 @@ import response_persona_context
 import turn_context_preparation
 import turn_initialization
 import turn_preflight
+import turn_preview_stage
 import turn_response_composition
 import history
 import training_history_post
@@ -97,7 +98,6 @@ import post_request_preflight
 import post_content_type_http
 import post_validation_errors_http
 import sensitive_confirmation_resolution
-import preview_timer_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2108,7 +2108,7 @@ class Handler(BaseHTTPRequestHandler):
         session_id, phrase, effective_message = preflight.session_id, preflight.phrase, preflight.effective_message
         pending_retry = preflight.pending_retry
         opener = build_opener(ProxyHandler({}), NoRedirect())
-        routine_preview, timer_result = preview_timer_orchestration.preview_and_timer(
+        early_result = turn_preview_stage.resolve(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, opener=opener,
             preview_dispatch=routine_preview_dispatch.dispatch_preview_result,
@@ -2122,9 +2122,6 @@ class Handler(BaseHTTPRequestHandler):
         )
         routine_turn = None
         routine_voice_result = None
-        early_result = preview_timer_orchestration.select_early_result(
-            routine_preview, timer_result,
-        )
         if early_result is not None:
             routine_reply, outcome = early_result.reply, early_result.outcome
         elif stop_dispatch := stop_command_dispatch.dispatch_stop(
