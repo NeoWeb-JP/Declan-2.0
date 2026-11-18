@@ -38,11 +38,11 @@ class MusicTests(unittest.TestCase):
             "DECLAN_SPOTIFY_CLIENT_SECRET": "test-secret",
             "DECLAN_ALLOW_UNCONFIGURED_MA": "1",
         }))
-        self.enterContext(patch.object(music, "spotify_token", None))
+        self.enterContext(patch.object(music.RUNTIME, "spotify_token", None))
         folder = self.enterContext(TemporaryDirectory())
         self.enterContext(patch.object(music, "SPOTIFY_SETTINGS", Path(folder) / "spotify-settings.json"))
         self.enterContext(patch.object(music, "PREFERENCES", Path(folder) / "music-preferences.sqlite3"))
-        self.enterContext(patch.object(music, "recent_blacklist_skips", {}))
+        self.enterContext(patch.object(music.RUNTIME, "recent_blacklist_skips", {}))
         self.enterContext(patch.object(music, "sleep"))
 
     def open(self, request, timeout):
@@ -684,7 +684,7 @@ class MusicTests(unittest.TestCase):
         music.save_spotify_credentials("new-client", "new-secret")
         music.spotify_search(self, "Dolly Parton", "", ("artist",))
         self.assertEqual(self.spotify_tokens, 2)
-        self.assertEqual(music.spotify_token[0], ("new-client", "new-secret"))
+        self.assertEqual(music.RUNTIME.spotify_token[0], ("new-client", "new-secret"))
 
     def test_artist_request_verifies_the_reported_artist_of_the_new_track(self):
         self.search_results = {"artists": [{"name": "Dolly Parton", "id": "32vWCbZh0xZ4o9gkz4PsEU"}]}
