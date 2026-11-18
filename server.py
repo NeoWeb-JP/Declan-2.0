@@ -104,6 +104,7 @@ import stop_response_orchestration
 import roast_guest_orchestration
 import routine_follow_on_orchestration
 import routine_registry_orchestration
+import information_response_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2432,19 +2433,23 @@ class Handler(BaseHTTPRequestHandler):
             lighting_context = follow_on.lighting_context
             routine_voice_result = follow_on.routine_voice_result
         else:
-            information_result = information_command_dispatch.dispatch_information(
+            information_response = information_response_orchestration.dispatch_information_response(
                 phrase, source=source,
+                dispatch=information_command_dispatch.dispatch_information,
+                adapt=information_result_response.information_response,
                 registry_factory=command_registry.information_registry,
                 context_factory=command_registry.RequestContext,
                 matches=conditions.matches, follow_up=conditions.follow_up,
-                handle=conditions.handle_result, question_context=conditions.question_context,
+                handle=conditions.handle_result,
+                question_context=conditions.question_context,
                 opener=opener, last_information=last_information,
                 decorate=add_sass, guest_mode=read_guest_mode,
             )
-            if information_result:
-                response = information_result_response.information_response(information_result)
-                routine_reply, outcome = response.result.reply, response.result.outcome
-                information_context = response.information_context
+            if information_response:
+                routine_reply, outcome = (
+                    information_response.result.reply, information_response.result.outcome
+                )
+                information_context = information_response.information_context
             else:
                 local = device_command_dispatch.dispatch_device(
                     phrase, source=source, last_device=last_device,
