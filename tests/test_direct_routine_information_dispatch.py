@@ -19,7 +19,7 @@ class DirectRoutineInformationTests(unittest.TestCase):
         dispatch = SERVER.index("information_dispatch = information_command_dispatch.dispatch_information(")
         guard = SERVER.index("if information_dispatch:", dispatch)
         adapt = SERVER.index("information_result_response.information_response(information_dispatch)", guard)
-        device = SERVER.index("device_response_orchestration.dispatch_device_response(", adapt)
+        device = SERVER.index("device_command_dispatch.dispatch_device(", adapt)
         self.assertLess(dispatch, guard)
         self.assertLess(guard, adapt)
         self.assertLess(adapt, device)
