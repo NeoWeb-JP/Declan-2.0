@@ -71,7 +71,7 @@ def speaker_request_payload(transcript):
         interaction_id, name, confidence = speaker
         if (isinstance(interaction_id, str) and isinstance(name, str)
                 and type(confidence) in (int, float)
-                and math.isfinite(confidence) and 0 <= confidence <= 1):
+                and 0 <= confidence <= 1 and math.isfinite(confidence)):
             payload["speaker"] = {
                 "interaction_id": interaction_id,
                 "name": name,
@@ -86,7 +86,7 @@ def speaker_request_payload(transcript):
         safe_capture = {
             key: value for key, value in capture.items()
             if isinstance(key, str) and type(value) in (int, float)
-            and math.isfinite(value) and value >= 0
+            and 0 <= value <= 1e308 and math.isfinite(value)
         }
         if safe_capture:
             payload["capture"] = safe_capture
