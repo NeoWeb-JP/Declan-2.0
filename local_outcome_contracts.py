@@ -10,7 +10,7 @@ def timer_execution_result(value):
     """Return a validated typed timer result, rejecting malformed provider data."""
     if isinstance(value, ExecutionResult):
         return value
-    if not isinstance(value, (tuple, list)) or len(value) != 2:
+    if type(value) not in (tuple, list) or len(value) != 2:
         raise ValueError("Timer provider must return a reply/outcome pair")
     return ExecutionResult(*value)
 
@@ -28,6 +28,6 @@ def routine_execution_result(value):
         result = ExecutionResult(reply, outcome)
     else:
         raise ValueError("Routine provider must return a typed result or legacy triple")
-    if status is not None and not isinstance(status, str):
+    if status is not None and type(status) is not str:
         raise ValueError("Routine status must be text or None")
     return result, status
