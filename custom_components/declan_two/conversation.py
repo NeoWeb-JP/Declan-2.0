@@ -6,6 +6,7 @@ from homeassistant.components import conversation
 from homeassistant.helpers import intent
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .ai_exposure import exposed_for_declan
+from .speaker_models import speaker_request_payload
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,17 +34,7 @@ class DeclanTwoAgent(conversation.ConversationEntity):
         session_id = user_input.conversation_id
         error_reply = None
         continue_conversation = False
-        speaker = getattr(user_input.text, "jarvis_speaker", None)
-        speaker_data = {}
-        if isinstance(speaker, tuple) and len(speaker) == 3:
-            interaction_id, name, confidence = speaker
-            if isinstance(interaction_id, str) and isinstance(name, str) and type(confidence) in (int, float) and 0 <= confidence <= 1:
-                speaker_data = {"speaker": {"interaction_id": interaction_id, "name": name, "confidence": confidence}}
-        elif hasattr(user_input.text, "jarvis_speaker"):
-            speaker_data = {"speaker": {}}
-        capture = getattr(user_input.text, "capture_level", None)
-        if isinstance(capture, dict):
-            speaker_data["capture"] = capture
+        speaker_data = speaker_request_payload(user_input.text)
         try:
             session = async_get_clientsession(self.hass)
             async with session.post(

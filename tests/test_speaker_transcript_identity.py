@@ -84,6 +84,29 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertEqual(metadata.speaker, "speaker-2")
         self.assertIsNone(metadata.capture_level)
 
+    def test_assist_payload_preserves_valid_speaker_and_capture(self):
+        transcript = SpeakerTranscript("hello", ("id-1", "Jaco", 0.95),
+                                       {"confidence": 0.8})
+        payload = MODULE.speaker_request_payload(transcript)
+        self.assertEqual(payload, {
+            "speaker": {"interaction_id": "id-1", "name": "Jaco",
+                        "confidence": 0.95},
+            "capture": {"confidence": 0.8},
+        })
+        transcript.capture_level["confidence"] = 0.1
+        self.assertEqual(payload["capture"]["confidence"], 0.8)
+
+    def test_assist_payload_keeps_legacy_empty_speaker(self):
+        self.assertEqual(MODULE.speaker_request_payload(
+            SpeakerTranscript("hello")), {"speaker": {}})
+
+    def test_assist_payload_omits_invalid_speaker_tuple(self):
+        self.assertEqual(MODULE.speaker_request_payload(
+            SpeakerTranscript("hello", ("id", "Jaco", 2.0))), {})
+
+    def test_assist_payload_plain_text_is_empty(self):
+        self.assertEqual(MODULE.speaker_request_payload("hello"), {})
+
     def test_plain_transcript_has_no_identity(self):
         self.assertIsNone(MODULE.speaker_from_transcript("hello"))
 
