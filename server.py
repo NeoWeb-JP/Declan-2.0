@@ -47,7 +47,6 @@ import sensitive_confirmation_decision
 import sensitive_confirmation_turn
 import routine_preview_detection
 import routine_preview_dispatch
-import fallback_orchestration
 import guest_assignment_command
 import roast_command_dispatch
 import timer_command_dispatch
@@ -55,7 +54,6 @@ import lighting_command_dispatch
 import lighting_context_finalization
 import fallback_entity_authorization
 import guarded_fallback_dispatch
-import response_persona_context
 import turn_context_preparation
 import turn_initialization
 import turn_preflight
@@ -63,6 +61,7 @@ import turn_preview_stage
 import turn_direct_dispatch
 import turn_routine_stage
 import turn_fallback_dispatch
+import turn_response_preparation
 import turn_response_composition
 import history
 import training_history_post
@@ -2182,8 +2181,8 @@ class Handler(BaseHTTPRequestHandler):
                 status_target = fallback_dispatch.status_target
                 lighting_context = fallback_dispatch.lighting_context
                 light_result = fallback_dispatch.light_result
-        fallback_result = fallback_orchestration.resolve_fallback_result(
-            effective_message, routine_reply=routine_reply,
+        response_preparation = turn_response_preparation.prepare(
+            effective_message, routine_reply=routine_reply, outcome=outcome,
             light_result=light_result, body=body,
             authorization=self.headers.get("Authorization", ""),
             bridge_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
@@ -2191,17 +2190,17 @@ class Handler(BaseHTTPRequestHandler):
             exposed_entities=fallback_entity_authorization.exposed_entities,
             dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback_result,
             fallback_handler=guarded_openai_fallback_result,
+            guest_mode_reader=read_guest_mode,
+            visitors_reader=read_visitors_present,
+            personality_policy=personality_policy,
+            chat_commands=CHAT_COMMANDS,
+            information_context=information_context,
         )
-        if fallback_result is not None:
-            routine_reply, outcome = fallback_result.reply, fallback_result.outcome
-        chat_kind = effective_message.casefold().strip(" .?!")
-        guest_mode, visitor_present, response_guest_mode = (
-            response_persona_context.resolve_response_persona(
-                read_guest_mode, read_visitors_present, personality_policy,
-            )
-        )
-        if routine_reply is None and CHAT_COMMANDS.get(chat_kind) == "time":
-            information_context = ("time", None, None)
+        routine_reply, outcome = response_preparation.reply, response_preparation.outcome
+        guest_mode = response_preparation.guest_mode
+        visitor_present = response_preparation.visitor_present
+        response_guest_mode = response_preparation.response_guest_mode
+        information_context = response_preparation.information_context
         with SESSION_LOCK:
             previous = SESSIONS.get(session_id)
             actions, phrase_suggestion = turn_context_preparation.prepare_turn_context(
