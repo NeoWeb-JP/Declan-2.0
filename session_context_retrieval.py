@@ -17,9 +17,15 @@ def recent_context(previous, scope, *, now, idle_seconds):
             or at > now or now - at >= idle_seconds):
         return lights, device, information
     if previous.get("device_status_scope") == scope:
-        device = previous.get("device_status_target")
+        target = previous.get("device_status_target")
+        if isinstance(target, str) and target:
+            device = target
     if previous.get("lighting_scope") == scope:
-        lights = previous.get("lighting_context", ())
+        context = previous.get("lighting_context", ())
+        if isinstance(context, (tuple, list)) and all(isinstance(item, str) for item in context):
+            lights = context
     if previous.get("information_scope") == scope:
-        information = previous.get("information_context")
+        context = previous.get("information_context")
+        if isinstance(context, (tuple, list, dict)):
+            information = context
     return lights, device, information
