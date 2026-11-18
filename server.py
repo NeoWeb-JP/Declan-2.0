@@ -59,7 +59,6 @@ import routine_follow_on_dispatch
 import information_result_response
 import device_result_response
 import lighting_result_dispatch
-import ingress_turn_orchestration
 import fallback_orchestration
 import guest_assignment_command
 import roast_command_dispatch
@@ -2340,7 +2339,7 @@ class Handler(BaseHTTPRequestHandler):
         # HA owns script permissions. Guest assignment is a separate privileged
         # action and retains its existing voice confirmation protection.
         session_id, phrase, effective_message, confirmation_reply = (
-            ingress_turn_orchestration.resolve_confirmation(
+            sensitive_confirmation_resolution.resolve_confirmation(
                 message, phrase, session_id, source=source,
                 satellite=satellite, origin_device=origin_device,
                 speaker=body.get("speaker"),
