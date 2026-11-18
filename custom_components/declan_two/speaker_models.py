@@ -68,7 +68,8 @@ def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present:
     speaker = metadata.speaker
     if isinstance(speaker, tuple) and len(speaker) == 3:
         interaction_id, name, confidence = speaker
-        if (isinstance(interaction_id, str) and isinstance(name, str)
+        if (isinstance(interaction_id, str) and 0 < len(interaction_id) <= 80
+                and isinstance(name, str) and 0 < len(name) <= 80
                 and type(confidence) in (int, float)
                 and 0 <= confidence <= 1 and math.isfinite(confidence)):
             payload["speaker"] = {
@@ -84,7 +85,7 @@ def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present:
         # would make the entire Assist JSON request fail serialization.
         safe_capture = {
             key: value for key, value in capture.items()
-            if isinstance(key, str) and type(value) in (int, float)
+            if isinstance(key, str) and key and type(value) in (int, float)
             and 0 <= value <= 1e308 and math.isfinite(value)
         }
         if safe_capture:
