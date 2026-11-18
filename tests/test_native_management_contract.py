@@ -40,7 +40,7 @@ class NativeManagementContracts(unittest.TestCase):
 
     def test_read_only_backup_recovery_and_diagnostics(self):
         for endpoint in ("settings-export", "settings-recovery", "diagnostics"):
-            self.assertIn("/api/native/" + endpoint, SERVER)
+            self.assertIn("/api/native/" + endpoint, (ROOT / "get_access_gate_http.py").read_text())
         self.assertIn("configuration.export()", NATIVE_READ)
         self.assertIn("configuration.recovery()", NATIVE_READ)
         self.assertIn("diagnostics.recent()", NATIVE_READ)

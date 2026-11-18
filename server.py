@@ -89,6 +89,7 @@ import operational_read_routes
 import settings_read_routes
 import history_read_routes
 import system_read_routes
+import get_access_gate_http
 import media_settings_post
 import speech_http_routes
 import assist_capture_http
@@ -1952,60 +1953,10 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def do_GET(self):
-        ingress = self.has_ingress_access()
-        # The HA integration uses its Assist bearer token for this one read-only
-        # endpoint. Do not extend this exception to management or update routes.
-        token = os.environ.get("DECLAN_ASSIST_TOKEN", "")
-        supplied = self.headers.get("Authorization", "")
-        capabilities_auth = (
-            self.path == "/api/capabilities" and len(token) >= 32
-            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
-        )
-        # Read-only history is accessible to the HA integration using its
-        # existing Assist token. All write/export/update routes stay protected.
-        history_auth = (
-            (urlsplit(self.path).path == "/api/history"
-             or urlsplit(self.path).path == "/api/history/recording-links")
-            and len(token) >= 32
-            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
-        )
-        players_auth = (
-            self.path in {"/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai"}
-            and len(token) >= 32
-            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
-        )
-        voice_review_auth = (
-            self.path == "/api/voicepipeline"
-            and len(token) >= 32
-            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
-        )
-        native_settings_auth = (
-            self.path in {"/api/native/settings-status", "/api/native/settings-export",
-                          "/api/native/settings-recovery", "/api/native/diagnostics", "/api/native/logs", "/api/native/intents", "/api/native/routines", "/api/native/routine-responses"}
-            and len(token) >= 32
-            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
-        )
-        updates_auth = (
-            self.path == "/api/updates/status"
-            and len(token) >= 32
-            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
-        )
-        settings_status_auth = (
-            self.path == "/api/native/settings-status"
-            and len(token) >= 32
-            and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
-        )
-        if not ingress and not native_settings_auth and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and self.client_address[0] != "127.0.0.1":
-            self.send_json(403, {"error": "Local access only."})
-            return
-        if not ingress and not native_settings_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (
-            self.path.startswith("/api/history")
-            or self.path.startswith("/api/settings/") or self.path in {"/api/voice-profiles", "/api/voicepipeline"}
-            or self.path in {"/api/diagnostics", "/api/settings/spotify", "/api/updates", "/api/updates/status"}
-        ) and self.headers.get("Host") not in {
-            f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"
-        }:
-            self.send_json(403, {"error": "Use the local Declan address."})
+        if not get_access_gate_http.enforce_access(
+            self, ingress=self.has_ingress_access(),
+            token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+        ):
             return
         if system_read_routes.handles(self.path):
             system_read_routes.dispatch(
