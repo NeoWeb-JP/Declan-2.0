@@ -16,7 +16,7 @@ class DirectFinalDispatchTests(unittest.TestCase):
             "response_persona_context.resolve_response_persona(",
             "turn_context_preparation.prepare_turn_context(",
             "turn_response_composition.compose_turn_result(",
-            "turn_persistence_dispatch.persist_turn_result(",
+            "turn_persistence_orchestration.persist_turn_result(",
         ):
             with self.subTest(call=call):
                 self.assertIn(call, SERVER)
@@ -25,7 +25,7 @@ class DirectFinalDispatchTests(unittest.TestCase):
         lock = SERVER.index("        with SESSION_LOCK:", SERVER.index("fallback_result = "))
         context = SERVER.index("turn_context_preparation.prepare_turn_context(", lock)
         compose = SERVER.index("turn_response_composition.compose_turn_result(", context)
-        persist = SERVER.index("turn_persistence_dispatch.persist_turn_result(", compose)
+        persist = SERVER.index("turn_persistence_orchestration.persist_turn_result(", compose)
         send = SERVER.index("self.send_json(200, response.to_wire())", persist)
         self.assertLess(lock, context)
         self.assertLess(context, compose)

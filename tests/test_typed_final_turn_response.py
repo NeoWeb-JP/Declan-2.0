@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from execution_results import Outcome
 from turn_response import TurnResponse
 import turn_finalization
-import turn_persistence_dispatch
+import turn_persistence_orchestration
 import turn_response_composition
 
 
@@ -69,8 +69,8 @@ class TypedFinalTurnResponseTests(unittest.TestCase):
             self.assertEqual(dependencies["routine_status"], "Verified")
             reply.update(history_saved=False, continue_conversation=False, action_results=[{"status": "confirmed"}])
         metadata = Mock(wraps=turn_finalization.apply_outcome_metadata)
-        with patch.object(turn_persistence_dispatch, "persist_turn", side_effect=persist) as finalize:
-            saved = turn_persistence_dispatch.persist_turn_result(
+        with patch.object(turn_persistence_orchestration, "persist_turn", side_effect=persist) as finalize:
+            saved = turn_persistence_orchestration.persist_turn_result(
                 result, apply_outcome_metadata=metadata, outcome="failed", routine_status="Stale")
         finalize.assert_called_once()
         metadata.assert_called_once()
@@ -81,9 +81,9 @@ class TypedFinalTurnResponseTests(unittest.TestCase):
 
     def test_persistence_rejects_legacy_mapping_before_side_effects(self):
         metadata = Mock()
-        with patch.object(turn_persistence_dispatch, "persist_turn") as finalize:
+        with patch.object(turn_persistence_orchestration, "persist_turn") as finalize:
             with self.assertRaises(ValueError):
-                turn_persistence_dispatch.persist_turn_result({}, apply_outcome_metadata=metadata)
+                turn_persistence_orchestration.persist_turn_result({}, apply_outcome_metadata=metadata)
         metadata.assert_not_called()
         finalize.assert_not_called()
 
