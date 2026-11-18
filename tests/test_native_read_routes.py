@@ -36,7 +36,7 @@ class NativeReadTests(unittest.TestCase):
         return handler.sent[0]
 
     def test_exact_allowlist(self):
-        self.assertEqual(len(native_read_routes.ROUTES), 8)
+        self.assertEqual(len(native_read_routes.ROUTES), 9)
         self.assertFalse(native_read_routes.handles("/api/native/settings-import"))
         self.assertFalse(native_read_routes.handles("/api/native/logs/"))
         with self.assertRaises(ValueError):
