@@ -262,6 +262,16 @@ def install(root, version, expected_ref):
                 "from cryptography.hazmat.primitives.ciphers.aead import AESGCM; "
                 "assert AESGCM.generate_key(bit_length=256)",
                 cwd=staged)
+        # Fail closed before activating encrypted voice code or touching persistent state.
+        # The operator must provision the key and migrate legacy samples explicitly.
+        if (staged / "check_voice_encryption.py").is_file():
+            voice_db = (APP / ".data" / "voice-profiles.sqlite3").resolve()
+            if voice_db.is_file():
+                run(python, "-m", "check_voice_encryption", "--database", str(voice_db),
+                    cwd=staged, timeout=30)
+            else:
+                run(python, "-c", "from voice_audio_crypto import _aesgcm; _aesgcm()",
+                    cwd=staged, timeout=30)
         run(python, "server.py", "--help", cwd=staged)
         (staged / ".data").symlink_to((APP / ".data").resolve(), target_is_directory=True)
         (staged / ".declan-release").write_text(version + "\n", encoding="ascii")
