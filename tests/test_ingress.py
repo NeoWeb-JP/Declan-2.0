@@ -66,6 +66,41 @@ class IngressTests(TestCase):
         self.assertTrue(body.startswith(b'<html><script nonce="'))
         self.assertTrue(body.endswith(b'</html>'))
 
+    def test_metrics_read_endpoints_forward_only_with_ingress_credentials(self):
+        for path in ("/api/diagnostics/metrics", "/api/native/diagnostics/metrics"):
+            with self.subTest(path=path):
+                response = mock.Mock()
+                response.status = 200
+                response.getheader.side_effect = lambda name, default=None: {
+                    "Content-Type": "application/json", "Content-Length": "14"
+                }.get(name, default)
+                response.read.side_effect = io.BytesIO(b'{"metrics":{}}').read
+                self.upstream.getresponse.return_value = response
+                self.upstream.reset_mock()
+                status, body = self.request(method="GET", path=path)
+                self.assertEqual((status, body), (200, b'{"metrics":{}}'))
+                self.upstream.request.assert_called_once()
+                args = self.upstream.request.call_args.args
+                self.assertEqual(args[0], "GET")
+                self.assertEqual(args[1], path)
+                self.assertEqual(args[3], {"X-Declan-Ingress-Token": "upstream-secret"})
+
+    def test_metrics_routes_reject_writes_unknown_paths_and_queries(self):
+        for path in ("/api/diagnostics/metrics", "/api/native/diagnostics/metrics"):
+            with self.subTest(path=path):
+                self.upstream.reset_mock()
+                self.assertEqual(self.request(method="POST", path=path)[0], 404)
+                self.assertEqual(self.request(method="GET", path=path + "?speaker=private")[0], 404)
+                self.upstream.request.assert_not_called()
+        self.assertEqual(self.request(method="GET", path="/api/native/logs")[0], 404)
+
+    def test_metrics_routes_reject_non_supervisor_requests(self):
+        for path in ("/api/diagnostics/metrics", "/api/native/diagnostics/metrics"):
+            with self.subTest(path=path):
+                self.upstream.reset_mock()
+                self.assertEqual(self.request(method="GET", path=path, supervisor=False)[0], 403)
+                self.upstream.request.assert_not_called()
+
     def test_voicepipeline_management_route_is_allowed_with_same_panel_boundary(self):
         self.response.getheader.side_effect = lambda name, default=None: {'Content-Type': 'application/json', 'Content-Length': '2'}.get(name, default)
         for method in ('GET', 'POST'):
