@@ -62,6 +62,7 @@ import turn_direct_dispatch
 import turn_routine_stage
 import turn_fallback_dispatch
 import turn_response_preparation
+import turn_atomic_finalization
 import turn_response_composition
 import history
 import training_history_post
@@ -2201,53 +2202,27 @@ class Handler(BaseHTTPRequestHandler):
         visitor_present = response_preparation.visitor_present
         response_guest_mode = response_preparation.response_guest_mode
         information_context = response_preparation.information_context
-        with SESSION_LOCK:
-            previous = SESSIONS.get(session_id)
-            actions, phrase_suggestion = turn_context_preparation.prepare_turn_context(
-                previous, action_results=action_results, light_result=light_result,
-                outcome=outcome, scope=scope, message=message, now=monotonic(),
-                suggestion_factory=turn_finalization.lighting_phrase_suggestion,
-            )
-            response = turn_response_composition.compose_turn_result(
-                effective_message, session_id, routine_reply,
-                lighting_context=lighting_context, scope=scope,
-                response_guest_mode=response_guest_mode, outcome=outcome,
-                routine_turn=routine_turn, light_result=light_result,
-                phrase=phrase, action_results=action_results,
-                guest_mode=guest_mode, visitor_present=visitor_present,
-                routine_voice_result=routine_voice_result, routine_status=routine_status,
-                converse=converse, compose=turn_response_orchestration.compose,
-                apply_outcome_metadata=turn_finalization.apply_outcome_metadata,
-                personality=personality_policy, lines=__import__("personality").LINES,
-                parse_music=music.parse, parse_music_control=music.parse_control,
-                render_routine=routine_responses.render,
-                response_category=lighting_intents.response_category,
-                parse_light_command=parse_light_command,
-                render_failure=command_responses.failure,
-                composition=response_composition,
-            )
-            response = turn_persistence_orchestration.persist_turn_result(
-                response, sessions=SESSIONS,
-                apply_outcome_metadata=turn_finalization.apply_outcome_metadata,
-                finalize=turn_persistence_orchestration.finalize_turn,
-                message=message, phrase=phrase,
-                outcome=outcome, scope=scope, status_target=status_target,
-                information_context=information_context,
-                light_result=light_result, action_results=action_results,
-                actions=actions, unmatched_reply=UNMATCHED_REPLY,
-                now=monotonic(), pending_retry=pending_retry,
-                effective_message=effective_message,
-                similar=retry_learning.similar,
-                normalize_phrase=history.normalize_phrase,
-                teach_phrase=history.teach_phrase, source=source,
-                routine_status=routine_status,
-                phrase_suggestion=phrase_suggestion,
-                speaker=body.get("speaker"), record=history.record,
-                diagnostic_id=diagnostics.current_id,
-                log_error=self.log_error, state_module=session_turn_state,
-                training_module=retry_training_persistence,
-                history_module=conversation_persistence,
-            )
+        response = turn_atomic_finalization.finalize(
+            session_id, action_results, light_result, outcome, scope, message, effective_message, routine_reply, lighting_context, response_guest_mode, routine_turn, phrase, guest_mode, visitor_present, routine_voice_result, routine_status, status_target, information_context, pending_retry, source, body,
+            sessions=SESSIONS, session_lock=SESSION_LOCK, clock=monotonic,
+            turn_context_preparation=turn_context_preparation,
+            turn_finalization=turn_finalization,
+            turn_response_composition=turn_response_composition,
+            turn_response_orchestration=turn_response_orchestration,
+            personality_policy=personality_policy,
+            personality_lines=__import__("personality").LINES,
+            music=music, routine_responses=routine_responses,
+            lighting_intents=lighting_intents, parse_light_command=parse_light_command,
+            command_responses=command_responses,
+            response_composition=response_composition,
+            turn_persistence_orchestration=turn_persistence_orchestration,
+            unmatched_reply=UNMATCHED_REPLY, retry_learning=retry_learning,
+            history=history, diagnostics=diagnostics,
+            session_turn_state=session_turn_state,
+            retry_training_persistence=retry_training_persistence,
+            conversation_persistence=conversation_persistence,
+            log_error=self.log_error, converse=converse,
+        )
         self.send_json(200, response.to_wire())
 
 
