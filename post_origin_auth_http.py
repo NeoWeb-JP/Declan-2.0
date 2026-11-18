@@ -28,8 +28,11 @@ def is_authorized(*, path, supplied, token, ingress, client_ip, origin, port):
 
 
 def enforce_access(handler, *, token, ingress):
+    supplied = handler.headers.get("Authorization", "")
+    if has_scoped_bearer(handler.path, supplied, token) or ingress:
+        return True
     if not is_authorized(
-        path=handler.path, supplied=handler.headers.get("Authorization", ""),
+        path=handler.path, supplied=supplied,
         token=token, ingress=ingress, client_ip=handler.client_address[0],
         origin=handler.headers.get("Origin"), port=handler.server.server_port,
     ):
