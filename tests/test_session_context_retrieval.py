@@ -48,6 +48,16 @@ class SessionContextRetrievalTests(unittest.TestCase):
         self.assertEqual(recent_context(previous, "kitchen", now=101, idle_seconds=10),
                          ((), None, None))
 
+    def test_invalid_clock_or_idle_interval_fails_closed(self):
+        cases = ((float("nan"), 10), (float("inf"), 10), ("now", 10),
+                 (True, 10), (101, float("nan")), (101, float("inf")),
+                 (101, -1), (101, 0), (101, "ten"), (101, True))
+        for now, idle_seconds in cases:
+            with self.subTest(now=repr(now), idle_seconds=repr(idle_seconds)):
+                self.assertEqual(recent_context(self.previous, "kitchen", now=now,
+                                                idle_seconds=idle_seconds),
+                                 ((), None, None))
+
     def test_non_mapping_previous_context_is_ignored(self):
         for previous in ("hello", [], 123):
             with self.subTest(previous=repr(previous)):
