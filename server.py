@@ -38,7 +38,6 @@ import conversation_persistence
 import turn_finalization
 import turn_response_orchestration
 import turn_persistence_orchestration
-import request_origin
 import request_validation
 import session_context_retrieval
 import retry_context
@@ -89,7 +88,6 @@ import history_read_routes
 import system_read_routes
 import get_access_gate_http
 import speech_http_routes
-import assist_capture_http
 import assist_auth_http
 import voicepipeline_access_http
 import post_payload_http
