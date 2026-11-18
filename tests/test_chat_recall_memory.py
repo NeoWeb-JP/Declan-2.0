@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from chat_recall_memory import ChatRecallMemory, RECALL_SECONDS
+from chat_recall_privacy import safe_chat_text
 import session_orchestration
 
 
@@ -150,6 +151,15 @@ class ChatRecallTests(unittest.TestCase):
                                    "recent_messages": ["hello"]}, 100 + RECALL_SECONDS - 1)
         self.assertEqual(self.recall.entries["s"], original)
         self.assertIsNone(self.recall.restore("s", 100 + RECALL_SECONDS))
+
+    def test_additional_household_action_phrases_are_not_recalled(self):
+        for phrase in ("close the garage", "shut the gate", "open the blinds",
+                       "dim the lights", "brighten the lamp",
+                       "lower the thermostat", "increase the heating",
+                       "adjust temperature", "play music", "pause the radio"):
+            with self.subTest(phrase=phrase):
+                self.assertIsNone(safe_chat_text(phrase))
+        self.assertEqual(safe_chat_text("the weather is lovely"), "the weather is lovely")
 
     def test_memory_only_survives_in_same_process_store(self):
         first = self.say("my name is Alex")
