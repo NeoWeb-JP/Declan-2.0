@@ -129,9 +129,9 @@ def _finalize_chat_session(state, *, message, kind, routine_reply, lighting_cont
     if not is_forget and lighting_context is not None and valid_retry_scope(scope):
         state["lighting_context"] = lighting_context
         state["lighting_scope"] = scope
-    _store_session(sessions, session_id, state)
     if is_forget and recall is not None:
         recall.forget(session_id)
+    _store_session(sessions, session_id, state)
     return state
 
 
