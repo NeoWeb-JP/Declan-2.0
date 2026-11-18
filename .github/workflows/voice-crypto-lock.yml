@@ -1,0 +1,37 @@
+name: Verify voice encryption dependency lock
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-voice-lock:
+    name: Generate and verify candidate voice dependency lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Generate candidate lock from downloaded wheels
+        run: python generate_voice_dependency_lock.py
+      - name: Verify hashes and installation in a clean virtual environment
+        shell: bash
+        run: |
+          python -m venv /tmp/declan-voice-lock-verify
+          /tmp/declan-voice-lock-verify/bin/python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements-web-voice.txt.candidate
+          /tmp/declan-voice-lock-verify/bin/python -c 'from cryptography.hazmat.primitives.ciphers.aead import AESGCM; import websocket; assert len(AESGCM.generate_key(bit_length=256)) == 32'
+      - name: Publish candidate for review (not production activation)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: voice-dependency-lock-linux-py312
+          path: requirements-web-voice.txt.candidate
+          retention-days: 7
+          if-no-files-found: error
