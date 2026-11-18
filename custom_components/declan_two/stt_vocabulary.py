@@ -13,7 +13,9 @@ MAX_LENGTH = 240
 
 def validate_vocabulary(value):
     """Allow short comma-separated terms, never arbitrary instruction prompts."""
-    if not isinstance(value, str) or len(value) > MAX_LENGTH:
+    if (not isinstance(value, str) or len(value) > MAX_LENGTH
+            or any(ord(char) < 32 or ord(char) == 127 for char in value)
+            or re.search(r"\b(?:ignore|instructions|override|execute|prompt)\b", value, re.I)):
         raise ValueError("Enter up to 12 short comma-separated vocabulary terms.")
     if not value.strip():
         return ""
