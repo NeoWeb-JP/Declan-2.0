@@ -84,6 +84,7 @@ import spotify_playlists
 import music_playlists_post
 import timers
 import updates
+import operational_post_routes
 import web_stt
 import openai_planner
 import ai_settings
@@ -2352,10 +2353,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(403, {"error": "This VoicePipeline action requires local access."})
                 return
             if self.path == "/api/native/spotify-credentials":
-                if not isinstance(body, dict) or set(body) != {"client_id", "client_secret", "confirm"} or body.get("confirm") is not True:
-                    self.send_json(400, {"error": "Explicit confirmation and both credentials required."})
-                    return
-                self.spotify_settings(body)
+                operational_post_routes.handle_spotify_credentials(
+                    self, body, save=self.spotify_settings,
+                )
                 return
             if self.path == "/api/settings/ai":
                 ai_settings_post.handle_ai_settings(
@@ -2468,21 +2468,12 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             if self.path == "/api/updates":
-                try:
-                    if isinstance(body, dict) and body.get('operation') == 'check':
-                        versions = updates.check(body.get('include_prereleases', False))
-                        self.send_json(200, {**updates.status_result().to_wire(), 'current': RELEASE_VERSION,
-                                             'versions': versions, 'prereleases': updates.prerelease_versions()})
-                        return
-                    updates.queue(body.get("version") if isinstance(body, dict) else None, RELEASE_VERSION,
-                                  body.get('include_prereleases', False) if isinstance(body, dict) else False)
-                except ValueError as error:
-                    self.send_json(409, {"error": str(error)})
-                    return
-                except (OSError, subprocess.SubprocessError):
-                    self.send_json(503, {'error': "Couldn't check GitHub for releases."})
-                    return
-                self.send_json(202, {"status": "installing"})
+                operational_post_routes.handle_updates(
+                    self, body, check=updates.check,
+                    status_result=updates.status_result,
+                    prerelease_versions=updates.prerelease_versions,
+                    queue=updates.queue, release_version=RELEASE_VERSION,
+                )
                 return
             if self.path == "/api/settings/spotify":
                 if not isinstance(body, dict):
@@ -2504,23 +2495,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(200, audio, "audio/mpeg")
             return
         if self.path == "/api/assist/history":
-            spoken_reply = body.get("reply")
-            if not isinstance(spoken_reply, str) or not 0 < len(spoken_reply.strip()) <= 1000:
-                self.send_json(400, {"error": "A reply of 1 to 1,000 characters is required."})
-                return
-            try:
-                outcome = body.get("outcome")
-                routine_status = body.get("routine_status")
-                history.record(
-                    session_id or secrets.token_urlsafe(24), "ha_sentence", message, spoken_reply,
-                    outcome if isinstance(outcome, str) and len(outcome) <= 64 else None,
-                    routine_status if isinstance(routine_status, str) and len(routine_status) <= 1000 else None,
-                    routine_action_results_typed(body.get("steps")),
-                )
-            except (OSError, sqlite3.Error):
-                self.send_json(503, {"error": "Conversation history is unavailable."})
-                return
-            self.send_json(200, {"history_saved": True})
+            operational_post_routes.handle_assist_history(
+                self, body, message=message, session_id=session_id,
+                record=history.record, token_urlsafe=secrets.token_urlsafe,
+                action_results=routine_action_results_typed,
+            )
             return
         source, scope, origin_device, satellite = request_origin.request_context(
             self.path, body,
