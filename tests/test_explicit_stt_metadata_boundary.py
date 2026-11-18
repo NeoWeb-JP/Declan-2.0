@@ -83,6 +83,29 @@ class ExplicitSTTMetadataBoundaryTests(unittest.TestCase):
         self.assertEqual(second_payload["capture"]["peak"], 0.9)
         self.assertEqual(MODULE.snapshot_speaker_payload(first)["capture"]["peak"], 0.1)
 
+    def test_malformed_identity_does_not_enter_assist_payload(self):
+        for identity in [("", "speaker", 0.8), ("id", "", 0.8),
+                         ("x" * 81, "speaker", 0.8),
+                         ("id", "x" * 81, 0.8), ("id", "speaker", True),
+                         ("id", "speaker", float("nan"))]:
+            with self.subTest(identity=identity):
+                transcript = MODULE.transcript_for_ha(
+                    "hello", MODULE.SpeakerMetadata(identity, {"peak": 0.3}),
+                )
+                self.assertEqual(MODULE.snapshot_speaker_payload(transcript),
+                                 {"capture": {"peak": 0.3}})
+
+    def test_invalid_capture_values_are_excluded(self):
+        transcript = MODULE.transcript_for_ha(
+            "hello", MODULE.SpeakerMetadata(None, {
+                "peak": 0.5, "boolean": True, "negative": -1,
+                "nan": float("nan"), "empty": 0.1,
+            }),
+        )
+        self.assertEqual(MODULE.snapshot_speaker_payload(transcript), {
+            "speaker": {}, "capture": {"peak": 0.5, "empty": 0.1},
+        })
+
     def test_missing_capture_is_preserved(self):
         transcript = MODULE.transcript_for_ha(
             "hello", MODULE.SpeakerMetadata(None, None),
