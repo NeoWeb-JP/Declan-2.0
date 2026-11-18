@@ -19,5 +19,7 @@ def valid_retry_scope(scope):
         return bool(scope.strip()) and len(scope) <= 256
     if type(scope) is tuple and len(scope) == 4:
         return (type(scope[0]) is str and scope[0] == "assist"
+                and all(value is None or normalize_origin_id(value) is not None
+                        for value in scope[1:])
                 and assist_scope(*scope[1:]) == scope)
     return False
