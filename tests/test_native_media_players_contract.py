@@ -18,7 +18,10 @@ class MediaPlayersContractTests(unittest.TestCase):
         post = BACKEND[BACKEND.index("    def handle_post(self):"):]
         self.assertIn('self.path == "/api/settings/media-players"', get)
         self.assertIn('not players_auth', get)
-        self.assertIn('self.path == "/api/settings/media-players"', post)
+        self.assertIn('media_settings_post.handles(self.path)', post)
+        media_post = (ROOT / "media_settings_post.py").read_text()
+        self.assertIn('"/api/settings/media-players"', media_post)
+        self.assertIn('handler.approved_player_settings(body)', media_post)
         ast.parse(AUTH)
         self.assertIn('"/api/settings/media-players"', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)

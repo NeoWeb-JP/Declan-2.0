@@ -85,6 +85,7 @@ import timers
 import updates
 import operational_post_routes
 import media_settings_routes
+import media_settings_post
 import speech_http_routes
 import assist_capture_http
 import assist_auth_http
@@ -2204,14 +2205,11 @@ class Handler(BaseHTTPRequestHandler):
                     save=ai_settings.save, configured=ai_credentials.configured,
                 )
                 return
-            if self.path == "/api/settings/media-players":
-                self.approved_player_settings(body)
-                return
-            if self.path == "/api/settings/music-playlists":
-                music_playlists_post.handle_music_playlists(
-                    self, body, credentials=music.spotify_credentials,
-                    start_refresh=spotify_playlists.start_refresh,
-                    manage=spotify_playlists.manage,
+            if media_settings_post.handles(self.path):
+                media_settings_post.dispatch(
+                    self, body, music=music,
+                    spotify_playlists=spotify_playlists,
+                    playlist_handler=music_playlists_post.handle_music_playlists,
                     opener_factory=lambda: build_opener(ProxyHandler({})),
                 )
                 return
@@ -2270,11 +2268,6 @@ class Handler(BaseHTTPRequestHandler):
                     prerelease_versions=updates.prerelease_versions,
                     queue=updates.queue, release_version=RELEASE_VERSION,
                 )
-                return
-            if self.path == "/api/settings/spotify":
-                if not isinstance(body, dict):
-                    raise ValueError
-                self.spotify_settings(body)
                 return
             message, session_id = request_validation.message_and_session(body)
         except (ValueError, TypeError, KeyError, AttributeError):
