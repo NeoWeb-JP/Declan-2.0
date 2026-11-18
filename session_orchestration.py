@@ -7,6 +7,7 @@ from math import isfinite
 from time import monotonic
 import secrets
 from chat_recall_privacy import safe_chat_text
+from session_identity import valid_session_id
 
 def _prune_expired_sessions(sessions, now, idle_seconds):
     """Expire all idle sessions, including entries whose access order changed."""
@@ -114,7 +115,7 @@ def _finalize_chat_session(state, *, message, kind, routine_reply, lighting_cont
 
 def _load_chat_session(sessions, recall, session_id, now):
     """Accept only opaque string IDs; never trust arbitrary client values as keys."""
-    if not isinstance(session_id, str) or not session_id or len(session_id) > 256:
+    if not valid_session_id(session_id):
         session_id = None
     state = sessions.pop(session_id, None) if session_id is not None else None
     if not isinstance(state, dict):

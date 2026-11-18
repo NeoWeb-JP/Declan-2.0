@@ -39,6 +39,23 @@ class SessionOrchestrationTests(unittest.TestCase):
         self.assertNotEqual(result["session_id"], "expired")
         self.assertNotIn("expired", self.sessions)
 
+    def test_hostile_string_session_id_is_not_hashed_or_reused(self):
+        class HostileId(str):
+            def __hash__(self):
+                raise RuntimeError("unsafe hash")
+        self.sessions["known"] = {"at": 0, "name": "Alex"}
+        result = session_orchestration.converse("what's my name", HostileId("known"),
+                                                **self.kwargs)
+        self.assertNotEqual(result["session_id"], "known")
+        self.assertEqual(result["reply"], "I don't know your name yet.")
+
+    def test_invalid_session_ids_receive_new_opaque_ids(self):
+        for invalid in (None, [], 42, True, "", "x" * 257):
+            with self.subTest(value=repr(invalid)):
+                result = session_orchestration.converse("hello", invalid, **self.kwargs)
+                self.assertIs(type(result["session_id"]), str)
+                self.assertNotEqual(result["session_id"], invalid)
+
     def test_session_count_is_bounded(self):
         for index in range(130):
             session_orchestration.converse("hello", None, **self.kwargs)

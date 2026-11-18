@@ -1,9 +1,11 @@
 """Session-scoped context lookup under the shared session lock."""
 
+from session_identity import valid_session_id
+
 
 def _existing_session(sessions, session_id):
     """Only return mapping state for a bounded, valid client session ID."""
-    if type(session_id) is not str or not session_id or len(session_id) > 256:
+    if not valid_session_id(session_id):
         return None
     state = sessions.get(session_id)
     return state if isinstance(state, dict) else None
