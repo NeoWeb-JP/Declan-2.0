@@ -41,6 +41,14 @@ class RetryContextTests(unittest.TestCase):
                                                         window_seconds=window))
                 self.assertNotIn("pending_retry", session)
 
+    def test_assist_tuple_scope_preserves_retry_and_cancellation(self):
+        scope = ("assist", "kitchen", None, None)
+        pending = {"text": "office light on it", "scope": scope, "at": 100}
+        session = {"pending_retry": pending}
+        self.assertIs(consume_pending_retry(session, scope, now=105,
+                                            window_seconds=30), pending)
+        self.assertNotIn("pending_retry", session)
+
     def test_matching_retry_is_returned(self):
         self.assertIs(self.consume(), self.retry)
 
