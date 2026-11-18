@@ -62,6 +62,21 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertEqual(metadata.speaker, "speaker-1")
         self.assertEqual(metadata.capture_level, {"confidence": 0.9})
 
+    def test_capture_snapshot_is_independent_of_transcript_mutations(self):
+        capture = {"confidence": 0.9}
+        transcript = SpeakerTranscript("HELLO", "speaker-1", capture)
+        snapshot = MODULE.metadata_from_transcript(transcript)
+        capture["confidence"] = 0.2
+        transcript.capture_level = {"confidence": 0.1}
+        self.assertEqual(snapshot.capture_level, {"confidence": 0.9})
+        self.assertEqual(snapshot.speaker, "speaker-1")
+
+    def test_capture_snapshot_is_independent_of_caller_mutations(self):
+        transcript = SpeakerTranscript("HELLO", "speaker-1", {"confidence": 0.9})
+        snapshot = MODULE.metadata_from_transcript(transcript)
+        snapshot.capture_level["confidence"] = 0.2
+        self.assertEqual(transcript.capture_level, {"confidence": 0.9})
+
     def test_legacy_metadata_snapshot(self):
         class LegacyTranscript(str):
             jarvis_speaker = "speaker-2"
