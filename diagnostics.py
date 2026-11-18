@@ -144,6 +144,12 @@ def timed(name):
     return decorate
 
 
+def metrics():
+    """Return a bounded, privacy-safe aggregate over the last 24 hours."""
+    import diagnostic_metrics
+    return diagnostic_metrics.summary(DATABASE, retention=RETENTION)
+
+
 def recent():
     if not DATABASE.exists():
         return []
