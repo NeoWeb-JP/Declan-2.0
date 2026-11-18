@@ -140,6 +140,24 @@ class ChatRecallTests(unittest.TestCase):
         self.assertEqual(result["reply"], "Hello. I\'m Declan.")
         self.assertIsNone(self.sessions[sid]["name"])
 
+    def test_malformed_active_history_is_not_spoken_or_replayed(self):
+        first = self.say("hello")
+        sid = first["session_id"]
+        for malformed in (None, 42, {"message": "secret"}, "hello"):
+            with self.subTest(malformed=repr(malformed)):
+                self.sessions[sid]["recent_messages"] = malformed
+                result = self.say("what did i say earlier", sid)
+                self.assertEqual(result["reply"], "I don\'t have earlier messages to recall.")
+                self.assertEqual(self.sessions[sid]["recent_messages"], [])
+
+    def test_mixed_legacy_history_is_filtered_before_spoken_recall(self):
+        first = self.say("hello")
+        sid = first["session_id"]
+        self.sessions[sid]["recent_messages"] = [None, 99, "my password is synthetic-test-value", "safe one", "safe two"]
+        result = self.say("what did i say earlier", sid)
+        self.assertEqual(result["reply"], "Earlier you said: safe one | safe two")
+        self.assertEqual(self.sessions[sid]["recent_messages"], ["safe one", "safe two"])
+
     def test_safe_history_is_revalidated_before_adding_new_turn(self):
         first = self.say("hello")
         sid = first["session_id"]
