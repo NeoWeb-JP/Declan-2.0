@@ -133,9 +133,12 @@ def _load_chat_session(sessions, recall, session_id, now, *, new_session_id):
     """Accept only opaque string IDs; never trust arbitrary client values as keys."""
     if not valid_session_id(session_id):
         session_id = None
-    state = sessions.get(session_id) if session_id is not None else None
-    if type(state) is not dict:
-        state = None
+    stored = sessions.get(session_id) if session_id is not None else None
+    # Work on a detached copy so failed reply composition cannot mutate the
+    # committed session through a shared dictionary or history list.
+    state = dict(stored) if type(stored) is dict else None
+    if state is not None and type(state.get("recent_messages")) is list:
+        state["recent_messages"] = list(state["recent_messages"])
     if state is None and recall is not None and session_id is not None:
         # Chat-only recall must never restore expired action context.
         restored = recall.restore(session_id, now)
