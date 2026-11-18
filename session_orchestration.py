@@ -10,6 +10,14 @@ from chat_recall_privacy import safe_chat_text
 from session_identity import valid_session_id
 from retry_scope_validation import valid_retry_scope
 
+def _local_time():
+    return datetime.now().astimezone()
+
+
+def _fresh_session():
+    return {"last": None, "name": None, "recent_messages": []}
+
+
 def _generate_session_id():
     return secrets.token_urlsafe(24)
 
@@ -60,7 +68,7 @@ def _remember_safe_chat(state, message, *, routine_reply):
 
 
 def _compose_chat_reply(state, *, kind, name, routine_reply, guest_mode, decorate,
-                        unmatched_reply, recall, session_id):
+                        unmatched_reply, recall, session_id, local_time):
     """Select a chat reply and return updated state without managing its lifetime."""
     if routine_reply is not None:
         reply = routine_reply
@@ -90,10 +98,10 @@ def _compose_chat_reply(state, *, kind, name, routine_reply, guest_mode, decorat
     elif kind == "forget_chat":
         if recall is not None:
             recall.forget(session_id)
-        state = {"last": None, "name": None, "recent_messages": []}
+        state = _fresh_session()
         reply = "I have cleared this conversation's short-term memory."
     elif kind == "time":
-        reply = decorate(f"It's {datetime.now().astimezone():%H:%M} here.", "time", guest_mode)
+        reply = decorate(f"It's {local_time():%H:%M} here.", "time", guest_mode)
     elif kind == "greeting":
         safe_name = _safe_session_name(state)
         reply = f"Hello, {safe_name}." if safe_name else "Hello. I'm Declan."
@@ -135,13 +143,15 @@ def _load_chat_session(sessions, recall, session_id, now, *, new_session_id):
             state = None
     if state is None:
         session_id = new_session_id()
-        state = {"last": None, "name": None, "recent_messages": []}
+        if not valid_session_id(session_id) or session_id in sessions:
+            raise ValueError("session ID factory must return a new bounded string ID")
+        state = _fresh_session()
     return session_id, state
 
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
              sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None,
-             clock=None, new_session_id=None):
+             clock=None, new_session_id=None, local_time=None):
     if not isinstance(message, str):
         raise ValueError("chat message must be a string")
     now = (monotonic if clock is None else clock)()
@@ -149,6 +159,8 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
         raise ValueError("session clock must be finite")
     if new_session_id is None:
         new_session_id = _generate_session_id
+    if local_time is None:
+        local_time = _local_time
     _prune_expired_sessions(sessions, now, idle_seconds)
     session_id, state = _load_chat_session(sessions, recall, session_id, now,
                                            new_session_id=new_session_id)
@@ -158,7 +170,7 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
     state, reply = _compose_chat_reply(
         state, kind=kind, name=name, routine_reply=routine_reply,
         guest_mode=guest_mode, decorate=decorate, unmatched_reply=unmatched_reply,
-        recall=recall, session_id=session_id)
+        recall=recall, session_id=session_id, local_time=local_time)
     _finalize_chat_session(
         state, message=message, kind=kind, routine_reply=routine_reply,
         lighting_context=lighting_context, scope=scope, recall=recall,

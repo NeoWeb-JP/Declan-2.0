@@ -88,6 +88,30 @@ class SessionOrchestrationTests(unittest.TestCase):
                     scope=scope, **self.kwargs)
                 self.assertNotIn("lighting_context", self.sessions[result["session_id"]])
 
+    def test_generated_session_ids_must_be_valid_and_unique(self):
+        self.sessions["existing"] = {"at": 10, "name": "Alex"}
+        for generated in (None, "", 12, True, "x" * 257, "existing"):
+            with self.subTest(generated=repr(generated)):
+                with self.assertRaises(ValueError):
+                    session_orchestration.converse(
+                        "hello", None, clock=lambda: 11,
+                        new_session_id=lambda value=generated: value, **self.kwargs)
+                self.assertEqual(self.sessions["existing"]["name"], "Alex")
+
+    def test_local_time_is_injected_only_for_time_reply(self):
+        from datetime import datetime
+        calls = []
+        def local_time():
+            calls.append(True)
+            return datetime(2026, 11, 18, 14, 35)
+        kwargs = {**self.kwargs, "chat_commands": {"what time": "time"}}
+        result = session_orchestration.converse(
+            "what time", None, local_time=local_time, **kwargs)
+        self.assertEqual(result["reply"], "It's 14:35 here.")
+        self.assertEqual(len(calls), 1)
+        session_orchestration.converse("hello", None, local_time=local_time, **kwargs)
+        self.assertEqual(len(calls), 1)
+
     def test_session_count_is_bounded(self):
         for index in range(130):
             session_orchestration.converse("hello", None, **self.kwargs)
