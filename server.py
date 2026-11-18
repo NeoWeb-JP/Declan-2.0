@@ -86,6 +86,7 @@ import operational_post_routes
 import media_settings_routes
 import native_read_routes
 import operational_read_routes
+import settings_read_routes
 import media_settings_post
 import speech_http_routes
 import assist_capture_http
@@ -2037,39 +2038,13 @@ class Handler(BaseHTTPRequestHandler):
                 release_version=RELEASE_VERSION, updates=updates,
                 configuration=configuration,
             )
-        elif self.path == "/api/voicepipeline":
-            try:
-                self.send_json(200, voicepipeline.listing())
-            except voicepipeline.PipelineError as error:
-                self.send_json(error.status, {'error': str(error)})
-        elif self.path == "/api/voice-profiles":
-            try:
-                self.send_json(200, voice_profiles.listing())
-            except (OSError, sqlite3.Error):
-                self.send_json(503, {'error': 'Voice profiles are unavailable.'})
-        elif self.path == "/api/diagnostics":
-            try:
-                self.send_json(200, {"traces": diagnostics.recent()})
-            except (OSError, sqlite3.Error, ValueError):
-                self.send_json(503, {"error": "Diagnostics are unavailable."})
-        elif self.path == "/api/settings/spotify":
-            self.spotify_settings()
-        elif self.path == "/api/settings/ai":
-            try:
-                with history.database() as db:
-                    usage_micro_usd = ai_budget.monthly_reserved(db)
-                self.send_json(200, {"settings": ai_settings.read(),
-                                     "key_configured": ai_credentials.configured(),
-                                     "month_usage_micro_usd": usage_micro_usd})
-            except (OSError, sqlite3.Error, ValueError):
-                self.send_json(503, {"error": "AI settings unavailable."})
-        elif self.path == "/api/settings/media-players":
-            self.approved_player_settings()
-        elif self.path == "/api/settings/music-playlists":
-            try:
-                self.send_json(200, spotify_playlists.listing())
-            except (OSError, ValueError):
-                self.send_json(503, {"error": "Spotify playlists unavailable."})
+        elif settings_read_routes.handles(self.path):
+            settings_read_routes.dispatch(
+                self, voicepipeline=voicepipeline, voice_profiles=voice_profiles,
+                diagnostics=diagnostics, history=history, ai_budget=ai_budget,
+                ai_settings=ai_settings, ai_credentials=ai_credentials,
+                spotify_playlists=spotify_playlists,
+            )
         elif self.path == "/api/history/export":
             try:
                 turns = history.recent(limit=None)
