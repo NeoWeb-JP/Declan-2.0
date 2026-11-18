@@ -2,17 +2,13 @@
 
 This module never performs household actions or changes command outcomes.
 """
-from collections import deque
 from datetime import datetime, time
-from random import SystemRandom
-from threading import Lock
+from response_rotation_state import ResponseRotationState
 from action_evidence_buffer import evidence_value
 from execution_results import Outcome, parse_outcome
 from routine_action_evidence import RoutineActionStatus
 
-_RANDOM = SystemRandom()
-_LOCK = Lock()
-_RECENT: dict = {}
+ROTATION = ResponseRotationState(window=3)
 _SAVAGE = (
     "Another heroic achievement in avoiding the light switch.",
     "There you go, you absolute muppet.",
@@ -217,10 +213,7 @@ def movie_request_reply(action, *, guest=False, visitor_present=False):
     prefix = {"start": "Movie setup requested.", "end": "Movie shutdown requested.", "toggle": "Movie Time requested."}[action]
     mode = "guest" if guest or visitor_present is not False else "home"
     lines = (_MOVIE_GUEST if mode == "guest" else _MOVIE_HOME)[action]
-    with _LOCK:
-        recent = _RECENT.setdefault((mode, "movie", action), deque(maxlen=3))
-        chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
-        recent.append(chosen)
+    chosen = ROTATION.choose((mode, "movie", action), lines)
     return prefix + " " + chosen
 
 
@@ -228,10 +221,7 @@ def morning_request_reply(*, guest=False, visitor_present=False):
     """Greet an accepted morning request without claiming light verification."""
     mode = "guest" if guest or visitor_present is not False else "home"
     lines = _MORNING_GUEST if mode == "guest" else _MORNING_HOME
-    with _LOCK:
-        recent = _RECENT.setdefault((mode, "morning"), deque(maxlen=3))
-        chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
-        recent.append(chosen)
+    chosen = ROTATION.choose((mode, "morning"), lines)
     return "Good morning. " + chosen
 
 
@@ -239,10 +229,7 @@ def night_request_reply(*, guest=False, visitor_present=False):
     """Acknowledge bedtime without claiming the household has shut down."""
     mode = "guest" if guest or visitor_present is not False else "home"
     lines = _NIGHT_GUEST if mode == "guest" else _NIGHT_HOME
-    with _LOCK:
-        recent = _RECENT.setdefault((mode, "night"), deque(maxlen=3))
-        chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
-        recent.append(chosen)
+    chosen = ROTATION.choose((mode, "night"), lines)
     return "Good night. " + chosen
 
 
@@ -251,10 +238,7 @@ def sexy_request_reply(action, *, guest=False, visitor_present=False):
     action = "end" if action == "end" else "start"
     mode = "guest" if guest or visitor_present is not False else "home"
     lines = (_SEXY_GUEST if mode == "guest" else _SEXY_HOME)[action]
-    with _LOCK:
-        recent = _RECENT.setdefault((mode, "sexy", action), deque(maxlen=3))
-        chosen = _RANDOM.choice([line for line in lines if line not in recent] or lines)
-        recent.append(chosen)
+    chosen = ROTATION.choose((mode, "sexy", action), lines)
     return chosen
 
 
@@ -314,10 +298,6 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
     else:
         lines = _DINNER_HOME if category == "dinner" else _SAVAGE
         key = ("home", category)
-    with _LOCK:
-        recent = _RECENT.setdefault(key, deque(maxlen=3))
-        options = [line for line in lines if line not in recent]
-        chosen = _RANDOM.choice(options or lines)
-        recent.append(chosen)
+    chosen = ROTATION.choose(key, lines)
     return (reply.rstrip() + " " if reply.strip() else "") + chosen
 
