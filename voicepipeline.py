@@ -1,5 +1,6 @@
 """VoicePipeline owns enrolment and recognition; Declan never copies its profiles."""
 import base64
+import ipaddress
 import json
 import os
 import re
@@ -64,6 +65,20 @@ def request(method, path, body=None, *, audio=False):
     if (target.scheme not in {'http', 'https'} or not target.hostname or target.username
             or target.password or target.query or target.fragment or target.path):
         raise PipelineError('Set DECLAN_VOICEPIPELINE_URL to the VoicePipeline server address.', 503)
+    # Voice recordings and bearer credentials must never travel over public cleartext HTTP.
+    # Existing private LAN VoicePipeline installations may continue using HTTP.
+    if target.scheme == 'http':
+        hostname = target.hostname.lower()
+        try:
+            address = ipaddress.ip_address(hostname)
+        except ValueError:
+            # Hostnames cannot be proven private without DNS lookup; require HTTPS
+            # except for explicit local names (including mDNS).
+            local_name = hostname == 'localhost' or hostname.endswith('.localhost') or hostname.endswith('.local')
+        else:
+            local_name = not address.is_global and (address.is_private or address.is_loopback or address.is_link_local)
+        if not local_name:
+            raise PipelineError('Use HTTPS for VoicePipeline outside a private local network.', 503)
     data = json.dumps(body).encode() if body is not None else None
     headers = {'Accept': 'audio/wav' if audio else 'application/json'}
     if data is not None:
