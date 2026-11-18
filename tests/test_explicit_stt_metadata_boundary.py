@@ -99,11 +99,11 @@ class ExplicitSTTMetadataBoundaryTests(unittest.TestCase):
         transcript = MODULE.transcript_for_ha(
             "hello", MODULE.SpeakerMetadata(None, {
                 "peak": 0.5, "boolean": True, "negative": -1,
-                "nan": float("nan"), "empty": 0.1,
+                "nan": float("nan"), "": 0.1,
             }),
         )
         self.assertEqual(MODULE.snapshot_speaker_payload(transcript), {
-            "speaker": {}, "capture": {"peak": 0.5, "empty": 0.1},
+            "speaker": {}, "capture": {"peak": 0.5},
         })
 
     def test_missing_capture_is_preserved(self):
