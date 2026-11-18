@@ -64,7 +64,7 @@ def speaker_from_transcript(transcript):
 
 def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present: bool = False):
     """Project explicit metadata into the existing Assist JSON contract."""
-    payload = {}
+    payload: dict[str, object] = {}
     speaker = metadata.speaker
     if isinstance(speaker, tuple) and len(speaker) == 3:
         interaction_id, name, confidence = speaker
