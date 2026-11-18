@@ -98,6 +98,7 @@ import post_content_type_http
 import post_validation_errors_http
 import session_context_access
 import retry_cancellation_access
+import sensitive_confirmation_resolution
 import web_stt
 import openai_planner
 import ai_settings
@@ -2349,16 +2350,14 @@ class Handler(BaseHTTPRequestHandler):
             record=history.record, diagnostic_id=diagnostics.current_id,
             log_error=self.log_error,
         )
-        session_id = confirmation.session_id
-        confirmed_phrase = confirmation.phrase
-        confirmation_reply = confirmation.reply
-        is_confirmed = confirmation.confirmed
+        session_id, phrase, effective_message, confirmation_reply = (
+            sensitive_confirmation_resolution.resolved_confirmation(
+                confirmation, phrase, effective_message,
+            )
+        )
         if confirmation_reply is not None:
             self.send_json(200, confirmation_reply)
             return
-        if is_confirmed:
-            phrase = confirmed_phrase
-            effective_message = confirmed_phrase
         routine_preview = routine_preview_dispatch.dispatch_preview_result(
             phrase, origin_device=origin_device, satellite=satellite,
             detect_phrase=routine_preview_detection.routine_preview_phrase,
