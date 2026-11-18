@@ -58,6 +58,28 @@ class ActiveRoutineRegistryTests(unittest.TestCase):
             second.__exit__(None, None, None)
         self.assertEqual(registry.snapshot(), {})
 
+    def test_overlapping_identical_script_does_not_clear_new_run(self):
+        registry = ActiveRoutineRegistry()
+        first = registry.track("morning", "script.morning")
+        second = registry.track("morning", "script.morning")
+        first.__enter__()
+        second.__enter__()
+        first.__exit__(None, None, None)
+        try:
+            self.assertEqual(registry.snapshot(), {"morning": "script.morning"})
+        finally:
+            second.__exit__(None, None, None)
+        self.assertEqual(registry.snapshot(), {})
+
+    def test_overlapping_same_script_exception_preserves_replacement(self):
+        registry = ActiveRoutineRegistry()
+        with self.assertRaisesRegex(RuntimeError, "first failed"):
+            with registry.track("movie", "script.movie"):
+                with registry.track("movie", "script.movie"):
+                    raise RuntimeError("first failed")
+        self.assertEqual(registry.snapshot(), {})
+
+
 
 if __name__ == "__main__":
     unittest.main()
