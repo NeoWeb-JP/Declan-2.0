@@ -9,14 +9,15 @@ def save_retry_training(reply, *, pending_retry, retry_succeeded, message,
     original = pending_retry.get("text") if isinstance(pending_retry, dict) else None
     if not (retry_succeeded and isinstance(original, str) and original.strip()
             and len(original) <= 4096
-            and isinstance(message, str) and isinstance(effective_message, str)
-            and similar(original, message)
-            and normalize_phrase(original) != normalize_phrase(effective_message)):
+            and isinstance(message, str) and isinstance(effective_message, str)):
         return False
     try:
+        if (not similar(original, message)
+                or normalize_phrase(original) == normalize_phrase(effective_message)):
+            return False
         teach_phrase(original, effective_message, automatic=True)
         reply["learned_from_retry"] = True
         return True
-    except (ValueError, OSError, sqlite3.Error):
+    except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error):
         log_error("Could not save successful retry training.")
         return False
