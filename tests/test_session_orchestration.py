@@ -112,6 +112,34 @@ class SessionOrchestrationTests(unittest.TestCase):
         session_orchestration.converse("hello", None, local_time=local_time, **kwargs)
         self.assertEqual(len(calls), 1)
 
+    def test_restored_recall_never_restores_action_context(self):
+        from unittest.mock import Mock
+        recall = Mock()
+        recall.restore.return_value = {
+            "name": "Alex", "recent_messages": ["hello"],
+            "last": "turn off the lights",
+            "lighting_context": ("light.kitchen",), "lighting_scope": "kitchen",
+            "pending_retry": {"text": "turn off lights", "scope": "kitchen", "at": 10},
+            "device_status_target": "lock.front_door",
+        }
+        result = session_orchestration.converse(
+            "what's my name", "recalled", recall=recall,
+            clock=lambda: 100, **self.kwargs)
+        self.assertEqual(result["reply"], "Your name is Alex.")
+        state = self.sessions[result["session_id"]]
+        for key in ("lighting_context", "lighting_scope", "pending_retry",
+                    "device_status_target"):
+            self.assertNotIn(key, state)
+        self.assertEqual(state["recent_messages"], ["hello", "what's my name"])
+
+    def test_hostile_message_is_rejected_before_string_methods(self):
+        class HostileText(str):
+            def casefold(self):
+                raise RuntimeError("untrusted string method")
+        with self.assertRaises(ValueError):
+            session_orchestration.converse(HostileText("hello"), None, **self.kwargs)
+        self.assertFalse(self.sessions)
+
     def test_session_count_is_bounded(self):
         for index in range(130):
             session_orchestration.converse("hello", None, **self.kwargs)

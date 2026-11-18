@@ -39,7 +39,7 @@ _STRUCTURED_SECRET = re.compile(
 
 def safe_chat_text(value):
     """Return harmless short text, or None if it should not be remembered."""
-    if not isinstance(value, str) or not value.strip():
+    if type(value) is not str or not value.strip():
         return None
     if any(ord(char) < 32 and char not in "\t" for char in value):
         return None

@@ -138,9 +138,13 @@ def _load_chat_session(sessions, recall, session_id, now, *, new_session_id):
         state = None
     if state is None and recall is not None and session_id is not None:
         # Chat-only recall must never restore expired action context.
-        state = recall.restore(session_id, now)
-        if not isinstance(state, dict):
-            state = None
+        restored = recall.restore(session_id, now)
+        if isinstance(restored, dict):
+            state = {
+                "last": None,
+                "name": safe_chat_text(restored.get("name")),
+                "recent_messages": _safe_recent_messages(restored),
+            }
     if state is None:
         session_id = new_session_id()
         if not valid_session_id(session_id) or session_id in sessions:
@@ -152,7 +156,7 @@ def _load_chat_session(sessions, recall, session_id, now, *, new_session_id):
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
              sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None,
              clock=None, new_session_id=None, local_time=None):
-    if not isinstance(message, str):
+    if type(message) is not str:
         raise ValueError("chat message must be a string")
     now = (monotonic if clock is None else clock)()
     if not finite_number(now):
