@@ -12,6 +12,7 @@ class PreparedTurn:
     session_id: str
     phrase: str
     effective_message: str
+    pending_retry: object
 
 
 def resolve(handler, body, *, message, session_id, scope, source,
@@ -56,5 +57,5 @@ def resolve(handler, body, *, message, session_id, scope, source,
         return None
     return PreparedTurn(
         session_id=session_id, phrase=phrase,
-        effective_message=effective_message,
+        effective_message=effective_message, pending_retry=pending_retry,
     )
