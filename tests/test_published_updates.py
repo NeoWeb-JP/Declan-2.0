@@ -20,8 +20,8 @@ def release(tag, **changes):
 class PublishedReleaseTests(TestCase):
     def setUp(self):
         self.enterContext(patch.dict(os.environ, {'DECLAN_UPDATE_SUPERVISED': '1'}, clear=True))
-        self.enterContext(patch.object(updates, '_tags', {}))
-        self.enterContext(patch.object(updates, '_job', {'state': 'idle'}))
+        self.enterContext(patch.object(updates.RUNTIME, "tags", {}))
+        self.enterContext(patch.object(updates.RUNTIME, "job", {'state': 'idle'}))
 
     def test_default_lists_published_stable_releases_without_local_approval(self):
         opener = Mock()
@@ -40,7 +40,7 @@ class PublishedReleaseTests(TestCase):
         request = opener.open.call_args.args[0]
         self.assertEqual(request.full_url, updates.RELEASES_API)
         self.assertEqual(opener.open.call_args.kwargs['timeout'], 10)
-        self.assertEqual(updates._tags['0.10.0'], {'ref': 'a'*40, 'commit': 'a'*40, 'source': 'github'})
+        self.assertEqual(updates.RUNTIME.tags['0.10.0'], {'ref': 'a'*40, 'commit': 'a'*40, 'source': 'github'})
         self.assertIsNone(updates.NoRedirect().redirect_request(None, None, None, None, None, None))
 
     def test_annotated_tags_pin_object_and_peeled_commit_and_sort_numerically(self):
@@ -48,23 +48,23 @@ class PublishedReleaseTests(TestCase):
         with patch.object(updates, 'published_tags', return_value={'0.10.0', '0.9.0', '0.20.0'}), patch.object(
                 updates, 'run', return_value=refs), patch.object(updates, 'layout', return_value=Path('/unused')):
             self.assertEqual(updates.check(), ['0.10.0', '0.9.0'])
-            self.assertEqual(updates._tags['0.10.0']['commit'], 'b'*40)
-            self.assertEqual(updates._tags['0.10.0']['ref'], 'a'*40)
+            self.assertEqual(updates.RUNTIME.tags['0.10.0']['commit'], 'b'*40)
+            self.assertEqual(updates.RUNTIME.tags['0.10.0']['ref'], 'a'*40)
             with patch.object(updates, 'Thread') as thread:
                 updates.queue('0.10.0', '0.9.0')
                 selection = thread.call_args.kwargs['args'][2]
-                self.assertEqual(selection, updates._tags['0.10.0'])
-                self.assertIsNot(selection, updates._tags['0.10.0'])
+                self.assertEqual(selection, updates.RUNTIME.tags['0.10.0'])
+                self.assertIsNot(selection, updates.RUNTIME.tags['0.10.0'])
 
     def test_failed_checks_remove_previous_choices_and_no_layout_offers_nothing(self):
-        updates._tags['0.10.0'] = {'ref': 'a'*40, 'commit': 'a'*40, 'source': 'github'}
+        updates.RUNTIME.tags['0.10.0'] = {'ref': 'a'*40, 'commit': 'a'*40, 'source': 'github'}
         with patch.object(updates, 'layout', return_value=Path('/unused')), patch.object(
                 updates, 'available_releases', side_effect=OSError('Rate limited')):
             with self.assertRaises(OSError):
                 updates.check()
             with self.assertRaises(ValueError):
                 updates.queue('0.10.0', '0.9.0')
-        self.assertEqual(updates._tags, {})
+        self.assertEqual(updates.RUNTIME.tags, {})
         with patch.object(updates, 'layout', return_value=None):
             self.assertEqual(updates.check(), [])
 
@@ -75,7 +75,7 @@ class PublishedReleaseTests(TestCase):
             with patch.object(updates, 'available_releases', return_value=catalog), patch.object(updates, 'run') as run:
                 updates.install(Path('/unused'), '0.10.0', selection)
                 run.assert_not_called()
-                self.assertEqual(updates._job['state'], 'failed')
+                self.assertEqual(updates.RUNTIME.job['state'], 'failed')
         with patch.dict(os.environ, {'DECLAN_UPDATE_SOURCE': 'pinned'}), patch.object(updates, 'run') as run:
             updates.install(Path('/unused'), '0.10.0', selection)
             run.assert_not_called()
@@ -134,7 +134,7 @@ class PublishedReleaseTests(TestCase):
             with patch.object(updates, 'Thread') as thread:
                 updates.queue('0.11.0-rc.10', '0.10.1', True)
                 self.assertTrue(thread.call_args.kwargs['args'][2]['include_prereleases'])
-            updates._job['state'] = 'idle'
+            updates.RUNTIME.job['state'] = 'idle'
             updates.check()
             with self.assertRaises(ValueError):
                 updates.queue('0.11.0-rc.10', '0.10.1', True)
@@ -174,7 +174,7 @@ class PublishedReleaseTests(TestCase):
                     updates, 'RESTART', restart), patch.object(updates, 'available_releases', return_value={'0.10.0': selection}), patch.object(
                     updates, 'run', side_effect=command) as run:
                 updates.install(root, '0.10.0', selection)
-                self.assertEqual(updates._job['state'], 'restarting')
+                self.assertEqual(updates.RUNTIME.job['state'], 'restarting')
                 self.assertTrue(restart.is_set())
                 self.assertEqual((root / 'current' / '.declan-release').read_text().strip(), '0.10.0')
                 self.assertEqual((root / 'previous').resolve(), app)
