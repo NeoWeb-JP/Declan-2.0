@@ -20,9 +20,11 @@ class SpeakerMetadata:
 def metadata_from_transcript(transcript):
     """Snapshot identity before string operations can discard its attributes."""
     capture = getattr(transcript, "capture_level", None)
+    # Snapshot provider-owned mappings so later mutation cannot change a turn.
+    capture_snapshot = dict(capture) if type(capture) is dict else None
     return SpeakerMetadata(
         speaker=speaker_from_transcript(transcript),
-        capture_level=dict(capture) if isinstance(capture, dict) else None,
+        capture_level=capture_snapshot,
     )
 
 
@@ -65,9 +67,9 @@ def speaker_from_transcript(transcript):
 def valid_wyoming_speaker(interaction_id, name, confidence) -> bool:
     """Accept a recognised Wyoming speaker, never an unknown identity marker."""
     return (
-        isinstance(interaction_id, str) and bool(interaction_id.strip())
+        type(interaction_id) is str and bool(interaction_id.strip())
         and len(interaction_id) <= 80
-        and isinstance(name, str) and bool(name.strip()) and len(name) <= 80
+        and type(name) is str and bool(name.strip()) and len(name) <= 80
         and name.strip().casefold() not in {"unknown", "unidentified", "none"}
         and type(confidence) in (int, float) and 0 <= confidence <= 1
         and math.isfinite(confidence)
@@ -78,7 +80,7 @@ def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present:
     """Project explicit metadata into the existing Assist JSON contract."""
     payload: dict[str, object] = {}
     speaker = metadata.speaker
-    if isinstance(speaker, tuple) and len(speaker) == 3:
+    if type(speaker) is tuple and len(speaker) == 3:
         interaction_id, name, confidence = speaker
         if valid_wyoming_speaker(interaction_id, name, confidence):
             payload["speaker"] = {
@@ -88,13 +90,13 @@ def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present:
             }
     elif speaker_present:
         payload["speaker"] = {}
-    if isinstance(metadata.capture_level, dict):
+    if type(metadata.capture_level) is dict:
         capture = metadata.capture_level
         # Preserve valid provider numeric fields while excluding objects that
         # would make the entire Assist JSON request fail serialization.
         safe_capture = {
             key: value for key, value in capture.items()
-            if isinstance(key, str) and key and type(value) in (int, float)
+            if type(key) is str and key and type(value) in (int, float)
             and 0 <= value <= 1e308 and math.isfinite(value)
         }
         if safe_capture:
