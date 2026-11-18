@@ -67,6 +67,7 @@ import turn_preflight
 import turn_preview_stage
 import turn_direct_dispatch
 import turn_routine_stage
+import turn_fallback_dispatch
 import turn_response_composition
 import history
 import training_history_post
@@ -2184,7 +2185,7 @@ class Handler(BaseHTTPRequestHandler):
                 routine_reply, outcome = fallback_dispatch.reply, fallback_dispatch.outcome
                 information_context = fallback_dispatch.information_context
                 status_target = fallback_dispatch.status_target
-                lighting_context = fallback_dispatch.lighting_context or lighting_context
+                lighting_context = fallback_dispatch.lighting_context
                 light_result = fallback_dispatch.light_result
         fallback_result = fallback_orchestration.resolve_fallback_result(
             effective_message, routine_reply=routine_reply,
