@@ -40,6 +40,40 @@ class VoiceEncryptionTests(unittest.TestCase):
             with closing(sqlite3.connect(path)) as db:
                 self.assertEqual(db.execute('SELECT audio FROM samples').fetchone()[0], encrypted)
 
+    def test_wrong_key_does_not_migrate_other_plaintext_samples(self):
+        first = base64.urlsafe_b64encode(b'k' * 32).decode()
+        wrong = base64.urlsafe_b64encode(b'z' * 32).decode()
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'voice-profiles.sqlite3'
+            with patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': first}):
+                encrypted = encrypt(b'private', 's2')
+            with closing(sqlite3.connect(path)) as db:
+                db.execute('CREATE TABLE samples (id TEXT PRIMARY KEY, audio BLOB)')
+                db.executemany('INSERT INTO samples VALUES (?, ?)',
+                               [('s1', b'RIFF-legacy-private'), ('s2', encrypted)])
+                db.commit()
+            with patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': wrong}):
+                with self.assertRaises(Exception):
+                    migrate(path)
+            with closing(sqlite3.connect(path)) as db:
+                rows = db.execute('SELECT id, audio FROM samples ORDER BY id').fetchall()
+            self.assertEqual(rows, [('s1', b'RIFF-legacy-private'), ('s2', encrypted)])
+
+    def test_null_audio_rejected_without_modification(self):
+        key = base64.urlsafe_b64encode(b'k' * 32).decode()
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': key}):
+            path = Path(temp) / 'voice-profiles.sqlite3'
+            with closing(sqlite3.connect(path)) as db:
+                db.execute('CREATE TABLE samples (id TEXT PRIMARY KEY, audio BLOB)')
+                db.executemany('INSERT INTO samples VALUES (?, ?)',
+                               [('s1', b'RIFF-legacy-private'), ('s2', None)])
+                db.commit()
+            with self.assertRaisesRegex(ValueError, 'invalid audio'):
+                migrate(path)
+            with closing(sqlite3.connect(path)) as db:
+                self.assertEqual(db.execute('SELECT audio FROM samples WHERE id = ?', ('s1',)).fetchone()[0],
+                                 b'RIFF-legacy-private')
+
 
 if __name__ == '__main__':
     unittest.main()
