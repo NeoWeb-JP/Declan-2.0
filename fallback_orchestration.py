@@ -6,11 +6,14 @@ def resolve_fallback_result(message, *, routine_reply, light_result, body,
                             authorization, bridge_token, source, action_results,
                             exposed_entities, dispatch_fallback, fallback_handler):
     """Retain typed fallback results behind the existing eligibility/auth gate."""
-    result = resolve_fallback(
-        message, routine_reply=routine_reply, light_result=light_result, body=body,
-        authorization=authorization, bridge_token=bridge_token, source=source,
-        action_results=action_results, exposed_entities=exposed_entities,
-        dispatch_fallback=dispatch_fallback, fallback_handler=fallback_handler,
+    # Keep authorization behind the local-handler eligibility check.
+    # This is the typed HTTP path; the legacy pair API remains below.
+    if routine_reply is not None or light_result is not None:
+        return None
+    exposed = exposed_entities(body, authorization, bridge_token)
+    result = dispatch_fallback(
+        message, source=source, exposed_entities=exposed,
+        fallback_handler=fallback_handler, action_results=action_results,
     )
     if result is not None and not isinstance(result, ExecutionResult):
         raise ValueError("Fallback dispatch requires a typed execution result")
