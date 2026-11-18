@@ -39,10 +39,50 @@ def _redact_voice_samples(destination):
         db.execute('VACUUM')
 
 
+def sanitize_retained_voice_snapshots(directory):
+    """Remove legacy local voice audio from retained upgrade snapshots.
+
+    Fail closed on unexpected files and avoid following symlinks. Each database
+    is replaced only after a validated, redacted copy is ready.
+    """
+    root = Path(directory) / 'upgrade-backups'
+    if not root.exists():
+        return 0
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError('Upgrade backup directory is not a regular directory.')
+    sanitized = 0
+    for folder in sorted(root.iterdir()):
+        if folder.is_symlink() or not folder.is_dir():
+            raise ValueError('Unexpected upgrade backup entry.')
+        source = folder / 'voice-profiles.sqlite3'
+        if not source.exists() and not source.is_symlink():
+            continue
+        if source.is_symlink() or not source.is_file():
+            raise ValueError('Unexpected voice backup database entry.')
+        temporary = folder / ('.voice-redaction-' + secrets.token_hex(8) + '.sqlite3')
+        try:
+            with closing(sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True, timeout=2)) as live, closing(sqlite3.connect(temporary, timeout=2)) as backup:
+                if live.execute('PRAGMA quick_check').fetchone() != ('ok',):
+                    raise ValueError('Legacy voice backup failed integrity check.')
+                live.backup(backup)
+            _redact_voice_samples(temporary)
+            with closing(sqlite3.connect(temporary, timeout=2)) as check_db:
+                if check_db.execute('PRAGMA quick_check').fetchone() != ('ok',):
+                    raise ValueError('Redacted voice backup failed integrity check.')
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, source)
+            sanitized += 1
+        finally:
+            temporary.unlink(missing_ok=True)
+    return sanitized
+
+
 def snapshot(directory):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     check(directory)
+    # Clean retained legacy copies before creating another snapshot.
+    sanitize_retained_voice_snapshots(directory)
     root = directory / 'upgrade-backups'
     root.mkdir(mode=0o700, exist_ok=True)
     os.chmod(root, 0o700)
