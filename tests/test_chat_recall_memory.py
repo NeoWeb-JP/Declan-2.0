@@ -142,6 +142,16 @@ class ChatRecallTests(unittest.TestCase):
         self.assertNotIn("passcode", str(record))
         self.assertNotIn("thermostat", str(record))
 
+    def test_sensitive_name_is_rejected_even_before_session_expiry(self):
+        first = self.say("my name is Alex")
+        sid = first["session_id"]
+        rejected = self.say("my name is password", sid)
+        self.assertIn("cannot remember", rejected["reply"])
+        self.assertEqual(self.say("what\'s my name", sid)["reply"], "Your name is Alex.")
+        fresh = self.say("my name is password")
+        self.assertEqual(self.say("what\'s my name", fresh["session_id"])["reply"],
+                         "I don\'t know your name yet.")
+
     def test_private_name_is_not_retained_for_later_spoken_recall(self):
         self.recall.remember("s", {"name": "my API key is sk-abcdefghijklmnop",
                                    "last": "hello", "recent_messages": ["hello"]}, 100)

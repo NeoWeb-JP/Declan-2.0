@@ -25,9 +25,15 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
     if routine_reply is not None:
         reply = routine_reply
     elif name:
-        state["name"] = name[1].strip()
-        reply = decorate(f"Nice to meet you, {state['name']}.", "greeting", guest_mode)
+        proposed_name = name[1].strip()
+        safe_name = safe_chat_text(proposed_name)
+        if safe_name is None:
+            reply = "I cannot remember that as a name."
+        else:
+            state["name"] = safe_name[:40]
+            reply = decorate(f"Nice to meet you, {state['name']}.", "greeting", guest_mode)
     elif kind == "recall_name":
+        state["name"] = safe_chat_text(state.get("name"))
         reply = f"Your name is {state['name']}." if state["name"] else "I don't know your name yet."
         if state["name"]:
             reply = decorate(reply, "memory", guest_mode)
