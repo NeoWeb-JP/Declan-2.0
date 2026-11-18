@@ -2260,7 +2260,7 @@ def main():
             DECLAN_EVENT_LOG.info("Declan backend started and health check passed (port %d)", server.server_port)
             while worker.is_alive():
                 worker.join(timeout=0.5)
-                if updates.RESTART.is_set():
+                if updates.RUNTIME.restart.is_set():
                     DECLAN_EVENT_LOG.info("Restarting Declan to activate selected release")
                     raise SystemExit(75)
                 try:
