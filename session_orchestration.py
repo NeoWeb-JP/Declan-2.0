@@ -10,7 +10,7 @@ from chat_recall_privacy import safe_chat_text
 def _prune_expired_sessions(sessions, now, idle_seconds):
     """Expire all idle sessions, including entries whose access order changed."""
     for key, state in list(sessions.items()):
-        if now - state["at"] >= idle_seconds:
+        if not isinstance(state, dict) or not isinstance(state.get("at"), (int, float)) or now - state["at"] >= idle_seconds:
             sessions.pop(key, None)
 
 
@@ -107,9 +107,13 @@ def _load_chat_session(sessions, recall, session_id, now):
     if not isinstance(session_id, str) or not session_id or len(session_id) > 256:
         session_id = None
     state = sessions.pop(session_id, None) if session_id is not None else None
+    if not isinstance(state, dict):
+        state = None
     if state is None and recall is not None and session_id is not None:
         # Chat-only recall must never restore expired action context.
         state = recall.restore(session_id, now)
+        if not isinstance(state, dict):
+            state = None
     if state is None:
         session_id = secrets.token_urlsafe(24)
         state = {"last": None, "name": None, "recent_messages": []}
@@ -118,6 +122,8 @@ def _load_chat_session(sessions, recall, session_id, now):
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
              sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None):
+    if not isinstance(message, str):
+        raise ValueError("chat message must be a string")
     now = monotonic()
     _prune_expired_sessions(sessions, now, idle_seconds)
     session_id, state = _load_chat_session(sessions, recall, session_id, now)
