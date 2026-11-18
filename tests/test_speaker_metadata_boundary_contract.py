@@ -7,6 +7,8 @@ import unittest
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "custom_components" / "declan_two" / "speaker_models.py"
 spec = importlib.util.spec_from_file_location("declan_speaker_models_contract", MODULE_PATH)
+if spec is None or spec.loader is None:
+    raise RuntimeError("Cannot load Declan speaker metadata module")
 models = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = models
 spec.loader.exec_module(models)
