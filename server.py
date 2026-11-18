@@ -97,6 +97,7 @@ import post_route_gate_http
 import post_content_type_http
 import post_validation_errors_http
 import session_context_access
+import retry_cancellation_access
 import web_stt
 import openai_planner
 import ai_settings
@@ -2325,12 +2326,13 @@ class Handler(BaseHTTPRequestHandler):
             consume=retry_context.consume_pending_retry,
         )
         if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
-            with SESSION_LOCK:
-                cancellation = retry_cancellation.cancel_retry_result(
-                    message, session_id, scope=scope, source=source,
-                    speaker=body.get("speaker"), converse=converse,
-                    record=history.record, log_error=self.log_error,
-                )
+            cancellation = retry_cancellation_access.cancel_pending_retry(
+                message=message, session_id=session_id, scope=scope,
+                source=source, speaker=body.get("speaker"),
+                lock=SESSION_LOCK, converse=converse, record=history.record,
+                log_error=self.log_error,
+                cancel=retry_cancellation.cancel_retry_result,
+            )
             self.send_json(200, cancellation.to_wire())
             return
         opener = build_opener(ProxyHandler({}), NoRedirect())
