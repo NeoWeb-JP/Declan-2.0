@@ -16,7 +16,7 @@ class UpdateTests(TestCase):
 
     def test_lists_only_version_tags_in_version_order(self):
         refs = "\n".join(f"{'a' * 40}\trefs/tags/{tag}" for tag in ("0.2.0", "0.10.0", "v0.1.1", "test"))
-        with patch.object(updates, "layout", return_value=Path("/test")), patch.object(updates, "run", return_value=refs), patch.object(updates, "_tags", {}):
+        with patch.object(updates, "layout", return_value=Path("/test")), patch.object(updates, "run", return_value=refs), patch.object(updates.RUNTIME, "tags", {}):
             self.assertEqual(updates.check(), ["0.10.0", "0.2.0", "v0.1.1"])
             with self.assertRaises(ValueError):
                 updates.queue("test", "0.2.0")
@@ -31,8 +31,8 @@ class UpdateTests(TestCase):
             (root / "current").symlink_to(app)
             restart = Event()
             with patch.dict(os.environ, {"DECLAN_UPDATE_ROOT": directory}), patch.object(updates, "APP", app), patch.object(
-                updates, "RESTART", restart,
-            ), patch.object(updates, "_job", {"state": "idle"}), patch.object(updates, "run", return_value="a" * 40):
+                updates.RUNTIME, "restart", restart,
+            ), patch.object(updates.RUNTIME, "job", {"state": "idle"}), patch.object(updates, "run", return_value="a" * 40):
                 updates.install(root, "0.1.0", "b" * 40)
                 self.assertEqual((root / "current").resolve(), app)
                 self.assertFalse(restart.is_set())
@@ -56,8 +56,8 @@ class UpdateTests(TestCase):
             restart = Event()
             job = {'state': 'installing'}
             with patch.dict(os.environ, {'DECLAN_UPDATE_ROOT': directory}), patch.object(updates, 'APP', app), patch.object(
-                updates, 'RESTART', restart
-            ), patch.object(updates, '_job', job), patch.object(updates, 'run', return_value='a' * 40), patch.object(
+                updates.RUNTIME, "restart", restart
+            ), patch.object(updates.RUNTIME, "job", job), patch.object(updates, 'run', return_value='a' * 40), patch.object(
                 updates.state_backup, 'snapshot', side_effect=sqlite3.DatabaseError('bad store')
             ):
                 updates.install(root, '0.2.0', 'a' * 40)
@@ -67,7 +67,7 @@ class UpdateTests(TestCase):
                 self.assertEqual(list((root / 'releases').iterdir()), [])
 
     def test_unapproved_release_never_clones_or_executes_code(self):
-        with patch.object(updates, 'run') as run, patch.object(updates, '_job', {}):
+        with patch.object(updates, 'run') as run, patch.object(updates.RUNTIME, "job", {}):
             updates.install(Path('/unused'), '9.9.9', 'a' * 40)
             run.assert_not_called()
             self.assertEqual(updates.status()['state'], 'failed')

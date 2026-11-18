@@ -12,7 +12,7 @@ class UpdateResultTests(unittest.TestCase):
         for state in (*UpdateJobState, "future_state", None):
             raw = state.value if isinstance(state, UpdateJobState) else state
             fields = {"state": raw, "version": "1.2.3", "backup": "backup", "extra": {"kept": [1]}}
-            with self.subTest(state=state), patch.object(updates, "_job", fields), patch.object(updates, "layout", return_value=None):
+            with self.subTest(state=state), patch.object(updates.RUNTIME, "job", fields), patch.object(updates, "layout", return_value=None):
                 result = updates.status_result()
                 self.assertIs(result.state, state if isinstance(state, UpdateJobState) else None)
                 self.assertIs(result.active, state in (UpdateJobState.INSTALLING, UpdateJobState.RESTARTING))
@@ -28,9 +28,9 @@ class UpdateResultTests(unittest.TestCase):
     def test_queue_uses_typed_busy_decision_and_preserves_thread_arguments(self):
         for state in UpdateJobState:
             job = {"state": state.value}
-            with self.subTest(state=state), patch.object(updates, "_job", job), \
+            with self.subTest(state=state), patch.object(updates.RUNTIME, "job", job), \
                  patch.object(updates, "layout", return_value=Path("/fixture")), \
-                 patch.object(updates, "_tags", {"1.2.3": {"ref": "commit"}}), \
+                 patch.object(updates.RUNTIME, "tags", {"1.2.3": {"ref": "commit"}}), \
                  patch.object(updates, "Thread") as thread:
                 if state in (UpdateJobState.INSTALLING, UpdateJobState.RESTARTING):
                     with self.assertRaisesRegex(ValueError, "already in progress"):

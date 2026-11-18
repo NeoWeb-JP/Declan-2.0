@@ -28,7 +28,7 @@ class UpdateSourceEnvironmentTests(unittest.TestCase):
 
     def test_unset_supervisor_fails_closed_before_execution(self):
         with patch.dict(os.environ, {}, clear=True):
-            with patch.object(updates, "run") as run, patch.object(updates, "_job", {"state": "idle"}):
+            with patch.object(updates, "run") as run, patch.object(updates.RUNTIME, "job", {"state": "idle"}):
                 updates.install(None, "0.1.0", "a" * 40)
                 run.assert_not_called()
                 self.assertEqual(updates.status()["state"], "failed")
@@ -37,7 +37,7 @@ class UpdateSourceEnvironmentTests(unittest.TestCase):
         for value in ("", "true", "0", "yes"):
             with self.subTest(value=value):
                 with patch.dict(os.environ, {"DECLAN_UPDATE_SUPERVISED": value}):
-                    with patch.object(updates, "run") as run, patch.object(updates, "_job", {"state": "idle"}):
+                    with patch.object(updates, "run") as run, patch.object(updates.RUNTIME, "job", {"state": "idle"}):
                         updates.install(None, "0.1.0", "a" * 40)
                         run.assert_not_called()
                         self.assertEqual(updates.status()["state"], "failed")
