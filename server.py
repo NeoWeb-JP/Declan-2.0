@@ -77,6 +77,7 @@ import turn_response_composition
 import turn_persistence_dispatch
 import history
 import history_post_routes
+import history_intents_post
 import music
 import approved_media_players
 import spotify_playlists
@@ -2453,26 +2454,12 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(503, {"error": "Intention change unavailable."})
                 return
             if self.path == "/api/history/intents":
-                try:
-                    if not isinstance(body, dict):
-                        raise ValueError("Send an intent correction or removal.")
-                    if set(body) == {"forget"} and isinstance(body["forget"], str) and 0 < len(body["forget"]) <= 120:
-                        history.forget_intent(body["forget"])
-                    elif set(body) == {"phrase", "target", "previous"}:
-                        history.edit_intent(body["phrase"], body["target"], body["previous"])
-                    elif (set(body) == {"turn_id", "target"} and type(body["turn_id"]) is int
-                          and 0 < body["turn_id"] < 2**63 and isinstance(body["target"], str)
-                          and 0 < len(body["target"]) <= 120):
-                        history.teach_intent(body["turn_id"], body["target"], UNMATCHED_REPLY)
-                    else:
-                        raise ValueError("Choose a missed voice command and enter what you meant.")
-                except ValueError as error:
-                    self.send_json(400, {"error": str(error)})
-                    return
-                except (OSError, sqlite3.Error):
-                    self.send_json(503, {"error": "Intent corrections are unavailable."})
-                    return
-                self.send_json(200, {"saved": True})
+                history_intents_post.handle_history_intents(
+                    self, body, forget_intent=history.forget_intent,
+                    edit_intent=history.edit_intent,
+                    teach_intent=history.teach_intent,
+                    unmatched_reply=UNMATCHED_REPLY,
+                )
                 return
             if self.path == "/api/history/clear":
                 history_post_routes.handle_history_clear(
