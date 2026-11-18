@@ -16,7 +16,8 @@ class NativeHistoryContractTests(unittest.TestCase):
         self.assertIn('len(token) >= 32', source)
         self.assertIn('not ingress and not native_settings_auth and not history_auth', source)
         self.assertIn('if not ingress and not native_settings_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (', source)
-        self.assertIn('self.path == "/api/settings/media-players"', source)
+        self.assertIn('settings_read_routes.handles(self.path)', source)
+        self.assertIn('"/api/settings/media-players"', (ROOT / "settings_read_routes.py").read_text())
         self.assertIn('not ingress and not native_settings_auth and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth', source)
         self.assertNotIn('self.path.startswith("/api/history") and len(token)', source)
 
