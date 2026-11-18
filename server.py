@@ -29,6 +29,7 @@ import sensitive_confirmations
 import diagnostics
 import declan_logs
 import configuration
+import settings_import_post
 import health_readiness
 import voice_profiles
 import voice_post_routes
@@ -2401,20 +2402,10 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             if self.path in {"/api/settings/import", "/api/native/settings-import"}:
-                try:
-                    if not isinstance(body, dict) or set(body) - {'document', 'confirm', 'expected'}:
-                        raise ValueError('Send a settings file to preview.')
-                    if body.get('confirm') is True:
-                        configuration.apply(body.get('document'), body.get('expected'))
-                        self.send_json(200, {'saved': True})
-                    elif 'confirm' not in body:
-                        self.send_json(200, configuration.preview(body.get('document')))
-                    else:
-                        raise ValueError('Preview the settings before confirming.')
-                except ValueError as error:
-                    self.send_json(400, {'error': str(error)})
-                except (OSError, sqlite3.Error):
-                    self.send_json(503, {'error': 'Settings could not be imported.'})
+                settings_import_post.handle_settings_import(
+                    self, body, preview=configuration.preview,
+                    apply=configuration.apply,
+                )
                 return
             if self.path == "/api/native/routine-responses":
                 try:
