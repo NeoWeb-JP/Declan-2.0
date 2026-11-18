@@ -40,15 +40,13 @@ class TrainingHistoryPostTests(unittest.TestCase):
         )
         for path, target in cases:
             with self.subTest(path=path), patch.object(
-                routes, target.split(".")[0],
-                wraps=getattr(routes, target.split(".")[0]),
-            ) as module:
+                getattr(routes, target.split(".")[0]), target.split(".")[1],
+            ) as delegate:
                 self.handler.path = path
-                with patch.object(module, target.split(".")[1]) as delegate:
-                    routes.dispatch(self.handler, self.body, **self.kwargs)
-                    delegate.assert_called_once()
-                    self.assertIs(delegate.call_args.args[0], self.handler)
-                    self.assertIs(delegate.call_args.args[1], self.body)
+                routes.dispatch(self.handler, self.body, **self.kwargs)
+                delegate.assert_called_once()
+                self.assertIs(delegate.call_args.args[0], self.handler)
+                self.assertIs(delegate.call_args.args[1], self.body)
 
 
 if __name__ == "__main__":
