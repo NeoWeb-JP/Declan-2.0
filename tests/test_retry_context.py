@@ -11,6 +11,23 @@ class RetryContextTests(unittest.TestCase):
     def consume(self, scope="kitchen", now=105):
         return consume_pending_retry(self.session, scope, now=now, window_seconds=10)
 
+    def test_malformed_pending_retry_is_discarded_once(self):
+        for pending in (None, "retry", 42, [], {"scope": "kitchen"},
+                        {"scope": "kitchen", "at": "yesterday"},
+                        {"scope": "kitchen", "at": True},
+                        {"scope": "kitchen", "at": float("nan")},
+                        {"scope": "kitchen", "at": float("inf")},
+                        {"scope": "kitchen", "at": 106}):
+            with self.subTest(pending=repr(pending)):
+                self.session["pending_retry"] = pending
+                self.assertIsNone(self.consume())
+                self.assertNotIn("pending_retry", self.session)
+
+    def test_malformed_session_is_ignored(self):
+        for session in ("text", [], 42):
+            with self.subTest(session=repr(session)):
+                self.assertIsNone(consume_pending_retry(session, "kitchen", now=105, window_seconds=10))
+
     def test_matching_retry_is_returned(self):
         self.assertIs(self.consume(), self.retry)
 
