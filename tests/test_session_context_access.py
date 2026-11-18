@@ -38,6 +38,24 @@ class SessionContextAccessTests(unittest.TestCase):
         )
         retrieve.assert_called_once_with(None, "lounge", now=0, idle_seconds=30)
 
+    def test_invalid_session_ids_never_reach_context_lookup(self):
+        for invalid in (None, [], {}, 42, True, "", "x" * 257):
+            with self.subTest(invalid=repr(invalid)):
+                retrieve = Mock(return_value=((), None, None))
+                load_recent_context(session_id=invalid, scope="kitchen", sessions={},
+                                    lock=threading.RLock(), now=10, idle_seconds=30,
+                                    retrieve=retrieve)
+                retrieve.assert_called_once_with(None, "kitchen", now=10, idle_seconds=30)
+
+    def test_invalid_session_ids_never_reach_retry_consumption(self):
+        for invalid in (None, [], {}, 42, True, "", "x" * 257):
+            with self.subTest(invalid=repr(invalid)):
+                consume = Mock(return_value=None)
+                consume_retry_context(session_id=invalid, scope="kitchen", sessions={},
+                                      lock=threading.RLock(), now=10, window_seconds=30,
+                                      consume=consume)
+                consume.assert_called_once_with(None, "kitchen", now=10, window_seconds=30)
+
     def test_callback_runs_with_lock_held(self):
         lock = threading.Lock()
         def retrieve(*args, **kwargs):
