@@ -52,7 +52,7 @@ def _safe_session_name(state):
 def _safe_recent_messages(state):
     """Discard malformed and unsafe legacy history before speaking or storing it."""
     history = state.get("recent_messages")
-    if not isinstance(history, (list, tuple)):
+    if type(history) not in (list, tuple):
         return []
     return [safe for item in history
             if (safe := safe_chat_text(item)) is not None][-3:]
@@ -121,7 +121,13 @@ def _finalize_chat_session(state, *, message, kind, routine_reply, lighting_cont
         _remember_safe_chat(state, message, routine_reply=routine_reply)
     state.update(last=None if is_forget else message, at=now)
     if recall is not None and not is_forget and routine_reply is None:
-        recall.remember(session_id, state, now)
+        # The long-lived recall provider must never receive action state.
+        # Keep its input independent of the live session dictionary.
+        recall.remember(session_id, {
+            "last": safe_chat_text(state.get("last")),
+            "name": _safe_session_name(state),
+            "recent_messages": _safe_recent_messages(state),
+        }, now)
     if not is_forget and lighting_context is not None and valid_retry_scope(scope):
         state["lighting_context"] = lighting_context
         state["lighting_scope"] = scope
