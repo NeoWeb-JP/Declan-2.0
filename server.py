@@ -63,6 +63,7 @@ import lighting_result_dispatch
 import final_dispatch_orchestration
 import turn_finalization_dispatch
 import ingress_turn_orchestration
+import ingress_session_dispatch
 import fallback_orchestration
 import guest_assignment_command
 import roast_command_dispatch
@@ -2307,15 +2308,16 @@ class Handler(BaseHTTPRequestHandler):
         routine_reply = outcome = routine_status = None
         action_results = ActionEvidenceBuffer()
         light_result = None
-        if assist_capture_http.suppress_duplicate(
-            self, source=source, body=body, message=message,
+        if ingress_session_dispatch.suppress_duplicate(
+            self, suppress=assist_capture_http.suppress_duplicate, source=source, body=body, message=message,
             session_id=session_id, satellite=satellite, origin_device=origin_device,
             arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
             new_session_id=secrets.token_urlsafe,
         ):
             return
         last_lights, last_device, last_information = (
-            session_context_access.load_recent_context(
+            ingress_session_dispatch.load_recent_context(
+                load=session_context_access.load_recent_context,
                 session_id=session_id, scope=scope, sessions=SESSIONS,
                 lock=SESSION_LOCK, now=monotonic(), idle_seconds=IDLE_SECONDS,
                 retrieve=session_context_retrieval.recent_context,
@@ -2338,7 +2340,8 @@ class Handler(BaseHTTPRequestHandler):
             consume=retry_context.consume_pending_retry,
         )
         if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
-            cancellation = retry_cancellation_access.cancel_pending_retry(
+            cancellation = ingress_session_dispatch.cancel_retry(
+                cancel_pending=retry_cancellation_access.cancel_pending_retry,
                 message=message, session_id=session_id, scope=scope,
                 source=source, speaker=body.get("speaker"),
                 lock=SESSION_LOCK, converse=converse, record=history.record,
