@@ -265,8 +265,8 @@ def install(root, version, expected_ref):
         # Fail closed before activating encrypted voice code or touching persistent state.
         # The operator must provision the key and migrate legacy samples explicitly.
         if (staged / "check_voice_encryption.py").is_file():
-            voice_db = (APP / ".data" / "voice-profiles.sqlite3").resolve()
-            if voice_db.is_file():
+            voice_db = APP / ".data" / "voice-profiles.sqlite3"
+            if voice_db.exists() or voice_db.is_symlink():
                 run(python, "-m", "check_voice_encryption", "--database", str(voice_db),
                     cwd=staged, timeout=30)
             else:
