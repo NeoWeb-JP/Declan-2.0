@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import pickle
+import sys
 import unittest
 
 
@@ -9,6 +10,7 @@ MODULE_PATH = (Path(__file__).resolve().parents[1] /
                "custom_components/declan_two/speaker_models.py")
 SPEC = importlib.util.spec_from_file_location("speaker_models_under_test", MODULE_PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 SpeakerTranscript = MODULE.SpeakerTranscript
 
