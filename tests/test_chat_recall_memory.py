@@ -33,6 +33,23 @@ class ChatRecallTests(unittest.TestCase):
         with patch.object(session_orchestration, "monotonic", return_value=self.clock[0]):
             return session_orchestration.converse(message, sid, **self.kwargs, **extra)
 
+    def test_expiry_prunes_all_sessions_even_if_order_is_not_chronological(self):
+        self.sessions["fresh"] = {"at": 999.0}
+        self.sessions["stale"] = {"at": 600.0}
+        self.say("hello")
+        self.assertIn("fresh", self.sessions)
+        self.assertNotIn("stale", self.sessions)
+
+    def test_session_store_evicts_oldest_access_and_keeps_128_entries(self):
+        for n in range(128):
+            self.sessions[f"session-{n}"] = {"at": self.clock[0], "last": None,
+                                             "name": None, "recent_messages": []}
+        self.say("hello", "session-0")
+        self.say("hello")
+        self.assertEqual(len(self.sessions), 128)
+        self.assertIn("session-0", self.sessions)
+        self.assertNotIn("session-1", self.sessions)
+
     def test_chat_recall_survives_action_expiry_without_reviving_actions(self):
         first = self.say("my name is Alex", lighting_context=("light.office",), scope="study")
         sid = first["session_id"]
