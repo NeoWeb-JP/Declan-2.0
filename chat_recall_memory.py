@@ -47,8 +47,9 @@ class ChatRecallMemory:
                     if (text := safe_chat_text(item)) is not None][-MAX_RECENT_MESSAGES:]
         last = safe_chat_text(state.get("last"))
         if last is None:
-            previous = self.entries.get(session_id)
-            last = previous["last"] if previous is not None else None
+            # A rejected utterance must not refresh the lifetime of older chat.
+            # Keep the previous entry untouched until it naturally expires.
+            return
         self.entries[session_id] = {
             "at": now, "name": name, "last": last,
             "recent_messages": tuple(messages),
