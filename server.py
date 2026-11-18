@@ -94,6 +94,7 @@ import voicepipeline_access_http
 import post_payload_http
 import post_origin_auth_http
 import post_route_gate_http
+import post_content_type_http
 import web_stt
 import openai_planner
 import ai_settings
@@ -2179,8 +2180,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/stt":
             self.transcribe_browser_audio()
             return
-        if self.headers.get_content_type() != "application/json":
-            self.send_json(415, {"error": "Send application/json."})
+        if not post_content_type_http.enforce_json_content_type(self):
             return
         try:
             body = post_payload_http.read_json_body(self)
