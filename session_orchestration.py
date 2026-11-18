@@ -58,7 +58,7 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
     state.update(last=None if kind == "forget_chat" else message, at=now)
     if recall is not None and kind != "forget_chat":
         recall.remember(session_id, state, now)
-    if lighting_context is not None:
+    if kind != "forget_chat" and lighting_context is not None:
         state["lighting_context"] = lighting_context
         state["lighting_scope"] = scope
     sessions[session_id] = state
