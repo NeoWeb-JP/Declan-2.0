@@ -29,11 +29,13 @@ class ActiveRoutineRegistryTests(unittest.TestCase):
     def test_overlapping_different_names(self):
         registry = ActiveRoutineRegistry()
         barrier = threading.Barrier(2)
+        snapshots_taken = threading.Barrier(2)
         results = []
         def run(name):
             with registry.track(name, "script." + name):
                 barrier.wait(timeout=5)
                 results.append(registry.snapshot())
+                snapshots_taken.wait(timeout=5)
         threads = [threading.Thread(target=run, args=(name,)) for name in ("morning", "night")]
         for thread in threads:
             thread.start()
@@ -45,11 +47,20 @@ class ActiveRoutineRegistryTests(unittest.TestCase):
 
     def test_old_completion_does_not_remove_replacement(self):
         registry = ActiveRoutineRegistry()
-        with registry.track("movie", "script.first"):
-            with registry.track("movie", "script.second"):
-                pass
-            self.assertEqual(registry.snapshot(), {"movie": "script.second"})
-        self.assertEqual(registry.snapshot(), {"movie": "script.second"})
+        first = registry.track("movie", "script.first")
+        second = registry.track("movie", "script.second")
+        first.__enter__()
+        try:
+            second.__enter__()
+            try:
+                first.__exit__(None, None, None)
+                self.assertEqual(registry.snapshot(), {"movie": "script.second"})
+            finally:
+                second.__exit__(None, None, None)
+        finally:
+            # Both exits are idempotent only when the context is still open.
+            pass
+        self.assertEqual(registry.snapshot(), {})
 
 
 if __name__ == "__main__":
