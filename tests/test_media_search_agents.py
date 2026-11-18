@@ -57,6 +57,11 @@ class MediaSearchAgentTests(unittest.TestCase):
         self.assertEqual(agents.resolve(self.connection(opener), name), name)
         self.assertEqual(len(opener.calls), 2)
 
+    def test_registered_conversation_agent_can_have_unknown_state(self):
+        name = "conversation.media_provider"
+        opener = FakeOpener(states={name: {"entity_id": name, "state": "unknown"}})
+        self.assertEqual(agents.resolve(self.connection(opener), name), name)
+
     def test_self_agent_is_rejected_without_attempting_conversation_call(self):
         name = "conversation.declan_2_0"
         opener = FakeOpener(self_agents=[name], states={
