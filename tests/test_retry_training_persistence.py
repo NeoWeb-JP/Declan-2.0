@@ -92,6 +92,22 @@ class RetryTrainingPersistenceTests(unittest.TestCase):
                     self.similar.assert_not_called()
                     self.teach.assert_not_called()
 
+    def test_string_subclass_does_not_execute_custom_normalization(self):
+        class HostileText(str):
+            def strip(self):
+                raise RuntimeError("unexpected string operation")
+        for field in ("pending", "message", "effective"):
+            with self.subTest(field=field):
+                self.similar.reset_mock()
+                self.teach.reset_mock()
+                value = HostileText("turn kitchen lights off")
+                kwargs = {field: {"text": value} if field == "pending" else value}
+                reply, result = self.save(**kwargs)
+                self.assertFalse(result)
+                self.assertNotIn("learned_from_retry", reply)
+                self.similar.assert_not_called()
+                self.teach.assert_not_called()
+
     def test_missing_pending_retry_does_not_learn(self):
         reply = {}
         result = save_retry_training(reply, pending_retry=None, retry_succeeded=True,
