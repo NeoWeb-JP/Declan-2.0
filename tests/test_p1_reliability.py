@@ -154,15 +154,15 @@ class SharedStateTests(TestCase):
         from urllib.error import HTTPError
         opener = Mock()
         def search(request, timeout):
-            with music.SPOTIFY_TOKEN_LOCK:
-                music.spotify_token = (('id','secret'), 'new-token', float('inf'))
+            with music.RUNTIME.spotify_token_lock:
+                music.RUNTIME.spotify_token = (('id','secret'), 'new-token', float('inf'))
             raise HTTPError(request.full_url, 401, 'Expired', {}, None)
         opener.open.side_effect = search
-        with patch.object(music, 'spotify_token', (('id','secret'), 'old-token', float('inf'))), patch.object(
+        with patch.object(music.RUNTIME, 'spotify_token', (('id','secret'), 'old-token', float('inf'))), patch.object(
                 music, 'spotify_credentials', return_value=(('id','secret'), 'test')):
             with self.assertRaises(HTTPError):
                 music.spotify_search(opener, 'test', '', ('track',))
-            self.assertEqual(music.spotify_token[1], 'new-token')
+            self.assertEqual(music.RUNTIME.spotify_token[1], 'new-token')
 
     def test_simultaneous_spotify_searches_share_one_token_refresh(self):
         calls = []
@@ -173,7 +173,7 @@ class SharedStateTests(TestCase):
             return io.BytesIO(b'{"tracks":{"items":[]}}')
         opener = Mock()
         opener.open.side_effect = open_request
-        with patch.object(music, 'spotify_token', None), patch.object(music, 'spotify_credentials', return_value=(('id','secret'), 'test')):
+        with patch.object(music.RUNTIME, 'spotify_token', None), patch.object(music, 'spotify_credentials', return_value=(('id','secret'), 'test')):
             with ThreadPoolExecutor(max_workers=8) as pool:
                 list(pool.map(lambda _: music.spotify_search(opener, 'test', '', ('track',)), range(8)))
         self.assertEqual(sum('/api/token' in call.full_url for call in calls), 1)
@@ -182,7 +182,7 @@ class SharedStateTests(TestCase):
         from urllib.parse import parse_qs, urlsplit
         opener = Mock()
         opener.open.return_value = io.BytesIO(b'{}')
-        with patch.object(music, 'spotify_token', (('id','secret'), 'token', float('inf'))), patch.object(
+        with patch.object(music.RUNTIME, 'spotify_token', (('id','secret'), 'token', float('inf'))), patch.object(
                 music, 'spotify_credentials', return_value=(('id','secret'), 'test')), patch.dict(music.os.environ, {'DECLAN_SPOTIFY_MARKET':'za'}):
             music.spotify_search(opener, 'Say "hello"', 'A\\B "artist"', ('track',))
         query = parse_qs(urlsplit(opener.open.call_args.args[0].full_url).query)

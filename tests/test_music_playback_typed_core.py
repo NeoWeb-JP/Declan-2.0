@@ -15,14 +15,14 @@ class PlaybackCoreTypedTests(unittest.TestCase):
                          result.as_legacy_pair())
 
     def test_busy_lock_returns_typed_busy(self):
-        with patch.object(music, "HANDOFF") as lock:
+        with patch.object(music.RUNTIME, "handoff") as lock:
             lock.acquire.return_value = False
             result = music._play_provider(("kitchen", "country", "spotify"), "ha", Mock())
         self.assertIs(result.outcome, Outcome.BUSY)
         lock.release.assert_not_called()
 
     def test_inventory_error_preserves_outcome_and_unlocks(self):
-        with patch.object(music, "HANDOFF") as lock:
+        with patch.object(music.RUNTIME, "handoff") as lock:
             lock.acquire.return_value = True
             result = music._play_provider(("kitchen", "country", "spotify"), "ha",
                                           lambda _: ([], "unavailable"))
@@ -30,14 +30,14 @@ class PlaybackCoreTypedTests(unittest.TestCase):
         lock.release.assert_called_once()
 
     def test_missing_origin_room_is_unresolved(self):
-        with patch.object(music, "HANDOFF") as lock:
+        with patch.object(music.RUNTIME, "handoff") as lock:
             lock.acquire.return_value = True
             result = music._play_provider((None, "country", "spotify"), "ha",
                                           lambda _: ([], None), origin="unknown")
         self.assertIs(result.outcome, Outcome.UNRESOLVED)
 
     def test_unapproved_room_does_not_start_playback(self):
-        with patch.object(music, "HANDOFF") as lock, \
+        with patch.object(music.RUNTIME, "handoff") as lock, \
              patch.object(music, "music_players", return_value=({}, {})), \
              patch.object(music, "request") as request:
             lock.acquire.return_value = True

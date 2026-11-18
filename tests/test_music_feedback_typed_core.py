@@ -15,7 +15,7 @@ class FeedbackCoreTypedTests(unittest.TestCase):
                          core.as_legacy_pair())
 
     def test_inventory_error_is_typed(self):
-        with patch.object(music, "HANDOFF") as lock:
+        with patch.object(music.RUNTIME, "handoff") as lock:
             lock.acquire.return_value = True
             result = music._feedback_provider(
                 ("i love this song", None), "connection",
@@ -25,7 +25,7 @@ class FeedbackCoreTypedTests(unittest.TestCase):
         lock.release.assert_called_once()
 
     def test_ambiguous_active_players_are_unresolved(self):
-        with patch.object(music, "HANDOFF") as lock, \
+        with patch.object(music.RUNTIME, "handoff") as lock, \
              patch.object(music, "music_players", return_value=({}, {})), \
              patch.object(music, "playback_sources", return_value={}):
             lock.acquire.return_value = True
