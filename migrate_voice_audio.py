@@ -9,14 +9,14 @@ from contextlib import closing
 from pathlib import Path
 import sqlite3
 
-from voice_audio_crypto import MAGIC, encrypt, decrypt, _key
+from voice_audio_crypto import MAGIC, encrypt, decrypt, _aesgcm
 
 
 def migrate(path):
     path = Path(path)
     if path.is_symlink() or not path.is_file():
         raise ValueError('Choose an existing regular local voice database.')
-    _key()
+    _aesgcm()  # Verify key and crypto runtime before obtaining a write lock.
     with closing(sqlite3.connect(path, timeout=5)) as db:
         db.execute('PRAGMA secure_delete = ON')
         db.execute('BEGIN IMMEDIATE')
@@ -24,11 +24,19 @@ def migrate(path):
             if db.execute('PRAGMA quick_check').fetchone() != ('ok',):
                 raise ValueError('Voice database failed integrity check.')
             rows = db.execute('SELECT id, audio FROM samples').fetchall()
+            # Authenticate every encrypted sample before writing any plaintext rows.
+            # This also prevents a wrong key from causing partial migration work.
             for sample_id, audio in rows:
+                if not isinstance(audio, bytes):
+                    raise ValueError('Voice database contains an invalid audio value.')
                 if audio.startswith(MAGIC):
-                    decrypt(audio, sample_id)  # Fail on a wrong key before changing anything.
-                else:
+                    decrypt(audio, sample_id)
+            for sample_id, audio in rows:
+                if not audio.startswith(MAGIC):
                     db.execute('UPDATE samples SET audio = ? WHERE id = ?', (encrypt(audio, sample_id), sample_id))
+            # Verify the updated rows inside the same transaction before committing.
+            for sample_id, audio in db.execute('SELECT id, audio FROM samples'):
+                decrypt(audio, sample_id)
             db.commit()
             # Rewrite free pages to reduce recoverable plaintext from the live DB.
             db.execute('VACUUM')
