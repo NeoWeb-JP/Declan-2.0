@@ -74,6 +74,7 @@ import turn_context_preparation
 import turn_response_composition
 import history
 import training_history_post
+import settings_voice_post
 import music
 import approved_media_players
 import spotify_playlists
@@ -2026,40 +2027,19 @@ class Handler(BaseHTTPRequestHandler):
                 self, body, ingress=self.has_ingress_access(),
             ):
                 return
-            if self.path == "/api/native/spotify-credentials":
-                operational_post_routes.handle_spotify_credentials(
-                    self, body, save=self.spotify_settings,
-                )
-                return
-            if self.path == "/api/settings/ai":
-                ai_settings_post.handle_ai_settings(
-                    self, body, replace_key=ai_credentials.replace_key,
-                    save=ai_settings.save, configured=ai_credentials.configured,
-                )
-                return
-            if media_settings_post.handles(self.path):
-                media_settings_post.dispatch(
-                    self, body, music=music,
-                    spotify_playlists=spotify_playlists,
+            if settings_voice_post.handles(self.path):
+                settings_voice_post.dispatch(
+                    self, body, spotify_save=self.spotify_settings,
+                    ai_replace_key=ai_credentials.replace_key,
+                    ai_save=ai_settings.save,
+                    ai_configured=ai_credentials.configured,
+                    music=music, spotify_playlists=spotify_playlists,
                     playlist_handler=music_playlists_post.handle_music_playlists,
                     opener_factory=lambda: build_opener(ProxyHandler({})),
-                )
-                return
-            if self.path == "/api/voicepipeline":
-                voice_post_routes.handle_voicepipeline(
-                    self, body, manage=voicepipeline.manage,
+                    voice_manage=voicepipeline.manage,
                     pipeline_error=voicepipeline.PipelineError,
-                )
-                return
-            if self.path == "/api/voice-profiles":
-                voice_post_routes.handle_voice_profiles(
-                    self, body, manage=voice_profiles.manage,
-                )
-                return
-            if self.path in {"/api/settings/import", "/api/native/settings-import"}:
-                settings_import_post.handle_settings_import(
-                    self, body, preview=configuration.preview,
-                    apply=configuration.apply,
+                    profiles_manage=voice_profiles.manage,
+                    preview=configuration.preview, apply=configuration.apply,
                 )
                 return
             if training_history_post.handles(self.path):
