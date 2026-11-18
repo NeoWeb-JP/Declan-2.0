@@ -1,5 +1,6 @@
 """Authenticated local voice sample storage and legacy migration tests."""
 import base64
+from contextlib import closing
 import os
 import sqlite3
 import tempfile
@@ -26,16 +27,17 @@ class VoiceEncryptionTests(unittest.TestCase):
         key = base64.urlsafe_b64encode(b'k' * 32).decode()
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': key}):
             path = Path(temp) / 'voice-profiles.sqlite3'
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db:
                 db.execute('CREATE TABLE samples (id TEXT PRIMARY KEY, audio BLOB)')
                 db.execute('INSERT INTO samples VALUES (?, ?)', ('s1', b'RIFF-legacy-private'))
+                db.commit()
             self.assertEqual(migrate(path), 1)
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db:
                 encrypted = db.execute('SELECT audio FROM samples').fetchone()[0]
             self.assertEqual(decrypt(encrypted, 's1'), b'RIFF-legacy-private')
             self.assertNotIn(b'RIFF-legacy-private', path.read_bytes())
             self.assertEqual(migrate(path), 1)
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db:
                 self.assertEqual(db.execute('SELECT audio FROM samples').fetchone()[0], encrypted)
 
 
