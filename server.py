@@ -63,7 +63,6 @@ import lighting_result_dispatch
 import final_dispatch_orchestration
 import turn_finalization_dispatch
 import ingress_turn_orchestration
-import ingress_session_dispatch
 import fallback_orchestration
 import guest_assignment_command
 import roast_command_dispatch
@@ -2302,22 +2301,21 @@ class Handler(BaseHTTPRequestHandler):
                 action_results=routine_action_results_typed,
             )
             return
-        source, scope, origin_device, satellite = ingress_turn_orchestration.resolve_origin(
-            self.path, body, resolve=request_origin.request_context,
+        source, scope, origin_device, satellite = request_origin.request_context(
+            self.path, body,
         )
         routine_reply = outcome = routine_status = None
         action_results = ActionEvidenceBuffer()
         light_result = None
-        if ingress_session_dispatch.suppress_duplicate(
-            self, suppress=assist_capture_http.suppress_duplicate, source=source, body=body, message=message,
+        if assist_capture_http.suppress_duplicate(
+            self, source=source, body=body, message=message,
             session_id=session_id, satellite=satellite, origin_device=origin_device,
             arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
             new_session_id=secrets.token_urlsafe,
         ):
             return
         last_lights, last_device, last_information = (
-            ingress_session_dispatch.load_recent_context(
-                load=session_context_access.load_recent_context,
+            session_context_access.load_recent_context(
                 session_id=session_id, scope=scope, sessions=SESSIONS,
                 lock=SESSION_LOCK, now=monotonic(), idle_seconds=IDLE_SECONDS,
                 retrieve=session_context_retrieval.recent_context,
@@ -2327,21 +2325,19 @@ class Handler(BaseHTTPRequestHandler):
         status_target = None
         information_context = None
         # Resolve self-corrections and learned aliases before command side effects.
-        effective_message, phrase = ingress_turn_orchestration.resolve_learned_message(
-            message, resolve=learned_intent_resolution.resolve, preprocess=preprocess_speech,
+        effective_message, phrase = learned_intent_resolution.resolve(
+            message, preprocess=preprocess_speech,
             normalize=history.normalize_phrase,
             learned_intent=history.learned_intent, log_error=self.log_error,
         )
-        pending_retry = ingress_turn_orchestration.consume_retry(
-            consume_context=session_context_access.consume_retry_context,
+        pending_retry = session_context_access.consume_retry_context(
             session_id=session_id, scope=scope, sessions=SESSIONS,
             lock=SESSION_LOCK, now=monotonic(),
             window_seconds=retry_learning.WINDOW_SECONDS,
             consume=retry_context.consume_pending_retry,
         )
         if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
-            cancellation = ingress_session_dispatch.cancel_retry(
-                cancel_pending=retry_cancellation_access.cancel_pending_retry,
+            cancellation = retry_cancellation_access.cancel_pending_retry(
                 message=message, session_id=session_id, scope=scope,
                 source=source, speaker=body.get("speaker"),
                 lock=SESSION_LOCK, converse=converse, record=history.record,
