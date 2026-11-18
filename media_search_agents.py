@@ -62,7 +62,7 @@ def resolve(connection, configured):
         except (OSError, ValueError, TypeError):
             raise MediaAgentError("The configured media-search agent is unavailable.") from None
         if (not isinstance(state, dict) or state.get("entity_id") != configured
-                or state.get("state") in (None, "unavailable", "unknown")):
+                or state.get("state") == "unavailable"):
             raise MediaAgentError("The configured media-search agent is unavailable.")
         return configured
 
