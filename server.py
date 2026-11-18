@@ -8,7 +8,6 @@ import re
 import secrets
 import sqlite3
 import subprocess  # nosec B404 - used by the controlled update/restart paths
-from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
 from declan_ingress.security import response_headers, secure_page
@@ -107,6 +106,7 @@ import response_composition
 import command_responses
 import command_registry
 import session_orchestration
+import session_store
 import session_turn_state
 import lighting_intents
 import roast
@@ -115,8 +115,9 @@ import personality_policy
 DECLAN_EVENT_LOG = logging.getLogger("declan.server")
 DECLAN_EVENT_LOG.setLevel(logging.INFO)
 
-SESSIONS: OrderedDict = OrderedDict()
-SESSION_LOCK = Lock()
+SESSION_STORE = session_store.DEFAULT_SESSION_STORE
+SESSIONS = SESSION_STORE.sessions  # Compatibility for existing orchestration callers.
+SESSION_LOCK = SESSION_STORE.lock
 CAPTURE_ARBITER = CaptureArbiter()
 SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
