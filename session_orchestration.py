@@ -39,20 +39,9 @@ def _remember_safe_chat(state, message, *, routine_reply):
     state["recent_messages"] = messages[-3:]
 
 
-def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
-             sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None):
-    now = monotonic()
-    _prune_expired_sessions(sessions, now, idle_seconds)
-    state = sessions.pop(session_id, None)
-    if state is None and recall is not None:
-        # Recall harmless chat fields only, never expired action context.
-        state = recall.restore(session_id, now)
-    if state is None:
-        session_id = secrets.token_urlsafe(24)
-        state = {"last": None, "name": None, "recent_messages": []}
-    command = message.casefold().strip(" .?!")
-    name = name_pattern.fullmatch(message.strip(" .?!"))
-    kind = chat_commands.get(command)
+def _compose_chat_reply(state, *, kind, name, routine_reply, guest_mode, decorate,
+                        unmatched_reply, recall, session_id):
+    """Select a chat reply and return updated state without managing its lifetime."""
     if routine_reply is not None:
         reply = routine_reply
     elif name:
@@ -92,6 +81,27 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
         reply = decorate(reply, "greeting", guest_mode)
     else:
         reply = unmatched_reply
+    return state, reply
+
+
+def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
+             sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None):
+    now = monotonic()
+    _prune_expired_sessions(sessions, now, idle_seconds)
+    state = sessions.pop(session_id, None)
+    if state is None and recall is not None:
+        # Recall harmless chat fields only, never expired action context.
+        state = recall.restore(session_id, now)
+    if state is None:
+        session_id = secrets.token_urlsafe(24)
+        state = {"last": None, "name": None, "recent_messages": []}
+    command = message.casefold().strip(" .?!")
+    name = name_pattern.fullmatch(message.strip(" .?!"))
+    kind = chat_commands.get(command)
+    state, reply = _compose_chat_reply(
+        state, kind=kind, name=name, routine_reply=routine_reply,
+        guest_mode=guest_mode, decorate=decorate, unmatched_reply=unmatched_reply,
+        recall=recall, session_id=session_id)
     if kind != "forget_chat":
         # Never turn a private command or credential-bearing utterance into
         # a repeatable, 30-minute spoken chat memory.
