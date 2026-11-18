@@ -25,7 +25,9 @@ class RetirementTests(unittest.TestCase):
         origin_source = Path(__file__).resolve().parents[1].joinpath(
             "request_origin.py").read_text()
         self.assertIn('path == "/api/assist"', origin_source)
-        self.assertIn("request_origin.request_context(", source)
+        self.assertIn("turn_initialization.prepare(", source)
+        turn_source = Path(__file__).resolve().parents[1].joinpath("turn_initialization.py").read_text()
+        self.assertIn("request_origin.request_context(", turn_source)
         self.assertNotIn("webbrowser.open(", source)
         self.assertTrue(Path(__file__).resolve().parents[1].joinpath(
             "custom_components/declan_two/frontend/panel.js").exists())
