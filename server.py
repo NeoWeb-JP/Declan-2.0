@@ -91,6 +91,7 @@ import speech_http_routes
 import assist_capture_http
 import assist_auth_http
 import voicepipeline_access_http
+import post_payload_http
 import web_stt
 import openai_planner
 import ai_settings
@@ -2247,11 +2248,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(415, {"error": "Send application/json."})
             return
         try:
-            size = int(self.headers.get("Content-Length", "0"))
-            max_size = 131072 if self.path == "/api/native/routine-responses" else 450000 if self.path == "/api/voice-profiles" else 196608 if self.path == "/api/settings/import" else 65536 if self.path in {"/api/assist/history", "/api/assist", "/api/chat"} else 8192
-            if not 0 < size <= max_size:
-                raise ValueError
-            body = json.loads(self.rfile.read(size))
+            body = post_payload_http.read_json_body(self)
             # Assist-token callers may review or resolve pending matches, but not
             # perform destructive VoicePipeline management operations.
             if not voicepipeline_access_http.enforce_access(
