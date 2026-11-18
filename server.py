@@ -102,7 +102,6 @@ import retry_cancellation_access
 import sensitive_confirmation_resolution
 import preview_timer_orchestration
 import routine_follow_on_orchestration
-import device_response_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2446,11 +2445,9 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 information_context = information_response.information_context
             else:
-                device_response = device_response_orchestration.dispatch_device_response(
+                device_dispatch = device_command_dispatch.dispatch_device(
                     phrase, source=source, last_device=last_device,
                     origin_device=origin_device, satellite=satellite,
-                    dispatch=device_command_dispatch.dispatch_device,
-                    adapt=device_result_response.device_response,
                     registry_factory=command_registry.registry,
                     dependencies_factory=command_registry.Dependencies,
                     context_factory=command_registry.RequestContext,
@@ -2464,7 +2461,8 @@ class Handler(BaseHTTPRequestHandler):
                     music_inventory=read_music_inventory_result, areas=read_ha_areas,
                     search_media=search_media_result,
                 )
-                if device_response is not None:
+                if device_dispatch is not None:
+                    device_response = device_result_response.device_response(device_dispatch)
                     routine_reply, outcome = (
                         device_response.result.reply, device_response.result.outcome
                     )
