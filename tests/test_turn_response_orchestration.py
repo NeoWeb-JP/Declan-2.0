@@ -52,3 +52,34 @@ class ResponseOrchestrationTests(unittest.TestCase):
     def test_lighting_receives_routine_composed_text(self):
         self.compose()
         self.assertEqual(self.events[-1][1], "original>general>routine")
+
+    def test_background_none_preserves_general_reply(self):
+        self.composition.background_reply.return_value = None
+        self.assertEqual(self.compose(), "original>general>routine>lighting")
+        self.assertEqual(self.events[1], ("routine", "original>general"))
+
+    def test_background_empty_string_is_an_explicit_override(self):
+        self.composition.background_reply.return_value = ""
+        self.assertEqual(self.compose(), ">routine>lighting")
+        self.assertEqual(self.events[1], ("routine", ""))
+
+    def test_lighting_failure_is_last_and_receives_final_spoken_reply(self):
+        self.composition.background_reply.return_value = "background"
+        self.compose()
+        self.composition.lighting_failure_reply.assert_called_once()
+        self.assertEqual(self.composition.lighting_failure_reply.call_args.args[0],
+                         "background>routine")
+
+    def test_routine_stage_exception_stops_lighting_stage(self):
+        self.composition.routine_reply.side_effect = RuntimeError("render failed")
+        with self.assertRaisesRegex(RuntimeError, "render failed"):
+            self.compose()
+        self.composition.lighting_failure_reply.assert_not_called()
+
+    def test_general_stage_exception_stops_all_other_stages(self):
+        self.composition.general_reply.side_effect = RuntimeError("general failed")
+        with self.assertRaisesRegex(RuntimeError, "general failed"):
+            self.compose()
+        self.composition.background_reply.assert_not_called()
+        self.composition.routine_reply.assert_not_called()
+        self.composition.lighting_failure_reply.assert_not_called()
