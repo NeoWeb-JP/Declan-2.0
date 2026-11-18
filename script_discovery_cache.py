@@ -36,6 +36,12 @@ class ScriptDiscoveryCache:
             self._next_generation += 1
             generation = self._next_generation
             self._generation[key] = generation
+            # Failed requests do not publish cache entries. Bound their
+            # generations as well to avoid accumulating one key per token.
+            while len(self._generation) > self._max_entries * 2:
+                oldest = next(iter(self._generation))
+                self._generation.pop(oldest)
+                self._entries.pop(oldest, None)
             return generation
 
     def publish(self, key, generation, value):
