@@ -21,7 +21,7 @@ def metadata_from_transcript(transcript):
     capture = getattr(transcript, "capture_level", None)
     return SpeakerMetadata(
         speaker=speaker_from_transcript(transcript),
-        capture_level=dict(capture) if capture is not None else None,
+        capture_level=dict(capture) if isinstance(capture, dict) else None,
     )
 
 
