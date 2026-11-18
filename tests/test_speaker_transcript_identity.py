@@ -77,6 +77,18 @@ class SpeakerTranscriptTests(unittest.TestCase):
         snapshot.capture_level["confidence"] = 0.2
         self.assertEqual(transcript.capture_level, {"confidence": 0.9})
 
+    def test_malformed_capture_metadata_does_not_break_speaker_extraction(self):
+        for invalid in ("not-a-mapping", 7, ["unexpected"], object()):
+            with self.subTest(value=type(invalid).__name__):
+                transcript = SpeakerTranscript("hello", ("id", "Jaco", 0.9), invalid)
+                metadata = MODULE.metadata_from_transcript(transcript)
+                self.assertIsNone(metadata.capture_level)
+                self.assertEqual(metadata.speaker, ("id", "Jaco", 0.9))
+                self.assertEqual(MODULE.speaker_request_payload(transcript), {
+                    "speaker": {"interaction_id": "id", "name": "Jaco",
+                                "confidence": 0.9},
+                })
+
     def test_legacy_metadata_snapshot(self):
         class LegacyTranscript(str):
             jarvis_speaker = "speaker-2"
