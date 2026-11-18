@@ -60,6 +60,7 @@ import routine_follow_on_dispatch
 import information_result_response
 import device_result_response
 import lighting_result_dispatch
+import final_dispatch_orchestration
 import fallback_orchestration
 import guest_assignment_command
 import roast_command_dispatch
@@ -2476,9 +2477,10 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     status_target = device_response.status_target
                 else:
-                    lighting_result = lighting_result_dispatch.dispatch_lighting_response(
+                    lighting_result = final_dispatch_orchestration.dispatch_lighting(
                         phrase, source=source, origin_device=origin_device,
                         satellite=satellite,
+                        dispatch=lighting_result_dispatch.dispatch_lighting_response,
                         registry_factory=command_registry.lighting_registry,
                         context_factory=command_registry.RequestContext,
                         matches=lighting_intents.matches,
@@ -2486,7 +2488,7 @@ class Handler(BaseHTTPRequestHandler):
                         handle_light_request=handle_light_request_result,
                         action_results=action_results, last_lights=last_lights,
                         scope=scope,
-                        dispatch_lighting=lighting_command_dispatch.dispatch_lighting,
+                        dispatch_lighting_command=lighting_command_dispatch.dispatch_lighting,
                         confirmed_lighting_context=(
                             lighting_context_finalization.confirmed_lighting_context
                         ),
@@ -2495,12 +2497,13 @@ class Handler(BaseHTTPRequestHandler):
                         routine_reply, outcome = lighting_result.result.reply, lighting_result.result.outcome
                         lighting_context = lighting_result.lighting_context
                         light_result = lighting_result.result
-        fallback_result = fallback_orchestration.resolve_fallback_result(
+        fallback_result = final_dispatch_orchestration.resolve_fallback(
             effective_message, routine_reply=routine_reply,
             light_result=light_result, body=body,
             authorization=self.headers.get("Authorization", ""),
             bridge_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
             source=source, action_results=action_results,
+            resolve=fallback_orchestration.resolve_fallback_result,
             exposed_entities=fallback_entity_authorization.exposed_entities,
             dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback_result,
             fallback_handler=guarded_openai_fallback_result,
@@ -2509,8 +2512,10 @@ class Handler(BaseHTTPRequestHandler):
             routine_reply, outcome = fallback_result.reply, fallback_result.outcome
         chat_kind = effective_message.casefold().strip(" .?!")
         guest_mode, visitor_present, response_guest_mode = (
-            response_persona_context.resolve_response_persona(
-                read_guest_mode, read_visitors_present, personality_policy,
+            final_dispatch_orchestration.resolve_persona(
+                resolve=response_persona_context.resolve_response_persona,
+                guest_mode=read_guest_mode, visitors_present=read_visitors_present,
+                personality=personality_policy,
             )
         )
         if routine_reply is None and CHAT_COMMANDS.get(chat_kind) == "time":
