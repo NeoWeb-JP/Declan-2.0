@@ -3,6 +3,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+AUTH = (ROOT / "post_origin_auth_http.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/updates_view.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
@@ -36,8 +37,10 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertIn('self.path == "/api/updates/status"', SERVER)
         self.assertIn('not updates_auth and self.client_address', SERVER)
         self.assertIn('not voice_review_auth and not updates_auth and (', SERVER)
-        self.assertIn('self.path == "/api/updates"\n            and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) >= 32', SERVER)
-        self.assertIn('secrets.compare_digest(', SERVER)
+        self.assertIn('"/api/updates"', AUTH)
+        self.assertIn('len(token) >= 32', AUTH)
+        self.assertIn('secrets.compare_digest(', AUTH)
+        self.assertIn("post_origin_auth_http.enforce_access(", SERVER)
 
     def test_versions_and_compatibility_gate(self):
         self.assertIn('"integration_version"', VIEW)
