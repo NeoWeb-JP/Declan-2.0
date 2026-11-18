@@ -29,12 +29,12 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
         session["failed_light_phrase"] = {
             "text": message, "scope": scope, "actions": actions,
         }
-    needs_retry = reply["reply"] == unmatched_reply
+    needs_retry = (reply["reply"] == unmatched_reply and scope is not None
+                   and valid_retry_phrase(message) and finite_number(now))
+    # Never advertise a listening follow-up without a usable pending retry.
     reply["continue_conversation"] = needs_retry
     reply["follow_up_timeout"] = 10 if needs_retry else 0
-    # A completed turn or an invalid follow-up must not retain an older retry.
     session.pop("pending_retry", None)
-    if (needs_retry and scope is not None and valid_retry_phrase(message)
-            and finite_number(now)):
+    if needs_retry:
         session["pending_retry"] = {"text": message, "scope": scope, "at": now}
     return decision_outcome in SUCCESS_OUTCOMES or outcome is None and not needs_retry
