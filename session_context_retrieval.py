@@ -15,10 +15,13 @@ def recent_context(previous, scope, *, now, idle_seconds):
     if (not finite_number(at)
             or at > now or now - at >= idle_seconds):
         return lights, device, information
-    if previous.get("device_status_scope") == scope:
+    if (valid_retry_scope(previous.get("device_status_scope"))
+            and previous["device_status_scope"] == scope):
         device = previous.get("device_status_target")
-    if previous.get("lighting_scope") == scope:
+    if (valid_retry_scope(previous.get("lighting_scope"))
+            and previous["lighting_scope"] == scope):
         lights = previous.get("lighting_context", ())
-    if previous.get("information_scope") == scope:
+    if (valid_retry_scope(previous.get("information_scope"))
+            and previous["information_scope"] == scope):
         information = previous.get("information_context")
     return lights, device, information
