@@ -49,6 +49,16 @@ class RetryContextTests(unittest.TestCase):
                                             window_seconds=30), pending)
         self.assertNotIn("pending_retry", session)
 
+    def test_oversized_integer_retry_metadata_is_consumed_safely(self):
+        huge = 10 ** 1000
+        for now, window, at in ((huge, 30, 100), (105, huge, 100),
+                                (105, 30, huge)):
+            with self.subTest(oversized=(now == huge, window == huge, at == huge)):
+                session = {"pending_retry": {**self.retry, "at": at}}
+                self.assertIsNone(consume_pending_retry(session, "kitchen", now=now,
+                                                        window_seconds=window))
+                self.assertNotIn("pending_retry", session)
+
     def test_matching_retry_is_returned(self):
         self.assertIs(self.consume(), self.retry)
 
