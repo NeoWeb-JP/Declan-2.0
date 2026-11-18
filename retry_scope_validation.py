@@ -23,3 +23,9 @@ def valid_retry_scope(scope):
                         for value in scope[1:])
                 and assist_scope(*scope[1:]) == scope)
     return False
+
+
+def same_origin_scope(stored, requested):
+    """Match only fully validated, identical request and stored origin scopes."""
+    return (valid_retry_scope(requested) and valid_retry_scope(stored)
+            and stored == requested)
