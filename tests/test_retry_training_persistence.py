@@ -79,6 +79,19 @@ class RetryTrainingPersistenceTests(unittest.TestCase):
                 self.teach.assert_not_called()
                 self.log.assert_called_once()
 
+    def test_invalid_corrected_or_effective_phrases_do_not_learn(self):
+        for value in (None, 42, [], "", "  ", "x" * 4097):
+            for field in ("message", "effective"):
+                with self.subTest(field=field, value_type=type(value).__name__):
+                    self.similar.reset_mock()
+                    self.teach.reset_mock()
+                    kwargs = {field: value}
+                    reply, result = self.save(**kwargs)
+                    self.assertFalse(result)
+                    self.assertNotIn("learned_from_retry", reply)
+                    self.similar.assert_not_called()
+                    self.teach.assert_not_called()
+
     def test_missing_pending_retry_does_not_learn(self):
         reply = {}
         result = save_retry_training(reply, pending_retry=None, retry_succeeded=True,
