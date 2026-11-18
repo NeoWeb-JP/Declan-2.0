@@ -74,7 +74,6 @@ import guarded_fallback_dispatch
 import response_persona_context
 import turn_context_preparation
 import turn_response_composition
-import turn_persistence_dispatch
 import history
 import history_post_routes
 import history_intents_post
@@ -2529,7 +2528,7 @@ class Handler(BaseHTTPRequestHandler):
                 render_failure=command_responses.failure,
                 composition=response_composition,
             )
-            response = turn_persistence_dispatch.persist_turn_result(
+            response = turn_persistence_orchestration.persist_turn_result(
                 response, sessions=SESSIONS,
                 apply_outcome_metadata=turn_finalization.apply_outcome_metadata,
                 finalize=turn_persistence_orchestration.finalize_turn,
