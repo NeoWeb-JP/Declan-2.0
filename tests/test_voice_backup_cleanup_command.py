@@ -16,14 +16,15 @@ class VoiceCleanupCommandTests(unittest.TestCase):
             old = data / 'upgrade-backups' / 'old'
             old.mkdir(parents=True)
             database = old / 'voice-profiles.sqlite3'
-            with sqlite3.connect(database) as db:
+            with contextlib.closing(sqlite3.connect(database)) as db:
                 db.execute('CREATE TABLE samples (id TEXT, audio BLOB)')
                 db.execute('INSERT INTO samples VALUES (?, ?)', ('s1', b'RIFF-secret-audio'))
+                db.commit()
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
                 self.assertEqual(sanitize_voice_backups.main(['--data-dir', str(data)]), 0)
             self.assertIn('Sanitized 1', output.getvalue())
-            with sqlite3.connect(database) as db:
+            with contextlib.closing(sqlite3.connect(database)) as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM samples').fetchone()[0], 0)
             self.assertEqual(list((data / 'upgrade-backups').iterdir()), [old])
 
