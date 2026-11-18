@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 SERVER = (ROOT / "server.py").read_text()
 POST_ROUTES = (ROOT / "operational_post_routes.py").read_text()
+DISPATCH = (ROOT / "settings_voice_post.py").read_text()
 NATIVE_READ = (ROOT / "native_read_routes.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/management_view.py").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
@@ -28,9 +29,9 @@ class NativeManagementContracts(unittest.TestCase):
         self.assertIn('url = "/api/declan_two/management/{operation}"', VIEW)
 
     def test_credential_replacement_requires_explicit_confirmation(self):
-        self.assertIn('self.path == "/api/native/spotify-credentials"', SERVER)
+        self.assertIn('path == "/api/native/spotify-credentials"', DISPATCH)
         ast.parse(POST_ROUTES)
-        self.assertIn("operational_post_routes.handle_spotify_credentials(", SERVER)
+        self.assertIn("operational_post_routes.handle_spotify_credentials(", DISPATCH)
         self.assertIn('set(body) != {"client_id", "client_secret", "confirm"}', POST_ROUTES)
         self.assertIn('body.get("confirm") is not True', POST_ROUTES)
         self.assertIn("window.confirm(", PANEL)
