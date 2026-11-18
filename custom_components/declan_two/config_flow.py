@@ -1,4 +1,5 @@
 """Configure the address and shared secret for the Declan test service."""
+from .stt_vocabulary import validate_vocabulary
 import re
 
 import aiohttp
@@ -148,6 +149,14 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
         if user_input is not None:
             enabled = user_input["openai_stt_enabled"]
             key = user_input.get("openai_stt_api_key", "").strip() or current.get("openai_stt_api_key", "")
+            try:
+                vocabulary = validate_vocabulary(
+                    user_input.get("openai_stt_vocabulary",
+                                   current.get("openai_stt_vocabulary", ""))
+                )
+            except ValueError:
+                vocabulary = current.get("openai_stt_vocabulary", "")
+                errors["openai_stt_vocabulary"] = "invalid_stt_vocabulary"
             host = user_input.get("wyoming_bridge_host", "").strip()
             local_stt = user_input.get('local_stt_entity', '').strip()
             if local_stt and not re.fullmatch(r'stt\.[a-z0-9_]+', local_stt):
@@ -177,6 +186,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                     "primary_tts": provider,
                     "openai_stt_enabled": enabled,
                     "openai_stt_model": user_input["openai_stt_model"],
+                    "openai_stt_vocabulary": vocabulary,
                     "openai_stt_api_key": key,
                 })
         values = {**current, **(user_input or {})}
@@ -184,6 +194,9 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
             vol.Required("openai_stt_enabled", default=values.get("openai_stt_enabled", False)): bool,
             vol.Required("openai_stt_model", default=values.get("openai_stt_model", "gpt-4o-mini-transcribe")):
                 vol.In(["gpt-transcribe", "gpt-4o-mini-transcribe"]),
+            vol.Optional("openai_stt_vocabulary",
+                         default=values.get("openai_stt_vocabulary", "")):
+                vol.All(str, vol.Length(max=240)),
             vol.Optional("openai_stt_api_key"): selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
             ),
