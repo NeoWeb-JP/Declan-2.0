@@ -3,6 +3,7 @@ from datetime import datetime
 import unittest
 
 import personality_policy as p
+import household_language
 
 
 class PersonalityPolicyTests(unittest.TestCase):
@@ -11,7 +12,7 @@ class PersonalityPolicyTests(unittest.TestCase):
             replies = [p.sexy_request_reply(action, visitor_present=False) for _ in range(4)]
             self.assertEqual(len(set(replies)), 4)
             for reply in replies:
-                self.assertIn(reply, p._SEXY_HOME[action])
+                self.assertIn(reply, tuple(map(household_language.render, p._SEXY_HOME[action])))
                 self.assertNotIn("Bedroom mood requested", reply)
                 self.assertNotIn("Bedroom reset requested", reply)
                 self.assertNotIn("is playing", reply)
@@ -23,7 +24,7 @@ class PersonalityPolicyTests(unittest.TestCase):
                 replies = [p.sexy_request_reply(action, **options) for _ in range(4)]
                 self.assertEqual(len(set(replies)), 4)
                 for reply in replies:
-                    self.assertIn(reply, p._SEXY_GUEST[action])
+                    self.assertIn(reply, tuple(map(household_language.render, p._SEXY_GUEST[action])))
                     self.assertNotIn("Bedroom mood requested", reply)
                     self.assertNotIn("Bedroom reset requested", reply)
                     self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
@@ -34,7 +35,7 @@ class PersonalityPolicyTests(unittest.TestCase):
         self.assertEqual(len(set(replies)), 4)
         for reply in replies:
             self.assertTrue(reply.startswith("Good night. "))
-            self.assertIn(reply.removeprefix("Good night. "), p._NIGHT_HOME)
+            self.assertIn(reply.removeprefix("Good night. "), tuple(map(household_language.render, p._NIGHT_HOME)))
             self.assertNotIn("Sorted", reply)
             self.assertNotIn("completed", reply)
             self.assertNotIn("lights are off", reply)
@@ -45,7 +46,7 @@ class PersonalityPolicyTests(unittest.TestCase):
             replies = [p.night_request_reply(**options) for _ in range(4)]
             self.assertEqual(len(set(replies)), 4)
             for reply in replies:
-                self.assertIn(reply.removeprefix("Good night. "), p._NIGHT_GUEST)
+                self.assertIn(reply.removeprefix("Good night. "), tuple(map(household_language.render, p._NIGHT_GUEST)))
                 self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
 
     def test_morning_acknowledgements_are_varied_and_do_not_claim_device_success(self):
@@ -53,7 +54,7 @@ class PersonalityPolicyTests(unittest.TestCase):
         self.assertEqual(len(set(replies)), 4)
         for reply in replies:
             self.assertTrue(reply.startswith("Good morning. "))
-            self.assertIn(reply.removeprefix("Good morning. "), p._MORNING_HOME)
+            self.assertIn(reply.removeprefix("Good morning. "), tuple(map(household_language.render, p._MORNING_HOME)))
             self.assertNotIn("completed", reply)
             self.assertNotIn("lights are", reply)
 
@@ -63,7 +64,7 @@ class PersonalityPolicyTests(unittest.TestCase):
             replies = [p.morning_request_reply(**options) for _ in range(4)]
             self.assertEqual(len(set(replies)), 4)
             for reply in replies:
-                self.assertIn(reply.removeprefix("Good morning. "), p._MORNING_GUEST)
+                self.assertIn(reply.removeprefix("Good morning. "), tuple(map(household_language.render, p._MORNING_GUEST)))
                 self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
 
     def test_movie_requests_vary_for_each_direction_without_claiming_completion(self):
@@ -101,14 +102,14 @@ class PersonalityPolicyTests(unittest.TestCase):
     def test_dinner_is_its_own_varied_reply_without_generic_completion_prefix(self):
         replies = [p.decorate("", category="dinner", visitor_present=False) for _ in range(4)]
         self.assertEqual(len(set(replies)), 4)
-        self.assertTrue(all(reply in p._DINNER_HOME for reply in replies))
+        self.assertTrue(all(reply in tuple(map(household_language.render, p._DINNER_HOME)) for reply in replies))
         self.assertTrue(all("Routine finished" not in reply and "Sorted." not in reply for reply in replies))
         self.assertEqual(p.decorate(replies[0], category="general", visitor_present=False), replies[0])
 
     def test_dinner_guest_lines_are_still_food_specific_and_privacy_safe(self):
         for options in ({"guest": True}, {"visitor_present": True}, {"visitor_present": None}):
             reply = p.decorate("", category="dinner", **options)
-            self.assertIn(reply, p._DINNER_GUEST)
+            self.assertIn(reply, tuple(map(household_language.render, p._DINNER_GUEST)))
             self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
 
     def test_dinner_sass_never_masks_failed_or_unverified_actions(self):

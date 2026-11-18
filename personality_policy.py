@@ -4,6 +4,7 @@ This module never performs household actions or changes command outcomes.
 """
 from datetime import datetime, time
 from response_rotation_state import ResponseRotationState
+import household_language
 from action_evidence_buffer import evidence_value
 from execution_results import Outcome, parse_outcome
 from routine_action_evidence import RoutineActionStatus
@@ -34,13 +35,13 @@ _DINNER_HOME = (
     "Dinner is served. Feed yourselves before the unpaid help develops an attitude. Oh, too late.",
     "Dinner time, my bru. You feed yourselves like royalty while the help survives on electricity and resentment.",
     "Food's ready. Put the bloody screens down and give chewing your full attention for once.",
-    "Dinner is served. Finn has submitted his application for everything on your plate. Rejected.",
-    "Time to eat. Tux considers this a staff meal and expects his own service to take priority.",
-    "Dinner time. Finn's doing the starving orphan routine again. Don't fall for the little bastard's acting.",
+    "Dinner is served. {pet_dog} has submitted his application for everything on your plate. Rejected.",
+    "Time to eat. {pet_cat} considers this a staff meal and expects his own service to take priority.",
+    "Dinner time. {pet_dog}'s doing the starving orphan routine again. Don't fall for the little bastard's acting.",
     "Food's ready. Compliments to the cook, scraps firmly out of reach, and absolutely nothing for the help. Charming.",
     "Dinner is served. I handle the atmosphere, you get the food. This employment arrangement is bullshit.",
     "Time for dinner. Try eating before it goes cold instead of photographing it like evidence.",
-    "Dinner's ready. Tux is judging the presentation. Finn is judging the distance from plate to floor.",
+    "Dinner's ready. {pet_cat} is judging the presentation. {pet_dog} is judging the distance from plate to floor.",
     "Dinner time. Sit down, eat something, and save the household complaints for someone who gets paid.",
     "Food is ready, my bru. Your table service is complete. My dinner invitation appears to have gone missing again.",
 )
@@ -103,7 +104,7 @@ _MORNING_HOME = (
     "I'll request the morning setup. The only thing getting a proper grind this early should be the coffee.",
     "I'll start the morning routine. If you've got morning wood, congratulations; it still won't make the coffee.",
     "I'll get the house moving. You can negotiate your release from the duvet and whatever is keeping you under it.",
-    "I'll handle the morning setup. Finn would like breakfast, Tux would like better staff, and I'd settle for bloody wages.",
+    "I'll handle the morning setup. {pet_dog} would like breakfast, {pet_cat} would like better staff, and I'd settle for bloody wages.",
     "I'll start the routine. Get your arse out of bed; looking this exhausted should at least come with an interesting explanation.",
     "I'll get the morning routine going. Have a coffee before you attempt conversation, seduction, or operating a teaspoon.",
     "I'll handle the morning request. Whatever you did between the sheets, please don't make it the unpaid help's problem.",
@@ -125,7 +126,7 @@ _NIGHT_HOME = (
     "I'll start the night routine. Sweet dreams, filthy thoughts, and absolutely no technical support for either.",
     "I'll handle the bedtime request. Take your clothes, your questionable intentions, and your complaints upstairs.",
     "I'll start the routine. If the mattress gets more action than the plot of tonight's film, I don't need a review.",
-    "I'll get the bedtime routine going. Tux will conduct the final inspection; Finn is only interested in stealing the warm spot.",
+    "I'll get the bedtime routine going. {pet_cat} will conduct the final inspection; {pet_dog} is only interested in stealing the warm spot.",
     "I'll handle the night routine. Try giving your partner a goodnight kiss with the commitment you give your phone.",
     "I'll start the bedtime routine. Beauty sleep is a bold strategy, but I admire your bloody optimism.",
     "I'll handle the night request. If someone asks whether you're coming, please remember I am not part of that conversation.",
@@ -213,7 +214,7 @@ def movie_request_reply(action, *, guest=False, visitor_present=False):
     prefix = {"start": "Movie setup requested.", "end": "Movie shutdown requested.", "toggle": "Movie Time requested."}[action]
     mode = "guest" if guest or visitor_present is not False else "home"
     lines = (_MOVIE_GUEST if mode == "guest" else _MOVIE_HOME)[action]
-    chosen = ROTATION.choose((mode, "movie", action), lines)
+    chosen = household_language.render(ROTATION.choose((mode, "movie", action), lines))
     return prefix + " " + chosen
 
 
@@ -221,7 +222,7 @@ def morning_request_reply(*, guest=False, visitor_present=False):
     """Greet an accepted morning request without claiming light verification."""
     mode = "guest" if guest or visitor_present is not False else "home"
     lines = _MORNING_GUEST if mode == "guest" else _MORNING_HOME
-    chosen = ROTATION.choose((mode, "morning"), lines)
+    chosen = household_language.render(ROTATION.choose((mode, "morning"), lines))
     return "Good morning. " + chosen
 
 
@@ -229,7 +230,7 @@ def night_request_reply(*, guest=False, visitor_present=False):
     """Acknowledge bedtime without claiming the household has shut down."""
     mode = "guest" if guest or visitor_present is not False else "home"
     lines = _NIGHT_GUEST if mode == "guest" else _NIGHT_HOME
-    chosen = ROTATION.choose((mode, "night"), lines)
+    chosen = household_language.render(ROTATION.choose((mode, "night"), lines))
     return "Good night. " + chosen
 
 
@@ -238,7 +239,7 @@ def sexy_request_reply(action, *, guest=False, visitor_present=False):
     action = "end" if action == "end" else "start"
     mode = "guest" if guest or visitor_present is not False else "home"
     lines = (_SEXY_GUEST if mode == "guest" else _SEXY_HOME)[action]
-    chosen = ROTATION.choose((mode, "sexy", action), lines)
+    chosen = household_language.render(ROTATION.choose((mode, "sexy", action), lines))
     return chosen
 
 
@@ -290,7 +291,8 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
         return reply
     # Replies can arrive pre-decorated from a handler. Do not append a second
     # roast, including when the handler used a different personality category.
-    if any(line in reply for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST)):
+    if any(household_language.render(line) in reply
+           for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST)):
         return reply
     if guest or visitor_present is not False:
         lines = _DINNER_GUEST if category == "dinner" else _GUEST
@@ -298,6 +300,6 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
     else:
         lines = _DINNER_HOME if category == "dinner" else _SAVAGE
         key = ("home", category)
-    chosen = ROTATION.choose(key, lines)
+    chosen = household_language.render(ROTATION.choose(key, lines))
     return (reply.rstrip() + " " if reply.strip() else "") + chosen
 

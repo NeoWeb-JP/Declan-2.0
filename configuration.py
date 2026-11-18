@@ -16,6 +16,10 @@ FIELDS = {
     'DECLAN_GUEST_MODE_ENTITY': 'input_boolean',
     'DECLAN_GUEST_REGISTER_ENTITY': 'input_text',
     'DECLAN_PROJECTOR_POWER_ENTITY': 'switch',
+    'DECLAN_RESIDENT_ONE_NAME': 'display_name',
+    'DECLAN_RESIDENT_TWO_NAME': 'display_name',
+    'DECLAN_DOG_NAME': 'display_name',
+    'DECLAN_CAT_NAME': 'display_name',
 }
 
 
@@ -68,7 +72,9 @@ def validate(document):
         domain = FIELDS.get(key)
         if domain is None or not isinstance(value, str) or len(value) > 128:
             raise ValueError('Unknown or invalid setting. Credentials cannot be imported here.')
-        pattern = r'[A-Za-z0-9_-]{1,64}' if domain == 'pipeline' else re.escape(domain) + r'\.[a-z0-9_]+'
+        pattern = (r'[A-Za-z0-9_-]{1,64}' if domain == 'pipeline'
+                   else r"[A-Za-z][A-Za-z '-]{0,47}" if domain == 'display_name'
+                   else re.escape(domain) + r'\.[a-z0-9_]+')
         if value and not re.fullmatch(pattern, value):
             raise ValueError('Invalid entity or pipeline identifier.')
     aliases = document.get('learned_intents', {})

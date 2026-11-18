@@ -364,7 +364,7 @@ class GuestAssignmentTests(TestCase):
         reply, outcome = server.guest_assignment("check", self.connection)
         self.assertEqual(outcome, "confirmed")
         self.assertIn("Guest Mode is off.", reply)
-        self.assertIn("Tux", reply)
+        self.assertIn("the cat", reply)
         self.mode["state"] = "on"
         self.register["state"] = "Mike and Kathy"
         self.assertEqual(server.guest_assignment("check", self.connection),
