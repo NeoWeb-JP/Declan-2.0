@@ -8,7 +8,7 @@ SERVER = (Path(__file__).resolve().parents[1] / "server.py").read_text()
 class DirectRoutineInformationTests(unittest.TestCase):
     def test_routine_dispatch_precedes_information_fallback(self):
         routine = SERVER.index("routine_registry_dispatch.dispatch_routine(")
-        follow_on = SERVER.index("routine_follow_on_orchestration.execute_routine_follow_on(", routine)
+        follow_on = SERVER.index("routine_follow_on_dispatch.execute_follow_on_result(", routine)
         information = SERVER.index("information_command_dispatch.dispatch_information(", follow_on)
         self.assertLess(routine, follow_on)
         self.assertLess(follow_on, information)

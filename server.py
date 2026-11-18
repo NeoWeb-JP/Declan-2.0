@@ -100,7 +100,6 @@ import session_context_access
 import retry_cancellation_access
 import sensitive_confirmation_resolution
 import preview_timer_orchestration
-import routine_follow_on_orchestration
 import web_stt
 import openai_planner
 import ai_settings
@@ -2411,11 +2410,10 @@ class Handler(BaseHTTPRequestHandler):
         ):
             routine_status = routine_dispatch.routine_status
             routine_turn = routine_dispatch.routine_selection
-            follow_on = routine_follow_on_orchestration.execute_routine_follow_on(
+            follow_on = routine_follow_on_dispatch.execute_follow_on_result(
                 routine_dispatch, origin_device=origin_device,
                 satellite=satellite, action_results=action_results,
                 scope=scope,
-                execute_follow_on=routine_follow_on_dispatch.execute_follow_on_result,
                 execute=routine_follow_on.execute_result,
                 parse_music=music.parse, play_music=music.play_result,
                 connection=ha_device_connection,
@@ -2423,7 +2421,7 @@ class Handler(BaseHTTPRequestHandler):
                 handle_lighting=handle_light_request_result,
                 last_lights=last_lights, chained_outcome=chained_outcome_result,
             )
-            routine_reply, outcome = follow_on.reply, follow_on.outcome
+            routine_reply, outcome = follow_on.result.reply, follow_on.result.outcome
             lighting_context = follow_on.lighting_context
             routine_voice_result = follow_on.routine_voice_result
         else:
