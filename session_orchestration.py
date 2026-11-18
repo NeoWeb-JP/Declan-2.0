@@ -10,6 +10,10 @@ from chat_recall_privacy import safe_chat_text
 from session_identity import valid_session_id
 from retry_scope_validation import valid_retry_scope
 
+def _generate_session_id():
+    return secrets.token_urlsafe(24)
+
+
 def _prune_expired_sessions(sessions, now, idle_seconds):
     """Expire all idle sessions, including entries whose access order changed."""
     if not finite_number(now) or not finite_number(idle_seconds) or idle_seconds <= 0:
@@ -144,7 +148,7 @@ def converse(message, session_id, routine_reply=None, *, lighting_context=None, 
     if not finite_number(now):
         raise ValueError("session clock must be finite")
     if new_session_id is None:
-        new_session_id = lambda: secrets.token_urlsafe(24)
+        new_session_id = _generate_session_id
     _prune_expired_sessions(sessions, now, idle_seconds)
     session_id, state = _load_chat_session(sessions, recall, session_id, now,
                                            new_session_id=new_session_id)
