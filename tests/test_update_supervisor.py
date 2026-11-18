@@ -71,6 +71,22 @@ class SupervisorTests(TestCase):
                 supervisor, 'prune_old', side_effect=OSError()):
             self.assertEqual(supervisor.supervise(self.root, launch=Mock(side_effect=[first, second])), 0)
 
+    def test_failed_rollback_and_cleanup_log_only_fixed_metadata(self):
+        first, second = Mock(), Mock()
+        first.poll.return_value = None
+        second.wait.return_value = 0
+        secret = "private-release-path-with-token"
+        with patch.object(supervisor, "healthy", side_effect=[False, True]), \
+             patch.object(supervisor, "prune_old", side_effect=OSError(secret)), \
+             patch.object(supervisor, "_LOGGER") as logger:
+            self.assertEqual(supervisor.supervise(
+                self.root, launch=Mock(side_effect=[first, second])), 0)
+        logger.warning.assert_any_call(
+            "Selected release failed startup health check; rolling back")
+        logger.warning.assert_any_call(
+            "Release cleanup failed (reason=%s)", "OSError")
+        self.assertNotIn(secret, repr(logger.warning.call_args_list))
+
     def test_prune_keeps_selected_previous_recent_and_external_symlink_targets(self):
         backups = self.new / '.data' / 'upgrade-backups'
         backups.mkdir(parents=True)
