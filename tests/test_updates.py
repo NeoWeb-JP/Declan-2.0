@@ -31,7 +31,7 @@ class UpdateTests(TestCase):
             (root / "current").symlink_to(app)
             restart = Event()
             with patch.dict(os.environ, {"DECLAN_UPDATE_ROOT": directory}), patch.object(updates, "APP", app), patch.object(
-                updates, "RESTART", restart,
+                updates.RUNTIME, "restart", restart,
             ), patch.object(updates.RUNTIME, "job", {"state": "idle"}), patch.object(updates, "run", return_value="a" * 40):
                 updates.install(root, "0.1.0", "b" * 40)
                 self.assertEqual((root / "current").resolve(), app)
@@ -56,7 +56,7 @@ class UpdateTests(TestCase):
             restart = Event()
             job = {'state': 'installing'}
             with patch.dict(os.environ, {'DECLAN_UPDATE_ROOT': directory}), patch.object(updates, 'APP', app), patch.object(
-                updates, 'RESTART', restart
+                updates.RUNTIME, "restart", restart
             ), patch.object(updates.RUNTIME, "job", job), patch.object(updates, 'run', return_value='a' * 40), patch.object(
                 updates.state_backup, 'snapshot', side_effect=sqlite3.DatabaseError('bad store')
             ):
