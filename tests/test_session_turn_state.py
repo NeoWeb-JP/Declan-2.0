@@ -75,7 +75,8 @@ class SessionTurnStateTests(unittest.TestCase):
                     information_context=None, light_result=None, action_results=[],
                     actions=None, unmatched_reply="Unmatched", now=123.0)
                 self.assertNotIn("pending_retry", session)
-                self.assertTrue(reply["continue_conversation"])
+                self.assertFalse(reply["continue_conversation"])
+                self.assertEqual(reply["follow_up_timeout"], 0)
 
     def test_invalid_clock_never_stores_retry(self):
         for now in (None, True, float("nan"), float("inf"), 10 ** 1000):
@@ -86,6 +87,8 @@ class SessionTurnStateTests(unittest.TestCase):
                     information_context=None, light_result=None, action_results=[],
                     actions=None, unmatched_reply="Unmatched", now=now)
                 self.assertNotIn("pending_retry", session)
+                self.assertFalse(reply["continue_conversation"])
+                self.assertEqual(reply["follow_up_timeout"], 0)
 
     def test_completed_turn_clears_previous_pending_retry(self):
         session = {"pending_retry": {"text": "old", "scope": "kitchen", "at": 100}}
@@ -105,6 +108,8 @@ class SessionTurnStateTests(unittest.TestCase):
             information_context=None, light_result=None, action_results=[],
             actions=None, unmatched_reply="Unmatched", now=123)
         self.assertNotIn("pending_retry", session)
+        self.assertFalse(reply["continue_conversation"])
+        self.assertEqual(reply["follow_up_timeout"], 0)
 
     def test_new_unmatched_replaces_previous_pending_retry(self):
         session = {"pending_retry": {"text": "old", "scope": "kitchen", "at": 100}}
@@ -118,5 +123,6 @@ class SessionTurnStateTests(unittest.TestCase):
 
     def test_missing_scope_never_stores_retry(self):
         session, reply, _ = self.update(scope=None)
-        self.assertTrue(reply["continue_conversation"])
+        self.assertFalse(reply["continue_conversation"])
+        self.assertEqual(reply["follow_up_timeout"], 0)
         self.assertNotIn("pending_retry", session)
