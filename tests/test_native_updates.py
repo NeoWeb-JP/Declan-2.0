@@ -40,7 +40,8 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertIn('"/api/updates"', AUTH)
         self.assertIn('len(token) >= 32', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
-        self.assertIn("post_origin_auth_http.enforce_access(", SERVER)
+        self.assertIn("post_request_preflight.enforce(", SERVER)
+        self.assertIn("post_origin_auth_http.enforce_access,", SERVER)
 
     def test_versions_and_compatibility_gate(self):
         self.assertIn('"integration_version"', VIEW)

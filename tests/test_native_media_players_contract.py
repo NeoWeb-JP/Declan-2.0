@@ -27,7 +27,8 @@ class MediaPlayersContractTests(unittest.TestCase):
         ast.parse(AUTH)
         self.assertIn('"/api/settings/media-players"', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
-        self.assertIn("post_origin_auth_http.enforce_access(", post)
+        self.assertIn("post_request_preflight.enforce(", post)
+        self.assertIn("post_origin_auth_http.enforce_access,", post)
 
     def test_admin_proxy_and_payload_validation(self):
         ast.parse(VIEW)

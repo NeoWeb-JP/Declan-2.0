@@ -98,6 +98,7 @@ import voicepipeline_access_http
 import post_payload_http
 import post_origin_auth_http
 import post_route_gate_http
+import post_request_preflight
 import post_content_type_http
 import post_validation_errors_http
 import session_context_access
@@ -2006,16 +2007,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.handle_post()
 
     def handle_post(self):
-        if self.path in {"/api/assist", "/api/assist/history"}:
-            if assist_auth_http.authenticate_assist(
-                self, token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
-            ):
-                return
-        elif not post_route_gate_http.enforce_known_route(self):
-            return
-        elif not post_origin_auth_http.enforce_access(
-            self, token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+        if not post_request_preflight.enforce(
+            self, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
             ingress=self.has_ingress_access(),
+            authenticate_assist=assist_auth_http.authenticate_assist,
+            enforce_known_route=post_route_gate_http.enforce_known_route,
+            enforce_origin=post_origin_auth_http.enforce_access,
         ):
             return
         if self.path == "/api/stt":
