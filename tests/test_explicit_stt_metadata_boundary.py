@@ -1,6 +1,7 @@
 """Regression coverage for explicit STT metadata at the HA compatibility edge."""
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 
@@ -8,7 +9,6 @@ MODULE_PATH = (Path(__file__).resolve().parents[1] / "custom_components"
                / "declan_two" / "speaker_models.py")
 SPEC = importlib.util.spec_from_file_location("explicit_speaker_models", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
-import sys
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
