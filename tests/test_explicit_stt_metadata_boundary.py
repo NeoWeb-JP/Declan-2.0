@@ -67,6 +67,22 @@ class ExplicitSTTMetadataBoundaryTests(unittest.TestCase):
             "capture": {"peak": 0.4},
         })
 
+    def test_concurrent_request_snapshots_do_not_share_identity(self):
+        first = MODULE.transcript_for_ha(
+            "first", MODULE.SpeakerMetadata(("one", "J", 0.8), {"peak": 0.1}),
+        )
+        second = MODULE.transcript_for_ha(
+            "second", MODULE.SpeakerMetadata(("two", "E", 0.9), {"peak": 0.9}),
+        )
+        first_payload = MODULE.snapshot_speaker_payload(first)
+        second_payload = MODULE.snapshot_speaker_payload(second)
+        self.assertEqual(first_payload["speaker"]["interaction_id"], "one")
+        self.assertEqual(second_payload["speaker"]["interaction_id"], "two")
+        self.assertEqual(MODULE.snapshot_speaker_payload("typed request"), {})
+        first_payload["capture"]["peak"] = 0.5
+        self.assertEqual(second_payload["capture"]["peak"], 0.9)
+        self.assertEqual(MODULE.snapshot_speaker_payload(first)["capture"]["peak"], 0.1)
+
     def test_missing_capture_is_preserved(self):
         transcript = MODULE.transcript_for_ha(
             "hello", MODULE.SpeakerMetadata(None, None),
