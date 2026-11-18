@@ -43,9 +43,19 @@ def listing():
             profile['samples'] = [{'id': row[0], 'duration': row[1], 'consent_at': row[2]}
                                   for row in db.execute('SELECT id, duration, consent_at FROM samples WHERE profile = ?',
                                                         (profile['id'],))]
+            # Expose a small, metadata-only consent history. Never include
+            # sample audio, digests, tokens or free-form user input in events.
+            profile['consent_events'] = [
+                {'action': row[0], 'recorded_at': row[1]}
+                for row in db.execute(
+                    'SELECT action, recorded_at FROM consent_events '
+                    'WHERE profile = ? ORDER BY id DESC LIMIT 20', (profile['id'],))
+            ]
     return {'profiles': profiles, 'recogniser_connected': False,
-            'notice': 'Samples stay on this server. They do not change speaker matching yet. '
-                      'Only add your own voice with consent. Existing local upgrade backups may retain deleted samples.'}
+            'notice': 'Voice samples are encrypted in local storage and do not change '
+                      'speaker matching yet. A person must consent before storing samples; '
+                      'revocation deletes live samples. Retained older upgrade backups '
+                      'must be sanitised separately if not already cleaned.'}
 
 
 def validate_audio(encoded):
@@ -113,6 +123,9 @@ def manage(body):
             db.execute('INSERT INTO consent_events(profile, action, recorded_at) VALUES (?, ?, ?)',
                        (profile[0], 'granted', granted_at))
         elif operation == 'delete_profile' and body.get('confirm') is True:
+            # Remove profile-specific consent identifiers in the same
+            # transaction. Keeping orphaned audit IDs defeats profile erasure.
+            db.execute('DELETE FROM consent_events WHERE profile = ?', (profile[0],))
             db.execute('DELETE FROM profiles WHERE id = ?', (profile[0],))
         elif operation == 'save_sample':
             if profile[2] is None:
