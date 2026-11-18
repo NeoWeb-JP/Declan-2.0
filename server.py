@@ -102,8 +102,6 @@ import retry_cancellation_access
 import sensitive_confirmation_resolution
 import preview_timer_orchestration
 import routine_follow_on_orchestration
-import routine_registry_orchestration
-import information_response_orchestration
 import device_response_orchestration
 import web_stt
 import openai_planner
@@ -2406,10 +2404,9 @@ class Handler(BaseHTTPRequestHandler):
             connection=ha_device_connection,
         )) is not None:
             routine_reply, outcome = roast_guest_result.reply, roast_guest_result.outcome
-        elif routine_dispatch := routine_registry_orchestration.dispatch_routine(
+        elif routine_dispatch := routine_registry_dispatch.dispatch_routine(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
-            dispatch=routine_registry_dispatch.dispatch_routine,
             registry_factory=command_registry.routine_registry,
             context_factory=command_registry.RequestContext,
             select=select_routine_turn_result, execute=execute_routine_result,
@@ -2432,10 +2429,8 @@ class Handler(BaseHTTPRequestHandler):
             lighting_context = follow_on.lighting_context
             routine_voice_result = follow_on.routine_voice_result
         else:
-            information_response = information_response_orchestration.dispatch_information_response(
+            information_dispatch = information_command_dispatch.dispatch_information(
                 phrase, source=source,
-                dispatch=information_command_dispatch.dispatch_information,
-                adapt=information_result_response.information_response,
                 registry_factory=command_registry.information_registry,
                 context_factory=command_registry.RequestContext,
                 matches=conditions.matches, follow_up=conditions.follow_up,
@@ -2444,7 +2439,8 @@ class Handler(BaseHTTPRequestHandler):
                 opener=opener, last_information=last_information,
                 decorate=add_sass, guest_mode=read_guest_mode,
             )
-            if information_response:
+            if information_dispatch:
+                information_response = information_result_response.information_response(information_dispatch)
                 routine_reply, outcome = (
                     information_response.result.reply, information_response.result.outcome
                 )
