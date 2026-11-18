@@ -89,6 +89,21 @@ class SpeakerTranscriptTests(unittest.TestCase):
                                 "confidence": 0.9},
                 })
 
+    def test_metadata_snapshot_retains_structured_identity(self):
+        identity = ("interaction-42", "Edd", 0.87)
+        transcript = SpeakerTranscript("hello", identity, {"rms": 0.1})
+        metadata = MODULE.metadata_from_transcript(transcript)
+        self.assertEqual(metadata.speaker, identity)
+        self.assertEqual(metadata.capture_level, {"rms": 0.1})
+        self.assertEqual(MODULE.speaker_request_payload(transcript)["speaker"], {
+            "interaction_id": "interaction-42", "name": "Edd",
+            "confidence": 0.87,
+        })
+
+    def test_metadata_snapshot_preserves_legacy_string_identity(self):
+        transcript = SpeakerTranscript("hello", "Jaco")
+        self.assertEqual(MODULE.metadata_from_transcript(transcript).speaker, "Jaco")
+
     def test_legacy_metadata_snapshot(self):
         class LegacyTranscript(str):
             jarvis_speaker = "speaker-2"
