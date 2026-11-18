@@ -14,7 +14,6 @@ import ha_inventory
 from pathlib import Path
 from collections import OrderedDict as OrderedDict  # Re-export for existing test fixtures.
 from threading import Lock, Thread
-from contextlib import contextmanager
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -121,6 +120,7 @@ import command_registry
 import session_orchestration
 import session_store
 import routine_cooldown
+import active_routine_registry
 import session_turn_state
 import lighting_intents
 import roast
@@ -137,18 +137,11 @@ SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
 ROUTINE_LOCKS = {name: Lock() for name in ("morning", "night", "movie")}
 ROUTINE_LOCKS["movie_bedroom"] = Lock()
 ROUTINE_COOLDOWN = routine_cooldown.RoutineCooldown()
-ACTIVE_ROUTINES = {}
-ACTIVE_ROUTINES_LOCK = Lock()
+ACTIVE_ROUTINE_REGISTRY = active_routine_registry.ActiveRoutineRegistry()
 
-@contextmanager
 def track_routine(name, script):
-    with ACTIVE_ROUTINES_LOCK:
-        ACTIVE_ROUTINES[name] = script
-    try:
-        yield
-    finally:
-        with ACTIVE_ROUTINES_LOCK:
-            ACTIVE_ROUTINES.pop(name, None)
+    """Compatibility context manager for mapped routine execution."""
+    return ACTIVE_ROUTINE_REGISTRY.track(name, script)
 
 def stop_pending_routines():
     """Compatibility API for mapped routine cancellation."""
@@ -159,8 +152,7 @@ def stop_pending_routines_result():
     connection = ha_device_connection()
     if connection is None:
         return ExecutionResult("Home Assistant is not connected.", Outcome.NOT_CONFIGURED), None
-    with ACTIVE_ROUTINES_LOCK:
-        active = dict(ACTIVE_ROUTINES)
+    active = ACTIVE_ROUTINE_REGISTRY.snapshot()
     if not active:
         return ExecutionResult("No mapped routine is currently awaiting completion.", Outcome.CONFIRMED), None
     url, headers, opener = connection
