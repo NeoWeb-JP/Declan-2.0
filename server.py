@@ -95,6 +95,7 @@ import post_payload_http
 import post_origin_auth_http
 import post_route_gate_http
 import post_content_type_http
+import post_validation_errors_http
 import web_stt
 import openai_planner
 import ai_settings
@@ -2275,10 +2276,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             message, session_id = request_validation.message_and_session(body)
         except (ValueError, TypeError, KeyError, AttributeError):
-            detail = ("Send valid Spotify settings." if self.path == "/api/settings/spotify"
-                      else "Send valid history confirmation." if self.path == "/api/history/clear"
-                      else "Send a message of 1 to 1,000 characters.")
-            self.send_json(400, {"error": detail})
+            post_validation_errors_http.send_validation_error(self)
             return
         if self.path == "/api/tts":
             speech_http_routes.render_tts(self, message, render=render_web_voice)
