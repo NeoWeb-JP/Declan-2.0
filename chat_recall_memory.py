@@ -2,6 +2,7 @@
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from chat_recall_privacy import safe_chat_text
 
 MAX_SESSIONS = 128
 MAX_MESSAGE_CHARACTERS = 160
@@ -42,14 +43,14 @@ class ChatRecallMemory:
         name = state.get("name")
         name = name[:40] if isinstance(name, str) else None
         messages = state.get("recent_messages", [])
-        messages = [
-            item[:MAX_MESSAGE_CHARACTERS] for item in messages[-MAX_RECENT_MESSAGES:]
-            if isinstance(item, str)
-        ]
-        last = state.get("last")
+        messages = [text for item in messages
+                    if (text := safe_chat_text(item)) is not None][-MAX_RECENT_MESSAGES:]
+        last = safe_chat_text(state.get("last"))
+        if last is None:
+            previous = self.entries.get(session_id)
+            last = previous["last"] if previous is not None else None
         self.entries[session_id] = {
-            "at": now, "name": name,
-            "last": last[:MAX_MESSAGE_CHARACTERS] if isinstance(last, str) else None,
+            "at": now, "name": name, "last": last,
             "recent_messages": tuple(messages),
         }
         self.entries.move_to_end(session_id)
