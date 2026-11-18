@@ -21,7 +21,12 @@ class SatelliteContextTests(unittest.TestCase):
         self.assertIn('previous.get("information_scope") == scope', context_source)
         self.assertIn('previous.get("lighting_scope") == scope', context_source)
         self.assertIn('previous.get("device_status_scope") == scope', context_source)
-        self.assertIn("session_context_retrieval.recent_context(", source)
+        access_source = Path(__file__).resolve().parents[1].joinpath(
+            "session_context_access.py").read_text()
+        ast.parse(access_source)
+        self.assertIn("session_context_access.load_recent_context(", source)
+        self.assertIn("retrieve=session_context_retrieval.recent_context", source)
+        self.assertIn("with lock:", access_source)
         self.assertIn('IDLE_SECONDS = 300', source)
 
 if __name__=="__main__":

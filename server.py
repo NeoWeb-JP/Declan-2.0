@@ -96,6 +96,7 @@ import post_origin_auth_http
 import post_route_gate_http
 import post_content_type_http
 import post_validation_errors_http
+import session_context_access
 import web_stt
 import openai_planner
 import ai_settings
@@ -2301,13 +2302,13 @@ class Handler(BaseHTTPRequestHandler):
             new_session_id=secrets.token_urlsafe,
         ):
             return
-        with SESSION_LOCK:
-            last_lights, last_device, last_information = (
-                session_context_retrieval.recent_context(
-                    SESSIONS.get(session_id), scope,
-                    now=monotonic(), idle_seconds=IDLE_SECONDS,
-                )
+        last_lights, last_device, last_information = (
+            session_context_access.load_recent_context(
+                session_id=session_id, scope=scope, sessions=SESSIONS,
+                lock=SESSION_LOCK, now=monotonic(), idle_seconds=IDLE_SECONDS,
+                retrieve=session_context_retrieval.recent_context,
             )
+        )
         lighting_context = None
         status_target = None
         information_context = None
@@ -2317,11 +2318,12 @@ class Handler(BaseHTTPRequestHandler):
             normalize=history.normalize_phrase,
             learned_intent=history.learned_intent, log_error=self.log_error,
         )
-        with SESSION_LOCK:
-            pending_retry = retry_context.consume_pending_retry(
-                SESSIONS.get(session_id), scope, now=monotonic(),
-                window_seconds=retry_learning.WINDOW_SECONDS,
-            )
+        pending_retry = session_context_access.consume_retry_context(
+            session_id=session_id, scope=scope, sessions=SESSIONS,
+            lock=SESSION_LOCK, now=monotonic(),
+            window_seconds=retry_learning.WINDOW_SECONDS,
+            consume=retry_context.consume_pending_retry,
+        )
         if pending_retry and history.normalize_phrase(message) in retry_learning.CANCEL:
             with SESSION_LOCK:
                 cancellation = retry_cancellation.cancel_retry_result(
