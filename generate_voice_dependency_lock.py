@@ -42,7 +42,7 @@ def generate(target, *, python=sys.executable, runner=subprocess.run):
         for (name, version), digest in sorted(packages.items()):
             lines.append(f'{name}=={version} --hash=sha256:{digest}')
         candidate = target.with_name(target.name + '.candidate')
-        candidate.write_text('\\n'.join(lines) + '\\n', encoding='utf-8')
+        candidate.write_text(chr(10).join(lines) + chr(10), encoding='utf-8')
         return candidate
 
 

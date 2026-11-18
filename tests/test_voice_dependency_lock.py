@@ -21,6 +21,9 @@ class VoiceLockTests(unittest.TestCase):
                     (folder / name).write_bytes(name.encode())
             candidate = lock.generate(target, runner=fake_run)
             text = candidate.read_text()
+            self.assertEqual(len(text.splitlines()), 5)
+            self.assertTrue(text.endswith(chr(10)))
+            self.assertNotIn(chr(92) + 'n', text)
             for package in ('websocket-client==1.9.2', 'cryptography==46.0.3',
                             'cffi==2.0.0', 'pycparser==2.23'):
                 self.assertIn(package + ' --hash=sha256:', text)
