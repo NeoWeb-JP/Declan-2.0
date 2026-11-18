@@ -10,14 +10,12 @@ import re
 import secrets
 from dataclasses import dataclass
 from enum import StrEnum
-from threading import Lock
-from time import monotonic
+from script_discovery_cache import ScriptDiscoveryCache
 from urllib.error import HTTPError
 from urllib.request import Request
 from urllib.parse import urlencode
 
-_CACHE: dict = {}
-_CACHE_LOCK = Lock()
+CACHE = ScriptDiscoveryCache()
 CACHE_SECONDS = 30
 
 
@@ -120,11 +118,12 @@ def discover_result(connection, *, fresh=False) -> DiscoveryResult:
     url, headers, opener = connection
     if opener is None or not hasattr(opener, "open"):
         return DiscoveryResult(error=DiscoveryError.INSPECTION_UNAVAILABLE)
+    cache_key = CACHE.key(url, headers)
     if not fresh:
-        with _CACHE_LOCK:
-            cached = _CACHE.get(url)
-            if cached and monotonic() - cached[0] < CACHE_SECONDS:
-                return cached[1]
+        cached = CACHE.get(cache_key, seconds=CACHE_SECONDS)
+        if cached is not None:
+            return cached
+    generation = CACHE.begin(cache_key)
     try:
         with opener.open(Request(url + "/api/declan_two/script-discovery", headers=headers), timeout=5) as response:
             payload = json.loads(response.read(512 * 1024))
@@ -144,8 +143,7 @@ def discover_result(connection, *, fresh=False) -> DiscoveryResult:
         if len(valid) != len(rows):
             return DiscoveryResult(error=DiscoveryError.INVALID)
         result = DiscoveryResult(tuple(valid))
-        with _CACHE_LOCK:
-            _CACHE[url] = (monotonic(), result)
+        CACHE.publish(cache_key, generation, result)
         return result
     except (OSError, ValueError, TypeError, HTTPError):
         return DiscoveryResult(error=DiscoveryError.INSPECTION_UNAVAILABLE)
