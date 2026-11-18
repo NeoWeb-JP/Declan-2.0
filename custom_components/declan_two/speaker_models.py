@@ -6,6 +6,7 @@ must extract speaker/capture metadata before normalizing or transforming text.
 
 
 from dataclasses import dataclass
+import math
 
 
 @dataclass(frozen=True)
@@ -78,5 +79,14 @@ def speaker_request_payload(transcript):
     elif hasattr(transcript, "speaker") or hasattr(transcript, "jarvis_speaker"):
         payload["speaker"] = {}
     if isinstance(metadata.capture_level, dict):
-        payload["capture"] = metadata.capture_level
+        capture = metadata.capture_level
+        # Preserve valid provider numeric fields while excluding objects that
+        # would make the entire Assist JSON request fail serialization.
+        safe_capture = {
+            key: value for key, value in capture.items()
+            if isinstance(key, str) and type(value) in (int, float)
+            and math.isfinite(value) and value >= 0
+        }
+        if safe_capture:
+            payload["capture"] = safe_capture
     return payload

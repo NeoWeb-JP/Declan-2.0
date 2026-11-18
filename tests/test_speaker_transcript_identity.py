@@ -141,6 +141,21 @@ class SpeakerTranscriptTests(unittest.TestCase):
             "speaker": {}, "capture": {"confidence": 0.7},
         })
 
+    def test_assist_payload_filters_non_json_capture_values(self):
+        transcript = SpeakerTranscript("hello", ("id", "Jaco", 0.9), {
+            "duration": 1.5, "rms": float("nan"), "object": object(),
+            "bad": float("inf"), "negative": -1, "valid": 0.0,
+        })
+        self.assertEqual(MODULE.speaker_request_payload(transcript), {
+            "speaker": {"interaction_id": "id", "name": "Jaco",
+                        "confidence": 0.9},
+            "capture": {"duration": 1.5, "valid": 0.0},
+        })
+
+    def test_assist_payload_omits_entirely_invalid_capture(self):
+        transcript = SpeakerTranscript("hello", capture_level={"value": object()})
+        self.assertEqual(MODULE.speaker_request_payload(transcript), {"speaker": {}})
+
     def test_assist_payload_plain_text_is_empty(self):
         self.assertEqual(MODULE.speaker_request_payload("hello"), {})
 
