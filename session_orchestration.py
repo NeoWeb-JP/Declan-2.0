@@ -137,10 +137,10 @@ def _load_chat_session(sessions, recall, session_id, now, *, new_session_id):
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None,
              sessions, idle_seconds, name_pattern, chat_commands, unmatched_reply, decorate, recall=None,
-             clock=monotonic, new_session_id=None):
+             clock=None, new_session_id=None):
     if not isinstance(message, str):
         raise ValueError("chat message must be a string")
-    now = clock()
+    now = (monotonic if clock is None else clock)()
     if not finite_number(now):
         raise ValueError("session clock must be finite")
     if new_session_id is None:
