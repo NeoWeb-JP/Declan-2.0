@@ -5,7 +5,8 @@ def _existing_session(sessions, session_id):
     """Untrusted request IDs must not be used as mapping keys without validation."""
     if not isinstance(session_id, str) or not session_id or len(session_id) > 256:
         return None
-    return sessions.get(session_id)
+    state = sessions.get(session_id)
+    return state if isinstance(state, dict) else None
 
 
 def load_recent_context(*, session_id, scope, sessions, lock, now, idle_seconds, retrieve):
