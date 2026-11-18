@@ -55,11 +55,11 @@ async def receive(client):
                 "DECLAN_WYOMING_SPEAKER event=received valid=%s unknown=%s",
                 valid, speaker_unknown,
             )
-            if transcript is not None:
+            if transcript is not None and valid:
                 break
         elif Transcript.is_type(event.type):
             transcript = Transcript.from_event(event).text
-            if speaker_event_seen:
+            if identity is not None:
                 break
         elif Error.is_type(event.type):
             _LOGGER.info(
