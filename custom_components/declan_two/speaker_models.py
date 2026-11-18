@@ -69,8 +69,8 @@ def valid_wyoming_speaker(interaction_id, name, confidence) -> bool:
         and len(interaction_id) <= 80
         and isinstance(name, str) and bool(name.strip()) and len(name) <= 80
         and name.strip().casefold() not in {"unknown", "unidentified", "none"}
-        and type(confidence) in (int, float) and math.isfinite(confidence)
-        and 0 <= confidence <= 1
+        and type(confidence) in (int, float) and 0 <= confidence <= 1
+        and math.isfinite(confidence)
     )
 
 
@@ -80,10 +80,7 @@ def speaker_payload_from_metadata(metadata: SpeakerMetadata, *, speaker_present:
     speaker = metadata.speaker
     if isinstance(speaker, tuple) and len(speaker) == 3:
         interaction_id, name, confidence = speaker
-        if (isinstance(interaction_id, str) and 0 < len(interaction_id) <= 80
-                and isinstance(name, str) and 0 < len(name) <= 80
-                and type(confidence) in (int, float)
-                and 0 <= confidence <= 1 and math.isfinite(confidence)):
+        if valid_wyoming_speaker(interaction_id, name, confidence):
             payload["speaker"] = {
                 "interaction_id": interaction_id,
                 "name": name,
