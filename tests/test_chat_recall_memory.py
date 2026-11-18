@@ -43,6 +43,21 @@ class ChatRecallTests(unittest.TestCase):
                     self.say(bad)
                 self.assertEqual(list(self.sessions.items()), before)
 
+    def test_invalid_and_future_timestamps_are_pruned_from_both_stores(self):
+        for n, at in enumerate((float("nan"), float("inf"), True, self.clock[0] + 100)):
+            self.sessions[f"bad-{n}"] = {"at": at}
+            self.recall.entries[f"bad-{n}"] = {"at": at, "last": "hello",
+                                                 "name": None, "recent_messages": ()}
+        self.say("hello")
+        for n in range(4):
+            self.assertNotIn(f"bad-{n}", self.sessions)
+            self.assertNotIn(f"bad-{n}", self.recall.entries)
+
+    def test_malformed_recall_entry_is_rejected_without_crash(self):
+        self.recall.entries["broken"] = {"at": self.clock[0], "last": "hello"}
+        self.assertIsNone(self.recall.restore("broken", self.clock[0]))
+        self.assertNotIn("broken", self.recall.entries)
+
     def test_corrupt_active_sessions_are_pruned_without_crashing(self):
         self.sessions["missing-at"] = {"name": "Alex"}
         self.sessions["not-a-dict"] = None
