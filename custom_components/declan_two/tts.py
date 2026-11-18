@@ -12,6 +12,7 @@ from .voice_budget import VoiceBudget
 from .voice_cache import VoiceCache
 from .voice_cache_location import select_cache_directory
 from .voice_defaults import DEFAULT_PROVIDER
+from .guest_mode_policy import DEFAULT_GUEST_MODE_ENTITY, guest_safe
 from .voice_catalog_fallback import category_alternatives, load_catalogue
 from .voice_provider import generate_from_existing_tts
 from .voice_text import spoken_text
@@ -127,8 +128,8 @@ class DeclanVoiceManager(TextToSpeechEntity):
         except (OSError, ValueError):
             return None
 
-        state = self.hass.states.get("input_boolean.guest_mode")
-        guest = state is None or state.state != "off"
+        guest = guest_safe(self.hass, self._entry.options.get(
+            "guest_mode_entity", DEFAULT_GUEST_MODE_ENTITY))
         alternatives = list(category_alternatives(message, catalogue, guest=guest))
         random.shuffle(alternatives)
         for alternate in alternatives:

@@ -175,6 +175,11 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                 for item in destinations.split(",")
             ):
                 errors["overnight_announcement_outputs"] = "invalid_media_player"
+            guest_mode_entity = user_input.get(
+                "guest_mode_entity", current.get("guest_mode_entity", "input_boolean.guest_mode"))
+            if (not isinstance(guest_mode_entity, str)
+                    or not re.fullmatch(r"input_boolean\.[a-z0-9_]+", guest_mode_entity)):
+                errors["guest_mode_entity"] = "invalid_guest_mode_entity"
             if enabled and not key:
                 errors["openai_stt_api_key"] = "openai_key_required"
             if not errors:
@@ -184,6 +189,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                     "wyoming_bridge_host": host,
                     "local_stt_entity": local_stt,
                     "primary_tts": provider,
+                    "guest_mode_entity": guest_mode_entity,
                     "openai_stt_enabled": enabled,
                     "openai_stt_model": user_input["openai_stt_model"],
                     "openai_stt_vocabulary": vocabulary,
@@ -210,6 +216,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
             vol.Required("cache_enabled", default=values.get("cache_enabled", True)): bool,
             vol.Required("cache_revision", default=values.get("cache_revision", "v1")): vol.All(str, vol.Length(min=1)),
             vol.Required("category_fallback", default=values.get("category_fallback", True)): bool,
+            vol.Optional("guest_mode_entity", default=values.get("guest_mode_entity", "input_boolean.guest_mode")): str,
             vol.Optional("overnight_announcement_outputs",
                          default=values.get("overnight_announcement_outputs", "")): str,
             vol.Required("primary_daily_character_limit", default=values.get("primary_daily_character_limit", 0)):
