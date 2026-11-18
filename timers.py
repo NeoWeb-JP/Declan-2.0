@@ -8,7 +8,7 @@ import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
 from time import time
-from threading import Lock
+import timer_schema_state
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request
@@ -27,8 +27,7 @@ TENS = dict(zip("twenty thirty forty fifty sixty seventy eighty ninety".split(),
 UNIT = re.compile(r"\s*(.+?)\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b")
 SATELLITE_ID = re.compile(r"assist_satellite\.[a-z0-9_]+")
 TARGET = r"(?P<target>.*?\btimers?)(?: in (?:the )?(?P<room>.+))?"
-_SCHEMA_LOCK = Lock()
-_initialized = set()
+SCHEMA_STATE = timer_schema_state.TimerSchemaState()
 
 
 def duration_seconds(text):
@@ -69,11 +68,7 @@ def format_duration(seconds, *, hyphen=False):
 
 
 def initialize():
-    DATABASE.parent.mkdir(parents=True, exist_ok=True)
-    with _SCHEMA_LOCK:
-        identity = (DATABASE.resolve(), DATABASE.stat().st_ino) if DATABASE.exists() else None
-        if identity in _initialized:
-            return
+    def create_schema():
         with closing(sqlite3.connect(DATABASE, timeout=2)) as connection, connection:
             connection.execute('PRAGMA journal_mode=WAL')
             connection.execute("""CREATE TABLE IF NOT EXISTS timers (
@@ -81,8 +76,8 @@ def initialize():
             room TEXT NOT NULL, deadline REAL NOT NULL, next_alarm REAL NOT NULL,
             last_alarm_ok INTEGER, UNIQUE(name COLLATE NOCASE, room COLLATE NOCASE)
             )""")
-        _initialized.add((DATABASE.resolve(), DATABASE.stat().st_ino))
 
+    SCHEMA_STATE.ensure(DATABASE, create_schema)
 
 @contextmanager
 def database():
