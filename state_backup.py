@@ -22,6 +22,23 @@ def check(directory):
             raise ValueError('Saved Spotify settings are invalid.')
 
 
+def _redact_voice_samples(destination):
+    """Never retain plaintext local voice recordings in new upgrade snapshots.
+
+    Preserve profile/consent metadata for rollback while excluding audio blobs.
+    Older snapshots are not modified by this function.
+    """
+    with closing(sqlite3.connect(destination, timeout=2)) as db:
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if 'samples' not in tables:
+            return
+        db.execute('PRAGMA secure_delete = ON')
+        with db:
+            db.execute('DELETE FROM samples')
+        # Backup files must not retain deleted WAV bytes in free SQLite pages.
+        db.execute('VACUUM')
+
+
 def snapshot(directory):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
@@ -41,6 +58,8 @@ def snapshot(directory):
                     if monotonic() >= deadline:
                         raise TimeoutError('Database snapshot exceeded its preparation window.')
                 live.backup(backup, pages=128, progress=progress)
+            if source.name == 'voice-profiles.sqlite3':
+                _redact_voice_samples(destination)
             os.chmod(destination, 0o600)
         settings = directory / 'spotify-settings.json'
         if settings.exists():
@@ -49,6 +68,7 @@ def snapshot(directory):
         check(target)
         (target / 'manifest.json').write_text(json.dumps({
             'schema_version': 1, 'created_at': name, 'files': sorted(p.name for p in target.iterdir()),
+            'voice_samples': 'excluded_from_new_snapshots',
             'shared_state': 'Caches stay in the shared .data directory; HA integration storage requires an HA backup.'
         }), encoding='utf-8')
         os.chmod(target / 'manifest.json', 0o600)
