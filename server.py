@@ -13,6 +13,7 @@ from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
 from declan_ingress.security import response_headers, secure_page
 import ha_inventory
 from pathlib import Path
+from collections import OrderedDict  # Compatibility for existing test fixtures.
 from threading import Lock, Thread
 from contextlib import contextmanager
 from time import monotonic, sleep
