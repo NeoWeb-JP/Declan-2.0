@@ -12,7 +12,7 @@ This is an **opt-in migration requiring operator action**. The actual speaker re
 
 ## Preparing the production dependency lock
 
-On the target Linux/Python environment, run `python generate_voice_dependency_lock.py`. This downloads `websocket-client==1.9.2`, `cryptography==50.0.0` and resolved transitive wheels, then writes `requirements-web-voice.txt.candidate` without modifying the active lock. Review the candidate and test `pip install --require-hashes --only-binary=:all: -r requirements-web-voice.txt.candidate` in a fresh virtual environment. Only then replace and commit `requirements-web-voice.txt` in a separate reviewed change. Locks generated for one platform may need additional hashes for other target architectures. **Until the production lock is updated, encryption releases are intentionally blocked by the preflight in #502.**
+On the target Linux/Python environment, run `python generate_voice_dependency_lock.py`. This downloads `websocket-client==1.9.2`, `cryptography==50.0.0` and resolved transitive wheels, then writes `requirements-web-voice.txt.candidate` without modifying the active lock. Review the candidate and test `pip install --require-hashes --only-binary=:all: -r requirements-web-voice.txt.candidate` in a fresh virtual environment. Only then replace and commit `requirements-web-voice.txt` in a separate reviewed change. Locks generated for one platform may need additional hashes for other target architectures. The production dependency lock was committed in PR #508; staged release preflight still requires the actual host to install it successfully.
 
 ## CI candidate verification
 
@@ -31,3 +31,7 @@ The updater checks encryption readiness before switching the active release. If 
 ## Supported CI runtime
 
 Declan is deployed as a Linux service on Proxmox. The main Python regression workflow runs on Ubuntu with Python 3.12; Windows is not a supported deployment target and is not in the CI test matrix. Browser JavaScript, dependency audits, HACS checks and voice-lock verification remain separate CI jobs. The actual production host architecture and Python version must still be checked before migration.
+
+## Migration lifecycle regression coverage
+
+`tests/test_voice_migration_lifecycle.py` exercises the complete local lifecycle on disposable Linux SQLite files: legacy plaintext detection, mixed encrypted/plaintext migration, post-migration verification, idempotence, incorrect-key rejection, empty database handling and symlink rejection. These automated tests never touch the deployed database. A successful CI run is **not** evidence of actual Proxmox migration or VoicePipeline encryption; perform those acceptance checks separately with a protected backup and backend stopped.
