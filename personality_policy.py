@@ -291,7 +291,8 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
         return reply
     # Replies can arrive pre-decorated from a handler. Do not append a second
     # roast, including when the handler used a different personality category.
-    if any(line in reply for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST)):
+    if any(household_language.render(line) in reply
+           for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST)):
         return reply
     if guest or visitor_present is not False:
         lines = _DINNER_GUEST if category == "dinner" else _GUEST
