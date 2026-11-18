@@ -120,6 +120,22 @@ class WyomingOrderingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.text.speaker)
         self.assertLess(elapsed, 0.8)
 
+    async def test_blank_transcripts_are_not_successful_commands(self):
+        for text in ("", "   ", "\\t"):
+            with self.subTest(text=text):
+                result = await receive(Client([
+                    speaker("Jaco"), Event("transcript", {"text": text}),
+                ]))
+                self.assertEqual(result.result, State.ERROR)
+                self.assertIsNone(result.text)
+
+    async def test_valid_transcript_still_succeeds(self):
+        result = await receive(Client([
+            speaker("Jaco"), Event("transcript", {"text": "lights on"}),
+        ]))
+        self.assertEqual(result.result, State.SUCCESS)
+        self.assertEqual(result.text.text, "lights on")
+
     async def test_unknown_only_remains_anonymous(self):
         result = await receive(Client([
             speaker("none"), Event("transcript", {"text": "lights on"}),
