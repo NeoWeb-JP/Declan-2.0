@@ -511,5 +511,5 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                 hass, provider_entity_id="tts.elevenlabs_text_to_speech", text="Hello",
                 language="en", options={"voice": "declan-voice-id"},
             )
-            cache.assert_called_once_with("jarvis_voice_cache")
+            cache.assert_called_once_with(__import__("pathlib").Path("jarvis_voice_cache"))
             self.assertEqual(cache.return_value.get_or_generate_audio.call_args.kwargs["voice_id"], "v1:declan-voice-id")
