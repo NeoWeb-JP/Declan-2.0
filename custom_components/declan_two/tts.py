@@ -10,6 +10,7 @@ from homeassistant.helpers.storage import Store
 from .phrase_library import PhraseLibrary, normalise_audio, phrase_parts
 from .voice_budget import VoiceBudget
 from .voice_cache import VoiceCache
+from .voice_cache_location import select_cache_directory
 from .voice_defaults import DEFAULT_PROVIDER
 from .voice_catalog_fallback import category_alternatives, load_catalogue
 from .voice_provider import generate_from_existing_tts
@@ -21,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     if entry.options.get("tts_enabled"):
-        cache = VoiceCache(hass.config.path("jarvis_voice_cache"))
+        cache = VoiceCache(select_cache_directory(hass.config.path))
         budget = VoiceBudget(Store(hass, 1, f"declan_two.voice_usage.{entry.entry_id}"))
         await budget.load()
         async_add_entities([DeclanVoiceManager(entry, cache, budget)])
