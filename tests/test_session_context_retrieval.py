@@ -58,6 +58,13 @@ class SessionContextRetrievalTests(unittest.TestCase):
                                                 idle_seconds=idle_seconds),
                                  ((), None, None))
 
+    def test_assist_tuple_scope_retains_valid_context(self):
+        scope = ("assist", "device-1", None, "assist_satellite.kitchen")
+        previous = {**self.previous, "device_status_scope": scope,
+                    "lighting_scope": scope, "information_scope": scope}
+        self.assertEqual(recent_context(previous, scope, now=101, idle_seconds=10),
+                         (("light.kitchen",), "light.kitchen", ("weather",)))
+
     def test_non_mapping_previous_context_is_ignored(self):
         for previous in ("hello", [], 123):
             with self.subTest(previous=repr(previous)):
