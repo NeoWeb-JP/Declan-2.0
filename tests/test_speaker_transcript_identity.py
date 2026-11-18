@@ -104,6 +104,31 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertEqual(MODULE.speaker_request_payload(
             SpeakerTranscript("hello", ("id", "Jaco", 2.0))), {})
 
+    def test_assist_payload_accepts_legacy_only_speaker(self):
+        class LegacyTranscript(str):
+            jarvis_speaker = ("interaction-2", "Edd", 0.91)
+        self.assertEqual(MODULE.speaker_request_payload(LegacyTranscript("hello")), {
+            "speaker": {"interaction_id": "interaction-2",
+                        "name": "Edd", "confidence": 0.91},
+        })
+
+    def test_assist_payload_rejects_boolean_confidence(self):
+        self.assertEqual(MODULE.speaker_request_payload(
+            SpeakerTranscript("hello", ("id", "Jaco", True))), {})
+
+    def test_assist_payload_rejects_invalid_tuple_fields(self):
+        for speaker in ((12, "Jaco", 0.8), ("id", None, 0.8),
+                        ("id", "Jaco", -0.1), ("id", "Jaco", 1.1)):
+            with self.subTest(speaker=speaker):
+                self.assertEqual(MODULE.speaker_request_payload(
+                    SpeakerTranscript("hello", speaker)), {})
+
+    def test_assist_payload_preserves_capture_without_speaker(self):
+        transcript = SpeakerTranscript("hello", capture_level={"confidence": 0.7})
+        self.assertEqual(MODULE.speaker_request_payload(transcript), {
+            "speaker": {}, "capture": {"confidence": 0.7},
+        })
+
     def test_assist_payload_plain_text_is_empty(self):
         self.assertEqual(MODULE.speaker_request_payload("hello"), {})
 
