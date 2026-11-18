@@ -34,9 +34,9 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertNotIn('Use the existing Declan updater for now.', PANEL)
 
     def test_backend_update_routes_require_valid_bearer_or_existing_local_access(self):
-        self.assertIn('self.path == "/api/updates/status"', SERVER)
-        self.assertIn('not updates_auth and self.client_address', SERVER)
-        self.assertIn('not voice_review_auth and not updates_auth and (', SERVER)
+        self.assertIn('handler.path == "/api/updates/status"', (ROOT / "get_access_gate_http.py").read_text())
+        self.assertIn('not updates_auth and handler.client_address', (ROOT / "get_access_gate_http.py").read_text())
+        self.assertIn('not voice_review_auth and not updates_auth and (', (ROOT / "get_access_gate_http.py").read_text())
         self.assertIn('"/api/updates"', AUTH)
         self.assertIn('len(token) >= 32', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
