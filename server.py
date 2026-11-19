@@ -30,7 +30,7 @@ import turn_response_completion
 import command_vocabulary
 import http_handler_adapters
 import sys
-from pathlib import Path
+from pathlib import Path as Path
 from threading import Thread
 from time import monotonic, sleep
 from urllib.parse import urlsplit
@@ -46,9 +46,9 @@ import declan_logs
 import configuration
 import media_search_agents
 import household_entities
-import health_readiness
-import voice_profiles
-import voicepipeline
+import health_readiness as health_readiness
+import voice_profiles as voice_profiles
+import voicepipeline as voicepipeline
 import device_status as device_status
 import retry_learning as retry_learning
 import retry_training_persistence as retry_training_persistence
@@ -84,22 +84,22 @@ import turn_response_composition as turn_response_composition
 import history
 import post_body_routing as post_body_routing
 import music
-import approved_media_players
-import spotify_playlists
+import approved_media_players as approved_media_players
+import spotify_playlists as spotify_playlists
 import music_playlists_post as music_playlists_post
 import timers
 import updates
 import post_operational_routing as post_operational_routing
-import media_settings_routes
-import get_request_dispatch
-import speech_http_routes
+import media_settings_routes as media_settings_routes
+import get_request_dispatch as get_request_dispatch
+import speech_http_routes as speech_http_routes
 import assist_auth_http as assist_auth_http
 import post_payload_validation as post_payload_validation
 import post_origin_auth_http as post_origin_auth_http
 import post_route_gate_http as post_route_gate_http
 import post_request_entry
 import post_entry_gates as post_entry_gates
-import http_response_transport
+import http_response_transport as http_response_transport
 import http_ingress_security
 import sensitive_confirmation_resolution as sensitive_confirmation_resolution
 import web_stt
@@ -107,7 +107,7 @@ import openai_planner
 import ai_settings
 import ai_credentials
 import ai_pricing
-import ai_budget
+import ai_budget as ai_budget
 import ai_context
 import ai_intent_gate
 import guarded_fallback
@@ -126,7 +126,7 @@ from personality import add_sass, choose_line
 import routine_responses as routine_responses
 import routine_follow_on as routine_follow_on
 import response_composition as response_composition
-import command_responses
+import command_responses as command_responses
 import command_registry as command_registry
 import session_orchestration
 import session_store
