@@ -37,6 +37,7 @@ import runtime_dispatch_boundaries
 import inventory_stop_boundaries
 import compatibility_facade
 import service_entry_boundaries
+import server_bootstrap
 import sys
 from pathlib import Path as Path
 from threading import Thread
@@ -354,11 +355,7 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
     """Compatibility API for callers expecting plain reply/outcome strings."""
-    return set_lights_result(
-        name, desired_state, brightness=brightness, preview=preview,
-        require_all=require_all, relative_step=relative_step,
-        action_results=action_results, origin_device=origin_device,
-    ).as_legacy_pair()
+    return server_bootstrap.set_lights(name, desired_state, brightness=brightness, preview=preview, require_all=require_all, relative_step=relative_step, action_results=action_results, origin_device=origin_device, r=sys.modules[__name__])
 
 
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
@@ -388,8 +385,7 @@ class Handler(BaseHTTPRequestHandler):
     timeout = 5
 
     def end_headers(self):
-        http_ingress_security.send_security_headers(self)
-        super().end_headers()
+        return server_bootstrap.end_headers(self, r=sys.modules[__name__])
 
     def send_body(self, status, data, content_type, filename=None):
         return http_handler_adapters.send_body(self, status, data, content_type, filename=filename, r=sys.modules[__name__])
@@ -419,16 +415,7 @@ class Handler(BaseHTTPRequestHandler):
         return turn_http_entry.handle_post(self, r=sys.modules[__name__])
 
 def main():
-    return server_lifecycle.main(
-        description=__doc__, argv=None, environ=os.environ,
-        history_store=history, timer_store=timers,
-        server_factory=ThreadingHTTPServer, handler=Handler,
-        thread_factory=Thread, clock=monotonic,
-        opener_factory=build_opener, proxy_factory=ProxyHandler,
-        logger=DECLAN_EVENT_LOG, updates_module=updates, music_module=music,
-        ha_connect=ha_device_connection, music_inventory=read_music_inventory_result,
-        ip_address=ipaddress.ip_address, assist_port=ASSIST_PORT,
-    )
+    return server_bootstrap.main(r=sys.modules[__name__])
 
 
 def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
@@ -461,8 +448,7 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
 def preview_routine(phrase, origin=None):
     return legacy_response_adapters.preview_routine(phrase, origin, r=sys.modules[__name__])
 if __name__ == "__main__":
-    declan_logs.install()
-    main()
+    server_bootstrap.run(r=sys.modules[__name__])
 
 
 
