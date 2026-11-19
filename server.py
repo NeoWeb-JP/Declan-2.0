@@ -1,12 +1,12 @@
 """Local Declan 2.0 chat prototype. Run with python server.py."""
 import argparse as argparse
-import ipaddress
+import ipaddress as ipaddress
 import logging
-import os
+import os as os
 import secrets as secrets
 import sqlite3 as sqlite3
-from http.server import BaseHTTPRequestHandler
-from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler as BaseHTTPRequestHandler
+from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer  # noqa: F401 - compatibility export
 import ha_inventory as ha_inventory
 import ha_area_switch_actions as ha_area_switch_actions
 import household_routine_dispatch as household_routine_dispatch
@@ -20,7 +20,7 @@ import routine_request_selection as routine_request_selection
 import routine_execution_dispatch as routine_execution_dispatch
 import lighting_execution_dispatch as lighting_execution_dispatch
 import ha_household_status as ha_household_status
-import server_lifecycle
+import server_lifecycle as server_lifecycle
 import routine_turn_orchestration as routine_turn_orchestration
 import light_command_parsing
 import post_ingress_orchestration as post_ingress_orchestration
@@ -37,12 +37,13 @@ import runtime_dispatch_boundaries
 import inventory_stop_boundaries
 import compatibility_facade
 import service_entry_boundaries
+import server_bootstrap
 import sys
 from pathlib import Path as Path
-from threading import Thread
-from time import monotonic, sleep as sleep
+from threading import Thread as Thread
+from time import monotonic as monotonic, sleep as sleep
 from urllib.parse import urlsplit as urlsplit
-from urllib.request import HTTPRedirectHandler, ProxyHandler, Request as Request, build_opener
+from urllib.request import HTTPRedirectHandler, ProxyHandler as ProxyHandler, Request as Request, build_opener as build_opener
 
 from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
 from arbitration import CaptureArbiter
@@ -50,7 +51,7 @@ from arbitration import CaptureArbiter
 import conditions as conditions
 import sensitive_confirmations
 import diagnostics
-import declan_logs
+import declan_logs as declan_logs
 import configuration as configuration
 import media_search_agents as media_search_agents
 import household_entities as household_entities
@@ -89,14 +90,14 @@ import turn_fallback_dispatch as turn_fallback_dispatch
 import turn_response_preparation as turn_response_preparation
 import turn_atomic_finalization as turn_atomic_finalization
 import turn_response_composition as turn_response_composition
-import history
+import history as history
 import post_body_routing as post_body_routing
-import music
+import music as music
 import approved_media_players as approved_media_players
 import spotify_playlists as spotify_playlists
 import music_playlists_post as music_playlists_post
 import timers as timers
-import updates
+import updates as updates
 import post_operational_routing as post_operational_routing
 import media_settings_routes as media_settings_routes
 import get_request_dispatch as get_request_dispatch
@@ -108,7 +109,7 @@ import post_route_gate_http as post_route_gate_http
 import post_request_entry
 import post_entry_gates as post_entry_gates
 import http_response_transport as http_response_transport
-import http_ingress_security
+import http_ingress_security as http_ingress_security
 import sensitive_confirmation_resolution as sensitive_confirmation_resolution
 import web_stt
 import openai_planner
@@ -354,11 +355,7 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
     """Compatibility API for callers expecting plain reply/outcome strings."""
-    return set_lights_result(
-        name, desired_state, brightness=brightness, preview=preview,
-        require_all=require_all, relative_step=relative_step,
-        action_results=action_results, origin_device=origin_device,
-    ).as_legacy_pair()
+    return server_bootstrap.set_lights(name, desired_state, brightness=brightness, preview=preview, require_all=require_all, relative_step=relative_step, action_results=action_results, origin_device=origin_device, r=sys.modules[__name__])
 
 
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
@@ -388,8 +385,7 @@ class Handler(BaseHTTPRequestHandler):
     timeout = 5
 
     def end_headers(self):
-        http_ingress_security.send_security_headers(self)
-        super().end_headers()
+        return server_bootstrap.end_headers(self, r=sys.modules[__name__])
 
     def send_body(self, status, data, content_type, filename=None):
         return http_handler_adapters.send_body(self, status, data, content_type, filename=filename, r=sys.modules[__name__])
@@ -419,16 +415,7 @@ class Handler(BaseHTTPRequestHandler):
         return turn_http_entry.handle_post(self, r=sys.modules[__name__])
 
 def main():
-    return server_lifecycle.main(
-        description=__doc__, argv=None, environ=os.environ,
-        history_store=history, timer_store=timers,
-        server_factory=ThreadingHTTPServer, handler=Handler,
-        thread_factory=Thread, clock=monotonic,
-        opener_factory=build_opener, proxy_factory=ProxyHandler,
-        logger=DECLAN_EVENT_LOG, updates_module=updates, music_module=music,
-        ha_connect=ha_device_connection, music_inventory=read_music_inventory_result,
-        ip_address=ipaddress.ip_address, assist_port=ASSIST_PORT,
-    )
+    return server_bootstrap.main(r=sys.modules[__name__])
 
 
 def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
@@ -461,8 +448,7 @@ def guarded_openai_fallback(message, *, source, exposed_entities=()):
 def preview_routine(phrase, origin=None):
     return legacy_response_adapters.preview_routine(phrase, origin, r=sys.modules[__name__])
 if __name__ == "__main__":
-    declan_logs.install()
-    main()
+    server_bootstrap.run(r=sys.modules[__name__])
 
 
 
