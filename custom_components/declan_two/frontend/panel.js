@@ -2059,6 +2059,11 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const result = await this._hass.callApi('POST', 'declan_two/ai-settings', {settings: data});
       this._aiSettings = result.settings;
+      const profile = result.settings.model_config;
+      const retired = profile?.status === 'retired' || (profile?.retire_on && profile.retire_on <= new Date().toISOString().slice(0, 10));
+      this.shadowRoot.querySelector('.ai-model-notice').textContent = retired
+        ? 'This model is retired. AI requests are blocked; choose a replacement or disable AI.'
+        : profile?.status === 'deprecated' ? 'This model is deprecated. Review its retirement date and choose a replacement.' : 'Review prices and lifecycle when OpenAI changes the model.';
       status.textContent = 'AI settings saved.';
     } catch {
       status.textContent = 'Could not save AI settings. Check model prices, lifecycle, budget and permissions.';

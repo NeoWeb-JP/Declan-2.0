@@ -52,9 +52,7 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 | CI naming/dependency mismatch | Job name now identifies its blocking checks. Lightweight dependencies are installed before the blocking type check; voice crypto/websocket dependencies use the shipped hash-locked requirements rather than divergent advisory pins. The import inventory remains advisory with a blocking unexpected-import guard. Lock verification remains Linux Python 3.12 only; this does not establish other-platform support. |
 | Integration iot_class | Requires comparison to HA's supported classification and actual runtime behavior. No metadata change is made without that check. |
 
-## Priority after this batch
-
-### Model pricing and lifecycle operation
+## Model pricing and lifecycle operation
 
 Update both the backend and native panel, then reload the panel. Native AI
 Settings is authoritative for live requests. The environment model variable
@@ -80,6 +78,8 @@ and lifecycle after provider changes. Reference pages checked 19 November 2026:
 [GPT-5 mini](https://developers.openai.com/api/docs/models/gpt-5-mini),
 [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna), and
 [provider deprecations](https://developers.openai.com/api/docs/deprecations).
+
+## Priority after this batch
 
 1. Live model completion/latency evidence,
    preserving exposure and confirmation controls. Planner/schema/preflight,

@@ -23,10 +23,12 @@ test('AI model prices load and custom model changes require fresh prices', async
   assert.equal(form.elements.namedItem('retire_on').value, '');
   form.elements.namedItem('input_usd_per_million').value = '2.5';
   form.elements.namedItem('output_usd_per_million').value = '7.5';
+  element._hass.callApi = async (...args) => {calls.push(args); return {settings:args[2].settings};};
   await element.saveAISettings();
   const saved = calls.find(args => args[0] === 'POST')[2].settings;
   assert.deepEqual(JSON.parse(JSON.stringify(saved.model_config)), {model:'new-model',
     input_usd_per_million:'2.5', output_usd_per_million:'7.5', reasoning_effort:'', status:'active', retire_on:''});
+  assert.doesNotMatch(root.querySelector('.ai-model-notice').textContent, /deprecated|retired|Model changed/);
 });
 
 test('AI retired model remains editable and can be disabled', async t => {
