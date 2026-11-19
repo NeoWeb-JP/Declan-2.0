@@ -1,5 +1,6 @@
 """Information, device and lighting dispatch with strict precedence."""
 from dataclasses import dataclass
+from execution_results import Outcome
 
 import information_command_dispatch
 import information_result_response
@@ -11,11 +12,15 @@ import lighting_result_dispatch
 @dataclass(frozen=True)
 class FallbackDispatchResult:
     reply: object = None
-    outcome: object = None
+    outcome: Outcome | None = None
     information_context: object = None
     status_target: object = None
     lighting_context: object = None
     light_result: object = None
+
+    def __post_init__(self):
+        if self.outcome is not None:
+            object.__setattr__(self, "outcome", Outcome(self.outcome))
 
 
 def dispatch(phrase, source, opener, last_information, last_device,

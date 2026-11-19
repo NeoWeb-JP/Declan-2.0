@@ -8,7 +8,7 @@ import turn_response_preparation as stage
 class ResponsePreparationTests(unittest.TestCase):
     def setUp(self):
         self.kwargs = dict(
-            routine_reply="handled", outcome="done", light_result=None,
+            routine_reply="handled", outcome="confirmed", light_result=None,
             body={}, authorization="Bearer secret", bridge_token="token",
             source="assist", action_results=[], exposed_entities=object(),
             dispatch_fallback=object(), fallback_handler=object(),
@@ -23,18 +23,18 @@ class ResponsePreparationTests(unittest.TestCase):
             return_value=(False, False, "Home"),
         ):
             result = stage.prepare("hello", **self.kwargs)
-        self.assertEqual((result.reply, result.outcome, result.information_context), ("handled", "done", "existing"))
+        self.assertEqual((result.reply, result.outcome, result.information_context), ("handled", "confirmed", "existing"))
         self.assertEqual(result.response_guest_mode, "Home")
         self.assertEqual(fallback.call_args.kwargs["authorization"], "Bearer secret")
         self.assertEqual(fallback.call_args.kwargs["bridge_token"], "token")
 
     def test_fallback_overrides_reply_and_outcome(self):
-        fallback = SimpleNamespace(reply="fallback", outcome="answered")
+        fallback = SimpleNamespace(reply="fallback", outcome="unverified")
         with patch.object(stage.fallback_orchestration, "resolve_fallback_result", return_value=fallback), patch.object(
             stage.response_persona_context, "resolve_response_persona", return_value=(True, True, "Guest"),
         ):
             result = stage.prepare("unknown", **self.kwargs)
-        self.assertEqual((result.reply, result.outcome, result.response_guest_mode), ("fallback", "answered", "Guest"))
+        self.assertEqual((result.reply, result.outcome, result.response_guest_mode), ("fallback", "unverified", "Guest"))
 
     def test_time_context_only_when_no_reply(self):
         self.kwargs["routine_reply"] = None
