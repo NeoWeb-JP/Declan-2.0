@@ -252,6 +252,8 @@ def edit_intent(phrase, target, previous):
         raise ValueError("Enter a valid phrase and command.")
     phrase = normalize_phrase(phrase)
     target = normalize_phrase(target)
+    if not 0 < len(phrase) <= 120 or any(ord(char) < 32 for char in phrase):
+        raise ValueError("Enter a valid phrase, up to 120 characters.")
     if not 0 < len(target) <= 120 or any(ord(char) < 32 for char in target) or target == phrase:
         raise ValueError("Enter a different command, up to 120 characters.")
     with database() as connection:
