@@ -38,6 +38,7 @@ import inventory_stop_boundaries
 import compatibility_facade
 import service_entry_boundaries
 import server_bootstrap
+import server_runtime_state
 import sys
 from pathlib import Path as Path
 from threading import Thread as Thread
@@ -148,15 +149,14 @@ import lighting_intents as lighting_intents
 import roast as roast
 import personality_policy as personality_policy
 
-DECLAN_EVENT_LOG = logging.getLogger("declan.server")
-DECLAN_EVENT_LOG.setLevel(logging.INFO)
-
-SESSION_STORE = session_store.DEFAULT_SESSION_STORE
-CAPTURE_ARBITER = CaptureArbiter()
-SENSITIVE_CONFIRMATIONS = sensitive_confirmations.ConfirmationGate()
-ROUTINE_EXECUTION_GATES = routine_execution_gates.RoutineExecutionGates()
-ROUTINE_COOLDOWN = routine_cooldown.RoutineCooldown()
-ACTIVE_ROUTINE_REGISTRY = active_routine_registry.ActiveRoutineRegistry()
+(DECLAN_EVENT_LOG, SESSION_STORE, CAPTURE_ARBITER, SENSITIVE_CONFIRMATIONS,
+ ROUTINE_EXECUTION_GATES, ROUTINE_COOLDOWN, ACTIVE_ROUTINE_REGISTRY) = server_runtime_state.create_runtime(
+    logging_module=logging, session_module=session_store, arbiter_factory=CaptureArbiter,
+    confirmation_factory=sensitive_confirmations.ConfirmationGate,
+    gates_factory=routine_execution_gates.RoutineExecutionGates,
+    cooldown_factory=routine_cooldown.RoutineCooldown,
+    registry_factory=active_routine_registry.ActiveRoutineRegistry,
+)
 
 def track_routine(name, script):
     return compatibility_facade.track_routine(name, script, r=sys.modules[__name__])
@@ -167,22 +167,12 @@ def stop_pending_routines():
 def stop_pending_routines_result():
     return compatibility_facade.stop_pending_routines_result(r=sys.modules[__name__])
 
-IDLE_SECONDS = 300
-ASSIST_PORT = 52737
-RELEASE_VERSION: str | None = updates.configured_release_version()
-SEXY_TIME_COMMANDS = command_vocabulary.SEXY_TIME_COMMANDS
-DINNER_PHRASES = command_vocabulary.DINNER_PHRASES
-GUEST_MODE_ENTITY = command_vocabulary.GUEST_MODE_ENTITY
-GUEST_REGISTER_ENTITY = command_vocabulary.GUEST_REGISTER_ENTITY
-VISITORS_PRESENT_ENTITY = command_vocabulary.VISITORS_PRESENT_ENTITY
-GUEST_COMMANDS = command_vocabulary.GUEST_COMMANDS
-UNMATCHED_REPLY = command_vocabulary.UNMATCHED_REPLY
-NAME_PATTERN = command_vocabulary.NAME_PATTERN
-CHAT_COMMANDS = command_vocabulary.CHAT_COMMANDS
-GOOD_MORNING_SCRIPT = command_vocabulary.GOOD_MORNING_SCRIPT
-GOOD_MORNING_PHRASES = command_vocabulary.GOOD_MORNING_PHRASES
-GOOD_NIGHT_SCRIPT = command_vocabulary.GOOD_NIGHT_SCRIPT
-GOOD_NIGHT_PHRASES = command_vocabulary.GOOD_NIGHT_PHRASES
+(IDLE_SECONDS, ASSIST_PORT, RELEASE_VERSION, SEXY_TIME_COMMANDS, DINNER_PHRASES,
+ GUEST_MODE_ENTITY, GUEST_REGISTER_ENTITY, VISITORS_PRESENT_ENTITY, GUEST_COMMANDS,
+ UNMATCHED_REPLY, NAME_PATTERN, CHAT_COMMANDS, GOOD_MORNING_SCRIPT,
+ GOOD_MORNING_PHRASES, GOOD_NIGHT_SCRIPT, GOOD_NIGHT_PHRASES) = server_runtime_state.runtime_settings(
+    updates_module=updates, vocabulary=command_vocabulary,
+)
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
