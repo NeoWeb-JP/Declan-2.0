@@ -3,7 +3,6 @@ import json
 import re
 import sqlite3
 from urllib.error import HTTPError
-from movie_action_evidence import MovieActionEvidence
 from execution_results import MovieLaunchResult, MovieLaunchStatus
 
 
