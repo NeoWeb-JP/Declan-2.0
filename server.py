@@ -369,54 +369,12 @@ def execute_routine(selection, action_results, *, approved=False):
 
 
 def run_custom_routine_result(name, action_results=None, *, approved=False, parameters=None):
-    """Run a legacy mapped HA script; no per-script approval required."""
-    try:
-        item = routine_registry.load().get(name)
-    except (ValueError, OSError, sqlite3.Error):
-        return ExecutionResult("Routine configuration is unavailable.", Outcome.UNVERIFIED), None
-    if not item:
-        return ExecutionResult("That routine is not configured.", Outcome.NOT_CONFIGURED), None
-    connection = ha_device_connection()
-    if connection is None:
-        return ExecutionResult("Home Assistant is not connected.", Outcome.NOT_CONFIGURED), None
-    url, headers, opener = connection
-    if parameters and "room" in parameters:
-        areas = read_ha_areas(connection)
-        if parameters["room"] not in areas:
-            return ExecutionResult("I could not match that room to a Home Assistant area.", Outcome.UNRESOLVED), None
-    script = item["script"]
-    # Preserve legacy script parameters for existing installations.
-    request_id = "declan-" + secrets.token_hex(16)
-    payload = {**item["fields"], **(parameters or {}), "request_id": request_id, "routine_id": script}
-    request = Request(f"{url}/api/services/script/{script.split('.', 1)[1]}?return_response",
-                      data=json.dumps(payload).encode(), headers=headers, method="POST")
-    with track_routine(name, script):
-        try:
-            with opener.open(request, timeout=55) as response:
-                result = json.loads(response.read(65536))
-        except HTTPError as error:
-            code = error.code
-            error.close()
-            return ExecutionResult(f"Home Assistant rejected {name} (HTTP {code}).", Outcome.FAILED), None
-        except (OSError, ValueError):
-            return ExecutionResult(f"I couldn't verify {name}. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
-        value = result.get("service_response") if isinstance(result, dict) else None
-        if isinstance(value, dict) and set(value) == {script}:
-            value = value[script]
-        if not isinstance(value, dict) or value.get("request_id") != request_id or value.get("routine_id") != script:
-            return ExecutionResult(f"{name} was requested, but completion was not verified.", Outcome.UNVERIFIED), None
-        provider_result = ScriptProviderResult.parse(value.get("outcome"))
-        status = provider_result.outcome
-        if status not in {ScriptReportedOutcome.STARTED, ScriptReportedOutcome.SUCCESS,
-                          ScriptReportedOutcome.PARTIAL, ScriptReportedOutcome.FAILED, ScriptReportedOutcome.CANCELLED}:
-            return ExecutionResult(f"{name} returned no verified completion outcome.", Outcome.UNVERIFIED), None
-        steps = routine_action_results_typed(value.get("steps"))
-        if action_results is not None:
-            extend_action_evidence(action_results, steps)
-        required = [step for step in steps if step.required is not False]
-        if status is ScriptReportedOutcome.SUCCESS and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(not step.completed for step in required)):
-            return ExecutionResult(f"{name} was started, but required steps were not verified.", Outcome.UNVERIFIED), None
-        return ExecutionResult(f"{name} {status}.", provider_result.execution_outcome), None
+    return routine_execution_dispatch.run_custom_routine_result(
+        name, action_results=action_results, approved=approved, parameters=parameters,
+        registry=routine_registry, connect=ha_device_connection, areas_reader=read_ha_areas,
+        token_hex=secrets.token_hex, request_factory=Request, tracker=track_routine,
+        parse_steps=routine_action_results_typed, extend_evidence=extend_action_evidence,
+    )
 
 
 def chained_outcome(routine, lighting):
