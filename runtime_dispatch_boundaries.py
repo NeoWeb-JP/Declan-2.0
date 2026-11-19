@@ -13,7 +13,7 @@ def run_routine_result(period, *, action_results=None, movie_action=None, movie_
     )
 
 
-def r.routine_completion_result(result, request_id, routine_id, period, movie_action, action_results, *, r):
+def routine_completion_result(result, request_id, routine_id, period, movie_action, action_results, *, r):
     return r.routine_execution_dispatch.routine_completion_result(
         result, request_id, routine_id, period, movie_action, action_results,
         parse_steps=r.routine_action_results_typed, extend_evidence=r.extend_action_evidence,
@@ -24,14 +24,14 @@ def r.routine_completion_result(result, request_id, routine_id, period, movie_ac
 def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_device=None, r):
     """Compatibility entry point; parsing and correction flow live outside HTTP."""
     return r.lighting_intents.handle_light_request(
-        phrase, r.parse_light_command=r.parse_light_command, r.set_lights=r.set_lights,
+        phrase, parse_light_command=r.parse_light_command, set_lights=r.set_lights,
         action_results=action_results, last_lights=last_lights, origin_device=origin_device)
 
 
 def handle_light_request_result(phrase, *, action_results=None, last_lights=(), origin_device=None, r):
     """Keep typed lighting outcomes through intent and execution dispatch."""
     return r.lighting_intents.handle_light_request_result(
-        phrase, r.parse_light_command=r.parse_light_command, r.set_lights=r.set_lights_result,
+        phrase, parse_light_command=r.parse_light_command, set_lights=r.set_lights_result,
         action_results=action_results, last_lights=last_lights, origin_device=origin_device)
 
 
@@ -66,7 +66,7 @@ def render_web_voice(message, *, r):
     )
 
 
-def r.set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
+def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None, r):
     return r.lighting_execution_dispatch.set_lights_result(
         name, desired_state, brightness=brightness, preview=preview,
