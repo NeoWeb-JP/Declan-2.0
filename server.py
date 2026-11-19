@@ -26,6 +26,7 @@ import routine_turn_orchestration
 import light_command_parsing
 import post_ingress_orchestration
 import turn_dispatch_orchestration
+import turn_session_preflight
 import sys
 from pathlib import Path
 from threading import Thread
@@ -685,45 +686,18 @@ class Handler(BaseHTTPRequestHandler):
         if prepared is None:
             return
         body, message, session_id = prepared
-        turn = turn_session_entry.prepare(
-            self, body, message=message, session_id=session_id,
-            arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
-            new_session_id=secrets.token_urlsafe, session_store=SESSION_STORE,
-            now=monotonic(), idle_seconds=IDLE_SECONDS,
-            retrieve=session_context_retrieval.recent_context,
+        turn = turn_session_preflight.prepare(
+            self, body, message, session_id, r=sys.modules[__name__],
         )
         if turn is None:
             return
+        session_id, phrase, effective_message = turn.session_id, turn.phrase, turn.effective_message
+        pending_retry = turn.pending_retry
         source, scope, origin_device, satellite = turn.source, turn.scope, turn.origin_device, turn.satellite
-        last_lights, last_device, last_information = turn.recent_context
+        last_lights, last_device, last_information = turn.last_lights, turn.last_device, turn.last_information
         routine_reply = outcome = routine_status = None
         action_results = ActionEvidenceBuffer()
-        light_result = None
-        lighting_context = None
-        status_target = None
-        information_context = None
-        preflight = turn_preflight_entry.resolve(
-            self, body, message=message, session_id=session_id,
-            scope=scope, source=source, satellite=satellite,
-            origin_device=origin_device, session_store=SESSION_STORE,
-            now=monotonic(),
-            preprocess=preprocess_speech, normalize=history.normalize_phrase,
-            learned_intent=history.learned_intent,
-            retry_window=retry_learning.WINDOW_SECONDS,
-            consume_retry=retry_context.consume_pending_retry,
-            cancel_phrases=retry_learning.CANCEL, converse=converse,
-            record=history.record, cancel_retry=retry_cancellation.cancel_retry_result,
-            confirm=sensitive_confirmation_turn.confirmation_turn_result,
-            evaluate=sensitive_confirmation_decision.evaluate_result,
-            confirmation_response=sensitive_confirmation_response.confirmation_response,
-            guest_commands=GUEST_COMMANDS, confirmations=SENSITIVE_CONFIRMATIONS,
-            diagnostic_id=diagnostics.current_id,
-            resolve_confirmation=sensitive_confirmation_resolution.resolved_confirmation,
-        )
-        if preflight is None:
-            return
-        session_id, phrase, effective_message = preflight.session_id, preflight.phrase, preflight.effective_message
-        pending_retry = preflight.pending_retry
+        light_result = lighting_context = status_target = information_context = None
         dispatch_result = turn_dispatch_orchestration.dispatch(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
