@@ -1,6 +1,5 @@
 """HTTP handler extraction preserves routing, settings and transport seams."""
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 import http_handler_adapters as adapters
