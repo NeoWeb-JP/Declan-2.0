@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import server
 import routine_turn_orchestration
 from execution_results import Outcome
-from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
+from routine_selection_results import RoutineSelection, RoutineSelectionKind
 
 
 class RoutineTurnExtractionTests(unittest.TestCase):
