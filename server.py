@@ -49,12 +49,12 @@ import health_readiness
 import voice_profiles
 import voicepipeline
 import device_status as device_status
-import retry_learning
-import retry_training_persistence
-import conversation_persistence
-import turn_finalization
-import turn_response_orchestration
-import turn_persistence_orchestration
+import retry_learning as retry_learning
+import retry_training_persistence as retry_training_persistence
+import conversation_persistence as conversation_persistence
+import turn_finalization as turn_finalization
+import turn_response_orchestration as turn_response_orchestration
+import turn_persistence_orchestration as turn_persistence_orchestration
 import session_context_retrieval as session_context_retrieval
 import retry_context as retry_context
 import retry_cancellation as retry_cancellation
@@ -68,18 +68,18 @@ import roast_command_dispatch as roast_command_dispatch
 import timer_command_dispatch as timer_command_dispatch
 import lighting_command_dispatch as lighting_command_dispatch
 import lighting_context_finalization as lighting_context_finalization
-import fallback_entity_authorization
+import fallback_entity_authorization as fallback_entity_authorization
 import guarded_fallback_dispatch
-import turn_context_preparation
+import turn_context_preparation as turn_context_preparation
 import turn_session_entry as turn_session_entry
 import turn_preflight_entry as turn_preflight_entry
 import turn_preview_stage as turn_preview_stage
 import turn_direct_dispatch as turn_direct_dispatch
 import turn_routine_stage as turn_routine_stage
 import turn_fallback_dispatch as turn_fallback_dispatch
-import turn_response_preparation
-import turn_atomic_finalization
-import turn_response_composition
+import turn_response_preparation as turn_response_preparation
+import turn_atomic_finalization as turn_atomic_finalization
+import turn_response_composition as turn_response_composition
 import history
 import post_body_routing as post_body_routing
 import music
@@ -122,9 +122,9 @@ from fallback_action_evidence import FallbackActionEvidence
 import script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
 from personality import add_sass, choose_line
-import routine_responses
+import routine_responses as routine_responses
 import routine_follow_on as routine_follow_on
-import response_composition
+import response_composition as response_composition
 import command_responses
 import command_registry as command_registry
 import session_orchestration
@@ -133,7 +133,7 @@ import routine_cooldown
 import active_routine_registry
 import routine_execution_gates
 import routine_cancellation
-import session_turn_state
+import session_turn_state as session_turn_state
 import lighting_intents
 import roast as roast
 import personality_policy
