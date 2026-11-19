@@ -120,7 +120,7 @@ import ai_intent_gate as ai_intent_gate
 import guarded_fallback as guarded_fallback
 import ha_dispatcher as ha_dispatcher
 import routine_registry
-from routine_action_evidence import parse_routine_actions
+from routine_action_evidence import parse_routine_actions as parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
@@ -140,7 +140,7 @@ import session_store
 import routine_cooldown
 import active_routine_registry
 import routine_execution_gates
-import routine_cancellation
+import routine_cancellation as routine_cancellation
 import session_turn_state as session_turn_state
 import lighting_intents as lighting_intents
 import roast as roast
