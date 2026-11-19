@@ -1,0 +1,75 @@
+# Issue 17 closure evidence
+
+Baseline: main `9a36718` (merged PR #746), reviewed 19 November 2026.
+This record distinguishes implemented boundaries from outstanding work. It does
+not establish deployed configuration, migration or Home Assistant acceptance.
+
+## Batch 2: remaining external evidence
+
+Local sample encryption, explicit legacy migration and retained-snapshot
+sanitization are implemented. PR #746 ensures a damaged voice database does not
+prevent cleaning later regular databases, while incomplete cleanup still fails.
+Verify the deployed key, stopped-service migration and cleanup separately.
+External backups are outside the local cleanup command.
+
+The accessible `NeoWeb-JP/VoicePipeline-Development` repository is empty. Shared
+sample encryption requires the authoritative service source/version, recording
+and backup locations, key ownership and recovery requirements. Do not copy its
+samples into Declan or claim its storage is protected by Declan's local key.
+
+The global `declan_two_assist_reply` listener is removed and repository Python
+sources have no publishers. External HA automations/custom integrations require
+an installed-configuration inventory and verification of any replacement history
+path. Keep that migration checkbox open until evidence is recorded.
+
+## Batch 3: mutable state
+
+`SessionStore` owns session entries, recall and a shared lock; `RoutineCooldown`
+owns attempts under its own lock. `MusicRuntimeState` owns the Spotify token and
+its lock, playback handoff and skip throttles. The old bare global names are not
+an accurate description of current ownership. Regression evidence lives in
+`test_session_store.py`, `test_routine_cooldown.py` and
+`test_music_runtime_state.py` under `tests/`.
+
+Process-default owners still exist (`DEFAULT_SESSION_STORE`, the server runtime
+singletons and music's `RUNTIME`). The original global-state/package checkbox
+therefore remains incomplete. Before a broader change, identify a concrete
+isolation or lifecycle requirement, enumerate consumers and test independent
+owners. Moving files into a package alone does not remove shared state.
+
+## Batch 3: legacy names
+
+Retain the following compatibility paths for existing installations:
+
+| Reference | Current purpose | Evidence |
+| --- | --- | --- |
+| `jarvis_speaker` | Alias/fallback for older transcript producers; canonical field is `speaker` | `speaker_models.py`, `tests/test_speaker_transcript_identity.py` |
+| `jarvis_voice_cache` | Reuses existing paid audio; new installs use `declan_voice_cache` | `voice_cache_location.py`, `tests/test_voice_cache_location.py` |
+| Legacy TTS entity prefixes | Rejects self-recursive voice-manager providers | `config_flow.py`, `tts.py` |
+| `declan_local` / `jarvis_local` | Discovers older independent media-search agents and excludes Declan itself | `media_search_agents.py`, `tests/test_media_search_agents.py` |
+
+Integration module paths in this table are under `custom_components/declan_two/`;
+`media_search_agents.py` is a backend module. These references should not be
+deleted by a blind rename. This is an engineering recommendation for the listed
+adapters, not approval to close the repository-wide rename finding. Any adapter
+retirement needs an inventory, migration and regressions for existing users.
+
+## Batch 3: speaker metadata and credentials
+
+An explicit `SpeakerMetadata` snapshot and JSON projection already exist, but
+the HA STT boundary still uses `SpeakerTranscript(str)`. String transformations
+still lose its attributes; `tests/test_speaker_metadata_boundary_contract.py`
+explicitly demonstrates this. Keep the transport checkbox open. Select a
+supported HA metadata channel only after checking the deployed HA version and
+its STT-to-conversation contract; test simultaneous speakers, plain strings,
+normalization and missing metadata before removing the compatibility carrier.
+
+The STT API key is still retained in config-entry options by `config_flow.py`.
+Reusing HA OpenAI credentials needs a supported configuration contract and a
+decision about the distinction between backend planning and STT credentials.
+Do not read another integration's private options as a speculative fix.
+
+Household-specific configuration and personalisation remain a separate audit.
+Issue #12's owner decisions, including Edd pronunciation and routine semantics,
+must be preserved. No original Batch 3 parent checkbox is completed by this
+record alone.
