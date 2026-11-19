@@ -3,36 +3,6 @@
 def send_body(handler, status, data, content_type, filename=None, *, r):
     http_response_transport = r.http_response_transport
     DECLAN_EVENT_LOG = r.DECLAN_EVENT_LOG
-    media_settings_routes = r.media_settings_routes
-    music = r.music
-    http_ingress_security = r.http_ingress_security
-    ha_device_connection = r.ha_device_connection
-    ha_inventory = r.ha_inventory
-    read_music_inventory_result = r.read_music_inventory_result
-    read_ha_areas = r.read_ha_areas
-    approved_area_labels = r.approved_area_labels
-    approved_media_players = r.approved_media_players
-    get_request_dispatch = r.get_request_dispatch
-    os = r.os
-    health_readiness = r.health_readiness
-    home_assistant_status_result = r.home_assistant_status_result
-    RELEASE_VERSION = r.RELEASE_VERSION
-    configuration = r.configuration
-    script_discovery = r.script_discovery
-    command_responses = r.command_responses
-    history = r.history
-    declan_logs = r.declan_logs
-    diagnostics = r.diagnostics
-    updates = r.updates
-    voicepipeline = r.voicepipeline
-    voice_profiles = r.voice_profiles
-    ai_budget = r.ai_budget
-    ai_settings = r.ai_settings
-    ai_credentials = r.ai_credentials
-    spotify_playlists = r.spotify_playlists
-    speech_http_routes = r.speech_http_routes
-    web_stt = r.web_stt
-    traced_transcribe_result = r.traced_transcribe_result
 
     return http_response_transport.send_body(
         handler, status, data, content_type, filename=filename, logger=DECLAN_EVENT_LOG,
@@ -41,146 +11,30 @@ def send_body(handler, status, data, content_type, filename=None, *, r):
 def send_json(handler, status, data, *, r):
     http_response_transport = r.http_response_transport
     DECLAN_EVENT_LOG = r.DECLAN_EVENT_LOG
-    media_settings_routes = r.media_settings_routes
-    music = r.music
-    http_ingress_security = r.http_ingress_security
-    ha_device_connection = r.ha_device_connection
-    ha_inventory = r.ha_inventory
-    read_music_inventory_result = r.read_music_inventory_result
-    read_ha_areas = r.read_ha_areas
-    approved_area_labels = r.approved_area_labels
-    approved_media_players = r.approved_media_players
-    get_request_dispatch = r.get_request_dispatch
-    os = r.os
-    health_readiness = r.health_readiness
-    home_assistant_status_result = r.home_assistant_status_result
-    RELEASE_VERSION = r.RELEASE_VERSION
-    configuration = r.configuration
-    script_discovery = r.script_discovery
-    command_responses = r.command_responses
-    history = r.history
-    declan_logs = r.declan_logs
-    diagnostics = r.diagnostics
-    updates = r.updates
-    voicepipeline = r.voicepipeline
-    voice_profiles = r.voice_profiles
-    ai_budget = r.ai_budget
-    ai_settings = r.ai_settings
-    ai_credentials = r.ai_credentials
-    spotify_playlists = r.spotify_playlists
-    speech_http_routes = r.speech_http_routes
-    web_stt = r.web_stt
-    traced_transcribe_result = r.traced_transcribe_result
 
     return http_response_transport.send_json(
         handler, status, data, logger=DECLAN_EVENT_LOG,
     )
 
 def spotify_settings(handler, body=None, *, r):
-    http_response_transport = r.http_response_transport
-    DECLAN_EVENT_LOG = r.DECLAN_EVENT_LOG
     media_settings_routes = r.media_settings_routes
     music = r.music
-    http_ingress_security = r.http_ingress_security
-    ha_device_connection = r.ha_device_connection
-    ha_inventory = r.ha_inventory
-    read_music_inventory_result = r.read_music_inventory_result
-    read_ha_areas = r.read_ha_areas
-    approved_area_labels = r.approved_area_labels
-    approved_media_players = r.approved_media_players
-    get_request_dispatch = r.get_request_dispatch
-    os = r.os
-    health_readiness = r.health_readiness
-    home_assistant_status_result = r.home_assistant_status_result
-    RELEASE_VERSION = r.RELEASE_VERSION
-    configuration = r.configuration
-    script_discovery = r.script_discovery
-    command_responses = r.command_responses
-    history = r.history
-    declan_logs = r.declan_logs
-    diagnostics = r.diagnostics
-    updates = r.updates
-    voicepipeline = r.voicepipeline
-    voice_profiles = r.voice_profiles
-    ai_budget = r.ai_budget
-    ai_settings = r.ai_settings
-    ai_credentials = r.ai_credentials
-    spotify_playlists = r.spotify_playlists
-    speech_http_routes = r.speech_http_routes
-    web_stt = r.web_stt
-    traced_transcribe_result = r.traced_transcribe_result
 
     return media_settings_routes.spotify_settings(handler, body, music=music)
 
 def has_ingress_access(handler, *, r):
-    http_response_transport = r.http_response_transport
-    DECLAN_EVENT_LOG = r.DECLAN_EVENT_LOG
-    media_settings_routes = r.media_settings_routes
-    music = r.music
     http_ingress_security = r.http_ingress_security
-    ha_device_connection = r.ha_device_connection
-    ha_inventory = r.ha_inventory
-    read_music_inventory_result = r.read_music_inventory_result
-    read_ha_areas = r.read_ha_areas
-    approved_area_labels = r.approved_area_labels
-    approved_media_players = r.approved_media_players
-    get_request_dispatch = r.get_request_dispatch
-    os = r.os
-    health_readiness = r.health_readiness
-    home_assistant_status_result = r.home_assistant_status_result
-    RELEASE_VERSION = r.RELEASE_VERSION
-    configuration = r.configuration
-    script_discovery = r.script_discovery
-    command_responses = r.command_responses
-    history = r.history
-    declan_logs = r.declan_logs
-    diagnostics = r.diagnostics
-    updates = r.updates
-    voicepipeline = r.voicepipeline
-    voice_profiles = r.voice_profiles
-    ai_budget = r.ai_budget
-    ai_settings = r.ai_settings
-    ai_credentials = r.ai_credentials
-    spotify_playlists = r.spotify_playlists
-    speech_http_routes = r.speech_http_routes
-    web_stt = r.web_stt
-    traced_transcribe_result = r.traced_transcribe_result
 
     return http_ingress_security.has_ingress_access(handler)
 
 def approved_player_settings(handler, body=None, *, r):
-    http_response_transport = r.http_response_transport
-    DECLAN_EVENT_LOG = r.DECLAN_EVENT_LOG
     media_settings_routes = r.media_settings_routes
-    music = r.music
-    http_ingress_security = r.http_ingress_security
     ha_device_connection = r.ha_device_connection
     ha_inventory = r.ha_inventory
     read_music_inventory_result = r.read_music_inventory_result
     read_ha_areas = r.read_ha_areas
     approved_area_labels = r.approved_area_labels
     approved_media_players = r.approved_media_players
-    get_request_dispatch = r.get_request_dispatch
-    os = r.os
-    health_readiness = r.health_readiness
-    home_assistant_status_result = r.home_assistant_status_result
-    RELEASE_VERSION = r.RELEASE_VERSION
-    configuration = r.configuration
-    script_discovery = r.script_discovery
-    command_responses = r.command_responses
-    history = r.history
-    declan_logs = r.declan_logs
-    diagnostics = r.diagnostics
-    updates = r.updates
-    voicepipeline = r.voicepipeline
-    voice_profiles = r.voice_profiles
-    ai_budget = r.ai_budget
-    ai_settings = r.ai_settings
-    ai_credentials = r.ai_credentials
-    spotify_playlists = r.spotify_playlists
-    speech_http_routes = r.speech_http_routes
-    web_stt = r.web_stt
-    traced_transcribe_result = r.traced_transcribe_result
 
     return media_settings_routes.approved_player_settings(
         handler, body, ha_device_connection=ha_device_connection,
@@ -191,17 +45,8 @@ def approved_player_settings(handler, body=None, *, r):
     )
 
 def do_GET(handler, *, r):
-    http_response_transport = r.http_response_transport
-    DECLAN_EVENT_LOG = r.DECLAN_EVENT_LOG
-    media_settings_routes = r.media_settings_routes
     music = r.music
-    http_ingress_security = r.http_ingress_security
     ha_device_connection = r.ha_device_connection
-    ha_inventory = r.ha_inventory
-    read_music_inventory_result = r.read_music_inventory_result
-    read_ha_areas = r.read_ha_areas
-    approved_area_labels = r.approved_area_labels
-    approved_media_players = r.approved_media_players
     get_request_dispatch = r.get_request_dispatch
     os = r.os
     health_readiness = r.health_readiness
@@ -220,9 +65,6 @@ def do_GET(handler, *, r):
     ai_settings = r.ai_settings
     ai_credentials = r.ai_credentials
     spotify_playlists = r.spotify_playlists
-    speech_http_routes = r.speech_http_routes
-    web_stt = r.web_stt
-    traced_transcribe_result = r.traced_transcribe_result
 
     return get_request_dispatch.dispatch(
         handler, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
@@ -241,35 +83,10 @@ def do_GET(handler, *, r):
     )
 
 def transcribe_browser_audio(handler, *, r):
-    http_response_transport = r.http_response_transport
     DECLAN_EVENT_LOG = r.DECLAN_EVENT_LOG
-    media_settings_routes = r.media_settings_routes
-    music = r.music
-    http_ingress_security = r.http_ingress_security
     ha_device_connection = r.ha_device_connection
-    ha_inventory = r.ha_inventory
-    read_music_inventory_result = r.read_music_inventory_result
-    read_ha_areas = r.read_ha_areas
-    approved_area_labels = r.approved_area_labels
-    approved_media_players = r.approved_media_players
-    get_request_dispatch = r.get_request_dispatch
     os = r.os
-    health_readiness = r.health_readiness
-    home_assistant_status_result = r.home_assistant_status_result
-    RELEASE_VERSION = r.RELEASE_VERSION
     configuration = r.configuration
-    script_discovery = r.script_discovery
-    command_responses = r.command_responses
-    history = r.history
-    declan_logs = r.declan_logs
-    diagnostics = r.diagnostics
-    updates = r.updates
-    voicepipeline = r.voicepipeline
-    voice_profiles = r.voice_profiles
-    ai_budget = r.ai_budget
-    ai_settings = r.ai_settings
-    ai_credentials = r.ai_credentials
-    spotify_playlists = r.spotify_playlists
     speech_http_routes = r.speech_http_routes
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
