@@ -7,17 +7,19 @@ import json
 import logging
 import os
 import re
+from time import monotonic
 from typing import Any
 from urllib.request import Request, build_opener, ProxyHandler
 from urllib.error import HTTPError, URLError
 
 from action_plan import validate_plan, ENTITY, SERVICES, MAX_ACTIONS
 from ai_pricing import RATES
-from model_response_results import ModelResponseResult, ModelResponseStatus, NonBillablePlanningError, IncompletePlanningError
+from model_response_results import ModelResponseResult, ModelResponseStatus, NonBillablePlanningError, IncompletePlanningError, PlanningTimeoutError
 
 MODEL_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$")
 MAX_CONTEXT = 100
 MAX_OUTPUT_TOKENS = 2000
+PLANNING_TIMEOUT_SECONDS = 6
 LOGGER = logging.getLogger(__name__)
 
 
@@ -135,16 +137,27 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
         if worst > max_cost_micro_usd:
             raise NonBillablePlanningError("AI request context exceeds spending ceiling")
     opener = opener or build_opener(ProxyHandler({}))
+    deadline = monotonic() + PLANNING_TIMEOUT_SECONDS
     try:
-        with opener.open(request, timeout=12) as response:
+        with opener.open(request, timeout=PLANNING_TIMEOUT_SECONDS) as response:
+            if monotonic() >= deadline:
+                raise PlanningTimeoutError("OpenAI planning timed out")
             raw = response.read(65537)
     except HTTPError as error:
         error.close()
+        if error.code in {408, 504}:
+            raise PlanningTimeoutError("OpenAI planning timed out") from None
         if error.code in {400, 401, 403, 404, 405, 413, 415, 422, 429}:
             raise NonBillablePlanningError("OpenAI plan request rejected") from None
         raise ValueError("OpenAI plan request failed") from None
-    except (OSError, URLError):
+    except (OSError, URLError) as error:
+        if isinstance(error, TimeoutError) or isinstance(getattr(error, 'reason', None), TimeoutError):
+            raise PlanningTimeoutError("OpenAI planning timed out") from None
         raise ValueError("OpenAI plan request unavailable") from None
+    # urllib's timeout applies to socket operations, not the whole request.
+    # Refuse late responses even when DNS or a trickling body exceeded it.
+    if monotonic() >= deadline:
+        raise PlanningTimeoutError("OpenAI planning timed out")
     if len(raw) > 65536:
         raise ValueError("OpenAI response too large")
     try:

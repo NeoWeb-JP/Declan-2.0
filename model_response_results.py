@@ -7,6 +7,10 @@ class NonBillablePlanningError(ValueError):
     """Trusted planner evidence that no successful API request was made."""
 
 
+class PlanningTimeoutError(ValueError):
+    """Planning timed out; provider billing may still be unknown."""
+
+
 class IncompletePlanningError(ValueError):
     """A provider response stopped before a complete plan; usage may be billable."""
 
