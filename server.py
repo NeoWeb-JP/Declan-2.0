@@ -27,6 +27,7 @@ import light_command_parsing
 import post_ingress_orchestration
 import turn_dispatch_orchestration
 import turn_session_preflight
+import turn_response_completion
 import sys
 from pathlib import Path
 from threading import Thread
@@ -710,46 +711,11 @@ class Handler(BaseHTTPRequestHandler):
         routine_voice_result = dispatch_result.routine_voice_result
         lighting_context, information_context = dispatch_result.lighting_context, dispatch_result.information_context
         status_target, light_result = dispatch_result.status_target, dispatch_result.light_result
-        response_preparation = turn_response_preparation.prepare(
-            effective_message, routine_reply=routine_reply, outcome=outcome,
-            light_result=light_result, body=body,
-            authorization=self.headers.get("Authorization", ""),
-            bridge_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
-            source=source, action_results=action_results,
-            exposed_entities=fallback_entity_authorization.exposed_entities,
-            dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback_result,
-            fallback_handler=guarded_openai_fallback_result,
-            guest_mode_reader=read_guest_mode,
-            visitors_reader=read_visitors_present,
-            personality_policy=personality_policy,
-            chat_commands=CHAT_COMMANDS,
-            information_context=information_context,
-        )
-        routine_reply, outcome = response_preparation.reply, response_preparation.outcome
-        guest_mode = response_preparation.guest_mode
-        visitor_present = response_preparation.visitor_present
-        response_guest_mode = response_preparation.response_guest_mode
-        information_context = response_preparation.information_context
-        response = turn_atomic_finalization.finalize(
-            session_id, action_results, light_result, outcome, scope, message, effective_message, routine_reply, lighting_context, response_guest_mode, routine_turn, phrase, guest_mode, visitor_present, routine_voice_result, routine_status, status_target, information_context, pending_retry, source, body,
-            sessions=SESSION_STORE.sessions, session_lock=SESSION_STORE.lock, clock=monotonic,
-            turn_context_preparation=turn_context_preparation,
-            turn_finalization=turn_finalization,
-            turn_response_composition=turn_response_composition,
-            turn_response_orchestration=turn_response_orchestration,
-            personality_policy=personality_policy,
-            personality_lines=__import__("personality").LINES,
-            music=music, routine_responses=routine_responses,
-            lighting_intents=lighting_intents, parse_light_command=parse_light_command,
-            command_responses=command_responses,
-            response_composition=response_composition,
-            turn_persistence_orchestration=turn_persistence_orchestration,
-            unmatched_reply=UNMATCHED_REPLY, retry_learning=retry_learning,
-            history=history, diagnostics=diagnostics,
-            session_turn_state=session_turn_state,
-            retry_training_persistence=retry_training_persistence,
-            conversation_persistence=conversation_persistence,
-            log_error=self.log_error, converse=converse,
+        response = turn_response_completion.complete(
+            self, body=body, message=message, effective_message=effective_message,
+            session_id=session_id, phrase=phrase, source=source, scope=scope,
+            pending_retry=pending_retry, action_results=action_results,
+            dispatch_result=dispatch_result, r=sys.modules[__name__],
         )
         self.send_json(200, response.to_wire())
 
