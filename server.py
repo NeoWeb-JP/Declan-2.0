@@ -36,7 +36,7 @@ import sys
 from pathlib import Path as Path
 from threading import Thread
 from time import monotonic, sleep
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit as urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
@@ -123,7 +123,7 @@ from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence
-import script_discovery
+import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses as routine_responses
