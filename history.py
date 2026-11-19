@@ -213,8 +213,16 @@ def recent(before=None, limit=50):
             query += " LIMIT ?"
             args.append(limit)
         turns = [dict(row) for row in connection.execute(query, args)]
+    valid_turns = []
     for turn in turns:
-        turn["created_at"] = datetime.fromtimestamp(turn["created_at"], timezone.utc).isoformat()
+        try:
+            timestamp = float(turn["created_at"])
+            if not math.isfinite(timestamp):
+                continue
+            turn["created_at"] = datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+        except (TypeError, ValueError, OverflowError, OSError):
+            # A corrupt legacy timestamp must not take down the entire History page.
+            continue
         # Corrupt legacy JSON must not break the entire History page.
         for field, expected_type, fallback in (
             ("action_results", list, []),
@@ -225,7 +233,8 @@ def recent(before=None, limit=50):
             except (TypeError, ValueError):
                 decoded = fallback
             turn[field] = decoded if type(decoded) is expected_type else fallback
-    return turns
+        valid_turns.append(turn)
+    return valid_turns
 
 
 def verified_recording_turns(interaction_ids):
