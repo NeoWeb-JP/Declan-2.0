@@ -15,6 +15,7 @@ import household_routine_dispatch
 import ha_speech_transport
 import music_stop_dispatch
 import movie_ha_helpers
+import bedroom_routine_dispatch
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
@@ -841,80 +842,12 @@ def ha_device_connection():
 
 @diagnostics.timed("bedroom_routine")
 def run_sexy_time_result(operation, connection, *, approved=False):
-    if connection is None:
-        return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED), None
-    try:
-        sexy_mapping = routine_registry.load().get("sexy_time")
-    except (OSError, ValueError, sqlite3.Error):
-        sexy_mapping = None
-    if not sexy_mapping:
-        return ExecutionResult("Map the Sexy Time script in Declan Settings.", Outcome.NOT_CONFIGURED), None
-    if sexy_mapping["sensitive"] and not approved:
-        return ExecutionResult("Sexy Time requires explicit confirmation.", Outcome.UNRESOLVED), None
-    sexy_script = sexy_mapping["script"]
-    if not ROUTINE_EXECUTION_GATES.sexy_time.acquire(blocking=False):
-        return ExecutionResult("I'm still handling the previous Sexy Time request.", Outcome.BUSY), None
-    try:
-        inventory_result = ha_inventory.InventoryResult.coerce(read_music_inventory_result(connection))
-        inventory, inventory_error = inventory_result.inventory, inventory_result.error
-        if inventory_error:
-            return ExecutionResult("I couldn't discover the bedroom music player.", inventory_error), None
-        destinations, _ = music.music_players(inventory)
-        player = destinations.get("bedroom")
-        if not player:
-            return ExecutionResult("I couldn't identify one available bedroom satellite speaker. Check its Home Assistant device and area.", Outcome.UNRESOLVED), None
-        url, headers, opener = connection
-        request_id = "declan-" + secrets.token_hex(16)
-        request = Request(
-            f"{url}/api/services/script/{sexy_script.split('.', 1)[1]}?return_response", headers=headers,
-            data=json.dumps({"operation": operation, "music_player": player, "request_id": request_id, "routine_id": sexy_script}).encode(), method="POST",
-        )
-        try:
-            with opener.open(request, timeout=8) as response:
-                payload = json.loads(response.read(65536))
-        except HTTPError as error:
-            error.close()
-            return ExecutionResult("I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
-        except (OSError, ValueError):
-            return ExecutionResult("I couldn't confirm the bedroom routine completed. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
-
-        result = payload.get("service_response") if isinstance(payload, dict) else None
-        if isinstance(result, dict) and set(result) == {sexy_script}:
-            result = result[sexy_script]
-        if (not isinstance(result, dict) or result.get("operation") != operation
-                or result.get("request_id") != request_id or result.get("routine_id") != sexy_script):
-            return ExecutionResult("I couldn't verify the bedroom routine's result.", Outcome.UNVERIFIED), None
-
-        lighting_ok = result.get("lighting_ok") is True
-        if operation == "end":
-            music_result = music.control_result(
-                ("media_stop", "bedroom"), connection, lambda _: inventory_result,
-            )
-            music_ok = music_result.outcome is Outcome.CONFIRMED
-            if lighting_ok:
-                detail = None if music_ok else "Bedroom lights restored. Bedroom music stop could not be verified."
-                return ExecutionResult(choose_line("sexy_time_end", read_guest_mode()), Outcome.CONFIRMED if music_ok else Outcome.PARTIAL), detail
-            playback = "The music has stopped." if music_ok else "I couldn't verify that the bedroom music stopped."
-            return ExecutionResult(f"I couldn't verify the bedroom lights. {playback}", Outcome.PARTIAL if music_ok else Outcome.UNVERIFIED), None
-
-        if not lighting_ok:
-            return ExecutionResult("I couldn't verify the bedroom lights, so I held off on the playlist.", Outcome.UNVERIFIED), None
-        volume_ok = True
-        try:
-            music.request(connection, "/api/services/media_player/volume_set",
-                          {"entity_id": player, "volume_level": 0.2})
-        except (OSError, ValueError):
-            volume_ok = False
-        music_result = music.play_result(("bedroom", "sexy time music", "spotify"), connection,
-                                    lambda _: inventory_result)
-        reply, outcome = music_result.reply, music_result.outcome
-        spoken = choose_line("sexy_time_start", read_guest_mode())
-        if outcome is Outcome.CONFIRMED and volume_ok:
-            return ExecutionResult(spoken, Outcome.CONFIRMED), None
-        volume_detail = "" if volume_ok else " Bedroom music volume could not be set."
-        return ExecutionResult(spoken, Outcome.PARTIAL), f"Bedroom lights set. {reply}{volume_detail}"
-    finally:
-        ROUTINE_EXECUTION_GATES.sexy_time.release()
+    return bedroom_routine_dispatch.run_sexy_time_result(
+        operation, connection, approved=approved, registry=routine_registry,
+        gates=ROUTINE_EXECUTION_GATES, inventory_reader=read_music_inventory_result,
+        inventory_module=ha_inventory, music_provider=music, request_factory=Request,
+        token_hex=secrets.token_hex, choose_response=choose_line, guest_mode=read_guest_mode,
+    )
 
 
 @diagnostics.timed("dinner_dispatch")
