@@ -1,5 +1,5 @@
 """HA action capability and safety preflight, without side effects."""
-from action_plan import CandidateAction
+from action_plan import CandidateAction, SERVICES
 
 # Services that cannot be safely inferred from the generic HA entity domain.
 # Additional sensitive actions require explicit confirmation in the caller.
@@ -26,6 +26,9 @@ def preflight(plan, inventory, *, confirmed_sensitive=False):
             raise ValueError("Duplicate entity in inventory")
         lookup[row["entity_id"]] = row
     for action in plan:
+        domain = action.entity_id.split(".", 1)[0]
+        if domain not in SERVICES or action.service not in SERVICES[domain]:
+            raise ValueError("Service cannot be safely dispatched and verified")
         row = lookup.get(action.entity_id)
         if row is None or row.get("state") in UNAVAILABLE or not isinstance(row.get("state"), str):
             raise ValueError("Entity not currently available")
@@ -38,8 +41,6 @@ def preflight(plan, inventory, *, confirmed_sensitive=False):
                 and attributes.get("device_class") in {"garage", "gate"}
                 and not confirmed_sensitive):
             raise ValueError("Garage and gate controls require explicit confirmation")
-        if action.service == "toggle":
-            raise ValueError("Toggle is not safe without an explicit target state")
         if action.service in {"media_play", "media_pause", "media_stop"}:
             features = attributes.get("supported_features")
             if type(features) is not int:

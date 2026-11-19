@@ -69,7 +69,8 @@ class OpenAIPlannerTests(unittest.TestCase):
         assert opener.request is not None
         body = json.loads(opener.request.data)
         self.assertFalse(body["store"])
-        self.assertEqual(body["max_output_tokens"], 600)
+        self.assertEqual(body["max_output_tokens"], 2000)
+        self.assertEqual(body["reasoning"], {"effort": "low"})
 
     def test_unexposed_rejected(self):
         opener = FakeOpener(response({"actions": [{"entity_id": "light.private", "service": "turn_on"}]}))
@@ -78,7 +79,7 @@ class OpenAIPlannerTests(unittest.TestCase):
 
     def test_empty_plan_means_no_action(self):
         opener = FakeOpener(response({"actions": []}))
-        self.assertEqual(request_plan("?", [], opener=opener, model="gpt-5-mini", api_key="test"), ())
+        self.assertEqual(request_plan("?", ["light.kitchen"], opener=opener, model="gpt-5-mini", api_key="test"), ())
 
     def test_usage_and_safe_context(self):
         data = response({"actions": []})
@@ -115,7 +116,7 @@ class OpenAIPlannerTests(unittest.TestCase):
         opener = FakeOpener(response({"actions": []}))
         with patch.dict(os.environ, {"DECLAN_OPENAI_MODEL": "gpt-5-mini",
                                      "OPENAI_API_KEY": "environment-test-key"}):
-            self.assertEqual(request_plan("lights on", [], opener=opener), ())
+            self.assertEqual(request_plan("lights on", ["light.kitchen"], opener=opener), ())
         assert opener.request is not None
         self.assertEqual(json.loads(opener.request.data)["model"], "gpt-5-mini")
         assert opener.request is not None
@@ -125,7 +126,7 @@ class OpenAIPlannerTests(unittest.TestCase):
         opener = FakeOpener(response({"actions": []}))
         with patch.dict(os.environ, {"DECLAN_OPENAI_MODEL": "invalid model",
                                      "OPENAI_API_KEY": ""}):
-            self.assertEqual(request_plan("lights on", [], opener=opener,
+            self.assertEqual(request_plan("lights on", ["light.kitchen"], opener=opener,
                                           model="gpt-5-mini", api_key="explicit-key"), ())
         assert opener.request is not None
         self.assertEqual(json.loads(opener.request.data)["model"], "gpt-5-mini")

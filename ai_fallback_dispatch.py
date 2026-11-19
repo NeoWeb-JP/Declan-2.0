@@ -3,6 +3,7 @@ import re
 import sqlite3
 from execution_results import ExecutionResult, Outcome
 from ai_budget import BudgetExhausted, MICRO_USD
+from model_response_results import IncompletePlanningError
 
 
 def guarded_openai_fallback_result(message, *, source, exposed_entities=(), settings_reader, intent_gate, connect, inventory_reader, inventory_module, context_selector, planner_module, settings_module, history_module, fallback_runner, dispatcher, pricing, bounded_plan, evidence_factory, response_factory):
@@ -33,6 +34,9 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
             and row["entity_id"].split(".", 1)[0] in settings["allowed_domains"]]
     try:
         safe = context_selector(safe, message, limit=planner_module.MAX_CONTEXT)
+        if not safe:
+            return response_factory(ExecutionResult(
+                "No permitted devices are available for AI planning.", Outcome.UNRESOLVED))
         limit = settings_module._money(settings["monthly_budget_usd"], allow_zero=True)
         ceiling = settings_module._money(settings["request_ceiling_usd"], allow_zero=False)
         usage = {}
@@ -56,6 +60,11 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
             evidence_factory.from_action(action, include_detail=settings["diagnostics"])
             for action in result.actions
         ))
+    except IncompletePlanningError as error:
+        reply = ("OpenAI reached its planning token limit. No devices were changed; please try a shorter request."
+                 if error.reason == "max_output_tokens" else
+                 "OpenAI couldn't finish planning. No devices were changed.")
+        return response_factory(ExecutionResult(reply, Outcome.UNRESOLVED))
     except BudgetExhausted as error:
         remaining = error.remaining_micro_usd / MICRO_USD
         return response_factory(ExecutionResult(
