@@ -7,8 +7,8 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import history
-import routine_responses as responses
-import personality_policy
+from declan.turn import routine_responses as responses
+from declan.turn import personality_policy
 from declan.ha import script_discovery
 from execution_results import Outcome, parse_outcome
 

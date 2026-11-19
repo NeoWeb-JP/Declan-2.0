@@ -6,9 +6,9 @@ from unittest.mock import Mock, patch
 
 from execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result
-from routine_follow_on import FollowOnResult, execute
-from routine_follow_on import execute_result
-import routine_follow_on
+from declan.turn.routine_follow_on import FollowOnResult, execute
+from declan.turn.routine_follow_on import execute_result
+from declan.turn import routine_follow_on
 
 
 class TypedBoundaryTests(unittest.TestCase):

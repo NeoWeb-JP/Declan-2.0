@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import turn_session_entry
+from declan.turn import turn_session_entry
 
 
 class TurnSessionEntryTests(unittest.TestCase):

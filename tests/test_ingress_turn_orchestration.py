@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock
 
-from sensitive_confirmation_resolution import (
+from declan.turn.sensitive_confirmation_resolution import (
     resolve_confirmation,
 )
 

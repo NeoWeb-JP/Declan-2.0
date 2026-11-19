@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 from http.client import HTTPException
-from sensitive_write_state import DEFAULT_SENSITIVE_WRITE_STATE
+from declan.turn.sensitive_write_state import DEFAULT_SENSITIVE_WRITE_STATE
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener

@@ -6,9 +6,9 @@ import re
 import unittest
 from unittest.mock import patch
 
-from chat_recall_memory import ChatRecallMemory, RECALL_SECONDS
-from chat_recall_privacy import safe_chat_text
-import session_orchestration
+from declan.turn.chat_recall_memory import ChatRecallMemory, RECALL_SECONDS
+from declan.turn.chat_recall_privacy import safe_chat_text
+from declan.turn import session_orchestration
 
 
 class ChatRecallTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import turn_response_preparation as stage
+from declan.turn import turn_response_preparation as stage
 
 
 class ResponsePreparationTests(unittest.TestCase):

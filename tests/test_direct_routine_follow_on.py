@@ -4,8 +4,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
-STAGE = (ROOT / "turn_routine_stage.py").read_text()
-DISPATCH = (ROOT / "turn_dispatch_orchestration.py").read_text()
+STAGE = (ROOT / "declan/turn/turn_routine_stage.py").read_text()
+DISPATCH = (ROOT / "declan/turn/turn_dispatch_orchestration.py").read_text()
 
 
 class DirectRoutineFollowOnTests(unittest.TestCase):

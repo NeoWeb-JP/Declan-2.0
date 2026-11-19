@@ -5,12 +5,12 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
-STAGE = (ROOT / "turn_fallback_dispatch.py").read_text()
-DISPATCH = (ROOT / "turn_dispatch_orchestration.py").read_text()
-PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
-FINALIZATION = (ROOT / "turn_atomic_finalization.py").read_text()
-COMPLETION = (ROOT / "turn_response_completion.py").read_text()
-HTTP_ENTRY = (ROOT / "turn_http_entry.py").read_text()
+STAGE = (ROOT / "declan/turn/turn_fallback_dispatch.py").read_text()
+DISPATCH = (ROOT / "declan/turn/turn_dispatch_orchestration.py").read_text()
+PREPARATION = (ROOT / "declan/turn/turn_response_preparation.py").read_text()
+FINALIZATION = (ROOT / "declan/turn/turn_atomic_finalization.py").read_text()
+COMPLETION = (ROOT / "declan/turn/turn_response_completion.py").read_text()
+HTTP_ENTRY = (ROOT / "declan/turn/turn_http_entry.py").read_text()
 
 
 class DirectFinalDispatchTests(unittest.TestCase):

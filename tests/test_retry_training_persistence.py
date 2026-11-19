@@ -3,7 +3,7 @@ from typing import Any
 import sqlite3
 import unittest
 from unittest.mock import Mock
-from retry_training_persistence import save_retry_training
+from declan.turn.retry_training_persistence import save_retry_training
 
 
 class RetryTrainingPersistenceTests(unittest.TestCase):

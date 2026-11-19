@@ -2,7 +2,7 @@
 from typing import Any
 import unittest
 from unittest.mock import Mock
-from routine_registry_dispatch import dispatch_routine
+from declan.turn.routine_registry_dispatch import dispatch_routine
 
 
 class RoutineRegistryDispatchTests(unittest.TestCase):

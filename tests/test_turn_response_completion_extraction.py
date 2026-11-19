@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import turn_response_completion
+from declan.turn import turn_response_completion
 
 
 class ResponseCompletionTests(unittest.TestCase):

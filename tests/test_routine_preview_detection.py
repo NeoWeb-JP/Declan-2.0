@@ -1,6 +1,6 @@
 """Routine preview detection regression tests."""
 import unittest
-from routine_preview_detection import routine_preview_phrase
+from declan.turn.routine_preview_detection import routine_preview_phrase
 
 
 class RoutinePreviewDetectionTests(unittest.TestCase):

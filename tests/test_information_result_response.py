@@ -1,7 +1,7 @@
 """Information result conversion regression tests."""
 import unittest
 from unittest.mock import Mock
-from information_result_response import information_result_response
+from declan.turn.information_result_response import information_result_response
 
 
 class InformationResultResponseTests(unittest.TestCase):

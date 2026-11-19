@@ -1,5 +1,5 @@
 """Convert device dispatch results and retain status target context."""
-from command_response import CommandResponse
+from declan.turn.command_response import CommandResponse
 
 
 def device_response(device_result):

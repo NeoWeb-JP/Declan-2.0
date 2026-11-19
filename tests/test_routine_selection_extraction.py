@@ -3,8 +3,8 @@ import unittest
 from unittest.mock import patch
 
 import server
-import routine_request_selection as extracted
-from routine_selection_results import RoutineSelectionKind
+from declan.turn import routine_request_selection as extracted
+from declan.turn.routine_selection_results import RoutineSelectionKind
 
 
 class RoutineSelectionExtractionTests(unittest.TestCase):

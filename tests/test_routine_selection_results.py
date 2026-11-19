@@ -3,9 +3,9 @@ from copy import deepcopy
 import unittest
 from unittest.mock import Mock, patch
 
-from command_registry import RequestContext, routine_registry
+from declan.turn.command_registry import RequestContext, routine_registry
 from execution_results import ExecutionResult, Outcome
-from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
+from declan.turn.routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from declan.ha import script_discovery
 import server
 

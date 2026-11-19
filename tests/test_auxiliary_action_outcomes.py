@@ -6,7 +6,7 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-import roast_guest_dispatch
+from declan.turn import roast_guest_dispatch
 import server
 from execution_results import ExecutionResult, Outcome, MovieLaunchResult, MovieLaunchStatus
 

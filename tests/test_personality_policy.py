@@ -2,7 +2,7 @@
 from datetime import datetime
 import unittest
 
-import personality_policy as p
+from declan.turn import personality_policy as p
 from declan.ha import household_language
 
 

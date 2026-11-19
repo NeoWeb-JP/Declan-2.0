@@ -1,7 +1,7 @@
 """Roast command response policy regression tests."""
 import unittest
 from unittest.mock import Mock
-from roast_command_dispatch import respond_to_roast
+from declan.turn.roast_command_dispatch import respond_to_roast
 
 
 class RoastCommandDispatchTests(unittest.TestCase):

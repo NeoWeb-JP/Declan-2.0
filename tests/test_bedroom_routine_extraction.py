@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch, Mock
 
 import server
-import bedroom_routine_dispatch as dispatch
+from declan.turn import bedroom_routine_dispatch as dispatch
 from execution_results import Outcome
 
 

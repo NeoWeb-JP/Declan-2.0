@@ -4,11 +4,11 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-from confirmation_results import ConfirmationDecision, ConfirmationEvaluation, ConfirmationDecisionResult, ConfirmationTurnResult
-from sensitive_confirmations import ConfirmationGate
-import sensitive_confirmation_decision
-import sensitive_confirmation_response
-import sensitive_confirmation_turn
+from declan.turn.confirmation_results import ConfirmationDecision, ConfirmationEvaluation, ConfirmationDecisionResult, ConfirmationTurnResult
+from declan.turn.sensitive_confirmations import ConfirmationGate
+from declan.turn import sensitive_confirmation_decision
+from declan.turn import sensitive_confirmation_response
+from declan.turn import sensitive_confirmation_turn
 
 
 class TypedConfirmationResultTests(unittest.TestCase):

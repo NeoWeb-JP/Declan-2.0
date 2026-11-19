@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import turn_initialization as turn
+from declan.turn import turn_initialization as turn
 
 
 class TurnInitializationTests(unittest.TestCase):

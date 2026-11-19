@@ -1,7 +1,7 @@
 """Preview and timer early-result precedence regression tests."""
 import unittest
 from unittest.mock import patch
-import turn_preview_stage
+from declan.turn import turn_preview_stage
 
 
 class PreviewStageTests(unittest.TestCase):

@@ -5,9 +5,9 @@ from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
 from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
-import retry_cancellation
-import roast_command_dispatch
-import roast_guest_dispatch
+from declan.turn import retry_cancellation
+from declan.turn import roast_command_dispatch
+from declan.turn import roast_guest_dispatch
 
 
 class TypedRetryRoastResultTests(unittest.TestCase):

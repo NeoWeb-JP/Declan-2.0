@@ -5,7 +5,7 @@ import unittest
 from dataclasses import FrozenInstanceError, replace
 from unittest.mock import Mock, patch
 
-import command_registry
+from declan.turn import command_registry
 from declan.ha import device_status
 import server
 from execution_results import ExecutionResult, Outcome

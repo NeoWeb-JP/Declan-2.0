@@ -2,7 +2,7 @@
 from typing import Any
 import unittest
 from unittest.mock import Mock
-from turn_persistence_orchestration import persist_turn
+from declan.turn.turn_persistence_orchestration import persist_turn
 
 
 class TurnPersistenceDispatchTests(unittest.TestCase):

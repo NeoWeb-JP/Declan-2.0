@@ -4,9 +4,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
-DIRECT = (ROOT / "turn_direct_dispatch.py").read_text()
-DISPATCH = (ROOT / "turn_dispatch_orchestration.py").read_text()
-HTTP_ENTRY = (ROOT / "turn_http_entry.py").read_text()
+DIRECT = (ROOT / "declan/turn/turn_direct_dispatch.py").read_text()
+DISPATCH = (ROOT / "declan/turn/turn_dispatch_orchestration.py").read_text()
+HTTP_ENTRY = (ROOT / "declan/turn/turn_http_entry.py").read_text()
 
 
 class DirectCommandDispatchTests(unittest.TestCase):
@@ -19,9 +19,9 @@ class DirectCommandDispatchTests(unittest.TestCase):
         self.assertIn("routine_reply, outcome = direct_result.reply, direct_result.outcome", DISPATCH)
 
     def test_guest_dispatch_preserves_confirmation_and_order(self):
-        confirmation = (ROOT / "turn_session_preflight.py").read_text().index("turn_preflight_entry.resolve(")
-        self.assertIn("turn_preflight.resolve(", (ROOT / "turn_preflight_entry.py").read_text())
-        preflight_source = (ROOT / "turn_preflight.py").read_text()
+        confirmation = (ROOT / "declan/turn/turn_session_preflight.py").read_text().index("turn_preflight_entry.resolve(")
+        self.assertIn("turn_preflight.resolve(", (ROOT / "declan/turn/turn_preflight_entry.py").read_text())
+        preflight_source = (ROOT / "declan/turn/turn_preflight.py").read_text()
         self.assertIn("sensitive_confirmation_resolution.resolve_confirmation(", preflight_source)
         direct = DISPATCH.index("turn_direct_dispatch.dispatch(")
         stop = DIRECT.index("stop_command_dispatch.dispatch_stop(")

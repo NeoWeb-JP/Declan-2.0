@@ -1,7 +1,7 @@
 """Roast and guest command dispatch regression tests."""
 import unittest
 from unittest.mock import Mock
-from roast_guest_dispatch import dispatch_roast_or_guest
+from declan.turn.roast_guest_dispatch import dispatch_roast_or_guest
 
 
 class RoastGuestDispatchTests(unittest.TestCase):

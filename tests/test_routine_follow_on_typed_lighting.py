@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock
 
-import routine_follow_on
+from declan.turn import routine_follow_on
 from execution_results import ExecutionResult, Outcome
 
 

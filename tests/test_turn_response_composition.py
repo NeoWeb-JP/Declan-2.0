@@ -2,7 +2,7 @@
 from typing import Any
 import unittest
 from unittest.mock import Mock
-from turn_response_composition import compose_turn_response
+from declan.turn.turn_response_composition import compose_turn_response
 
 
 class TurnResponseCompositionTests(unittest.TestCase):

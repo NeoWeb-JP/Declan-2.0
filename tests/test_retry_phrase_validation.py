@@ -1,7 +1,7 @@
 """Retry transcript contract regression tests."""
 import unittest
 
-from retry_phrase_validation import MAX_RETRY_PHRASE_LENGTH, valid_retry_phrase
+from declan.turn.retry_phrase_validation import MAX_RETRY_PHRASE_LENGTH, valid_retry_phrase
 
 
 class RetryPhraseValidationTests(unittest.TestCase):

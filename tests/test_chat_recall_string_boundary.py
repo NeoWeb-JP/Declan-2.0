@@ -1,7 +1,7 @@
 """Reject hostile string subclasses at the chat recall privacy boundary."""
 import unittest
 
-from chat_recall_privacy import safe_chat_text
+from declan.turn.chat_recall_privacy import safe_chat_text
 
 
 class ChatRecallStringBoundaryTests(unittest.TestCase):
