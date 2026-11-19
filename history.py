@@ -89,7 +89,11 @@ def database():
 
 def prune():
     with database() as connection:
-        connection.execute("DELETE FROM turns WHERE created_at < ?", (time() - retention_seconds(),))
+        connection.execute(
+            "DELETE FROM turns WHERE typeof(created_at) NOT IN ('integer', 'real') "
+            "OR created_at < ?",
+            (time() - retention_seconds(),),
+        )
 
 
 def _intent_table(connection):
@@ -175,8 +179,8 @@ def clear():
 def has_recent_assist():
     with database() as connection:
         return connection.execute(
-            "SELECT 1 FROM turns WHERE source = ? AND created_at >= ? LIMIT 1",
-            ("assist", time() - min(300, retention_seconds())),
+            "SELECT 1 FROM turns WHERE source = ? AND created_at BETWEEN ? AND ? LIMIT 1",
+            ("assist", time() - min(300, retention_seconds()), time()),
         ).fetchone() is not None
 
 
