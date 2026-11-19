@@ -10,7 +10,8 @@ class HealthDependencyEndpointTests(unittest.TestCase):
     def test_existing_health_endpoint_remains_lightweight(self):
         # Startup health remains independent of external Home Assistant availability.
         source = __import__("inspect").getsource(server)
-        self.assertIn('get_request_dispatch.dispatch(', source)
+        self.assertIn('http_handler_adapters.do_GET(', source)
+        self.assertIn('get_request_dispatch.dispatch(', (__import__("pathlib").Path(__file__).resolve().parents[1] / "http_handler_adapters.py").read_text())
         self.assertIn('system_read_routes.handles(handler.path)', (Path(__file__).resolve().parents[1] / 'get_request_dispatch.py').read_text())
         routes = __import__("inspect").getsource(__import__("system_read_routes"))
         self.assertIn('path == "/health"', routes)
