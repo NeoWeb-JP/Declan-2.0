@@ -1,7 +1,7 @@
 # Runtime architecture closure decision
 
 Review baseline: merged #755 main `11d87a0`, 19 November 2026.
-This proposal is for acceptance through PR review. It does not claim that every
+Accepted through merged PR #756. It does not claim that every
 module global has been eliminated or that multiple households are isolated in
 one Python interpreter.
 
@@ -54,11 +54,9 @@ accepting that ownership model for #17 and deferring wholesale package moves
 and universal dependency injection: neither is required by the current
 single-runtime contract, and moving files alone does not change ownership.
 
-Keep the original global-removal checkbox unchecked until this disposition is
-accepted. Do not describe retaining process defaults as literal removal of all
-global mutable state. If accepted, record it as an explicit disposition with
-the deferred packaging scope, rather than claiming the original wording was
-implemented in full.
+The original global-removal/package request is explicitly dispositioned by
+accepted #756: retain synchronized process owners and defer wholesale package
+moves. Do not describe this as literal removal of all global mutable state.
 
 Revisit this decision if multiple applications must coexist in one interpreter,
 tests demonstrate cross-owner leakage, shutdown/reload must replace owners
