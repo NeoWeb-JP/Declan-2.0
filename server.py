@@ -362,14 +362,14 @@ def read_ha_inventory(connection):
     return inventory_stop_boundaries.read_ha_inventory(connection, r=sys.modules[__name__])
 
 def read_ha_inventory_result(connection) -> ha_inventory.InventoryResult:
-    return ha_inventory.read_result(connection)
+    return inventory_stop_boundaries.read_ha_inventory_result(connection, r=sys.modules[__name__])
 
 
 def read_music_inventory(connection):
     return inventory_stop_boundaries.read_music_inventory(connection, r=sys.modules[__name__])
 
 def read_music_inventory_result(connection) -> ha_inventory.InventoryResult:
-    return ha_inventory.read_result(connection, music=True)
+    return inventory_stop_boundaries.read_music_inventory_result(connection, r=sys.modules[__name__])
 
 
 def stop_everywhere_result(connection):
