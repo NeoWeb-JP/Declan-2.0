@@ -1,6 +1,10 @@
 """Ensure CI continues to enforce the mypy inventory guard."""
 from pathlib import Path
 import configparser
+import importlib.util
+import subprocess
+import sys
+import tempfile
 import unittest
 
 
@@ -14,6 +18,25 @@ class MypyWorkflowWiringTests(unittest.TestCase):
         with (ROOT / 'mypy.ini').open(encoding='utf-8') as configuration:
             parser.read_file(configuration)
         self.assertTrue(parser.getboolean('mypy', 'check_untyped_defs'))
+
+    @unittest.skipUnless(importlib.util.find_spec('mypy'), 'mypy runs in quality CI')
+    def test_imported_first_party_contract_is_enforced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            (fixture / 'producer.py').write_text(
+                'def value() -> str:\n    return "not an integer"\n', encoding='utf-8'
+            )
+            (fixture / 'consumer.py').write_text(
+                'from producer import value\ncount: int = value()\n', encoding='utf-8'
+            )
+            result = subprocess.run(
+                [sys.executable, '-m', 'mypy', '--config-file', str(ROOT / 'mypy.ini'),
+                 '--no-incremental', 'consumer.py'],
+                cwd=fixture, capture_output=True, text=True, check=False, timeout=60,
+            )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('[assignment]', result.stdout)
+        self.assertIn('consumer.py:2:', result.stdout)
 
     def test_advisory_inventory_is_followed_by_blocking_guard(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")

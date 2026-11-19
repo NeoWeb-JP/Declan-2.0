@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   audit:
-    name: Advisory Python quality checks
+    name: Python quality checks (blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,12 +24,19 @@ jobs:
           python-version: "3.12"
       - name: Install audit tools
         run: python -m pip install ruff==0.14.5 bandit==1.9.1 pip-audit==2.9.0 mypy==1.18.2
+      - name: Install lightweight runtime dependencies
+        run: |
+          python -m pip install aiohttp==3.13.2 voluptuous==0.15.2 \
+            jinja2==3.1.6 wyoming==1.8.0
+          python -m pip install --require-hashes -r requirements-web-voice.txt
       - name: Ruff lint
         run: ruff check . --output-format github
+      - name: Verify cross-module typing enforcement
+        run: python -m unittest discover -s tests -p test_mypy_workflow_wiring.py -v
       - name: Mypy repository type check (blocking)
         run: |
-          # Runtime integration dependencies are absent in this audit job.
-          # Enforce all available type diagnostics across every source file.
+          # Home Assistant runtime APIs remain unavailable in this audit job.
+          # Follow first-party imports and enforce every available type diagnostic.
           python -m mypy --config-file mypy.ini \
             --disable-error-code import-not-found .
       - name: Mypy dependency import inventory (advisory)
@@ -38,10 +45,6 @@ jobs:
           # The blocking check above already rejects all available source-level
           # diagnostics. This separate check inventories imports unavailable in
           # the minimal audit environment (not production type regressions).
-          # Install the lightweight third-party libraries used by the integration
-          # so this inventory focuses on unavailable Home Assistant runtime APIs.
-          python -m pip install aiohttp==3.13.2 voluptuous==0.15.2 websocket-client==1.9.0 \
-            jinja2==3.1.6 wyoming==1.8.0 cryptography==46.0.3
           # Preserve the advisory exit status while recording actionable counts.
           set +e
           python -m mypy --config-file mypy.ini --show-error-codes . > mypy-advisory.log 2>&1
