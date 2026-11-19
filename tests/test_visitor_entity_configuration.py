@@ -1,5 +1,6 @@
 """Verify visitor entity configuration validation before Home Assistant access."""
 import os
+import sqlite3
 import unittest
 from unittest.mock import patch
 
@@ -15,6 +16,29 @@ class VisitorEntityConfigurationTests(unittest.TestCase):
                     "DECLAN_HA_URL": "https://ha.example",
                     "DECLAN_HA_TOKEN": "test-token"}, clear=True), patch.object(
                     server.configuration, "get", return_value=entity), patch.object(
+                    server, "build_opener") as opener:
+                self.assertIsNone(server.read_visitors_present())
+                opener.assert_not_called()
+
+    def test_unavailable_settings_database_is_unknown_without_network(self):
+        with patch.dict(os.environ, {
+                "DECLAN_HA_URL": "https://ha.example",
+                "DECLAN_HA_TOKEN": "test-token"}, clear=True), patch.object(
+                server.configuration, "get", side_effect=sqlite3.OperationalError("database locked")
+        ), patch.object(server, "build_opener") as opener:
+            self.assertIsNone(server.read_visitors_present())
+            opener.assert_not_called()
+
+    def test_missing_credentials_or_invalid_url_never_opens_connection(self):
+        cases = (
+            {"DECLAN_HA_URL": "https://ha.example"},
+            {"DECLAN_HA_TOKEN": "test-token"},
+            {"DECLAN_HA_URL": "ftp://ha.example", "DECLAN_HA_TOKEN": "test-token"},
+            {"DECLAN_HA_URL": "https://user@ha.example", "DECLAN_HA_TOKEN": "test-token"},
+            {"DECLAN_HA_URL": "https://ha.example/?x=1", "DECLAN_HA_TOKEN": "test-token"},
+        )
+        for settings in cases:
+            with self.subTest(settings=settings), patch.dict(os.environ, settings, clear=True), patch.object(
                     server, "build_opener") as opener:
                 self.assertIsNone(server.read_visitors_present())
                 opener.assert_not_called()
