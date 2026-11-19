@@ -12,6 +12,7 @@ from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
 import ha_inventory
 import ha_area_switch_actions
 import household_routine_dispatch
+import ha_speech_transport
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
@@ -899,20 +900,10 @@ def handle_light_request_result(phrase, *, action_results=None, last_lights=(), 
 
 
 def ha_device_connection():
-    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
-    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
-    try:
-        parsed = urlsplit(url)
-        configured = (token and parsed.scheme in {"http", "https"} and parsed.hostname
-                      and not any((parsed.username, parsed.password, parsed.query, parsed.fragment)))
-    except ValueError:
-        configured = False
-    if not configured:
-        return None
-
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    opener = build_opener(ProxyHandler({}), NoRedirect())
-    return url, headers, opener
+    return ha_speech_transport.ha_device_connection(
+        environ=os.environ, redirect_handler=NoRedirect,
+        proxy_handler=ProxyHandler, opener_factory=build_opener,
+    )
 
 
 @diagnostics.timed("bedroom_routine")
@@ -1011,50 +1002,10 @@ def guest_assignment_result(operation, connection):
 
 @diagnostics.timed("speech_generation")
 def render_web_voice(message):
-    connection = ha_device_connection()
-    engine = configuration.get("DECLAN_WEB_TTS_ENTITY", "").strip()
-    if connection is None or (engine and not re.fullmatch(r"tts\.[a-z0-9_]+", engine)):
-        return None
-    url, headers, opener = connection
-    try:
-        if not engine:
-            template = (
-                "{% set providers = integration_entities('elevenlabs') + integration_entities('elevenlabs_custom_tts') %}"
-                "{% set result = namespace(engines=[]) %}"
-                "{% for entity in states.tts if entity.state != 'unavailable' "
-                "and (entity.entity_id in providers or 'elevenlabs' in entity.entity_id or 'elevenlabs' in entity.name | lower) %}"
-                "{% set result.engines = result.engines + [[entity.entity_id, entity.name]] %}"
-                "{% endfor %}{{ result.engines | to_json }}"
-            )
-            request = Request(f"{url}/api/template", headers=headers,
-                              data=json.dumps({"template": template}).encode())
-            with opener.open(request, timeout=2) as response:
-                rows = json.loads(response.read(16384))
-            candidates = {entity: name for entity, name in rows
-                          if isinstance(entity, str) and re.fullmatch(r"tts\.[a-z0-9_]+", entity)
-                          and isinstance(name, str)}
-            named = [entity for entity, name in candidates.items() if "declan" in (entity + " " + name).casefold()]
-            matches = named or list(candidates)
-            if len(matches) != 1:
-                return None
-            engine = matches[0]
-        request = Request(f"{url}/api/tts_get_url", headers=headers, data=json.dumps({
-            "engine_id": engine, "message": message, "cache": False,
-            "options": {"preferred_format": "mp3"},
-        }).encode())
-        with opener.open(request, timeout=10) as response:
-            path = json.loads(response.read(8192))["path"]
-        if not isinstance(path, str) or not re.fullmatch(r"/api/tts_proxy/[\w.-]+\.mp3", path, re.ASCII):
-            return None
-        limit = 8 * 1024 * 1024
-        with opener.open(Request(url + path, headers=headers), timeout=10) as response:
-            audio = response.read(limit + 1)
-        return audio if 0 < len(audio) <= limit else None
-    except HTTPError as error:
-        error.close()
-    except (OSError, ValueError, KeyError, TypeError):
-        pass
-    return None
+    return ha_speech_transport.render_web_voice(
+        message, connect=ha_device_connection, config=configuration,
+        request_factory=Request,
+    )
 
 
 def approved_area_labels(areas):
