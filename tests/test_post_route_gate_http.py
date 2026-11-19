@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock
 
-from post_route_gate_http import POST_ROUTES, enforce_known_route
+from declan.http.post_route_gate_http import POST_ROUTES, enforce_known_route
 
 
 class PostRouteGateTests(unittest.TestCase):

@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import post_request_entry
+from declan.http import post_request_entry
 
 
 class PostEntryTests(unittest.TestCase):

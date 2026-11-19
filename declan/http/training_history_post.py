@@ -1,7 +1,7 @@
 """Training, retired routine mapping, and history mutation POST routes."""
-import native_training_post
-import history_intents_post
-import history_post_routes
+from declan.http import native_training_post
+from declan.http import history_intents_post
+from declan.http import history_post_routes
 
 ROUTES = frozenset({
     "/api/native/routine-responses", "/api/native/routines",

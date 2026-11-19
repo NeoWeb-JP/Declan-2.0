@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-import http_ingress_security
+from declan.http import http_ingress_security
 
 
 class HandlerStub:

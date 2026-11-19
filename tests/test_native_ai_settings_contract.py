@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
+POST_INGRESS = (ROOT / "declan/http/post_ingress_orchestration.py").read_text()
 BACKEND = (ROOT / "server.py").read_text()
 AI_FALLBACK = (ROOT / "declan" / "ai" / "ai_fallback_dispatch.py").read_text()
 AI_POST = (ROOT / "declan" / "ai" / "ai_settings_post.py").read_text()
@@ -29,9 +29,9 @@ class NativeAISettingsContractTests(unittest.TestCase):
         self.assertIn("ai_replace_key=r.ai_credentials.replace_key", POST_INGRESS)
         self.assertIn('save(body["settings"])', AI_POST)
         self.assertIn('replace_key(body["api_key"])', AI_POST)
-        ingress = (ROOT / "http_ingress_security.py").read_text()
+        ingress = (ROOT / "declan/http/http_ingress_security.py").read_text()
         ast.parse(ingress)
-        self.assertIn("http_ingress_security.has_ingress_access(handler)", (ROOT / "http_handler_adapters.py").read_text())
+        self.assertIn("http_ingress_security.has_ingress_access(handler)", (ROOT / "declan/http/http_handler_adapters.py").read_text())
         self.assertIn("secrets.compare_digest(", ingress)
 
     def test_ha_admin_proxy(self):

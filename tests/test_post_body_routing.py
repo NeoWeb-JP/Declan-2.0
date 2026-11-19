@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import post_body_routing
+from declan.http import post_body_routing
 
 
 def dependencies():

@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import post_operational_routing
+from declan.http import post_operational_routing
 
 
 class OperationalPostRoutingTests(unittest.TestCase):

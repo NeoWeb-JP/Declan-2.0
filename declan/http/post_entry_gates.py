@@ -1,6 +1,6 @@
 """Pre-body POST entry gates, preserving authentication and STT ordering."""
 
-import post_request_entry
+from declan.http import post_request_entry
 
 
 def enforce(handler, *, assist_token, ingress, authenticate_assist,

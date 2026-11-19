@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 from declan.voice import assist_capture_http
-import request_origin
+from declan.http import request_origin
 import session_context_access
 
 

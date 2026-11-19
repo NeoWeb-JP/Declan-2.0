@@ -1,8 +1,8 @@
 """POST JSON body validation and VoicePipeline management access boundary."""
 
-import post_payload_http
-import post_validation_errors_http
-import request_validation
+from declan.http import post_payload_http
+from declan.http import post_validation_errors_http
+from declan.http import request_validation
 from declan.voice import voicepipeline_access_http
 
 

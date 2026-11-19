@@ -1,6 +1,6 @@
 """Operational POST route boundary, before and after message validation."""
 
-import operational_post_dispatch
+from declan.http import operational_post_dispatch
 
 
 def dispatch_before_validation(handler, body, *, updates, release_version):

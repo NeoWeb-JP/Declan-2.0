@@ -36,14 +36,14 @@ class DeclanLogTests(unittest.TestCase):
         from pathlib import Path
         root = Path(__file__).resolve().parents[1]
         server_source = (root / "server.py").read_text()
-        transport_source = (root / "http_response_transport.py").read_text()
+        transport_source = (root / "declan/http/http_response_transport.py").read_text()
         lifecycle_source = (root / "server_lifecycle.py").read_text()
         runtime_source = (root / 'server_runtime_state.py').read_text()
         self.assertIn('server_runtime_state.create_runtime(', server_source)
         self.assertIn('logging_module.getLogger("declan.server")', runtime_source)
         self.assertIn('event_log.setLevel(logging_module.INFO)', runtime_source)
         self.assertIn('Declan backend started and health check passed', lifecycle_source)
-        self.assertIn('http_response_transport.send_body(', (root / 'http_handler_adapters.py').read_text())
+        self.assertIn('http_response_transport.send_body(', (root / 'declan/http/http_handler_adapters.py').read_text())
         self.assertIn('logger.info("HTTP %d POST %s"', transport_source)
         self.assertIn('logger.warning("HTTP %d %s %s"', transport_source)
         self.assertIn('route = urlsplit(handler.path).path', transport_source)
