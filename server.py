@@ -38,7 +38,7 @@ from time import monotonic, sleep
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from execution_results import ExecutionResult as ExecutionResult, Outcome
+from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
 from arbitration import CaptureArbiter
 
 import conditions as conditions
