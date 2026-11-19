@@ -7,11 +7,11 @@ import voicepipeline_access_http
 
 
 def read_authorized_body(handler, *, ingress):
-    """Read JSON then enforce VoicePipeline permissions before any route dispatch."""
+    """Return (authorized, body), keeping a valid JSON null distinct from denial."""
     body = post_payload_http.read_json_body(handler)
     if not voicepipeline_access_http.enforce_access(handler, body, ingress=ingress):
-        return None
-    return body
+        return False, None
+    return True, body
 
 
 def message_and_session(body):
