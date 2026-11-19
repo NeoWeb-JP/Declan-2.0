@@ -2,17 +2,15 @@
 import ast
 from pathlib import Path
 import unittest
+from unittest.mock import Mock
+from fallback_entity_authorization import exposed_entities
+from fallback_orchestration import resolve_fallback_result
+from guarded_fallback_dispatch import dispatch_fallback_result
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPOSURE = (ROOT / "custom_components/declan_two/ai_exposure.py").read_text()
 AGENT = (ROOT / "custom_components/declan_two/conversation.py").read_text()
 CHAT = (ROOT / "custom_components/declan_two/chat_view.py").read_text()
-SERVER = (ROOT / "server.py").read_text()
-AI_FALLBACK = (ROOT / "ai_fallback_dispatch.py").read_text()
-AUTHORIZATION = (ROOT / "fallback_entity_authorization.py").read_text()
-FALLBACK = (ROOT / "fallback_orchestration.py").read_text()
-PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
-COMPLETION = (ROOT / "turn_response_completion.py").read_text()
 
 
 class AIExposureContractTests(unittest.TestCase):
@@ -26,13 +24,17 @@ class AIExposureContractTests(unittest.TestCase):
         self.assertIn('"ai_exposed_entities": exposed_for_declan(hass)', CHAT)
 
     def test_backend_rejects_untrusted_exposure(self):
-        self.assertIn('turn_response_preparation.prepare(', COMPLETION)
-        self.assertIn('fallback_orchestration.resolve_fallback_result(', PREPARATION)
-        self.assertIn('exposed_entities=fallback_entity_authorization.exposed_entities', COMPLETION)
-        self.assertIn('exposed = exposed_entities(body, authorization, bridge_token)', FALLBACK)
-        self.assertIn('if authenticated_ha else ()', AUTHORIZATION)
-        self.assertIn('if not permitted or len(permitted)', AI_FALLBACK)
-        self.assertNotIn('DECLAN_OPENAI_ALLOWED_ENTITIES', SERVER)
+        body = {'ai_exposed_entities': ['light.private']}
+        token = 'x' * 32
+        for authorization, bridge_token, expected in (
+                ('Bearer wrong', token, ()), ('Bearer short', 'short', ()),
+                ('Bearer ' + token, token, ['light.private'])):
+            provider = Mock(return_value=None)
+            resolve_fallback_result('lights on', routine_reply=None, light_result=None,
+                body=body, authorization=authorization, bridge_token=bridge_token,
+                source='assist', action_results=[], exposed_entities=exposed_entities,
+                dispatch_fallback=dispatch_fallback_result, fallback_handler=provider)
+            provider.assert_called_once_with('lights on', source='assist', exposed_entities=expected)
 
 
 if __name__ == "__main__":

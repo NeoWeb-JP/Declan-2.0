@@ -21,12 +21,12 @@ def completed(actions) -> dict[str, Any]:
                 {'type': 'output_text', 'text': json.dumps({'actions': actions})}]}]}
 
 
-class PlannerContractTests(unittest.TestCase):
+class PlannerFixture(unittest.TestCase):
     def setUp(self):
         directory = self.enterContext(tempfile.TemporaryDirectory())
         self.enterContext(patch.object(history, 'DATABASE', Path(directory) / 'history.sqlite3'))
         self.settings = {**server.ai_settings.DEFAULTS, 'enabled': True}
-        self.inventory = [
+        self.inventory: list[dict[str, Any]] = [
             {'entity_id': 'light.study', 'state': 'off', 'attributes': {'friendly_name': 'Study'}},
             {'entity_id': 'light.private', 'state': 'off', 'attributes': {}},
             {'entity_id': 'script.secret', 'state': 'off', 'attributes': {}},
@@ -49,6 +49,8 @@ class PlannerContractTests(unittest.TestCase):
         with history.database() as db:
             return monthly_reserved(db)
 
+
+class PlannerContractTests(PlannerFixture):
     def test_implicit_command_reaches_real_planner_and_verified_dispatch(self):
         result = self.ask("it's too dark in here")
         self.assertIs(result.result.outcome, Outcome.CONFIRMED)

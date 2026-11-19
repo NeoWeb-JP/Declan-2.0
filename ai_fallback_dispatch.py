@@ -4,9 +4,10 @@ import sqlite3
 from execution_results import ExecutionResult, Outcome
 from ai_budget import BudgetExhausted, MICRO_USD
 from model_response_results import IncompletePlanningError
+from ai_context import ContextSelectionError
 
 
-def guarded_openai_fallback_result(message, *, source, exposed_entities=(), settings_reader, intent_gate, connect, inventory_reader, inventory_module, context_selector, planner_module, settings_module, history_module, fallback_runner, dispatcher, pricing, bounded_plan, evidence_factory, response_factory):
+def guarded_openai_fallback_result(message, *, source, exposed_entities=(), settings_reader, intent_gate, connect, inventory_reader, inventory_module, context_selector, planner_module, settings_module, history_module, fallback_runner, dispatcher, pricing, bounded_plan, evidence_factory, response_factory, location_reader=None):
     """Opt-in fallback after local handlers. Sensitive targets excluded."""
     try:
         settings = settings_reader()
@@ -25,15 +26,22 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
     # exposure set. Never use all inventory rows as implicit permission.
     if not isinstance(exposed_entities, (list, tuple)) or len(exposed_entities) > 20000:
         return response_factory(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
-    permitted = set(exposed_entities)
-    if not permitted or len(permitted) != len(exposed_entities) or any(
+    if not exposed_entities or any(
             not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", item)
             for item in exposed_entities):
+        return response_factory(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
+    permitted = set(exposed_entities)
+    if len(permitted) != len(exposed_entities):
         return response_factory(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
     safe = [row for row in inventory if row["entity_id"] in permitted
             and row["entity_id"].split(".", 1)[0] in settings["allowed_domains"]]
     try:
-        safe = context_selector(safe, message, limit=planner_module.MAX_CONTEXT)
+        if len(safe) > planner_module.MAX_CONTEXT:
+            locations = location_reader(connection) if location_reader is not None else None
+            safe = context_selector(safe, message, limit=planner_module.MAX_CONTEXT,
+                                    locations=locations, max_actions=settings['max_actions'])
+        else:
+            safe = context_selector(safe, message, limit=planner_module.MAX_CONTEXT)
         if not safe:
             return response_factory(ExecutionResult(
                 "No permitted devices are available for AI planning.", Outcome.UNRESOLVED))
@@ -60,6 +68,8 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
             evidence_factory.from_action(action, include_detail=settings["diagnostics"])
             for action in result.actions
         ))
+    except ContextSelectionError as error:
+        return response_factory(ExecutionResult(str(error), Outcome.UNRESOLVED))
     except IncompletePlanningError as error:
         reply = ("OpenAI reached its planning token limit. No devices were changed; please try a shorter request."
                  if error.reason == "max_output_tokens" else
