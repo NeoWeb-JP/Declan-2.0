@@ -28,7 +28,12 @@ def approved_area_labels(areas, *, room_key):
 
 
 def bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None, *, planner, credentials, money):
-    plan = planner.request_plan(message, exposed, model=settings["model"], api_key=credentials.get_key(), usage_sink=usage_sink, inventory=inventory,
+    from model_response_results import NonBillablePlanningError
+    try:
+        key = credentials.get_key()
+    except (OSError, ValueError):
+        raise NonBillablePlanningError('OpenAI credentials are unavailable') from None
+    plan = planner.request_plan(message, exposed, model=settings["model"], api_key=key, usage_sink=usage_sink, inventory=inventory,
         max_cost_micro_usd=money(settings["request_ceiling_usd"], allow_zero=False))
     if len(plan) > settings["max_actions"]:
         raise ValueError("Too many proposed actions")

@@ -1,14 +1,18 @@
 """Orchestrate the guarded model-planning path, without implicit HA access.
 
 The caller supplies the trusted inventory, a configured planner, an authorised
-dispatcher, and a persistent budget database. No live server route invokes this
-module until those dependencies and owner controls are connected.
+dispatcher, and a persistent budget database. The live fallback route supplies
+these dependencies after its owner controls and exposure checks.
 """
 from action_executor import execute_verified, summarise_result
 from execution_results import ExecutionResult, Outcome
 from action_plan import validate_plan
 from ai_budget import reserve, settle
 from ha_action_preflight import preflight
+import logging
+from model_response_results import NonBillablePlanningError
+
+LOGGER = logging.getLogger(__name__)
 
 
 def run_guarded_result(
@@ -23,7 +27,8 @@ def run_guarded_result(
     No execution occurs if budget, planning or preflight fails.
 
     charge_micro_usd is an optional, trusted actual-charge callback invoked
-    only after the planner returns. If absent, the full reservation is retained.
+    after planning, including failed responses with known usage. Proven unsent
+    or rejected requests release their reservation; unknown costs retain it.
     """
     if not isinstance(inventory, list):
         raise ValueError("Trusted HA inventory is required")
@@ -40,8 +45,19 @@ def run_guarded_result(
         budget_db, limit_micro_usd=monthly_limit_micro_usd,
         max_request_micro_usd=request_ceiling_micro_usd,
     )
-    # Fail closed: retain the full reservation on exceptions or uncertain costs.
-    plan = planner(utterance, tuple(exposed))
+    try:
+        plan = planner(utterance, tuple(exposed))
+    except NonBillablePlanningError:
+        settle(budget_db, reservation, 0)
+        raise
+    except Exception:
+        if charge_micro_usd is not None:
+            try:
+                settle(budget_db, reservation, charge_micro_usd())
+            except Exception as accounting_error:
+                LOGGER.warning('Failed planning cost is unknown; reservation retained (reason=%s)',
+                               type(accounting_error).__name__)
+        raise
     # Charge even clarification-only responses. Missing usage retains the
     # full reservation, so a failed API accounting response cannot overspend.
     if charge_micro_usd is not None:

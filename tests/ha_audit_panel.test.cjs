@@ -4,6 +4,21 @@ const {test} = require('node:test');
 const {JSDOM} = require('jsdom');
 const source = readFileSync('custom_components/declan_two/frontend/panel.js', 'utf8');
 
+test('AI settings displays remaining budget and exhausted reservation capacity', async t => {
+  const fixture = panel(t, {key_configured:true, month_usage_micro_usd:4980000,
+    settings:{enabled:true, model:'gpt-5-mini', monthly_budget_usd:'5.00', request_ceiling_usd:'0.05', allowed_domains:['light']}});
+  await fixture.element.loadAISettings();
+  assert.match(fixture.root.querySelector('.ai-usage').textContent, /\$0\.02 remaining/);
+  assert.match(fixture.root.querySelector('.ai-usage').textContent, /Budget exhausted/);
+});
+
+test('AI settings does not fabricate budget data when usage is missing', async t => {
+  const fixture = panel(t, {key_configured:true,
+    settings:{enabled:true, model:'gpt-5-mini', monthly_budget_usd:'5.00', request_ceiling_usd:'0.05', allowed_domains:['light']}});
+  await fixture.element.loadAISettings();
+  assert.match(fixture.root.querySelector('.ai-usage').textContent, /information is unavailable/);
+});
+
 function panel(t, response) {
   const dom = new JSDOM('<!doctype html><body></body>', {runScripts:'outside-only', url:'http://localhost'});
   t.after(() => dom.window.close());

@@ -3,6 +3,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 
+class NonBillablePlanningError(ValueError):
+    """Trusted planner evidence that no successful API request was made."""
+
+
 class ModelResponseStatus(StrEnum):
     COMPLETED = "completed"
     UNVERIFIED = "unverified"

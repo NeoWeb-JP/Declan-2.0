@@ -2,6 +2,7 @@
 import re
 import sqlite3
 from execution_results import ExecutionResult, Outcome
+from ai_budget import BudgetExhausted, MICRO_USD
 
 
 def guarded_openai_fallback_result(message, *, source, exposed_entities=(), settings_reader, intent_gate, connect, inventory_reader, inventory_module, context_selector, planner_module, settings_module, history_module, fallback_runner, dispatcher, pricing, bounded_plan, evidence_factory, response_factory):
@@ -55,5 +56,10 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
             evidence_factory.from_action(action, include_detail=settings["diagnostics"])
             for action in result.actions
         ))
+    except BudgetExhausted as error:
+        remaining = error.remaining_micro_usd / MICRO_USD
+        return response_factory(ExecutionResult(
+            f'Monthly OpenAI budget exhausted for this request. ${remaining:.2f} remains; local commands still work.',
+            Outcome.UNRESOLVED))
     except (ValueError, OSError, sqlite3.Error):
         return response_factory(ExecutionResult("I couldn't safely complete that request using OpenAI.", Outcome.UNRESOLVED))
