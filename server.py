@@ -33,7 +33,6 @@ from declan.turn import turn_http_entry
 from declan.core import domain_boundary_helpers
 from declan.ha import household_selection_boundaries
 from declan.core import runtime_dispatch_boundaries
-from declan.music import inventory_stop_boundaries
 from declan.core import compatibility_facade
 from declan.core import service_entry_boundaries
 import server_bootstrap
@@ -280,27 +279,39 @@ def approved_area_labels(areas):
     return domain_boundary_helpers.approved_area_labels(areas, room_key=music.room_key)
 
 def read_ha_inventory_result(connection) -> ha_inventory.InventoryResult:
-    return inventory_stop_boundaries.read_ha_inventory_result(connection, r=sys.modules[__name__])
+    return ha_inventory.read_result(connection)
 
 
 def read_music_inventory_result(connection) -> ha_inventory.InventoryResult:
-    return inventory_stop_boundaries.read_music_inventory_result(connection, r=sys.modules[__name__])
+    return ha_inventory.read_result(connection, music=True)
 
 
 def stop_everywhere_result(connection):
-    return inventory_stop_boundaries.stop_everywhere_result(connection, r=sys.modules[__name__])
+    """Return a typed stop-all result with playback diagnostics."""
+    return _stop_everywhere_typed_core(connection)
 
 def _stop_everywhere_typed_core(connection):
-    return inventory_stop_boundaries._stop_everywhere_typed_core(connection, r=sys.modules[__name__])
+    return music_stop_dispatch.stop_everywhere_result(
+        connection, inventory_reader=read_music_inventory_result,
+        inventory_module=ha_inventory, music_provider=music,
+    )
 
 def stop_origin_result(connection, satellite, device):
-    return inventory_stop_boundaries.stop_origin_result(connection, satellite, device, r=sys.modules[__name__])
+    return music_stop_dispatch.stop_origin_result(
+        connection, satellite, device, inventory_reader=read_music_inventory_result,
+        inventory_module=ha_inventory, music_provider=music, timer_provider=timers,
+    )
 
 def read_ha_areas(connection, origin=None):
-    return inventory_stop_boundaries.read_ha_areas(connection, origin, r=sys.modules[__name__])
+    return ha_area_switch_actions.read_ha_areas(connection, origin, request_factory=Request)
 
 def set_switch_as_light_result(name, desired_state, inventory, connection, *, preview=False, action_results=None):
-    return inventory_stop_boundaries.set_switch_as_light_result(name, desired_state, inventory, connection, preview=preview, action_results=action_results, r=sys.modules[__name__])
+    return ha_area_switch_actions.set_switch_as_light_result(
+        name, desired_state, inventory, connection,
+        preview=preview, action_results=action_results,
+        request_factory=Request, append_evidence=append_action_evidence,
+        evidence_factory=LightingActionEvidence,
+    )
 
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
