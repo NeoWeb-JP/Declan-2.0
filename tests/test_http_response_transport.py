@@ -44,7 +44,7 @@ class ResponseTransportTests(unittest.TestCase):
 
     def test_query_parameters_not_logged(self):
         handler = FakeHandler("/api/chat?token=private", command="POST")
-        with patch.object(http_response_transport.diagnostics.ACTIVE, "get", return_value=None):
+        with patch.object(http_response_transport.diagnostics, "ACTIVE", SimpleNamespace(get=lambda: None)):
             with self.assertLogs("test.http_response_transport", level="INFO") as captured:
                 http_response_transport.send_body(
                     handler, 400, b"error", "text/plain", logger=self.logger,
@@ -54,7 +54,7 @@ class ResponseTransportTests(unittest.TestCase):
 
     def test_health_response_keeps_pid_header(self):
         handler = FakeHandler("/health", command="GET")
-        with patch.object(http_response_transport.diagnostics.ACTIVE, "get", return_value=None):
+        with patch.object(http_response_transport.diagnostics, "ACTIVE", SimpleNamespace(get=lambda: None)):
             http_response_transport.send_body(
                 handler, 200, b"ok", "text/plain", logger=self.logger,
             )
