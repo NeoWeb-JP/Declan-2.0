@@ -21,10 +21,11 @@ import ai_fallback_dispatch
 import routine_request_selection
 import routine_execution_dispatch
 import lighting_execution_dispatch
+import ha_household_status
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
@@ -106,8 +107,7 @@ import guarded_fallback
 import ha_dispatcher
 import routine_registry
 from routine_action_evidence import parse_routine_actions
-from script_provider_results import ScriptProviderResult, ScriptReportedOutcome
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
@@ -225,89 +225,32 @@ def home_assistant_status():
 
 
 def home_assistant_status_result() -> HomeAssistantStatusResult:
-    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
-    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
-    if not url or not token:
-        try:
-            if history.has_recent_assist():
-                return HomeAssistantStatusResult(HomeAssistantStatus.ASSIST_RECENT)
-        except (OSError, sqlite3.Error):
-            pass
-        return HomeAssistantStatusResult(HomeAssistantStatus.NOT_CONFIGURED)
-    try:
-        parsed = urlsplit(url)
-        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
-                or parsed.username or parsed.password or parsed.query or parsed.fragment):
-            return HomeAssistantStatusResult(HomeAssistantStatus.NOT_CONFIGURED)
-        request = Request(url + "/api/", headers={"Authorization": f"Bearer {token}"})
-        opener = build_opener(ProxyHandler({}), NoRedirect())
-        with opener.open(request, timeout=3) as response:
-            payload = json.loads(response.read(4096))
-            if response.status == 200 and payload == {"message": "API running."}:
-                return HomeAssistantStatusResult(HomeAssistantStatus.CONNECTED)
-    except HTTPError as error:
-        status = error.code
-        error.close()
-        if status in {401, 403}:
-            return HomeAssistantStatusResult(HomeAssistantStatus.AUTHENTICATION_FAILED)
-    except (OSError, ValueError):
-        pass
-    return HomeAssistantStatusResult(HomeAssistantStatus.DISCONNECTED)
+    return ha_household_status.home_assistant_status_result(
+        environ=os.environ, history_store=history, request_factory=Request,
+        opener_factory=build_opener, proxy_factory=ProxyHandler,
+        redirect_factory=NoRedirect, parse_url=urlsplit,
+    )
 
 
 def configured_guest_mode_entity():
-    """Avoid a default household ID or HTTP failure for invalid settings."""
-    try:
-        return household_entities.guest_mode()
-    except (OSError, sqlite3.Error, ValueError):
-        return ""
+    return ha_household_status.configured_guest_mode_entity(entities=household_entities)
 
 
 def read_guest_mode():
-    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
-    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
-    try:
-        parsed = urlsplit(url)
-        if (not token or parsed.scheme not in {"http", "https"} or not parsed.hostname
-                or parsed.username or parsed.password or parsed.query or parsed.fragment):
-            return None
-        entity = household_entities.guest_mode()
-        request = Request(f"{url}/api/states/{entity}", headers={"Authorization": f"Bearer {token}"})
-        opener = build_opener(ProxyHandler({}), NoRedirect())
-        with opener.open(request, timeout=1) as response:
-            return json.loads(response.read(4096)).get("state")
-    except HTTPError as error:
-        error.close()
-    except (OSError, ValueError, TypeError, AttributeError, sqlite3.Error):
-        pass
-    return None
+    return ha_household_status.read_guest_mode(
+        environ=os.environ, entities=household_entities,
+        request_factory=Request, opener_factory=build_opener,
+        proxy_factory=ProxyHandler, redirect_factory=NoRedirect, parse_url=urlsplit,
+    )
 
 
 def read_visitors_present():
-    """Visitor presence is independent of guest authority.
-
-    Missing or unavailable state is unknown and therefore privacy-safe.
-    """
-    url = os.environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
-    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
-    try:
-        parsed = urlsplit(url)
-        if (not token or parsed.scheme not in {"http", "https"} or not parsed.hostname
-                or parsed.username or parsed.password or parsed.query or parsed.fragment):
-            return None
-        visitor_entity = configuration.get("DECLAN_VISITORS_ENTITY", VISITORS_PRESENT_ENTITY)
-        if not re.fullmatch(r"input_boolean\.[a-z0-9_]+", visitor_entity):
-            return None
-        request = Request(f"{url}/api/states/{visitor_entity}",
-                          headers={"Authorization": f"Bearer {token}"})
-        with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=1) as response:
-            state = json.loads(response.read(4096)).get("state")
-            return {"on": True, "off": False}.get(state)
-    except HTTPError as error:
-        error.close()
-    except (OSError, ValueError, TypeError, AttributeError, sqlite3.Error):
-        pass
-    return None
+    return ha_household_status.read_visitors_present(
+        environ=os.environ, config=configuration,
+        visitors_entity=VISITORS_PRESENT_ENTITY,
+        request_factory=Request, opener_factory=build_opener,
+        proxy_factory=ProxyHandler, redirect_factory=NoRedirect, parse_url=urlsplit,
+    )
 
 
 def routine_action_results(steps):
@@ -425,54 +368,12 @@ def execute_routine(selection, action_results, *, approved=False):
 
 
 def run_custom_routine_result(name, action_results=None, *, approved=False, parameters=None):
-    """Run a legacy mapped HA script; no per-script approval required."""
-    try:
-        item = routine_registry.load().get(name)
-    except (ValueError, OSError, sqlite3.Error):
-        return ExecutionResult("Routine configuration is unavailable.", Outcome.UNVERIFIED), None
-    if not item:
-        return ExecutionResult("That routine is not configured.", Outcome.NOT_CONFIGURED), None
-    connection = ha_device_connection()
-    if connection is None:
-        return ExecutionResult("Home Assistant is not connected.", Outcome.NOT_CONFIGURED), None
-    url, headers, opener = connection
-    if parameters and "room" in parameters:
-        areas = read_ha_areas(connection)
-        if parameters["room"] not in areas:
-            return ExecutionResult("I could not match that room to a Home Assistant area.", Outcome.UNRESOLVED), None
-    script = item["script"]
-    # Preserve legacy script parameters for existing installations.
-    request_id = "declan-" + secrets.token_hex(16)
-    payload = {**item["fields"], **(parameters or {}), "request_id": request_id, "routine_id": script}
-    request = Request(f"{url}/api/services/script/{script.split('.', 1)[1]}?return_response",
-                      data=json.dumps(payload).encode(), headers=headers, method="POST")
-    with track_routine(name, script):
-        try:
-            with opener.open(request, timeout=55) as response:
-                result = json.loads(response.read(65536))
-        except HTTPError as error:
-            code = error.code
-            error.close()
-            return ExecutionResult(f"Home Assistant rejected {name} (HTTP {code}).", Outcome.FAILED), None
-        except (OSError, ValueError):
-            return ExecutionResult(f"I couldn't verify {name}. Check its Home Assistant trace.", Outcome.UNVERIFIED), None
-        value = result.get("service_response") if isinstance(result, dict) else None
-        if isinstance(value, dict) and set(value) == {script}:
-            value = value[script]
-        if not isinstance(value, dict) or value.get("request_id") != request_id or value.get("routine_id") != script:
-            return ExecutionResult(f"{name} was requested, but completion was not verified.", Outcome.UNVERIFIED), None
-        provider_result = ScriptProviderResult.parse(value.get("outcome"))
-        status = provider_result.outcome
-        if status not in {ScriptReportedOutcome.STARTED, ScriptReportedOutcome.SUCCESS,
-                          ScriptReportedOutcome.PARTIAL, ScriptReportedOutcome.FAILED, ScriptReportedOutcome.CANCELLED}:
-            return ExecutionResult(f"{name} returned no verified completion outcome.", Outcome.UNVERIFIED), None
-        steps = routine_action_results_typed(value.get("steps"))
-        if action_results is not None:
-            extend_action_evidence(action_results, steps)
-        required = [step for step in steps if step.required is not False]
-        if status is ScriptReportedOutcome.SUCCESS and (not required or not isinstance(value.get("steps"), list) or len(steps) != len(value["steps"]) or any(not step.completed for step in required)):
-            return ExecutionResult(f"{name} was started, but required steps were not verified.", Outcome.UNVERIFIED), None
-        return ExecutionResult(f"{name} {status}.", provider_result.execution_outcome), None
+    return routine_execution_dispatch.run_custom_routine_result(
+        name, action_results=action_results, approved=approved, parameters=parameters,
+        registry=routine_registry, connect=ha_device_connection, areas_reader=read_ha_areas,
+        token_hex=secrets.token_hex, request_factory=Request, tracker=track_routine,
+        parse_steps=routine_action_results_typed, extend_evidence=extend_action_evidence,
+    )
 
 
 def chained_outcome(routine, lighting):
