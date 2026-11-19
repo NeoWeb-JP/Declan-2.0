@@ -24,6 +24,8 @@ import ha_household_status
 import server_lifecycle
 import routine_turn_orchestration
 import light_command_parsing
+import post_ingress_orchestration
+import sys
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
@@ -678,60 +680,10 @@ class Handler(BaseHTTPRequestHandler):
         return post_request_entry.dispatch(self, handle_post=self.handle_post)
 
     def handle_post(self):
-        if not post_entry_gates.enforce(
-            self, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
-            ingress=self.has_ingress_access(),
-            authenticate_assist=assist_auth_http.authenticate_assist,
-            enforce_known_route=post_route_gate_http.enforce_known_route,
-            enforce_origin=post_origin_auth_http.enforce_access,
-            transcribe=self.transcribe_browser_audio,
-        ):
+        prepared = post_ingress_orchestration.prepare(self, r=sys.modules[__name__])
+        if prepared is None:
             return
-        try:
-            # Assist-token callers may review or resolve pending matches, but not
-            # perform destructive VoicePipeline management operations.
-            authorized, body = post_payload_validation.read_authorized_body(
-                self, ingress=self.has_ingress_access(),
-            )
-            if not authorized:
-                return
-            if post_body_routing.dispatch(
-                self, body, spotify_save=self.spotify_settings,
-                ai_replace_key=ai_credentials.replace_key,
-                ai_save=ai_settings.save, ai_configured=ai_credentials.configured,
-                music=music, spotify_playlists=spotify_playlists,
-                playlist_handler=music_playlists_post.handle_music_playlists,
-                opener_factory=lambda: build_opener(ProxyHandler({})),
-                voice_manage=voicepipeline.manage,
-                pipeline_error=voicepipeline.PipelineError,
-                profiles_manage=voice_profiles.manage,
-                preview=configuration.preview, apply=configuration.apply,
-                command_responses=command_responses,
-                routine_responses=routine_responses,
-                discover=script_discovery.discover_result,
-                connection=ha_device_connection, history=history,
-                voicepipeline=voicepipeline, unmatched_reply=UNMATCHED_REPLY,
-                forget_intent=history.forget_intent,
-                edit_intent=history.edit_intent,
-                teach_intent=history.teach_intent,
-                storage_errors=(OSError, sqlite3.Error),
-            ):
-                return
-            if post_operational_routing.dispatch_before_validation(
-                self, body, updates=updates, release_version=RELEASE_VERSION,
-            ):
-                return
-            message, session_id = post_payload_validation.message_and_session(body)
-        except (ValueError, TypeError, KeyError, AttributeError):
-            post_payload_validation.send_validation_error(self)
-            return
-        if post_operational_routing.dispatch_after_validation(
-            self, body, message=message, session_id=session_id,
-            render=render_web_voice, record=history.record,
-            token_urlsafe=secrets.token_urlsafe,
-            action_results=routine_action_results_typed,
-        ):
-            return
+        body, message, session_id = prepared
         turn = turn_session_entry.prepare(
             self, body, message=message, session_id=session_id,
             arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
