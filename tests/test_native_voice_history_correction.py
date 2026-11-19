@@ -21,7 +21,8 @@ class NativeVoiceCorrectionContract(unittest.TestCase):
     def test_backend_limits_remote_correction_shape(self):
         ast.parse(ACCESS)
         self.assertIn('body.get("confirm") is not True', ACCESS)
-        self.assertIn("voicepipeline_access_http.enforce_access(", SERVER)
+        self.assertIn("post_payload_validation.read_authorized_body(", SERVER)
+        self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "post_payload_validation.py").read_text())
 
     def test_ui_requires_review_revision_and_confirmation(self):
         self.assertNotIn('!item.current_resolution_id || !speaker) return;', PANEL)
