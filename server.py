@@ -6,8 +6,7 @@ import os as os
 import secrets as secrets
 import sqlite3 as sqlite3
 from http.server import BaseHTTPRequestHandler as BaseHTTPRequestHandler
-from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
-ThreadingHTTPServer = ThreadingHTTPServer
+from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer  # noqa: F401 - compatibility export
 import ha_inventory as ha_inventory
 import ha_area_switch_actions as ha_area_switch_actions
 import household_routine_dispatch as household_routine_dispatch
