@@ -3,7 +3,6 @@ import argparse as argparse
 import ipaddress
 import logging
 import os
-import re
 import secrets
 import sqlite3 as sqlite3
 from http.server import BaseHTTPRequestHandler
