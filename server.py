@@ -23,10 +23,10 @@ import ha_household_status
 import server_lifecycle
 import routine_turn_orchestration
 import light_command_parsing
-import post_ingress_orchestration
-import turn_dispatch_orchestration
-import turn_session_preflight
-import turn_response_completion
+import post_ingress_orchestration as post_ingress_orchestration
+import turn_dispatch_orchestration as turn_dispatch_orchestration
+import turn_session_preflight as turn_session_preflight
+import turn_response_completion as turn_response_completion
 import command_vocabulary
 import http_handler_adapters
 import turn_http_entry
@@ -119,7 +119,7 @@ from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, H
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
-from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
+from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence
 import script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
