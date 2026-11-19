@@ -128,6 +128,8 @@ def learned_intent(phrase):
 
 
 def teach_intent(turn_id, target, unmatched_reply):
+    if type(turn_id) is not int or turn_id <= 0:
+        raise ValueError("Choose a valid command from history.")
     now = time()
     with database() as connection:
         turn = connection.execute(
@@ -147,6 +149,7 @@ def teach_intent(turn_id, target, unmatched_reply):
 
 
 def forget_intent(phrase):
+    phrase = validated_training_phrase(phrase, "Choose a valid trained phrase.")
     with database() as connection:
         _intent_table(connection)
         connection.execute("DELETE FROM learned_intents WHERE phrase = ?", (phrase,))
@@ -210,7 +213,10 @@ def recent(before=None, limit=50):
     now = time()
     with database() as connection:
         connection.row_factory = sqlite3.Row
-        query = "SELECT * FROM turns WHERE created_at BETWEEN ? AND ?"
+        query = (
+            "SELECT * FROM turns WHERE typeof(created_at) IN ('integer', 'real') "
+            "AND created_at BETWEEN ? AND ?"
+        )
         args = [now - retention_seconds(), now]
         if before is not None:
             query += " AND id < ?"
