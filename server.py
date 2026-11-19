@@ -17,6 +17,7 @@ import music_stop_dispatch
 import movie_ha_helpers
 import bedroom_routine_dispatch
 import media_title_search
+import ai_fallback_dispatch
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
@@ -1313,58 +1314,17 @@ def _bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None
 
 
 def guarded_openai_fallback_result(message, *, source, exposed_entities=()):
-    """Opt-in fallback after local handlers. Sensitive targets excluded."""
-    try:
-        settings = ai_settings.read()
-    except (OSError, ValueError, sqlite3.Error):
-        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("AI settings are unavailable; local commands still work.", Outcome.UNRESOLVED))
-    if not settings["enabled"] or not ai_intent_gate.is_action_request(message):
-        return None
-    connection = ha_device_connection()
-    if connection is None:
-        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("Home Assistant is unavailable.", Outcome.UNAVAILABLE))
-    inventory_result = ha_inventory.InventoryResult.coerce(read_ha_inventory_result(connection))
-    inventory, error = inventory_result.inventory, inventory_result.error
-    if error or inventory is None:
-        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("I couldn't verify Home Assistant devices.", Outcome.UNAVAILABLE))
-    # Only the authenticated HA integration supplies its effective Assist
-    # exposure set. Never use all inventory rows as implicit permission.
-    if not isinstance(exposed_entities, (list, tuple)) or len(exposed_entities) > 20000:
-        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
-    permitted = set(exposed_entities)
-    if not permitted or len(permitted) != len(exposed_entities) or any(
-            not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", item)
-            for item in exposed_entities):
-        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
-    safe = [row for row in inventory if row["entity_id"] in permitted
-            and row["entity_id"].split(".", 1)[0] in settings["allowed_domains"]]
-    try:
-        safe = ai_context.select(safe, message, limit=openai_planner.MAX_CONTEXT)
-        limit = ai_settings._money(settings["monthly_budget_usd"], allow_zero=True)
-        ceiling = ai_settings._money(settings["request_ceiling_usd"], allow_zero=False)
-        usage = {}
-        with history.database() as db:
-            result = guarded_fallback.run_guarded_result(
-                message, safe,
-                planner=lambda text, exposed: _bounded_ai_plan(
-                    text, exposed, settings, usage_sink=lambda value: usage.update({"value": value}),
-                    inventory=safe),
-                dispatcher=lambda action: ha_dispatcher.dispatch_result(
-                    action, connection,
-                    authorised=lambda candidate: candidate.entity_id in {
-                        row["entity_id"] for row in safe
-                        if row["state"] not in ("unknown", "unavailable")
-                    }),
-                budget_db=db, monthly_limit_micro_usd=limit,
-                request_ceiling_micro_usd=ceiling,
-                charge_micro_usd=lambda: ai_pricing.charge(settings["model"], usage.get("value")),
-            )
-        return guarded_fallback_dispatch.FallbackResponse(result, tuple(
-            FallbackActionEvidence.from_action(action, include_detail=settings["diagnostics"])
-            for action in result.actions
-        ))
-    except (ValueError, OSError, sqlite3.Error):
-        return guarded_fallback_dispatch.FallbackResponse(ExecutionResult("I couldn't safely complete that request using OpenAI.", Outcome.UNRESOLVED))
+    return ai_fallback_dispatch.guarded_openai_fallback_result(
+        message, source=source, exposed_entities=exposed_entities,
+        settings_reader=ai_settings.read, intent_gate=ai_intent_gate.is_action_request,
+        connect=ha_device_connection, inventory_reader=read_ha_inventory_result,
+        inventory_module=ha_inventory, context_selector=ai_context.select,
+        planner_module=openai_planner, settings_module=ai_settings,
+        history_module=history, fallback_runner=guarded_fallback.run_guarded_result,
+        dispatcher=ha_dispatcher.dispatch_result, pricing=ai_pricing.charge,
+        bounded_plan=_bounded_ai_plan, evidence_factory=FallbackActionEvidence,
+        response_factory=guarded_fallback_dispatch.FallbackResponse,
+    )
 
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
