@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 import history
 
 
@@ -37,7 +35,11 @@ def test_teaching_from_expired_history_is_rejected(tmp_path, monkeypatch):
             "VALUES (?, ?, ?, ?, ?)",
             (2_000_000.0 - 60, "recent", "assist", "turn lights", "sorry"),
         ).lastrowid
-    with pytest.raises(ValueError, match="Choose a command from history"):
+    try:
         history.teach_intent(expired, "turn on lights", "sorry")
+    except ValueError as error:
+        assert "Choose a command from history" in str(error)
+    else:
+        raise AssertionError("Expired turn must not be eligible for training")
     history.teach_intent(recent, "turn on lights", "sorry")
     assert history.learned_intent("turn lights") == "turn on lights"
