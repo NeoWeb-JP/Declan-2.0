@@ -3,6 +3,7 @@ import io
 import json
 import unittest
 from unittest.mock import patch
+import legacy_wire
 import server
 
 class CustomRoutineTests(unittest.TestCase):
@@ -14,7 +15,7 @@ class CustomRoutineTests(unittest.TestCase):
 
     def test_sensitive_mapping_fails_closed(self):
         self.mapping["tea"]["sensitive"] = True
-        self.assertEqual(server.run_custom_routine("tea")[1], "not_configured")
+        self.assertEqual(legacy_wire.run_custom_routine("tea")[1], "not_configured")
 
     def test_sensitive_gate_requires_confirmation_not_voice_id(self):
         from declan.turn import sensitive_confirmations
@@ -29,13 +30,13 @@ class CustomRoutineTests(unittest.TestCase):
         self.assertEqual((decision, phrase), ("confirmed", "make tea"))
 
     def test_missing_mapping_never_dispatches(self):
-        self.assertEqual(server.run_custom_routine("unknown")[1], "not_configured")
+        self.assertEqual(legacy_wire.run_custom_routine("unknown")[1], "not_configured")
 
     def test_voice_selection(self):
         script = {"entity_id": "script.make_tea", "name": "Make Tea", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
-            self.assertEqual(server.select_routine("make tea", None), ("auto:script.make_tea", {}))
+            self.assertEqual(legacy_wire.select_routine("make tea", None), ("auto:script.make_tea", {}))
 
     def test_verified_response_requires_matching_ids(self):
         class Opener:
@@ -44,7 +45,7 @@ class CustomRoutineTests(unittest.TestCase):
                 return io.BytesIO(json.dumps({"service_response": {"request_id": self.payload["request_id"], "routine_id": self.payload["routine_id"], "outcome": "success", "steps": [{"target": "tea", "status": "confirmed"}]}}).encode())
         opener = Opener()
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)):
-            self.assertEqual(server.run_custom_routine("tea")[1], "reported_success")
+            self.assertEqual(legacy_wire.run_custom_routine("tea")[1], "reported_success")
         self.assertEqual(opener.payload["strength"], "strong")
 
     def test_mapped_provider_vocabulary_is_parsed_before_completion_decisions(self):
@@ -59,7 +60,7 @@ class CustomRoutineTests(unittest.TestCase):
                                   "outcome": outcome, "steps": [{"target": "tea", "status": "confirmed"}]}
                         return io.BytesIO(json.dumps({"service_response": result}).encode())
                 with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Opener())):
-                    self.assertEqual(server.run_custom_routine("tea")[1], expected)
+                    self.assertEqual(legacy_wire.run_custom_routine("tea")[1], expected)
 
     def test_stop_reports_request_not_completed_rollback(self):
         class Opener:
@@ -81,7 +82,7 @@ class CustomRoutineTests(unittest.TestCase):
             def open(self, request, timeout):
                 return io.BytesIO(b'{"service_response":{"outcome":"success"}}')
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Opener())):
-            self.assertEqual(server.run_custom_routine("tea")[1], "unverified")
+            self.assertEqual(legacy_wire.run_custom_routine("tea")[1], "unverified")
 
 if __name__ == "__main__":
     unittest.main()

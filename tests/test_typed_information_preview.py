@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from declan.turn import command_registry
 from declan.core import conditions
 from declan.turn import routine_preview_dispatch
+import legacy_wire
 import server
 from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
 from declan.turn.information_result import InformationResult, InformationCategory
@@ -54,14 +55,13 @@ class TypedInformationPreviewTests(unittest.TestCase):
     def test_preview_core_bypasses_legacy_and_cannot_execute(self):
         selection = (("auto:script.tea", {"mode": "quiet"}), None)
         with patch.object(server, 'select_routine_turn_result', return_value=selection), \
-             patch.object(server, "preview_routine", side_effect=AssertionError("legacy preview")), \
              patch.object(server, "execute_routine_result", side_effect=AssertionError("execution")):
             result = server.preview_routine_result("preview tea", "kitchen")
         self.assertIs(result.outcome, Outcome.PREVIEW)
         self.assertIn("Nothing has been run", result.reply)
         self.assertIn("mode=quiet", result.reply)
         with patch.object(server, "preview_routine_result", return_value=result):
-            self.assertEqual(server.preview_routine("preview tea"), result.as_legacy_pair())
+            self.assertEqual(legacy_wire.preview_routine("preview tea"), result.as_legacy_pair())
 
     def test_preview_dispatch_preserves_typed_identity_origin_and_unmatched(self):
         expected = ExecutionResult("Preview", Outcome.PREVIEW)

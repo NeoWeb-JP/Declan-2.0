@@ -7,6 +7,7 @@ from declan.turn.command_registry import RequestContext, routine_registry
 from declan.core.execution_results import ExecutionResult, Outcome
 from declan.turn.routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from declan.ha import script_discovery
+import legacy_wire
 import server
 
 
@@ -34,8 +35,6 @@ class RoutineSelectionResultTests(unittest.TestCase):
         item = {"entity_id": "script.tea", "name": "Make Tea", "safe": True, "fields": []}
         with patch.object(server, "ha_device_connection", return_value="connection"), \
              patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult((item,))), \
-             patch.object(server, "select_routine", side_effect=AssertionError("legacy selector")), \
-             patch.object(server, "select_routine_turn", side_effect=AssertionError("legacy turn selector")), \
              patch.object(script_discovery, "execute_result", return_value=(ExecutionResult("Requested", Outcome.STARTED), None)) as execute:
             selected = server.select_routine_result("make tea", None)
             assert selected is not None
@@ -70,6 +69,6 @@ class RoutineSelectionResultTests(unittest.TestCase):
                  patch.object(script_discovery, "enqueue_result") as enqueue:
                 result, _ = server.execute_routine_result(selection, [])
                 self.assertIs(result.outcome, expected)
-                self.assertEqual(server.execute_routine(selection.as_legacy_pair(), [])[1], expected.value)
+                self.assertEqual(legacy_wire.execute_routine(selection.as_legacy_pair(), [])[1], expected.value)
             execute.assert_not_called()
             enqueue.assert_not_called()

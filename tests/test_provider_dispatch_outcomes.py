@@ -64,8 +64,7 @@ class ProviderDispatchOutcomeTests(unittest.TestCase):
         for selection, outcome in (("auto_ambiguous", Outcome.UNRESOLVED),
                                    ("unconfigured_house_status", Outcome.NOT_CONFIGURED),
                                    ("missing", Outcome.NOT_CONFIGURED)):
-            with self.subTest(selection=selection), patch.object(
-                    server, "execute_routine", side_effect=AssertionError("legacy routine")):
+            with self.subTest(selection=selection):
                 result, status = server.execute_routine_result((selection, {}), [])
             self.assertIs(result.outcome, outcome)
             self.assertIsNone(status)

@@ -1,7 +1,11 @@
-"""Legacy compatibility conversions delegated from the HTTP entry module."""
+"""Typed routine helpers still resolved through the server module (`r=`).
+
+The string-returning twins were retired; these three remain until the `r=`
+service-locator is replaced by an explicit dependency container.
+"""
 
 def track_routine(name, script, *, r):
-    """Compatibility context manager for mapped routine execution."""
+    """Context manager tracking a mapped routine while it runs."""
     return r.ACTIVE_ROUTINE_REGISTRY.track(name, script)
 
 
@@ -16,18 +20,3 @@ def stop_pending_routines_result(*, r):
 def routine_action_results_typed(steps, *, r):
     """Read validated typed evidence from the mapped routine provider."""
     return r.parse_routine_actions(steps)
-
-def select_routine(phrase, origin, *, r):
-    result = r.select_routine_result(phrase, origin)
-    return r.RoutineSelection.coerce(result).as_legacy_pair() if result is not None else None
-
-def select_routine_turn(phrase, origin, *, r):
-    result = r.select_routine_turn_result(phrase, origin)
-    return r.RoutineTurnSelection.coerce(result).as_legacy_pair() if result is not None else None
-
-def _routine_legacy_triple(result, status, *, r):
-    """Preserve legacy routine callers while validating discovered script outcomes."""
-    return result.reply, result.outcome.value, status
-
-def execute_routine(selection, action_results, *, approved=False, r):
-    return r._routine_legacy_triple(*r.execute_routine_result(selection, action_results, approved=approved))

@@ -3,6 +3,8 @@ from typing import Any
 from email.message import Message
 import json
 import unittest
+
+import legacy_wire
 from io import BytesIO
 from urllib.error import HTTPError
 from unittest.mock import Mock, MagicMock, patch
@@ -117,7 +119,7 @@ class RoutineResultTests(unittest.TestCase):
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
              patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
             for phrase in ("dinner time", "announce dinner", "run dinner is served"):
-                kind, parameters = server.select_routine(phrase, None)
+                kind, parameters = legacy_wire.select_routine(phrase, None)
                 self.assertEqual(kind, "auto:" + item["entity_id"])
                 self.assertEqual(parameters["_declan_reply_category"], "dinner")
 
