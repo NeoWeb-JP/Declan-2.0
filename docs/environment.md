@@ -62,7 +62,7 @@ As of main after #750, every operator inventory entry is mapped below to default
 
 When closing the remaining [P2 documentation task](https://github.com/NeoWeb-JP/Declan-2.0/issues/17), record which runtime settings were checked, their unset/empty/invalid handling, and whether tests enforce the documented defaults. Update this table and `.env.example` together when a setting changes.
 
-The added HA, Assist, bind-address and release-version names were verified against `server.py` on 17 November 2026. This inventory covers names verified in the backend modules listed by the environment documentation regression test, including `updates.py` and `sensitive_confirmations.py`; additional modules may define more settings. Configuration keys in `configuration.py` are stored as named configuration entries and should not be assumed to be read directly from the process environment. Confirm each value's source in the deployment before relying on an environment override.
+The inventory covers literal reads across production Python modules plus indirect fallbacks for every key in `configuration.FIELDS`. The latter use saved nonempty values first, then environment values, then the consumer's explicit default when the environment variable is absent. An explicitly blank environment value is preserved by `configuration.get`; individual consumers decide whether to reject it, discover a provider or use a fallback. Home Assistant config-entry options are a separate configuration source. Dynamically constructed environment names outside this allowlist are not proven by the literal-read scanner.
 
 ## Verified runtime defaults and precedence
 
@@ -103,8 +103,8 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_MEDIA_SEARCH_AGENT | Empty saved value triggers discovery of a local Declan conversation agent; setting is read from persisted configuration | Nonempty overrides must match a lowercase `conversation.` entity ID; invalid IDs fail before HA connection | `tests/test_media_agent_configuration.py` |
 | DECLAN_WEB_TTS_ENTITY | Empty saved value allows TTS provider discovery; setting is read from persisted configuration | Nonempty overrides must match a lowercase `tts.` entity ID; invalid IDs and missing HA connection prevent TTS requests | `tests/test_web_tts_entity_configuration.py` |
 | DECLAN_WEB_ASSIST_PIPELINE | Missing or empty saved selection omits the pipeline field, allowing Home Assistant to choose its default STT pipeline; this is read through persisted configuration | An explicitly selected pipeline ID is forwarded to the Assist WebSocket STT run; the HTTP handler trims surrounding whitespace | `tests/test_assist_pipeline_selection.py` |
-| DECLAN_GOOD_MORNING_SCRIPT, DECLAN_GOOD_NIGHT_SCRIPT, DECLAN_MOVIE_SCRIPT, DECLAN_BEDROOM_MOVIE_SCRIPT | Empty imported values fall back to the corresponding server environment defaults; settings are stored in Declan's configuration database | Nonempty imported IDs must belong to the lowercase `script.` entity domain; wrong domains and malformed IDs are rejected | `tests/test_routine_settings_import_validation.py` |
-| DECLAN_MOVIE_REMOTE, DECLAN_BEDROOM_MOVIE_REMOTE | Empty imported values fall back to the corresponding server environment defaults; settings are stored in Declan's configuration database | Nonempty imported IDs must belong to the lowercase `remote.` entity domain; wrong domains and malformed IDs are rejected | `tests/test_routine_settings_import_validation.py` |
+| DECLAN_GOOD_MORNING_SCRIPT, DECLAN_GOOD_NIGHT_SCRIPT, DECLAN_MOVIE_SCRIPT, DECLAN_BEDROOM_MOVIE_SCRIPT | Empty saved values fall back to environment; empty effective values use legacy morning/night migration defaults or no movie mapping | Used by one-time registry bootstrap only when scripts exist in HA; existing mappings and completed migration are not overwritten. Imported nonempty IDs require the lowercase `script.` domain | `tests/test_routine_settings_import_validation.py`, `tests/test_routine_registry.py`, `tests/test_settings_precedence_matrix.py` |
+| DECLAN_MOVIE_REMOTE, DECLAN_BEDROOM_MOVIE_REMOTE | Empty saved values fall back to environment; empty effective values add no remote | One-time movie mapping migration includes the remote only if it exists in HA. Imported nonempty IDs require the lowercase `remote.` domain; existing mappings are not overwritten | `tests/test_routine_settings_import_validation.py`, `tests/test_routine_registry.py`, `tests/test_settings_precedence_matrix.py` |
 
 ### Persisted setting precedence
 
@@ -114,14 +114,15 @@ it falls back to the corresponding process environment variable, then to the
 caller's explicit default if the variable is also missing. Other configuration
 keys read the process environment directly without opening the settings database.
 These precedence rules are regression-tested in
-`tests/test_settings_precedence.py` (merged PR #465).
+`tests/test_settings_precedence.py` and the all-fields matrix in
+`tests/test_settings_precedence_matrix.py`.
 
 The Spotify credential source can also be a persisted settings file, not just
-the process environment. The `DECLAN_WEB_TTS_ENTITY` and
-`DECLAN_VISITORS_ENTITY` values are read through Declan's configuration
-store in `server.py`, rather than directly from `os.environ` at their use
-sites. Treat the inventory as an operator-facing configuration guide, not proof
-that every listed key is a direct environment override.
+the process environment. `DECLAN_WEB_TTS_ENTITY`, `DECLAN_VISITORS_ENTITY` and
+the other allowlisted settings can fall back to environment through
+`configuration.get`; a nonempty saved value wins. The consumer boundaries live
+outside the thin `server.py` compatibility facade. Do not confuse this backend
+precedence with Home Assistant config-entry options.
 
 ## Installation
 
