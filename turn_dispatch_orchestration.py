@@ -5,19 +5,28 @@ server-level test monkeypatches and integration configuration.
 """
 
 from dataclasses import dataclass
+from execution_results import Outcome
 
 
 @dataclass(frozen=True)
 class DispatchResult:
-    reply: object
-    outcome: object
-    routine_status: object
+    reply: str | None
+    outcome: Outcome | None
+    routine_status: str | None
     routine_turn: object
     routine_voice_result: object
     lighting_context: object
     information_context: object
     status_target: object
     light_result: object
+
+    def __post_init__(self):
+        if self.reply is not None and not isinstance(self.reply, str):
+            raise ValueError("Dispatch reply must be text or None")
+        if self.outcome is not None:
+            object.__setattr__(self, "outcome", Outcome(self.outcome))
+        if self.routine_status is not None and not isinstance(self.routine_status, str):
+            raise ValueError("Routine status must be text or None")
 
 
 def dispatch(phrase, *, source, origin_device, satellite, action_results,

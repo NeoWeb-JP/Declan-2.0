@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import turn_dispatch_orchestration
+from execution_results import Outcome
 
 
 class TurnDispatchExtractionTests(unittest.TestCase):
@@ -25,16 +26,16 @@ class TurnDispatchExtractionTests(unittest.TestCase):
         )
 
     def test_preview_short_circuits_later_dispatch(self):
-        self.r.turn_preview_stage.resolve.return_value = SimpleNamespace(reply="preview", outcome="ok")
+        self.r.turn_preview_stage.resolve.return_value = SimpleNamespace(reply="preview", outcome=Outcome.PREVIEW)
         result = self.dispatch()
-        self.assertEqual((result.reply, result.outcome), ("preview", "ok"))
+        self.assertEqual((result.reply, result.outcome), ("preview", Outcome.PREVIEW))
         self.r.turn_direct_dispatch.dispatch.assert_not_called()
         self.r.turn_routine_stage.dispatch.assert_not_called()
         self.r.turn_fallback_dispatch.dispatch.assert_not_called()
 
     def test_direct_dispatch_short_circuits_routine(self):
         self.r.turn_direct_dispatch.dispatch.return_value = SimpleNamespace(
-            reply="stopped", outcome="ok", routine_status="done")
+            reply="stopped", outcome=Outcome.CONFIRMED, routine_status="done")
         result = self.dispatch()
         self.assertEqual((result.reply, result.routine_status), ("stopped", "done"))
         self.r.turn_routine_stage.dispatch.assert_not_called()
@@ -42,7 +43,7 @@ class TurnDispatchExtractionTests(unittest.TestCase):
 
     def test_routine_dispatch_preserves_voice_and_lighting_context(self):
         self.r.turn_routine_stage.dispatch.return_value = SimpleNamespace(
-            reply="playing", outcome="ok", routine_status="done",
+            reply="playing", outcome=Outcome.STARTED, routine_status="done",
             routine_turn="routine", routine_voice_result="voice", lighting_context="lights")
         result = self.dispatch()
         self.assertEqual((result.routine_turn, result.routine_voice_result, result.lighting_context),
@@ -51,7 +52,7 @@ class TurnDispatchExtractionTests(unittest.TestCase):
 
     def test_fallback_dispatch_preserves_all_context(self):
         self.r.turn_fallback_dispatch.dispatch.return_value = SimpleNamespace(
-            reply="fallback", outcome="ok", information_context="info",
+            reply="fallback", outcome=Outcome.CONFIRMED, information_context="info",
             status_target="target", lighting_context="lights", light_result="light")
         result = self.dispatch()
         self.assertEqual((result.reply, result.information_context, result.status_target,
