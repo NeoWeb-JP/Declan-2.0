@@ -2,10 +2,44 @@
 import argparse
 import json
 import logging
+from threading import Lock, Thread
 from urllib.error import URLError
 
 
-def main(*, description, argv, environ, history_store, timer_store, server_factory, handler, thread_factory, clock, opener_factory, proxy_factory, logger, updates_module, music_module, ha_connect, music_inventory, ip_address, assist_port):
+def single_flight_runner(thread_factory=Thread):
+    """Return run(name, job) that runs a job on a daemon thread, one at a time per name.
+
+    A job that is still running when it comes due again is skipped, so a slow
+    Home Assistant can neither stack up threads nor stall the supervisor loop.
+    """
+    lock = Lock()
+    active = set()
+
+    def run(name, job):
+        with lock:
+            if name in active:
+                return False
+            active.add(name)
+
+        def work():
+            try:
+                job()
+            finally:
+                with lock:
+                    active.discard(name)
+
+        thread_factory(target=work, daemon=True, name=f"declan-{name}").start()
+        return True
+
+    return run
+
+
+def _inline(name, job):
+    job()
+    return True
+
+
+def main(*, description, argv, environ, history_store, timer_store, server_factory, handler, thread_factory, clock, opener_factory, proxy_factory, logger, updates_module, music_module, ha_connect, music_inventory, ip_address, assist_port, run_background=None):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--assist-lan", action="store_true", help="Allow the authenticated Assist endpoint on the LAN.")
     parser.add_argument("--port", type=int, help="Override the default port (8765, or 52737 in Assist LAN mode).")
@@ -39,6 +73,7 @@ def main(*, description, argv, environ, history_store, timer_store, server_facto
         worker = thread_factory(target=server.serve_forever, daemon=True)
         worker.start()
         next_prune = clock()
+        background = run_background or _inline
         next_music_check = clock() + 5
         url = f"http://127.0.0.1:{server.server_port}"
         try:
@@ -58,15 +93,19 @@ def main(*, description, argv, environ, history_store, timer_store, server_facto
                     logging.exception("Timer alarms could not be checked.")
                 if clock() >= next_music_check:
                     next_music_check = clock() + 5
-                    try:
-                        music_module.skip_blocked_tracks(ha_connect(), music_inventory)
-                    except Exception:
-                        logging.exception("Blocked music could not be checked.")
+                    def check_music():
+                        try:
+                            music_module.skip_blocked_tracks(ha_connect(), music_inventory)
+                        except Exception:
+                            logging.exception("Blocked music could not be checked.")
+                    background("blocked-music", check_music)
                 if clock() >= next_prune:
-                    try:
-                        history_store.prune()
-                    except Exception:
-                        logging.exception("Conversation history could not be pruned.")
+                    def prune_history():
+                        try:
+                            history_store.prune()
+                        except Exception:
+                            logging.exception("Conversation history could not be pruned.")
+                    background("history-prune", prune_history)
                     next_prune = clock() + 3600
         except (URLError, TimeoutError, ValueError) as error:
             parser.exit(1, f"Declan bound {url} but its local health check failed: {error}\n")

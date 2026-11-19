@@ -615,6 +615,18 @@ class APITests(TestCase):
 
 
 class StartupTests(TestCase):
+    def patch_threads(self):
+        """Serve thread is a mock; named maintenance threads run synchronously."""
+        worker = Mock()
+
+        def factory(*, target, daemon, name=None):
+            if name is None:
+                return worker
+            return Mock(start=target)
+
+        self.enterContext(patch.object(server, "Thread", side_effect=factory))
+        return worker
+
     def test_assist_requires_fixed_port_and_bridge_token(self):
         with patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": ""}), patch("sys.stderr", new_callable=io.StringIO):
             for args in (["--port", "-1"], ["--assist-lan", "--port", "0"], ["--assist-lan"]):
@@ -626,7 +638,7 @@ class StartupTests(TestCase):
         http = self.enterContext(patch.object(server, "ThreadingHTTPServer"))
         host = http.return_value
         host.server_port = 8765
-        worker = self.enterContext(patch.object(server, "Thread")).return_value
+        worker = self.patch_threads()
         worker.is_alive.side_effect = [True, False]
         opener = self.enterContext(patch.object(server, "build_opener")).return_value
         opener.open.return_value = io.BytesIO(b'{"status":"ok"}')
@@ -647,7 +659,7 @@ class StartupTests(TestCase):
         self.enterContext(patch.object(server.history, "initialize"))
         host = self.enterContext(patch.object(server, "ThreadingHTTPServer")).return_value
         host.server_port = 8765
-        worker = self.enterContext(patch.object(server, "Thread")).return_value
+        worker = self.patch_threads()
         worker.is_alive.side_effect = [True, True, False]
         opener = self.enterContext(patch.object(server, "build_opener")).return_value
         opener.open.return_value = io.BytesIO(b'{"status":"ok"}')

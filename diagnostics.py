@@ -113,6 +113,24 @@ def persist(trace):
         pass
 
 
+def amend(trace, entry):
+    """Append a late stage (for example a background check) to a saved trace.
+
+    Unlike persist(), this keeps the request's own duration and outcome: the
+    caller already got its reply, and only the extra evidence is added.
+    """
+    if not isinstance(trace, dict) or '_saved' not in trace or len(trace['stages']) >= 80:
+        return
+    trace['stages'].append({key: value for key, value in entry.items() if not key.startswith('_')})
+    try:
+        with closing(sqlite3.connect(DATABASE, timeout=0.1)) as db, db:
+            payload = {key: value for key, value in trace.items() if not key.startswith('_')}
+            db.execute('UPDATE traces SET payload = ? WHERE id = ?', (json.dumps(payload), trace['id']))
+    except (OSError, sqlite3.Error):
+        # Diagnostics must never stop a household action or cause a retry.
+        pass
+
+
 @contextmanager
 def stage(name):
     trace = ACTIVE.get()

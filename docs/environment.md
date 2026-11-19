@@ -17,6 +17,7 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_ALLOW_UNCONFIGURED_MA` | Allows the Music Assistant path without its usual configuration guard when set to `1` | Leave unset unless deliberately testing |
 | `DECLAN_SPOTIFY_CLIENT_ID` | Spotify API application client ID | Keep secret where applicable |
 | `DECLAN_SPOTIFY_CLIENT_SECRET` | Spotify API application client secret | Keep secret |
+| `DECLAN_MUSIC_REPLY_FIRST` | Set to `1` to answer a play request as soon as Home Assistant accepts it ("Starting ..."), with outcome `requested`. Playback is then verified in the background, the result is added to the request's diagnostics trace, and a failure is announced on the originating satellite. Unset (default) keeps the slower reply that is spoken only after verification | Leave unset until tested in your household |
 | `DECLAN_SPOTIFY_MARKET` | Spotify two-letter country market; code defaults to `GB` | `GB` |
 | `DECLAN_SPOTIFY_PRESETS` | JSON object of Spotify preset definitions | `{}` |
 | `DECLAN_GOOD_MORNING_SCRIPT` | Configurable Home Assistant morning script entity | `script.example_morning` |
@@ -83,6 +84,7 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_SPOTIFY_PRESETS  | Built-in presets remain available | Valid JSON object entries override presets; malformed JSON and invalid references are ignored | `tests/test_spotify_presets_environment_defaults.py` |
 | DECLAN_SPOTIFY_CLIENT_ID, DECLAN_SPOTIFY_CLIENT_SECRET  | Missing or partial credentials are unconfigured | Both environment values are trimmed; valid saved settings take precedence and invalid saved settings do not silently fall back | `tests/test_spotify_credential_environment_defaults.py` |
 | DECLAN_ALLOW_UNCONFIGURED_MA  | Compatibility discovery is disabled | Only the exact value `1` enables discovery of registered Music Assistant players; approved mappings take precedence | `tests/test_music_assistant_compat_environment.py` |
+| DECLAN_MUSIC_REPLY_FIRST | Off unless set to exactly `1` | Replies "Starting …" (outcome `requested`) once Music Assistant accepts the play command, then verifies in the background, amends the saved trace and announces a failed start on the satellite | `tests/test_music_reply_first.py` |
 | DECLAN_SPOTIFY_MARKET  | Defaults to `GB` when unset | Trims and uppercases a two-letter code; empty or invalid codes fail before a search request | `tests/test_spotify_market_environment_defaults.py` |
 | DECLAN_INGRESS_TOKEN  | Missing or short tokens cannot authenticate | Requires an exact token match of at least 32 characters and must differ from the Assist token | `tests/test_ingress_token_environment_defaults.py` |
 | DECLAN_BROWSER_TIMER_SATELLITE | Unset or blank browser satellite disables timer output resolution | Trims configured satellite ID, rejects malformed IDs before contacting HA, and rejects mismatched HA resolution | `tests/test_browser_timer_satellite_environment.py` |

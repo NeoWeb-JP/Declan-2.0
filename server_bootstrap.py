@@ -11,6 +11,7 @@ def main(*, r):
         logger=r.DECLAN_EVENT_LOG, updates_module=r.updates, music_module=r.music,
         ha_connect=r.ha_device_connection, music_inventory=r.read_music_inventory_result,
         ip_address=r.ipaddress.ip_address, assist_port=r.ASSIST_PORT,
+        run_background=r.server_lifecycle.single_flight_runner(r.Thread),
     )
 
 
