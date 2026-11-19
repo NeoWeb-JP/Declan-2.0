@@ -50,7 +50,7 @@ def guest_assignment_result(operation, connection, *, entities, sass, request_fa
         return ExecutionResult("I couldn't reach Home Assistant to check Guest Mode or the guest register.", Outcome.UNAVAILABLE)
     try:
         guest_mode_entity = entities.guest_mode()
-        guest_register_entity = household_entities.guest_register()
+        guest_register_entity = entities.guest_register()
     except (OSError, sqlite3.Error, ValueError):
         return ExecutionResult("Guest Mode or the guest register is not configured correctly.", Outcome.NOT_CONFIGURED)
     url, headers, opener = connection
@@ -106,4 +106,4 @@ def guest_assignment_result(operation, connection, *, entities, sass, request_fa
         return ExecutionResult("Guest Mode is on, but nobody is listed in the guest register.", Outcome.CONFIRMED)
     if names:
         return ExecutionResult(f"Guest Mode is off, but the guest register still lists {names}.", Outcome.CONFIRMED)
-    return ExecutionResult(add_sass("Guest Mode is off. The house is back in your hands.", "guest_inactive", mode), Outcome.CONFIRMED)
+    return ExecutionResult(sass("Guest Mode is off. The house is back in your hands.", "guest_inactive", mode), Outcome.CONFIRMED)
