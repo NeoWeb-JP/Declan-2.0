@@ -29,7 +29,7 @@ from time import monotonic, sleep
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from execution_results import ExecutionResult, Outcome
+from execution_results import Outcome
 from arbitration import CaptureArbiter
 
 import conditions
@@ -108,7 +108,7 @@ import ha_dispatcher
 import routine_registry
 from routine_action_evidence import parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
-from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
+from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
