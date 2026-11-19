@@ -4,6 +4,7 @@ import ast
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/management_view.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
@@ -18,8 +19,8 @@ class NativeImportContracts(unittest.TestCase):
         ast.parse(IMPORT_ROUTE)
         self.assertIn('"/api/native/settings-import"', DISPATCH)
         self.assertIn("settings_import_post.handle_settings_import(", DISPATCH)
-        self.assertIn("preview=configuration.preview", SERVER)
-        self.assertIn("apply=configuration.apply", SERVER)
+        self.assertIn("preview=r.configuration.preview", POST_INGRESS)
+        self.assertIn("apply=r.configuration.apply", POST_INGRESS)
         self.assertIn("preview(body.get(\"document\"))", IMPORT_ROUTE)
         self.assertIn('apply(body.get("document"), body.get("expected"))', IMPORT_ROUTE)
         self.assertIn("def validate(document):", CONFIG)
