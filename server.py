@@ -294,7 +294,7 @@ def read_visitors_present():
             return {"on": True, "off": False}.get(state)
     except HTTPError as error:
         error.close()
-    except (OSError, ValueError, AttributeError, sqlite3.Error):
+    except (OSError, ValueError, TypeError, AttributeError, sqlite3.Error):
         pass
     return None
 
