@@ -54,12 +54,12 @@ import conversation_persistence
 import turn_finalization
 import turn_response_orchestration
 import turn_persistence_orchestration
-import session_context_retrieval
-import retry_context
-import retry_cancellation
-import sensitive_confirmation_response
-import sensitive_confirmation_decision
-import sensitive_confirmation_turn
+import session_context_retrieval as session_context_retrieval
+import retry_context as retry_context
+import retry_cancellation as retry_cancellation
+import sensitive_confirmation_response as sensitive_confirmation_response
+import sensitive_confirmation_decision as sensitive_confirmation_decision
+import sensitive_confirmation_turn as sensitive_confirmation_turn
 import routine_preview_detection as routine_preview_detection
 import routine_preview_dispatch as routine_preview_dispatch
 import guest_assignment_command as guest_assignment_command
@@ -70,8 +70,8 @@ import lighting_context_finalization as lighting_context_finalization
 import fallback_entity_authorization
 import guarded_fallback_dispatch
 import turn_context_preparation
-import turn_session_entry
-import turn_preflight_entry
+import turn_session_entry as turn_session_entry
+import turn_preflight_entry as turn_preflight_entry
 import turn_preview_stage as turn_preview_stage
 import turn_direct_dispatch as turn_direct_dispatch
 import turn_routine_stage as turn_routine_stage
@@ -99,7 +99,7 @@ import post_request_entry
 import post_entry_gates as post_entry_gates
 import http_response_transport
 import http_ingress_security
-import sensitive_confirmation_resolution
+import sensitive_confirmation_resolution as sensitive_confirmation_resolution
 import web_stt
 import openai_planner
 import ai_settings
@@ -119,7 +119,7 @@ from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence
 import script_discovery
-from intent_preprocessing import preprocess_speech
+from intent_preprocessing import preprocess_speech as preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses
 import routine_follow_on as routine_follow_on
