@@ -3,7 +3,7 @@ import argparse as argparse
 import ipaddress
 import logging
 import os
-import secrets
+import secrets as secrets
 import sqlite3 as sqlite3
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
@@ -42,7 +42,7 @@ from pathlib import Path as Path
 from threading import Thread
 from time import monotonic, sleep as sleep
 from urllib.parse import urlsplit as urlsplit
-from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request as Request, build_opener
 
 from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
 from arbitration import CaptureArbiter
@@ -126,11 +126,11 @@ from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, H
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence as MovieActionEvidence
-from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence
+from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence as extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
 import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
-from personality import add_sass, choose_line as choose_line
+from personality import add_sass as add_sass, choose_line as choose_line
 import routine_responses as routine_responses
 import routine_follow_on as routine_follow_on
 import response_composition as response_composition
