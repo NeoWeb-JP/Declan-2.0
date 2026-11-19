@@ -22,7 +22,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from execution_results import ExecutionResult, Outcome, MovieLaunchResult, MovieLaunchStatus
+from execution_results import ExecutionResult, Outcome, MovieLaunchStatus
 from arbitration import CaptureArbiter
 
 import conditions
