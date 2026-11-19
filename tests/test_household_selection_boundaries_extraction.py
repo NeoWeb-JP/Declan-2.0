@@ -1,6 +1,5 @@
 """Regression tests for extracted household and routine selection boundaries."""
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 import household_selection_boundaries as boundaries
