@@ -1290,6 +1290,7 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
         name, desired_state, inventory, connection,
         preview=preview, action_results=action_results,
         request_factory=Request, append_evidence=append_action_evidence,
+        evidence_factory=LightingActionEvidence,
     )
 
 
