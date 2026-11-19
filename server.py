@@ -74,11 +74,6 @@ import timers
 import updates
 import operational_post_dispatch
 import media_settings_routes
-import native_read_routes
-import operational_read_routes
-import settings_read_routes
-import history_read_routes
-import system_read_routes
 import get_request_dispatch
 import speech_http_routes
 import assist_auth_http
