@@ -64,8 +64,7 @@ import turn_response_preparation
 import turn_atomic_finalization
 import turn_response_composition
 import history
-import training_history_post
-import settings_voice_post
+import post_body_routing
 import music
 import approved_media_players
 import spotify_playlists
@@ -1922,33 +1921,27 @@ class Handler(BaseHTTPRequestHandler):
                 self, body, ingress=self.has_ingress_access(),
             ):
                 return
-            if settings_voice_post.handles(self.path):
-                settings_voice_post.dispatch(
-                    self, body, spotify_save=self.spotify_settings,
-                    ai_replace_key=ai_credentials.replace_key,
-                    ai_save=ai_settings.save,
-                    ai_configured=ai_credentials.configured,
-                    music=music, spotify_playlists=spotify_playlists,
-                    playlist_handler=music_playlists_post.handle_music_playlists,
-                    opener_factory=lambda: build_opener(ProxyHandler({})),
-                    voice_manage=voicepipeline.manage,
-                    pipeline_error=voicepipeline.PipelineError,
-                    profiles_manage=voice_profiles.manage,
-                    preview=configuration.preview, apply=configuration.apply,
-                )
-                return
-            if training_history_post.handles(self.path):
-                training_history_post.dispatch(
-                    self, body, command_responses=command_responses,
-                    routine_responses=routine_responses,
-                    discover=script_discovery.discover_result,
-                    connection=ha_device_connection, history=history,
-                    voicepipeline=voicepipeline, unmatched_reply=UNMATCHED_REPLY,
-                    forget_intent=history.forget_intent,
-                    edit_intent=history.edit_intent,
-                    teach_intent=history.teach_intent,
-                    storage_errors=(OSError, sqlite3.Error),
-                )
+            if post_body_routing.dispatch(
+                self, body, spotify_save=self.spotify_settings,
+                ai_replace_key=ai_credentials.replace_key,
+                ai_save=ai_settings.save, ai_configured=ai_credentials.configured,
+                music=music, spotify_playlists=spotify_playlists,
+                playlist_handler=music_playlists_post.handle_music_playlists,
+                opener_factory=lambda: build_opener(ProxyHandler({})),
+                voice_manage=voicepipeline.manage,
+                pipeline_error=voicepipeline.PipelineError,
+                profiles_manage=voice_profiles.manage,
+                preview=configuration.preview, apply=configuration.apply,
+                command_responses=command_responses,
+                routine_responses=routine_responses,
+                discover=script_discovery.discover_result,
+                connection=ha_device_connection, history=history,
+                voicepipeline=voicepipeline, unmatched_reply=UNMATCHED_REPLY,
+                forget_intent=history.forget_intent,
+                edit_intent=history.edit_intent,
+                teach_intent=history.teach_intent,
+                storage_errors=(OSError, sqlite3.Error),
+            ):
                 return
             if post_operational_routing.dispatch_before_validation(
                 self, body, updates=updates, release_version=RELEASE_VERSION,
