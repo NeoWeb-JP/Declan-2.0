@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 def ha_device_connection(*, environ, redirect_handler, proxy_handler, opener_factory):
     url = environ.get("DECLAN_HA_URL", "").strip().rstrip("/")
-    token = os.environ.get("DECLAN_HA_TOKEN", "").strip()
+    token = environ.get("DECLAN_HA_TOKEN", "").strip()
     try:
         parsed = urlsplit(url)
         configured = (token and parsed.scheme in {"http", "https"} and parsed.hostname
