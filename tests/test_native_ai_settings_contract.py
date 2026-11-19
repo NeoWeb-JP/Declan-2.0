@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
 BACKEND = (ROOT / "server.py").read_text()
 AI_FALLBACK = (ROOT / "ai_fallback_dispatch.py").read_text()
 AI_POST = (ROOT / "ai_settings_post.py").read_text()
@@ -23,8 +24,8 @@ class NativeAISettingsContractTests(unittest.TestCase):
         ast.parse(AI_POST)
         self.assertIn('path == "/api/settings/ai"', DISPATCH)
         self.assertIn("ai_settings_post.handle_ai_settings(", DISPATCH)
-        self.assertIn("ai_save=ai_settings.save", BACKEND)
-        self.assertIn("ai_replace_key=ai_credentials.replace_key", BACKEND)
+        self.assertIn("ai_save=r.ai_settings.save", POST_INGRESS)
+        self.assertIn("ai_replace_key=r.ai_credentials.replace_key", POST_INGRESS)
         self.assertIn('save(body["settings"])', AI_POST)
         self.assertIn('replace_key(body["api_key"])', AI_POST)
         ingress = (ROOT / "http_ingress_security.py").read_text()
