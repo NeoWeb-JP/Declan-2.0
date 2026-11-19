@@ -52,30 +52,28 @@ def referenced_source_files(tree):
     return found
 
 
-def stale_anchors(test_text, removed):
-    tree = ast.parse(test_text)
-    sources = referenced_source_files(tree)
+def anchor_references(tree):
+    """Yield (line, source variable, literal) for common source-text contracts."""
     for node in ast.walk(tree):
+        if isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.In):
+            if isinstance(node.left, ast.Constant) and isinstance(node.left.value, str):
+                if len(node.comparators) == 1 and isinstance(node.comparators[0], ast.Name):
+                    yield node.lineno, node.comparators[0].id, node.left.value
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
-        if node.func.attr not in {"assertIn", "index", "find"}:
+        if node.func.attr not in {"assertIn", "index", "find", "count", "startswith", "endswith"}:
             continue
         if not node.args or not isinstance(node.args[0], ast.Constant):
             continue
-        needle = node.args[0].value
-        if not isinstance(needle, str) or not needle:
+        literal = node.args[0].value
+        if not isinstance(literal, str):
             continue
         if node.func.attr == "assertIn":
-            if len(node.args) < 2 or not isinstance(node.args[1], ast.Name):
-                continue
-            variable = node.args[1].id
+            if len(node.args) >= 2 and isinstance(node.args[1], ast.Name):
+                yield node.lineno, node.args[1].id, literal
         elif isinstance(node.func.value, ast.Name):
-            variable = node.func.value.id
-        else:
-            continue
-        filename = sources.get(variable)
-        if filename and filename in removed and needle in removed[filename]:
-            yield node.lineno, filename, needle
+            yield node.lineno, node.func.value.id, literal
+
 
 
 def check(base_ref, root):
@@ -98,26 +96,16 @@ def check(base_ref, root):
         except SyntaxError:
             continue  # Syntax checks are handled separately.
         sources = referenced_source_files(tree)
-        # Detect tests referencing a removed source expression, not merely
-        # a string moved into a different module.
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
-                continue
-            if node.func.attr not in {"assertIn", "index", "find"} or not node.args:
-                continue
-            literal = node.args[0]
-            if not isinstance(literal, ast.Constant) or not isinstance(literal.value, str):
-                continue
-            variable = None
-            if node.func.attr == "assertIn" and len(node.args) > 1 and isinstance(node.args[1], ast.Name):
-                variable = node.args[1].id
-            elif isinstance(node.func.value, ast.Name):
-                variable = node.func.value.id
+        # Check both unittest assertions and plain source-text assertions.
+        for line, variable, literal in anchor_references(tree):
             filename = sources.get(variable)
             if filename in removed:
                 old, new = removed[filename]
-                if literal.value and literal.value in old and literal.value not in new:
-                    findings.append(f"{test.relative_to(root)}:{node.lineno}: {filename} no longer contains {literal.value!r}")
+                if literal and literal in old and literal not in new:
+                    findings.append(
+                        f"{test.relative_to(root)}:{line}: "
+                        f"{filename} no longer contains {literal!r}"
+                    )
     return findings
 
 
