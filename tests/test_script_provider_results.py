@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 import server
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 from declan.ha.script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
 from declan.ha.script_provider_results import ScriptReason
 from declan.ha.script_provider_results import CorrelatedTraceResult

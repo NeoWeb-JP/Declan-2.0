@@ -2,7 +2,7 @@
 import sqlite3
 from copy import deepcopy
 from dataclasses import dataclass, replace
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 @dataclass(frozen=True)

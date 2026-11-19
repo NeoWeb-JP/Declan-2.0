@@ -3,9 +3,9 @@ from typing import Any
 import unittest
 from unittest.mock import Mock
 
-import domain_boundary_helpers as helpers
+from declan.core import domain_boundary_helpers as helpers
 import server
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class DomainBoundaryHelperTests(unittest.TestCase):

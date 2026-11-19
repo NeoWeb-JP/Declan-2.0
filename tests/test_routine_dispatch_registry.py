@@ -3,7 +3,7 @@ from typing import Any
 from unittest import TestCase
 from unittest.mock import Mock
 from declan.turn.command_registry import RequestContext, routine_registry
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 class RoutineDispatchTests(TestCase):
     def setUp(self):

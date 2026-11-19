@@ -4,7 +4,7 @@ import json
 import os
 import re
 
-import history
+from declan.core import history
 
 FIELDS = {
     'DECLAN_GOOD_MORNING_SCRIPT': 'script', 'DECLAN_GOOD_NIGHT_SCRIPT': 'script',

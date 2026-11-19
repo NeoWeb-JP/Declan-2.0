@@ -1,7 +1,7 @@
 """Build bounded, scoped lighting context for successful voice follow-ups."""
 import re
 from declan.ha.lighting_action_evidence import confirmed_lighting_entities
-from execution_results import Outcome, parse_outcome
+from declan.core.execution_results import Outcome, parse_outcome
 
 _PREVIEW_PREFIX = re.compile(r"^(?:preview|dry[ -]run)\b")
 

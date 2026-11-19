@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-import compatibility_facade as facade
+from declan.core import compatibility_facade as facade
 import server
 
 

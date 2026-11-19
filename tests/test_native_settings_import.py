@@ -8,7 +8,7 @@ POST_INGRESS = (ROOT / "declan/http/post_ingress_orchestration.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/management_view.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
-CONFIG = (ROOT / "configuration.py").read_text()
+CONFIG = (ROOT / "declan/core/configuration.py").read_text()
 IMPORT_ROUTE = (ROOT / "declan/http/settings_import_post.py").read_text()
 DISPATCH = (ROOT / "declan" / "voice" / "settings_voice_post.py").read_text()
 

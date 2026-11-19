@@ -3,7 +3,7 @@ from typing import Any
 import unittest
 from unittest.mock import Mock
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ai.fallback_orchestration import resolve_fallback_result
 
 

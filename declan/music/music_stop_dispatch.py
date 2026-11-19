@@ -1,7 +1,7 @@
 """Typed stop-all and origin-specific music dispatch boundaries."""
 import sqlite3
 from urllib.error import HTTPError
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def stop_everywhere_result(connection, *, inventory_reader, inventory_module, music_provider):

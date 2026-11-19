@@ -1,5 +1,5 @@
 """Pure request-finalisation helpers for HTTP turn handling."""
-from execution_results import Outcome, parse_outcome
+from declan.core.execution_results import Outcome, parse_outcome
 
 
 def lighting_phrase_suggestion(previous, *, light_result, outcome, actions,

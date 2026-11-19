@@ -5,7 +5,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 from declan.ha import script_discovery
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha.script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
 
 

@@ -4,7 +4,7 @@ import json
 from urllib.error import HTTPError
 from urllib.request import Request
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def stop_pending_routines_result(*, connection_factory, active_registry):

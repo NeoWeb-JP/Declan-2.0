@@ -1,5 +1,5 @@
 """Dispatch a matched roast with the configured guest response policy."""
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def respond_to_roast(target, *, guest_mode, visitors_present, response_guest_mode, respond):

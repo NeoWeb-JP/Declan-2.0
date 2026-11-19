@@ -2,7 +2,7 @@
 import sqlite3
 from dataclasses import dataclass
 
-import history
+from declan.core import history
 from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 
 

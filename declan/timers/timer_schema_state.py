@@ -1,6 +1,6 @@
 """Compatibility name for the shared database schema initialisation owner."""
 
-from database_schema_state import DatabaseSchemaState
+from declan.core.database_schema_state import DatabaseSchemaState
 
 
 class TimerSchemaState(DatabaseSchemaState):

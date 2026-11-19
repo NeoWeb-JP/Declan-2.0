@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from declan.turn import turn_dispatch_orchestration
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class TurnDispatchExtractionTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 import unittest
 
-import history
+from declan.core import history
 
 
 class TrainingEditValidationTests(unittest.TestCase):

@@ -5,7 +5,7 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus, confirmed_lighting_entities
 from declan.ha.lighting_action_evidence import LightingActionReason
 from declan.ha.lighting_context_finalization import confirmed_lighting_context

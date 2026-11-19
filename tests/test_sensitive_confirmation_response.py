@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from declan.turn.sensitive_confirmation_response import confirmation_response
 from declan.turn.sensitive_confirmation_response import confirmation_reply_result
 from declan.turn.confirmation_results import ConfirmationDecision
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class ConfirmationResponseTests(unittest.TestCase):

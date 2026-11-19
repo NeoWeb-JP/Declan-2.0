@@ -4,10 +4,10 @@ from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
 from declan.turn import command_registry
-import conditions
+from declan.core import conditions
 from declan.turn import routine_preview_dispatch
 import server
-from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
+from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
 from declan.turn.information_result import InformationResult, InformationCategory
 
 

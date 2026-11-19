@@ -2,7 +2,7 @@
 from typing import Any
 import unittest
 from declan.turn.session_turn_state import update_turn
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus, LightingActionReason
 
 

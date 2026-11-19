@@ -6,11 +6,11 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest import TestCase
 from unittest.mock import patch
 
-import history
+from declan.core import history
 from declan.turn import routine_responses as responses
 from declan.turn import personality_policy
 from declan.ha import script_discovery
-from execution_results import Outcome, parse_outcome
+from declan.core.execution_results import Outcome, parse_outcome
 
 
 class RoutineResponsesTests(TestCase):

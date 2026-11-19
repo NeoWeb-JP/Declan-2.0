@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-import history
+from declan.core import history
 from declan.turn import retry_learning
 import server
 

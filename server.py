@@ -30,13 +30,13 @@ from declan.turn import turn_response_completion as turn_response_completion
 from declan.turn import command_vocabulary
 from declan.http import http_handler_adapters
 from declan.turn import turn_http_entry
-import domain_boundary_helpers
+from declan.core import domain_boundary_helpers
 from declan.ha import household_selection_boundaries
-import legacy_response_adapters
-import runtime_dispatch_boundaries
+from declan.core import legacy_response_adapters
+from declan.core import runtime_dispatch_boundaries
 from declan.music import inventory_stop_boundaries
-import compatibility_facade
-import service_entry_boundaries
+from declan.core import compatibility_facade
+from declan.core import service_entry_boundaries
 import server_bootstrap
 import server_runtime_state
 import sys
@@ -46,14 +46,14 @@ from time import monotonic as monotonic, sleep as sleep
 from urllib.parse import urlsplit as urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler as ProxyHandler, Request as Request, build_opener as build_opener
 
-from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
+from declan.core.execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
 from declan.voice.arbitration import CaptureArbiter as CaptureArbiter
 
-import conditions as conditions
+from declan.core import conditions as conditions
 from declan.turn import sensitive_confirmations as sensitive_confirmations
-import diagnostics
-import declan_logs as declan_logs
-import configuration as configuration
+from declan.core import diagnostics
+from declan.core import declan_logs as declan_logs
+from declan.core import configuration as configuration
 from declan.music import media_search_agents as media_search_agents
 from declan.ha import household_entities as household_entities
 from declan.http import health_readiness as health_readiness
@@ -91,7 +91,7 @@ from declan.turn import turn_fallback_dispatch as turn_fallback_dispatch
 from declan.turn import turn_response_preparation as turn_response_preparation
 from declan.turn import turn_atomic_finalization as turn_atomic_finalization
 from declan.turn import turn_response_composition as turn_response_composition
-import history as history
+from declan.core import history as history
 from declan.http import post_body_routing as post_body_routing
 from declan.music import music as music
 from declan.music import approved_media_players as approved_media_players

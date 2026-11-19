@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from declan.music import music
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class DirectTypedMusicControlTests(unittest.TestCase):

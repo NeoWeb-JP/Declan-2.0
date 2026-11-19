@@ -1,6 +1,6 @@
 """Routine turn selection, read-only preview, and script execution contracts."""
 import re
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.turn.routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 
 

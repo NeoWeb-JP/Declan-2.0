@@ -1,7 +1,7 @@
 """Lighting context finalization regression tests."""
 import unittest
 from declan.ha.lighting_context_finalization import confirmed_lighting_context
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class LightingContextFinalizationTests(unittest.TestCase):

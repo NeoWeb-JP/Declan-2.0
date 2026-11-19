@@ -2,7 +2,7 @@
 from pathlib import Path
 import re
 import unittest
-import configuration
+from declan.core import configuration
 
 
 ROOT = Path(__file__).resolve().parents[1]

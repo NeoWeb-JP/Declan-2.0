@@ -5,7 +5,7 @@ dispatcher, and a persistent budget database. The live fallback route supplies
 these dependencies after its owner controls and exposure checks.
 """
 from declan.ai.action_executor import execute_verified, summarise_result
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ai.action_plan import validate_plan
 from declan.ai.ai_budget import reserve, settle
 from declan.ha.ha_action_preflight import preflight

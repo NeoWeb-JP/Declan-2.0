@@ -1,7 +1,7 @@
 """Verify imported routine and remote settings cannot target arbitrary HA entities."""
 import unittest
 
-import configuration
+from declan.core import configuration
 
 
 class RoutineSettingsValidationTests(unittest.TestCase):

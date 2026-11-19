@@ -1,8 +1,8 @@
 """Typed routine execution adapter compatibility and validation."""
 import unittest
 
-from execution_results import ExecutionResult, Outcome
-from local_outcome_contracts import routine_execution_result
+from declan.core.execution_results import ExecutionResult, Outcome
+from declan.core.local_outcome_contracts import routine_execution_result
 
 
 class RoutineExecutionTypedBoundaryTests(unittest.TestCase):

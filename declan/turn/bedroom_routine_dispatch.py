@@ -2,7 +2,7 @@
 import json
 import sqlite3
 from urllib.error import HTTPError
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def run_sexy_time_result(operation, connection, *, approved=False, registry, gates, inventory_reader, inventory_module, music_provider, request_factory, token_hex, choose_response, guest_mode):

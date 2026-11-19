@@ -4,7 +4,7 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result
 from declan.turn.routine_follow_on import FollowOnResult, execute
 from declan.turn.routine_follow_on import execute_result

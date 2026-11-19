@@ -1,5 +1,5 @@
 """Dispatch routine preview requests without executing other commands."""
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 
 
 def dispatch_preview_result(phrase, *, origin_device, satellite, detect_phrase, preview_routine):

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
 import server
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class MappedRoutineOutcomeTests(unittest.TestCase):

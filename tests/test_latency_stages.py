@@ -3,11 +3,11 @@ import os
 import unittest
 from unittest.mock import patch
 
-import diagnostics
+from declan.core import diagnostics
 from declan.ha import ha_inventory
 import server
 import test_home_assistant as fixtures
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class RecordHelperTests(unittest.TestCase):

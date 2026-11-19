@@ -1,7 +1,7 @@
 """Regression coverage for exported settings schema and import boundaries."""
 import unittest
 
-import configuration
+from declan.core import configuration
 
 
 class SettingsDocumentValidationTests(unittest.TestCase):

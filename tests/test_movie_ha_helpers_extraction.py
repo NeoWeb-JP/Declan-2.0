@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import server
 from declan.ha import movie_ha_helpers as helpers
-from execution_results import MovieLaunchStatus
+from declan.core.execution_results import MovieLaunchStatus
 
 
 class MovieHAExtractionTests(unittest.TestCase):

@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock
 
 from declan.turn import routine_follow_on
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def run_follow_on(lighting_result):

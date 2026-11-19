@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 from declan.music import music
 from declan.turn.command_registry import Dependencies, RequestContext, registry
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class MusicProviderTypedTests(unittest.TestCase):

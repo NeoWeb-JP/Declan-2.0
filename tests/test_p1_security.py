@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 from declan_ingress import proxy
 from declan_ingress.security import BadTokenLimiter
-import history
+from declan.core import history
 import server
 
 

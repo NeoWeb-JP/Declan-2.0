@@ -2,7 +2,7 @@
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from context_numeric_validation import finite_number
+from declan.core.context_numeric_validation import finite_number
 from declan.turn.session_identity import valid_session_id
 from declan.turn.chat_recall_privacy import safe_chat_text
 

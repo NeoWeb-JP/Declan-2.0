@@ -2,7 +2,7 @@
 import sqlite3
 from dataclasses import dataclass
 
-import history
+from declan.core import history
 from declan.turn import response_library as library
 
 

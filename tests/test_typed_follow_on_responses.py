@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from declan.turn.command_response import CommandResponse
-from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
+from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
 from declan.ha import lighting_result_dispatch
 from declan.turn import response_composition
 from declan.turn import routine_follow_on

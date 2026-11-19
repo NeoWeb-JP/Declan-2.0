@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 DOMAINS = {"binary_sensor", "climate", "cover", "fan", "light", "media_player", "switch"}

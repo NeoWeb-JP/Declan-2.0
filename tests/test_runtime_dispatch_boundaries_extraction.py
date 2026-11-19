@@ -3,7 +3,7 @@ from typing import Any
 import unittest
 from unittest.mock import Mock, patch
 
-import runtime_dispatch_boundaries as boundaries
+from declan.core import runtime_dispatch_boundaries as boundaries
 import server
 
 

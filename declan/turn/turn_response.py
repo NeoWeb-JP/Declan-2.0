@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from copy import deepcopy
 
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 @dataclass(frozen=True)

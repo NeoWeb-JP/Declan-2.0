@@ -5,7 +5,7 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import configuration
+from declan.core import configuration
 
 
 class SettingsPrecedenceMatrixTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 """Information, device and lighting dispatch with strict precedence."""
 from dataclasses import dataclass
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 from declan.turn import information_command_dispatch
 from declan.turn import information_result_response

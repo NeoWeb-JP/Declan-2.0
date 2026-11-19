@@ -4,7 +4,7 @@ import json
 from random import SystemRandom
 from threading import Lock
 
-import history
+from declan.core import history
 
 PHASES = ("requested", "completed", "failure")
 MODES = ("sass", "guest")

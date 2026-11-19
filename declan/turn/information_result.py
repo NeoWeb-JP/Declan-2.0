@@ -1,7 +1,7 @@
 """Typed information-provider execution and response category."""
 from dataclasses import dataclass
 from enum import StrEnum
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 
 
 class InformationCategory(StrEnum):

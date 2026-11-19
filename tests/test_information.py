@@ -8,8 +8,8 @@ from urllib.parse import parse_qs, urlsplit
 from unittest import TestCase
 from unittest.mock import patch
 
-import conditions
-import history
+from declan.core import conditions
+from declan.core import history
 from declan.timers import timers
 
 

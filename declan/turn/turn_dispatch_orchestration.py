@@ -5,7 +5,7 @@ server-level test monkeypatches and integration configuration.
 """
 
 from dataclasses import dataclass
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 @dataclass(frozen=True)

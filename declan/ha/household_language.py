@@ -3,7 +3,7 @@
 import re
 import sqlite3
 
-import configuration
+from declan.core import configuration
 
 SETTINGS = {
     "{resident_one}": ("DECLAN_RESIDENT_ONE_NAME", "the cook"),

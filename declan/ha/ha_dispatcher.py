@@ -5,7 +5,7 @@ from urllib.error import HTTPError
 from urllib.request import Request
 
 from declan.ai.action_plan import CandidateAction, SERVICES
-from execution_results import ActionStatus, DispatchResult
+from declan.core.execution_results import ActionStatus, DispatchResult
 
 EXPECTED = {
     "turn_on": "on", "turn_off": "off", "open_cover": "open",

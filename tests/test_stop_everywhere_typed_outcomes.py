@@ -2,7 +2,7 @@
 import unittest
 
 from declan.turn import command_registry
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class StopEverywhereTypedOutcomeTests(unittest.TestCase):

@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 
 from declan.ai.action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence, evidence_value
 from declan.ai.action_evidence_wire import action_evidence_to_wire
-from execution_results import Outcome
-from execution_results import ActionResult, ActionStatus, MovieLaunchStatus
+from declan.core.execution_results import Outcome
+from declan.core.execution_results import ActionResult, ActionStatus, MovieLaunchStatus
 from declan.ai.fallback_action_evidence import FallbackActionEvidence
 from declan.ha.movie_action_evidence import MovieActionEvidence
 from declan.ai.action_evidence_buffer import evidence_completed

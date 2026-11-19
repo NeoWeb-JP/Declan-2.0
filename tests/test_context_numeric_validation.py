@@ -2,7 +2,7 @@
 
 import unittest
 
-from context_numeric_validation import finite_number
+from declan.core.context_numeric_validation import finite_number
 
 
 class FiniteNumberTests(unittest.TestCase):

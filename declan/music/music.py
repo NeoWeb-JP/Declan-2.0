@@ -1,10 +1,10 @@
 """Route one household Spotify stream through Music Assistant."""
 
 import json
-import diagnostics
+from declan.core import diagnostics
 from declan.ha import ha_inventory
 from declan.music import approved_media_players
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result
 from declan.music.music_provider_result import PlayerAvailability, PlayerAvailabilityResult
 from declan.music.music_provider_result import MusicFailureKind, MusicRequestFailure

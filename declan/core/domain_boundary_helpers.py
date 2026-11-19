@@ -1,6 +1,6 @@
 """Pure domain helpers shared by server compatibility boundaries."""
 
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 def chained_outcome_result(routine, lighting):

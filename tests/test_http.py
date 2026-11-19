@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 import server
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from declan.turn.routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from declan_ingress import proxy
@@ -385,7 +385,7 @@ class APITests(TestCase):
             }, headers={"Authorization": "Bearer test", "Content-Type": "application/json"})
             self.assertEqual(status, 200)
             return json.loads(payload)
-        from execution_results import ExecutionResult, Outcome
+        from declan.core.execution_results import ExecutionResult, Outcome
         with patch.object(server, 'select_routine_result', return_value=("auto:script.dinner", {})), \
              patch.object(server.script_discovery, "execute_result",
                           return_value=(ExecutionResult("Dinner ready.", Outcome.REQUESTED), None)) as dinner:

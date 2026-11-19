@@ -1,6 +1,6 @@
 """Scope-bound retrieval of recent conversation context."""
 
-from context_numeric_validation import finite_number
+from declan.core.context_numeric_validation import finite_number
 from declan.turn.retry_scope_validation import same_origin_scope, valid_retry_scope
 
 def recent_context(previous, scope, *, now, idle_seconds):

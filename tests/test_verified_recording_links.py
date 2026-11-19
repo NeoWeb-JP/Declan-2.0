@@ -7,8 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-import history
-from database_schema_state import DatabaseSchemaState
+from declan.core import history
+from declan.core.database_schema_state import DatabaseSchemaState
 import server
 
 

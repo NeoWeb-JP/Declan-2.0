@@ -1,6 +1,6 @@
 """Execute guarded AI fallback after local command handlers have declined."""
 from dataclasses import dataclass
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 from declan.ai.fallback_action_evidence import FallbackActionEvidence
 from declan.ai.action_evidence_wire import action_evidence_to_wire
 from declan.ai.action_evidence_buffer import extend_action_evidence
