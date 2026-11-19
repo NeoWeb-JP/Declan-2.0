@@ -1,10 +1,8 @@
 """History regression tests executed by unittest discovery."""
 
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 import json
 from time import time
 
