@@ -3,7 +3,7 @@ import argparse as argparse
 import ipaddress
 import logging
 import os
-import secrets
+import secrets as secrets
 import sqlite3 as sqlite3
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
@@ -12,9 +12,9 @@ import ha_area_switch_actions as ha_area_switch_actions
 import household_routine_dispatch as household_routine_dispatch
 import ha_speech_transport as ha_speech_transport
 import music_stop_dispatch as music_stop_dispatch
-import movie_ha_helpers
+import movie_ha_helpers as movie_ha_helpers
 import bedroom_routine_dispatch as bedroom_routine_dispatch
-import media_title_search
+import media_title_search as media_title_search
 import ai_fallback_dispatch as ai_fallback_dispatch
 import routine_request_selection as routine_request_selection
 import routine_execution_dispatch as routine_execution_dispatch
@@ -36,12 +36,13 @@ import legacy_response_adapters
 import runtime_dispatch_boundaries
 import inventory_stop_boundaries
 import compatibility_facade
+import service_entry_boundaries
 import sys
 from pathlib import Path as Path
 from threading import Thread
 from time import monotonic, sleep as sleep
 from urllib.parse import urlsplit as urlsplit
-from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request as Request, build_opener
 
 from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
 from arbitration import CaptureArbiter
@@ -50,9 +51,9 @@ import conditions as conditions
 import sensitive_confirmations
 import diagnostics
 import declan_logs
-import configuration
-import media_search_agents
-import household_entities
+import configuration as configuration
+import media_search_agents as media_search_agents
+import household_entities as household_entities
 import health_readiness as health_readiness
 import voice_profiles as voice_profiles
 import voicepipeline as voicepipeline
@@ -119,23 +120,23 @@ import ai_context as ai_context
 import ai_intent_gate as ai_intent_gate
 import guarded_fallback as guarded_fallback
 import ha_dispatcher as ha_dispatcher
-import routine_registry
+import routine_registry as routine_registry
 from routine_action_evidence import parse_routine_actions as parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence as MovieActionEvidence
-from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence
+from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence as extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
 import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
-from personality import add_sass, choose_line as choose_line
+from personality import add_sass as add_sass, choose_line as choose_line
 import routine_responses as routine_responses
 import routine_follow_on as routine_follow_on
 import response_composition as response_composition
 import command_responses as command_responses
 import command_registry as command_registry
-import session_orchestration
+import session_orchestration as session_orchestration
 import session_store
 import routine_cooldown
 import active_routine_registry
@@ -247,12 +248,7 @@ def execute_routine(selection, action_results, *, approved=False):
     return compatibility_facade.execute_routine(selection, action_results, approved=approved, r=sys.modules[__name__])
 
 def run_custom_routine_result(name, action_results=None, *, approved=False, parameters=None):
-    return routine_execution_dispatch.run_custom_routine_result(
-        name, action_results=action_results, approved=approved, parameters=parameters,
-        registry=routine_registry, connect=ha_device_connection, areas_reader=read_ha_areas,
-        token_hex=secrets.token_hex, request_factory=Request, tracker=track_routine,
-        parse_steps=routine_action_results_typed, extend_evidence=extend_action_evidence,
-    )
+    return service_entry_boundaries.run_custom_routine_result(name, action_results=action_results, approved=approved, parameters=parameters, r=sys.modules[__name__])
 
 
 def chained_outcome(routine, lighting):
@@ -265,31 +261,19 @@ def search_media(phrase):
     return compatibility_facade.search_media(phrase, r=sys.modules[__name__])
 
 def search_media_result(phrase):
-    return media_title_search.search_media_result(
-        phrase, config=configuration, connect=ha_device_connection,
-        agents=media_search_agents, request_factory=Request,
-    )
+    return service_entry_boundaries.search_media_result(phrase, r=sys.modules[__name__])
 
 
 def launch_movie_app_result(connection, remote, app):
-    return movie_ha_helpers.launch_movie_app_result(
-        connection, remote, app, request_factory=Request,
-    )
+    return service_entry_boundaries.launch_movie_app_result(connection, remote, app, r=sys.modules[__name__])
 
 
 def discover_movie_entities(connection, room, *, script, remote, needs_remote):
-    return movie_ha_helpers.discover_movie_entities(
-        connection, room, script=script, remote=remote, needs_remote=needs_remote,
-        inventory_reader=read_ha_inventory_result, area_reader=read_ha_areas,
-        inventory_module=ha_inventory,
-    )
+    return service_entry_boundaries.discover_movie_entities(connection, room, script=script, remote=remote, needs_remote=needs_remote, r=sys.modules[__name__])
 
 
 def verify_legacy_lounge_start(connection, script):
-    return movie_ha_helpers.verify_legacy_lounge_start(
-        connection, script, inventory_reader=read_ha_inventory_result,
-        inventory_module=ha_inventory, entities=household_entities,
-    )
+    return service_entry_boundaries.verify_legacy_lounge_start(connection, script, r=sys.modules[__name__])
 
 
 @diagnostics.timed("ha_routine")
@@ -311,10 +295,7 @@ def handle_light_request_result(phrase, *, action_results=None, last_lights=(), 
     return runtime_dispatch_boundaries.handle_light_request_result(phrase, action_results=action_results, last_lights=last_lights, origin_device=origin_device, r=sys.modules[__name__])
 
 def ha_device_connection():
-    return ha_speech_transport.ha_device_connection(
-        environ=os.environ, redirect_handler=NoRedirect,
-        proxy_handler=ProxyHandler, opener_factory=build_opener,
-    )
+    return service_entry_boundaries.ha_device_connection(r=sys.modules[__name__])
 
 
 @diagnostics.timed("bedroom_routine")
@@ -392,13 +373,7 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=()):
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
     """Compatibility entry point; caller holds SESSION_STORE.lock."""
-    return session_orchestration.converse(
-        message, session_id, routine_reply, lighting_context=lighting_context,
-        scope=scope, guest_mode=guest_mode, sessions=SESSION_STORE.sessions,
-        idle_seconds=IDLE_SECONDS, name_pattern=NAME_PATTERN,
-        chat_commands=CHAT_COMMANDS, unmatched_reply=UNMATCHED_REPLY,
-        decorate=add_sass, recall=SESSION_STORE.chat_recall,
-    )
+    return service_entry_boundaries.converse(message, session_id, routine_reply, lighting_context=lighting_context, scope=scope, guest_mode=guest_mode, r=sys.modules[__name__])
 
 
 @diagnostics.timed("ha_transcription")
