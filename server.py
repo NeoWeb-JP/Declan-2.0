@@ -25,6 +25,7 @@ import server_lifecycle
 import routine_turn_orchestration
 import light_command_parsing
 import post_ingress_orchestration
+import turn_dispatch_orchestration
 import sys
 from pathlib import Path
 from threading import Thread
@@ -35,7 +36,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 from execution_results import ExecutionResult as ExecutionResult, Outcome
 from arbitration import CaptureArbiter
 
-import conditions
+import conditions as conditions
 import sensitive_confirmations
 import diagnostics
 import declan_logs
@@ -45,7 +46,7 @@ import household_entities
 import health_readiness
 import voice_profiles
 import voicepipeline
-import device_status
+import device_status as device_status
 import retry_learning
 import retry_training_persistence
 import conversation_persistence
@@ -58,22 +59,22 @@ import retry_cancellation
 import sensitive_confirmation_response
 import sensitive_confirmation_decision
 import sensitive_confirmation_turn
-import routine_preview_detection
-import routine_preview_dispatch
-import guest_assignment_command
-import roast_command_dispatch
-import timer_command_dispatch
-import lighting_command_dispatch
-import lighting_context_finalization
+import routine_preview_detection as routine_preview_detection
+import routine_preview_dispatch as routine_preview_dispatch
+import guest_assignment_command as guest_assignment_command
+import roast_command_dispatch as roast_command_dispatch
+import timer_command_dispatch as timer_command_dispatch
+import lighting_command_dispatch as lighting_command_dispatch
+import lighting_context_finalization as lighting_context_finalization
 import fallback_entity_authorization
 import guarded_fallback_dispatch
 import turn_context_preparation
 import turn_session_entry
 import turn_preflight_entry
-import turn_preview_stage
-import turn_direct_dispatch
-import turn_routine_stage
-import turn_fallback_dispatch
+import turn_preview_stage as turn_preview_stage
+import turn_direct_dispatch as turn_direct_dispatch
+import turn_routine_stage as turn_routine_stage
+import turn_fallback_dispatch as turn_fallback_dispatch
 import turn_response_preparation
 import turn_atomic_finalization
 import turn_response_composition
@@ -120,10 +121,10 @@ import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses
-import routine_follow_on
+import routine_follow_on as routine_follow_on
 import response_composition
 import command_responses
-import command_registry
+import command_registry as command_registry
 import session_orchestration
 import session_store
 import routine_cooldown
@@ -132,7 +133,7 @@ import routine_execution_gates
 import routine_cancellation
 import session_turn_state
 import lighting_intents
-import roast
+import roast as roast
 import personality_policy
 
 DECLAN_EVENT_LOG = logging.getLogger("declan.server")
@@ -723,88 +724,18 @@ class Handler(BaseHTTPRequestHandler):
             return
         session_id, phrase, effective_message = preflight.session_id, preflight.phrase, preflight.effective_message
         pending_retry = preflight.pending_retry
-        opener = build_opener(ProxyHandler({}), NoRedirect())
-        early_result = turn_preview_stage.resolve(
-            phrase, source=source, origin_device=origin_device,
-            satellite=satellite, opener=opener,
-            preview_dispatch=routine_preview_dispatch.dispatch_preview_result,
-            detect_phrase=routine_preview_detection.routine_preview_phrase,
-            preview_routine=preview_routine_result,
-            timer_dispatch=timer_command_dispatch.dispatch_timer,
-            registry_factory=command_registry.timer_registry,
-            context_factory=command_registry.RequestContext,
-            matches=timers.matches, handle=timers.handle_result,
-            guest_mode=read_guest_mode, decorate=add_sass,
-        )
-        routine_turn = None
-        routine_voice_result = None
-        if early_result is not None:
-            routine_reply, outcome = early_result.reply, early_result.outcome
-        elif direct_result := turn_direct_dispatch.dispatch(
-            phrase, source=source, origin_device=origin_device,
-            satellite=satellite,
-            stop_registry=command_registry.stop_registry,
-            context_factory=command_registry.RequestContext,
-            stop_routines=stop_pending_routines_result,
-            stop_everywhere=stop_everywhere_result,
-            connection=ha_device_connection,
-            roast_target=roast.target,
-            respond_to_roast=roast_command_dispatch.respond_to_roast_result,
-            guest_mode=read_guest_mode, visitors_present=read_visitors_present,
-            response_guest_mode=personality_policy.response_guest_mode,
-            roast_respond=roast.respond,
-            assignment_action=guest_assignment_command.assignment_action,
-            guest_commands=GUEST_COMMANDS,
-            guest_assignment=guest_assignment_result,
-        ):
-            routine_reply, outcome = direct_result.reply, direct_result.outcome
-            routine_status = direct_result.routine_status
-        elif routine_result := turn_routine_stage.dispatch(
+        dispatch_result = turn_dispatch_orchestration.dispatch(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
             scope=scope, last_lights=last_lights,
-            registry_factory=command_registry.routine_registry,
-            context_factory=command_registry.RequestContext,
-            select=select_routine_turn_result, execute=execute_routine_result,
-            follow_on_execute=routine_follow_on.execute_result,
-            parse_music=music.parse, play_music=music.play_result,
-            connection=ha_device_connection,
-            music_inventory=read_music_inventory_result,
-            handle_lighting=handle_light_request_result,
-            chained_outcome=chained_outcome_result,
-        ):
-            routine_status = routine_result.routine_status
-            routine_turn = routine_result.routine_turn
-            routine_reply, outcome = routine_result.reply, routine_result.outcome
-            lighting_context = routine_result.lighting_context
-            routine_voice_result = routine_result.routine_voice_result
-        else:
-            fallback_dispatch = turn_fallback_dispatch.dispatch(
-                phrase, source, opener, last_information, last_device, origin_device, satellite, action_results, last_lights, scope, lighting_context,
-                command_registry=command_registry,
-                conditions=conditions,
-                add_sass=add_sass,
-                read_guest_mode=read_guest_mode,
-                device_status=device_status,
-                ha_device_connection=ha_device_connection,
-                read_ha_inventory_result=read_ha_inventory_result,
-                GUEST_MODE_ENTITY=configured_guest_mode_entity(),
-                music=music,
-                read_music_inventory_result=read_music_inventory_result,
-                read_ha_areas=read_ha_areas,
-                search_media_result=search_media_result,
-                lighting_intents=lighting_intents,
-                parse_light_command=parse_light_command,
-                handle_light_request_result=handle_light_request_result,
-                lighting_command_dispatch=lighting_command_dispatch,
-                lighting_context_finalization=lighting_context_finalization,
-            )
-            if fallback_dispatch is not None:
-                routine_reply, outcome = fallback_dispatch.reply, fallback_dispatch.outcome
-                information_context = fallback_dispatch.information_context
-                status_target = fallback_dispatch.status_target
-                lighting_context = fallback_dispatch.lighting_context
-                light_result = fallback_dispatch.light_result
+            last_device=last_device, last_information=last_information,
+            r=sys.modules[__name__],
+        )
+        routine_reply, outcome = dispatch_result.reply, dispatch_result.outcome
+        routine_status, routine_turn = dispatch_result.routine_status, dispatch_result.routine_turn
+        routine_voice_result = dispatch_result.routine_voice_result
+        lighting_context, information_context = dispatch_result.lighting_context, dispatch_result.information_context
+        status_target, light_result = dispatch_result.status_target, dispatch_result.light_result
         response_preparation = turn_response_preparation.prepare(
             effective_message, routine_reply=routine_reply, outcome=outcome,
             light_result=light_result, body=body,

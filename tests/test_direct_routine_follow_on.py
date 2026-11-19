@@ -5,6 +5,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
 STAGE = (ROOT / "turn_routine_stage.py").read_text()
+DISPATCH = (ROOT / "turn_dispatch_orchestration.py").read_text()
 
 
 class DirectRoutineFollowOnTests(unittest.TestCase):
@@ -16,12 +17,12 @@ class DirectRoutineFollowOnTests(unittest.TestCase):
         self.assertLess(start, reply)
         self.assertLess(reply, lights)
         self.assertLess(lights, voice)
-        self.assertIn("routine_reply, outcome = routine_result.reply, routine_result.outcome", SERVER)
+        self.assertIn("routine_reply, outcome = routine_result.reply, routine_result.outcome", DISPATCH)
 
     def test_music_and_lighting_follow_on_dependencies_preserved(self):
-        start = SERVER.index("turn_routine_stage.dispatch(")
-        end = SERVER.index("routine_status = routine_result.routine_status", start)
-        call = SERVER[start:end]
+        start = DISPATCH.index("turn_routine_stage.dispatch(")
+        end = DISPATCH.index("routine_status = routine_result.routine_status", start)
+        call = DISPATCH[start:end]
         for dependency in (
             "follow_on_execute=routine_follow_on.execute_result",
             "parse_music=music.parse",
