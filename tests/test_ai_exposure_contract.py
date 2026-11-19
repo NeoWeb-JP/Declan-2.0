@@ -8,6 +8,7 @@ EXPOSURE = (ROOT / "custom_components/declan_two/ai_exposure.py").read_text()
 AGENT = (ROOT / "custom_components/declan_two/conversation.py").read_text()
 CHAT = (ROOT / "custom_components/declan_two/chat_view.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
+AI_FALLBACK = (ROOT / "ai_fallback_dispatch.py").read_text()
 AUTHORIZATION = (ROOT / "fallback_entity_authorization.py").read_text()
 FALLBACK = (ROOT / "fallback_orchestration.py").read_text()
 PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
@@ -29,7 +30,7 @@ class AIExposureContractTests(unittest.TestCase):
         self.assertIn('exposed_entities=fallback_entity_authorization.exposed_entities', SERVER)
         self.assertIn('exposed = exposed_entities(body, authorization, bridge_token)', FALLBACK)
         self.assertIn('if authenticated_ha else ()', AUTHORIZATION)
-        self.assertIn('if not permitted or len(permitted)', SERVER)
+        self.assertIn('if not permitted or len(permitted)', AI_FALLBACK)
         self.assertNotIn('DECLAN_OPENAI_ALLOWED_ENTITIES', SERVER)
 
 
