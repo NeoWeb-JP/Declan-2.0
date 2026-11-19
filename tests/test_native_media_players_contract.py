@@ -18,7 +18,8 @@ class MediaPlayersContractTests(unittest.TestCase):
         get = BACKEND[BACKEND.index("    def do_GET(self):"):BACKEND.index("    def do_POST(self):")]
         self.assertIn('settings_read_routes.handles(handler.path)', (ROOT / 'get_request_dispatch.py').read_text())
         self.assertIn('"/api/settings/media-players"', (ROOT / "settings_read_routes.py").read_text())
-        self.assertIn('get_request_dispatch.dispatch(', get)
+        self.assertIn('http_handler_adapters.do_GET(', get)
+        self.assertIn('get_request_dispatch.dispatch(', (ROOT / 'http_handler_adapters.py').read_text())
         self.assertIn('get_access_gate_http.enforce_access(', (ROOT / 'get_request_dispatch.py').read_text())
         self.assertIn('not players_auth', (ROOT / 'get_access_gate_http.py').read_text())
         self.assertIn('r.post_body_routing.dispatch(', POST_INGRESS)
@@ -65,7 +66,7 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn('data.room_labels && data.room_labels[room]', JS)
         self.assertIn('label.textContent = ', JS)
         ast.parse(MEDIA_ROUTES)
-        self.assertIn("media_settings_routes.approved_player_settings(", BACKEND)
+        self.assertIn("media_settings_routes.approved_player_settings(", (ROOT / "http_handler_adapters.py").read_text())
         self.assertIn('"room_labels": room_labels', MEDIA_ROUTES)
         self.assertIn('players-save', JS)
         self.assertNotIn('option.innerHTML', JS)
