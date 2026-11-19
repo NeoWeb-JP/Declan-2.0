@@ -9,7 +9,7 @@ import secrets
 import sqlite3
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
-from declan_ingress.security import response_headers, secure_page
+from declan_ingress.security import response_headers
 import ha_inventory
 from pathlib import Path
 from threading import Thread
