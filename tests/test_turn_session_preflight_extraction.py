@@ -1,5 +1,7 @@
 """Regression checks for session and preflight extraction."""
 import unittest
+
+from service_doubles import patch_module_collaborators
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -10,6 +12,7 @@ class SessionPreflightExtractionTests(unittest.TestCase):
     def setUp(self):
         self.handler = Mock()
         self.r = Mock()
+        patch_module_collaborators(self, turn_session_preflight, self.r)
         self.r.monotonic.return_value = 123
         self.r.secrets.token_urlsafe.return_value = "new-session"
         self.r.turn_session_entry.prepare.return_value = SimpleNamespace(
@@ -21,7 +24,7 @@ class SessionPreflightExtractionTests(unittest.TestCase):
 
     def prepare(self):
         return turn_session_preflight.prepare(
-            self.handler, {"message": "turn on light"}, "turn on light", "session", r=self.r)
+            self.handler, {"message": "turn on light"}, "turn on light", "session", services=self.r)
 
     def test_session_rejection_stops_preflight(self):
         self.r.turn_session_entry.prepare.return_value = None

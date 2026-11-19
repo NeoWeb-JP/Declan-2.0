@@ -1,5 +1,7 @@
 """Regression tests for response completion orchestration."""
 import unittest
+
+from service_doubles import patch_module_collaborators
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -9,6 +11,7 @@ from declan.turn import turn_response_completion
 class ResponseCompletionTests(unittest.TestCase):
     def setUp(self):
         self.r = Mock()
+        patch_module_collaborators(self, turn_response_completion, self.r)
         self.r.os.environ = {}
         self.r.SESSION_STORE.sessions = {}
         self.r.SESSION_STORE.lock = Mock()
@@ -27,7 +30,7 @@ class ResponseCompletionTests(unittest.TestCase):
         return turn_response_completion.complete(
             self.handler, body={"message": "hello"}, message="hello", effective_message="hello",
             session_id="s1", phrase="hello", source="voice", scope="home",
-            pending_retry="retry", action_results="evidence", dispatch_result=self.dispatch, r=self.r)
+            pending_retry="retry", action_results="evidence", dispatch_result=self.dispatch, services=self.r)
 
     def test_preparation_runs_before_atomic_finalization(self):
         result = self.complete()

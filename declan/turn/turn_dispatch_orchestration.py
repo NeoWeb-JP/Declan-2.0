@@ -1,9 +1,29 @@
 """Orchestrate preview, direct, routine and fallback dispatch for a voice turn.
 
-Dependencies are resolved from the live server module at invocation time to retain
-server-level test monkeypatches and integration configuration.
+Server-owned collaborators arrive as a `TurnServices` container built per request,
+so server-level patches and configuration still take effect.
 """
 
+from declan.core import conditions
+from declan.ha import device_status
+from declan.ha import lighting_command_dispatch
+from declan.ha import lighting_context_finalization
+from declan.ha import lighting_intents
+from declan.music import music
+from declan.timers import timer_command_dispatch
+from declan.timers import timers
+from declan.turn import command_registry
+from declan.turn import guest_assignment_command
+from declan.turn import personality_policy
+from declan.turn import roast
+from declan.turn import roast_command_dispatch
+from declan.turn import routine_follow_on
+from declan.turn import routine_preview_detection
+from declan.turn import routine_preview_dispatch
+from declan.turn import turn_direct_dispatch
+from declan.turn import turn_fallback_dispatch
+from declan.turn import turn_preview_stage
+from declan.turn import turn_routine_stage
 from dataclasses import dataclass
 from declan.core.execution_results import Outcome
 
@@ -30,49 +50,29 @@ class DispatchResult:
 
 
 def dispatch(phrase, *, source, origin_device, satellite, action_results,
-             scope, last_lights, last_device, last_information, r):
-    build_opener = r.build_opener
-    ProxyHandler = r.ProxyHandler
-    NoRedirect = r.NoRedirect
-    turn_preview_stage = r.turn_preview_stage
-    routine_preview_dispatch = r.routine_preview_dispatch
-    routine_preview_detection = r.routine_preview_detection
-    preview_routine_result = r.preview_routine_result
-    timer_command_dispatch = r.timer_command_dispatch
-    command_registry = r.command_registry
-    timers = r.timers
-    read_guest_mode = r.read_guest_mode
-    add_sass = r.add_sass
-    turn_direct_dispatch = r.turn_direct_dispatch
-    stop_pending_routines_result = r.stop_pending_routines_result
-    stop_everywhere_result = r.stop_everywhere_result
-    ha_device_connection = r.ha_device_connection
-    roast = r.roast
-    roast_command_dispatch = r.roast_command_dispatch
-    read_visitors_present = r.read_visitors_present
-    personality_policy = r.personality_policy
-    guest_assignment_command = r.guest_assignment_command
-    GUEST_COMMANDS = r.GUEST_COMMANDS
-    guest_assignment_result = r.guest_assignment_result
-    turn_routine_stage = r.turn_routine_stage
-    select_routine_turn_result = r.select_routine_turn_result
-    execute_routine_result = r.execute_routine_result
-    routine_follow_on = r.routine_follow_on
-    music = r.music
-    read_music_inventory_result = r.read_music_inventory_result
-    handle_light_request_result = r.handle_light_request_result
-    chained_outcome_result = r.chained_outcome_result
-    turn_fallback_dispatch = r.turn_fallback_dispatch
-    conditions = r.conditions
-    device_status = r.device_status
-    read_ha_inventory_result = r.read_ha_inventory_result
-    configured_guest_mode_entity = r.configured_guest_mode_entity
-    read_ha_areas = r.read_ha_areas
-    search_media_result = r.search_media_result
-    lighting_intents = r.lighting_intents
-    parse_light_command = r.parse_light_command
-    lighting_command_dispatch = r.lighting_command_dispatch
-    lighting_context_finalization = r.lighting_context_finalization
+             scope, last_lights, last_device, last_information, services):
+    build_opener = services.build_opener
+    ProxyHandler = services.ProxyHandler
+    NoRedirect = services.NoRedirect
+    preview_routine_result = services.preview_routine_result
+    read_guest_mode = services.read_guest_mode
+    add_sass = services.add_sass
+    stop_pending_routines_result = services.stop_pending_routines_result
+    stop_everywhere_result = services.stop_everywhere_result
+    ha_device_connection = services.ha_device_connection
+    read_visitors_present = services.read_visitors_present
+    GUEST_COMMANDS = services.GUEST_COMMANDS
+    guest_assignment_result = services.guest_assignment_result
+    select_routine_turn_result = services.select_routine_turn_result
+    execute_routine_result = services.execute_routine_result
+    read_music_inventory_result = services.read_music_inventory_result
+    handle_light_request_result = services.handle_light_request_result
+    chained_outcome_result = services.chained_outcome_result
+    read_ha_inventory_result = services.read_ha_inventory_result
+    configured_guest_mode_entity = services.configured_guest_mode_entity
+    read_ha_areas = services.read_ha_areas
+    search_media_result = services.search_media_result
+    parse_light_command = services.parse_light_command
     routine_reply = outcome = routine_status = None
     routine_turn = routine_voice_result = None
     light_result = lighting_context = status_target = information_context = None

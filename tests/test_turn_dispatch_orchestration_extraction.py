@@ -1,5 +1,7 @@
 """Regression coverage for extracted voice-turn command dispatch."""
 import unittest
+
+from service_doubles import patch_module_collaborators
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -10,6 +12,7 @@ from declan.core.execution_results import Outcome
 class TurnDispatchExtractionTests(unittest.TestCase):
     def setUp(self):
         self.r = Mock()
+        patch_module_collaborators(self, turn_dispatch_orchestration, self.r)
         self.r.build_opener.return_value = object()
         self.r.turn_preview_stage.resolve.return_value = None
         self.r.turn_direct_dispatch.dispatch.return_value = None
@@ -22,7 +25,7 @@ class TurnDispatchExtractionTests(unittest.TestCase):
             "play country", source="voice", origin_device="kitchen",
             satellite="kitchen", action_results=Mock(), scope="home",
             last_lights=None, last_device=None, last_information=None,
-            r=self.r,
+            services=self.r,
         )
 
     def test_preview_short_circuits_later_dispatch(self):

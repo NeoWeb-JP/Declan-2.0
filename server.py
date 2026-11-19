@@ -29,9 +29,9 @@ from declan.turn import turn_session_preflight as turn_session_preflight
 from declan.turn import turn_response_completion as turn_response_completion
 from declan.turn import command_vocabulary
 from declan.turn import turn_http_entry
+from declan.turn import turn_services
 from declan.core import domain_boundary_helpers
 import server_runtime_state
-import sys
 from pathlib import Path as Path
 from threading import Thread as Thread
 from time import monotonic as monotonic, sleep as sleep
@@ -446,6 +446,48 @@ def traced_transcribe_result(*args, **kwargs):
     return web_stt.transcribe_result(*args, **kwargs)
 
 
+def _turn_services() -> turn_services.TurnServices:
+    """Resolve server-owned collaborators at call time so patches take effect."""
+    return turn_services.TurnServices(
+        ActionEvidenceBuffer=ActionEvidenceBuffer,
+        CAPTURE_ARBITER=CAPTURE_ARBITER,
+        CHAT_COMMANDS=CHAT_COMMANDS,
+        GUEST_COMMANDS=GUEST_COMMANDS,
+        IDLE_SECONDS=IDLE_SECONDS,
+        NoRedirect=NoRedirect,
+        ProxyHandler=ProxyHandler,
+        RELEASE_VERSION=RELEASE_VERSION,
+        SENSITIVE_CONFIRMATIONS=SENSITIVE_CONFIRMATIONS,
+        SESSION_STORE=SESSION_STORE,
+        UNMATCHED_REPLY=UNMATCHED_REPLY,
+        add_sass=add_sass,
+        build_opener=build_opener,
+        chained_outcome_result=chained_outcome_result,
+        configured_guest_mode_entity=configured_guest_mode_entity,
+        converse=converse,
+        execute_routine_result=execute_routine_result,
+        guarded_openai_fallback_result=guarded_openai_fallback_result,
+        guest_assignment_result=guest_assignment_result,
+        ha_device_connection=ha_device_connection,
+        handle_light_request_result=handle_light_request_result,
+        monotonic=monotonic,
+        parse_light_command=parse_light_command,
+        preprocess_speech=preprocess_speech,
+        preview_routine_result=preview_routine_result,
+        read_guest_mode=read_guest_mode,
+        read_ha_areas=read_ha_areas,
+        read_ha_inventory_result=read_ha_inventory_result,
+        read_music_inventory_result=read_music_inventory_result,
+        read_visitors_present=read_visitors_present,
+        render_web_voice=render_web_voice,
+        routine_action_results_typed=routine_action_results_typed,
+        search_media_result=search_media_result,
+        select_routine_turn_result=select_routine_turn_result,
+        stop_everywhere_result=stop_everywhere_result,
+        stop_pending_routines_result=stop_pending_routines_result,
+    )
+
+
 class Handler(BaseHTTPRequestHandler):
     timeout = 5
 
@@ -508,7 +550,7 @@ class Handler(BaseHTTPRequestHandler):
         return post_request_entry.dispatch(self, handle_post=self.handle_post)
 
     def handle_post(self):
-        return turn_http_entry.handle_post(self, r=sys.modules[__name__])
+        return turn_http_entry.handle_post(self, services=_turn_services())
 
 def main():
     return server_lifecycle.main(

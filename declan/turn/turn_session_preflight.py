@@ -1,5 +1,18 @@
-"""Session acquisition and voice-turn preflight, retaining live server dependencies."""
+"""Session acquisition and voice-turn preflight, using the per-request TurnServices."""
 
+import secrets
+from declan.core import diagnostics
+from declan.core import history
+from declan.turn import retry_cancellation
+from declan.turn import retry_context
+from declan.turn import retry_learning
+from declan.turn import sensitive_confirmation_decision
+from declan.turn import sensitive_confirmation_resolution
+from declan.turn import sensitive_confirmation_response
+from declan.turn import sensitive_confirmation_turn
+from declan.turn import session_context_retrieval
+from declan.turn import turn_preflight_entry
+from declan.turn import turn_session_entry
 from dataclasses import dataclass
 
 
@@ -18,28 +31,15 @@ class PreparedTurn:
     last_information: object
 
 
-def prepare(handler, body, message, session_id, *, r):
-    turn_session_entry = r.turn_session_entry
-    CAPTURE_ARBITER = r.CAPTURE_ARBITER
-    history = r.history
-    secrets = r.secrets
-    SESSION_STORE = r.SESSION_STORE
-    monotonic = r.monotonic
-    IDLE_SECONDS = r.IDLE_SECONDS
-    session_context_retrieval = r.session_context_retrieval
-    turn_preflight_entry = r.turn_preflight_entry
-    preprocess_speech = r.preprocess_speech
-    retry_learning = r.retry_learning
-    retry_context = r.retry_context
-    converse = r.converse
-    retry_cancellation = r.retry_cancellation
-    sensitive_confirmation_turn = r.sensitive_confirmation_turn
-    sensitive_confirmation_decision = r.sensitive_confirmation_decision
-    sensitive_confirmation_response = r.sensitive_confirmation_response
-    GUEST_COMMANDS = r.GUEST_COMMANDS
-    SENSITIVE_CONFIRMATIONS = r.SENSITIVE_CONFIRMATIONS
-    diagnostics = r.diagnostics
-    sensitive_confirmation_resolution = r.sensitive_confirmation_resolution
+def prepare(handler, body, message, session_id, *, services):
+    CAPTURE_ARBITER = services.CAPTURE_ARBITER
+    SESSION_STORE = services.SESSION_STORE
+    monotonic = services.monotonic
+    IDLE_SECONDS = services.IDLE_SECONDS
+    preprocess_speech = services.preprocess_speech
+    converse = services.converse
+    GUEST_COMMANDS = services.GUEST_COMMANDS
+    SENSITIVE_CONFIRMATIONS = services.SENSITIVE_CONFIRMATIONS
     turn = turn_session_entry.prepare(
         handler, body, message=message, session_id=session_id,
         arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,

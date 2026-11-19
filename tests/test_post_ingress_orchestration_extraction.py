@@ -14,7 +14,7 @@ class PostIngressExtractionTests(unittest.TestCase):
     def test_authentication_failure_stops_before_payload_read(self):
         with patch.object(server.post_entry_gates, "enforce", return_value=False) as gate:
             with patch.object(server.post_payload_validation, "read_authorized_body") as read:
-                result = post_ingress_orchestration.prepare(self.handler, r=server)
+                result = post_ingress_orchestration.prepare(self.handler, services=server._turn_services())
         self.assertIsNone(result)
         gate.assert_called_once()
         read.assert_not_called()
@@ -23,7 +23,7 @@ class PostIngressExtractionTests(unittest.TestCase):
         with patch.object(server.post_entry_gates, "enforce", return_value=True):
             with patch.object(server.post_payload_validation, "read_authorized_body", side_effect=ValueError("bad")):
                 with patch.object(server.post_payload_validation, "send_validation_error") as send:
-                    result = post_ingress_orchestration.prepare(self.handler, r=server)
+                    result = post_ingress_orchestration.prepare(self.handler, services=server._turn_services())
         self.assertIsNone(result)
         send.assert_called_once_with(self.handler)
 
@@ -32,7 +32,7 @@ class PostIngressExtractionTests(unittest.TestCase):
             with patch.object(server.post_payload_validation, "read_authorized_body", return_value=(True, {})):
                 with patch.object(server.post_body_routing, "dispatch", return_value=True):
                     with patch.object(server.post_payload_validation, "message_and_session") as session:
-                        result = post_ingress_orchestration.prepare(self.handler, r=server)
+                        result = post_ingress_orchestration.prepare(self.handler, services=server._turn_services())
         self.assertIsNone(result)
         session.assert_not_called()
 
@@ -44,7 +44,7 @@ class PostIngressExtractionTests(unittest.TestCase):
                     with patch.object(server.post_operational_routing, "dispatch_before_validation", return_value=False):
                         with patch.object(server.post_payload_validation, "message_and_session", return_value=("hello", "session")):
                             with patch.object(server.post_operational_routing, "dispatch_after_validation", return_value=False):
-                                result = post_ingress_orchestration.prepare(self.handler, r=server)
+                                result = post_ingress_orchestration.prepare(self.handler, services=server._turn_services())
         self.assertEqual(result, (body, "hello", "session"))
 
 
