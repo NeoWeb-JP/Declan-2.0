@@ -114,7 +114,7 @@ def learned_intent(phrase):
 def teach_intent(turn_id, target, unmatched_reply):
     with database() as connection:
         turn = connection.execute(
-            "SELECT message FROM turns WHERE id = ? AND source = 'assist' AND created_at >= ?",
+            "SELECT message FROM turns WHERE id = ? AND created_at >= ?",
             (turn_id, time() - retention_seconds()),
         ).fetchone()
         raw_phrase = turn[0] if turn else ""
