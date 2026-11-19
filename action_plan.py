@@ -9,10 +9,10 @@ from enum import StrEnum
 
 ENTITY = re.compile(r"^(light|switch|fan|cover|script|media_player)\.[a-z0-9_]+$")
 SERVICES = {
-    "light": frozenset(("turn_on", "turn_off", "toggle")),
-    "switch": frozenset(("turn_on", "turn_off", "toggle")),
-    "fan": frozenset(("turn_on", "turn_off", "toggle")),
-    "cover": frozenset(("open_cover", "close_cover", "stop_cover")),
+    "light": frozenset(("turn_on", "turn_off")),
+    "switch": frozenset(("turn_on", "turn_off")),
+    "fan": frozenset(("turn_on", "turn_off")),
+    "cover": frozenset(("open_cover", "close_cover")),
     "script": frozenset(("turn_on",)),
     "media_player": frozenset(("media_stop", "media_pause", "media_play")),
 }

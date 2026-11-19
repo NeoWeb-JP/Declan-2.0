@@ -4,18 +4,13 @@ from time import monotonic, sleep
 from urllib.error import HTTPError
 from urllib.request import Request
 
-from action_plan import CandidateAction
+from action_plan import CandidateAction, SERVICES
 from execution_results import ActionStatus, DispatchResult
 
 EXPECTED = {
     "turn_on": "on", "turn_off": "off", "open_cover": "open",
     "close_cover": "closed", "media_pause": "paused",
     "media_play": "playing", "media_stop": "idle",
-}
-SERVICES = {
-    "light": {"turn_on", "turn_off"}, "switch": {"turn_on", "turn_off"},
-    "fan": {"turn_on", "turn_off"}, "cover": {"open_cover", "close_cover"},
-    "script": {"turn_on"}, "media_player": {"media_pause", "media_play", "media_stop"},
 }
 
 

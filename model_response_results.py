@@ -7,6 +7,14 @@ class NonBillablePlanningError(ValueError):
     """Trusted planner evidence that no successful API request was made."""
 
 
+class IncompletePlanningError(ValueError):
+    """A provider response stopped before a complete plan; usage may be billable."""
+
+    def __init__(self, reason: object):
+        self.reason = reason if isinstance(reason, str) and reason in {"max_output_tokens", "content_filter"} else "unknown"
+        super().__init__("Invalid model plan")
+
+
 class ModelResponseStatus(StrEnum):
     COMPLETED = "completed"
     UNVERIFIED = "unverified"

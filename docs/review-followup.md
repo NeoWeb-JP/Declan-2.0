@@ -28,15 +28,15 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 
 | Finding | Verified status and required next action |
 | --- | --- |
-| Reasoning/output cap | The code caps output at 600 and defaults to gpt-5-mini. Reasoning tokens share that cap; actual model failure frequency is not measured. Test supported effort/cap choices within the spend ceiling and distinguish incomplete responses. |
-| Restrictive intent gate | Confirmed fixed action-word filtering. Add natural implicit-command regressions and a bounded classification/planning policy without granting extra device permissions. |
-| Free-string JSON schema | Confirmed entity/service strings are unconstrained in the model schema; local validation still rejects invalid plans. Add request-specific enum constraints and retain local validation. |
-| Toggle/preflight mismatch | Confirmed plan validator permits toggle while preflight rejects it. Align planner capabilities without widening script/media permissions implicitly. |
+| Reasoning/output cap | #760 follow-up raises the allowance from 600 to 2,000 tokens, sets supported low reasoning effort for both priced models and preserves the pre-request spending check. Incomplete responses receive a specific safe diagnostic/spoken result and known usage is settled. Live completion frequency and latency remain unmeasured; this is a mitigation, not live acceptance. |
+| Restrictive intent gate | #760 follow-up removes fixed action-word filtering. Bounded unmatched text reaches the opt-in planner after local handlers; the model must return an empty plan for unrelated chat, status questions or ambiguity. Authenticated exposure, allowed domains, budgets and confirmations still apply. Synthetic route regressions cover implicit requests and no-action responses. |
+| Free-string JSON schema | #760 follow-up uses request-specific entity and service enums paired per domain, plus the owner's action-count limit. Local validation still independently rejects exposure/service/count/dependency violations. Empty permitted context makes no provider call or reservation. |
+| Toggle/preflight mismatch | #760 follow-up shares the verified-service vocabulary across validator, preflight and dispatcher. Toggle and unverifiable cover-stop are excluded. Script/media remain outside live AI allowed domains; no permissions are widened. |
 | Lexical context selection | Confirmed over-limit inventory uses word overlap and can reject broad/alias requests. Review area/alias resolution and safe bounded grouping; do not truncate away required actions silently. |
 | Sensitive garage/gate actions | Generic guarded path defaults to unconfirmed. Do not set confirmation true automatically. Verify and explain the policy, or add a correctly origin-bound confirmation flow. |
 | General chat/questions | Current action planner is not a general chat service. This needs an explicit product scope decision, budget/privacy controls and separate acceptance criteria. |
 | Synchronous timeout/retries | The 12-second request timeout is present. Review voice latency and acknowledgement semantics; retries must reserve/charge conservatively and never duplicate actions. |
-| Pricing/model table | Two hardcoded rate entries are present. The gpt-6-luna entry/rates are not independently verified here; absence from a quick search would not prove nonexistence. Verify official model/pricing data and design owner-visible configurable rates. |
+| Pricing/model table | Two hardcoded rate entries remain. Verified 19 November 2026 against official model pages: gpt-6-luna exists and its standard text rates match the current table. gpt-5-mini's published rates also match, but its model page is marked deprecated. Configurable pricing and model lifecycle handling remain open; this batch does not change the owner's chosen model. |
 | Key rotation | Local DVAE1 and the separate shared-storage prototype lack key-ID/keyring rotation. This remains an explicit future migration/key-lifecycle requirement, not an implemented feature. No key rotation is attempted here. |
 | Flat layout/package moves | Real navigation/coupling cost; package moves were explicitly deferred by accepted #756. Acceptance of that scope does not prove architectural quality. Revisit through a cohesive dependency/ownership change if required. |
 | Server service locator | Confirmed residual coupling, explicitly retained by #756. Narrow dependencies where a demonstrated consumer/lifecycle requirement warrants it; no wrapper-only extraction campaign. |
@@ -54,8 +54,9 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 
 ## Priority after this batch
 
-1. Planner/schema/preflight alignment, implicit device commands and model
-   completion/latency tests, preserving exposure and sensitive-action controls.
+1. Live model completion/latency evidence and area/alias context selection,
+   preserving exposure and sensitive-action controls. Planner/schema/preflight
+   alignment and implicit-input eligibility are implemented in the #760 batch.
 2. Updater crash/data rollback fault testing and production key/backup lifecycle.
 3. Cross-module typing and stable behavioral tests, followed by deliberate
    architecture improvements where accepted scope needs revisiting.
@@ -83,3 +84,24 @@ Local validation: the intended Linux mypy 1.18.2 command passes across 677
 source files; all 2,397 regressions pass with 86.98% Python line coverage.
 Ruff, Bandit and the source-location guard also pass. Before merge, require
 the final commit's Linux CI checks to pass.
+
+## #760 planner contract evidence
+
+The new behavioral tests exercise the actual server fallback, model request,
+budget ledger, local validation, preflight and verified dispatcher with synthetic
+network transports. They do not replace model intent understanding with a claim
+of live acceptance. Provider responses attempting private entities, wrong-domain
+services and toggle cannot dispatch; unrelated-chat empty plans and missing
+permissions cannot change devices. Sensitive covers remain unconfirmed.
+
+Parameter/schema references checked 19 November 2026:
+[GPT-5 reasoning controls](https://developers.openai.com/api/docs/guides/latest-model/gpt-5.md),
+[GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna.md),
+[reasoning output limits](https://developers.openai.com/api/docs/guides/reasoning),
+[structured output schemas](https://developers.openai.com/api/docs/guides/structured-outputs).
+No live paid API calls or real Home Assistant actions were made by these tests.
+
+Local #760 batch checks: all 2,413 Python regressions pass, with 87.03% line
+coverage; mypy passes across 678 source files; Ruff and Bandit pass. Require
+final-head GitHub CI before merge. Issue #760 remains open for the unimplemented
+findings and the live acceptance evidence described above.
