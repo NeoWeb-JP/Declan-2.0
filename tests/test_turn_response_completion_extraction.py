@@ -40,8 +40,8 @@ class ResponseCompletionTests(unittest.TestCase):
         args = self.r.turn_atomic_finalization.finalize.call_args.args
         self.assertEqual(args[3], "prepared-outcome")
         self.assertEqual(args[7], "prepared")
-        self.assertEqual(args[16], "updated-info")
-        self.assertEqual(args[17], "retry")
+        self.assertEqual(args[17], "updated-info")
+        self.assertEqual(args[18], "retry")
 
     def test_authorization_and_action_evidence_preserved(self):
         self.complete()
