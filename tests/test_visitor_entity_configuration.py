@@ -29,6 +29,16 @@ class VisitorEntityConfigurationTests(unittest.TestCase):
             self.assertIsNone(server.read_visitors_present())
             opener.assert_not_called()
 
+    def test_malformed_non_string_entity_is_unknown(self):
+        for entity in (None, 42, [], {}):
+            with self.subTest(entity=entity), patch.dict(os.environ, {
+                    "DECLAN_HA_URL": "https://ha.example",
+                    "DECLAN_HA_TOKEN": "test-token"}, clear=True), patch.object(
+                    server.configuration, "get", return_value=entity
+            ), patch.object(server, "build_opener") as opener:
+                self.assertIsNone(server.read_visitors_present())
+                opener.assert_not_called()
+
     def test_missing_credentials_or_invalid_url_never_opens_connection(self):
         cases = (
             {"DECLAN_HA_URL": "https://ha.example"},
