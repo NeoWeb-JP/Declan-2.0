@@ -37,7 +37,7 @@ import runtime_dispatch_boundaries
 import sys
 from pathlib import Path as Path
 from threading import Thread
-from time import monotonic, sleep
+from time import monotonic, sleep as sleep
 from urllib.parse import urlsplit as urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
@@ -127,7 +127,7 @@ from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer,
 from fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
 import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
-from personality import add_sass, choose_line
+from personality import add_sass, choose_line as choose_line
 import routine_responses as routine_responses
 import routine_follow_on as routine_follow_on
 import response_composition as response_composition
