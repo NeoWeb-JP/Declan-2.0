@@ -1914,10 +1914,10 @@ class Handler(BaseHTTPRequestHandler):
         try:
             # Assist-token callers may review or resolve pending matches, but not
             # perform destructive VoicePipeline management operations.
-            body = post_payload_validation.read_authorized_body(
+            authorized, body = post_payload_validation.read_authorized_body(
                 self, ingress=self.has_ingress_access(),
             )
-            if body is None:
+            if not authorized:
                 return
             if post_body_routing.dispatch(
                 self, body, spotify_save=self.spotify_settings,
