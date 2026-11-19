@@ -696,9 +696,7 @@ class Handler(BaseHTTPRequestHandler):
         pending_retry = turn.pending_retry
         source, scope, origin_device, satellite = turn.source, turn.scope, turn.origin_device, turn.satellite
         last_lights, last_device, last_information = turn.last_lights, turn.last_device, turn.last_information
-        routine_reply = outcome = routine_status = None
         action_results = ActionEvidenceBuffer()
-        light_result = lighting_context = status_target = information_context = None
         dispatch_result = turn_dispatch_orchestration.dispatch(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
