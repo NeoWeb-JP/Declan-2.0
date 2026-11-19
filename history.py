@@ -120,8 +120,10 @@ def teach_intent(turn_id, target, unmatched_reply):
         phrase = normalize_phrase(turn[0]) if turn else ""
         if not 0 < len(phrase) <= 120:
             raise ValueError("Choose a command from history (up to 120 characters).")
+        if not isinstance(target, str) or any(ord(char) < 32 for char in target):
+            raise ValueError("Enter the command you meant, up to 120 characters.")
         target = normalize_phrase(target)
-        if not 0 < len(target) <= 120 or any(ord(char) < 32 for char in target):
+        if not 0 < len(target) <= 120:
             raise ValueError("Enter the command you meant, up to 120 characters.")
         if target == phrase:
             raise ValueError("Enter a different command from the missed transcript.")
@@ -142,9 +144,10 @@ def teach_phrase(phrase, target, *, automatic=False):
     """Save an explicit correction, or add a retry without overwriting user training."""
     if not isinstance(phrase, str) or not isinstance(target, str):
         raise ValueError("Enter a phrase and the command you meant.")
+    if any(ord(c) < 32 for value in (phrase, target) for c in value):
+        raise ValueError("Enter a different command, up to 120 characters.")
     phrase, target = normalize_phrase(phrase), normalize_phrase(target)
-    if not all(0 < len(value) <= 120 and not any(ord(c) < 32 for c in value)
-               for value in (phrase, target)) or phrase == target:
+    if not all(0 < len(value) <= 120 for value in (phrase, target)) or phrase == target:
         raise ValueError("Enter a different command, up to 120 characters.")
     with database() as connection:
         if automatic:
