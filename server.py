@@ -72,7 +72,7 @@ import spotify_playlists
 import music_playlists_post
 import timers
 import updates
-import operational_post_dispatch
+import post_operational_routing
 import media_settings_routes
 import get_request_dispatch
 import speech_http_routes
@@ -1950,25 +1950,20 @@ class Handler(BaseHTTPRequestHandler):
                     storage_errors=(OSError, sqlite3.Error),
                 )
                 return
-            if operational_post_dispatch.handles_pre_validation(self.path):
-                operational_post_dispatch.dispatch_update(
-                    self, body, check=updates.check,
-                    status_result=updates.status_result,
-                    prerelease_versions=updates.prerelease_versions,
-                    queue=updates.queue, release_version=RELEASE_VERSION,
-                )
+            if post_operational_routing.dispatch_before_validation(
+                self, body, updates=updates, release_version=RELEASE_VERSION,
+            ):
                 return
             message, session_id = request_validation.message_and_session(body)
         except (ValueError, TypeError, KeyError, AttributeError):
             post_validation_errors_http.send_validation_error(self)
             return
-        if operational_post_dispatch.handles_after_validation(self.path):
-            operational_post_dispatch.dispatch_validated(
-                self, body, message=message, session_id=session_id,
-                render=render_web_voice, record=history.record,
-                token_urlsafe=secrets.token_urlsafe,
-                action_results=routine_action_results_typed,
-            )
+        if post_operational_routing.dispatch_after_validation(
+            self, body, message=message, session_id=session_id,
+            render=render_web_voice, record=history.record,
+            token_urlsafe=secrets.token_urlsafe,
+            action_results=routine_action_results_typed,
+        ):
             return
         turn = turn_initialization.prepare(
             self, body, message=message, session_id=session_id,
