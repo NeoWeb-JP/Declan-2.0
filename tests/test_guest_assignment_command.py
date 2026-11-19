@@ -1,6 +1,6 @@
 """Guest assignment command parsing regression tests."""
 import unittest
-from guest_assignment_command import assignment_action
+from declan.turn.guest_assignment_command import assignment_action
 
 
 class GuestAssignmentCommandTests(unittest.TestCase):

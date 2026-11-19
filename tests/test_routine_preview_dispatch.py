@@ -1,7 +1,7 @@
 """Routine preview dispatch regression tests."""
 import unittest
 from unittest.mock import Mock
-from routine_preview_dispatch import dispatch_preview
+from declan.turn.routine_preview_dispatch import dispatch_preview
 
 
 class RoutinePreviewDispatchTests(unittest.TestCase):

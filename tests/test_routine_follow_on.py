@@ -1,7 +1,7 @@
 """Chained routine action and response regression tests."""
 import unittest
 from unittest.mock import Mock
-import routine_follow_on
+from declan.turn import routine_follow_on
 
 
 class RoutineFollowOnTests(unittest.TestCase):

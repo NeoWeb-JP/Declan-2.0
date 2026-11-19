@@ -1,5 +1,5 @@
 """Coordinate lighting command dispatch, reply and confirmed lighting context."""
-from command_response import CommandResponse
+from declan.turn.command_response import CommandResponse
 
 
 def dispatch_lighting_response(phrase, *, source, origin_device, satellite,

@@ -1,7 +1,7 @@
 """Sensitive confirmation turn regression tests."""
 import unittest
 from unittest.mock import Mock
-from sensitive_confirmation_turn import confirmation_turn
+from declan.turn.sensitive_confirmation_turn import confirmation_turn
 
 
 class ConfirmationTurnTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 import sqlite3
 import unittest
 from unittest.mock import Mock
-from retry_cancellation import cancel_retry
+from declan.turn.retry_cancellation import cancel_retry
 
 
 class RetryCancellationTests(unittest.TestCase):

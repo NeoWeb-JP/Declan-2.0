@@ -2,8 +2,8 @@
 from pathlib import Path
 import unittest
 
-DISPATCH = (Path(__file__).resolve().parents[1] / "turn_dispatch_orchestration.py").read_text()
-FALLBACK = (Path(__file__).resolve().parents[1] / "turn_fallback_dispatch.py").read_text()
+DISPATCH = (Path(__file__).resolve().parents[1] / "declan/turn/turn_dispatch_orchestration.py").read_text()
+FALLBACK = (Path(__file__).resolve().parents[1] / "declan/turn/turn_fallback_dispatch.py").read_text()
 
 
 class DirectRoutineInformationTests(unittest.TestCase):
@@ -11,7 +11,7 @@ class DirectRoutineInformationTests(unittest.TestCase):
         routine = DISPATCH.index("turn_routine_stage.dispatch(")
         information = DISPATCH.index("turn_fallback_dispatch.dispatch(", routine)
         self.assertLess(routine, information)
-        stage = (Path(__file__).resolve().parents[1] / "turn_routine_stage.py").read_text()
+        stage = (Path(__file__).resolve().parents[1] / "declan/turn/turn_routine_stage.py").read_text()
         selection = stage.index("routine_registry_dispatch.dispatch_routine(")
         follow_on = stage.index("routine_follow_on_dispatch.execute_follow_on_result(", selection)
         self.assertLess(selection, follow_on)

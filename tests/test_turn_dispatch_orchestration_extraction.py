@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import turn_dispatch_orchestration
+from declan.turn import turn_dispatch_orchestration
 from execution_results import Outcome
 
 

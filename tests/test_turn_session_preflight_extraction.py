@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import turn_session_preflight
+from declan.turn import turn_session_preflight
 
 
 class SessionPreflightExtractionTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 """Typed action evidence crosses response/history boundaries as plain JSON."""
 from declan.ha.lighting_action_evidence import LightingActionStatus
-from routine_action_evidence import RoutineActionStatus
+from declan.turn.routine_action_evidence import RoutineActionStatus
 from typing import Any, cast
 import io
 import json
@@ -15,8 +15,8 @@ from declan.ai.action_evidence_wire import action_evidence_to_wire
 from execution_results import ActionResult, ActionStatus, ExecutionResult, MovieLaunchResult, MovieLaunchStatus, Outcome
 from declan.ha.lighting_action_evidence import LightingActionEvidence
 from declan.ha.movie_action_evidence import MovieActionEvidence
-from routine_action_evidence import RoutineActionEvidence
-import conversation_persistence
+from declan.turn.routine_action_evidence import RoutineActionEvidence
+from declan.turn import conversation_persistence
 import history
 import server
 

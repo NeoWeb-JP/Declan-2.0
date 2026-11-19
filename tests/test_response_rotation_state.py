@@ -4,9 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 import unittest
 from unittest.mock import patch
 
-import personality
-import personality_policy
-from response_rotation_state import ResponseRotationState
+from declan.turn import personality
+from declan.turn import personality_policy
+from declan.turn.response_rotation_state import ResponseRotationState
 
 
 class FirstChoice:
@@ -50,7 +50,7 @@ class ResponseRotationTests(unittest.TestCase):
         state = ResponseRotationState(window=2, random=FirstChoice())
         with patch.object(personality, "ROTATION", state), \
              patch.object(personality.command_responses if hasattr(personality, "command_responses")
-                          else __import__("command_responses"), "selected", return_value=None), \
+                          else __import__("declan.turn.command_responses", fromlist=["selected"]), "selected", return_value=None), \
              patch.dict(personality.LINES, {"test_short": (("one", "two"), ("quiet",))}):
             results = [personality.choose_line("test_short", "off") for _ in range(6)]
             self.assertEqual(set(results), {"one", "two"})

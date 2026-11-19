@@ -1,6 +1,6 @@
 """Typed discovered-script evidence with the existing provider projection."""
 from dataclasses import dataclass
-from routine_action_evidence import RoutineActionEvidence, RoutineActionStatus, parse_routine_actions
+from declan.turn.routine_action_evidence import RoutineActionEvidence, RoutineActionStatus, parse_routine_actions
 
 
 SCRIPT_ACTION_STATUSES = frozenset(status for status in RoutineActionStatus

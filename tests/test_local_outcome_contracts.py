@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock
 
-from command_registry import RequestContext, routine_registry, timer_registry
+from declan.turn.command_registry import RequestContext, routine_registry, timer_registry
 from execution_results import ExecutionResult, Outcome
 from local_outcome_contracts import timer_execution_result, routine_execution_result
 

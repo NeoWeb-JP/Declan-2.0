@@ -4,7 +4,7 @@ from unittest.mock import patch
 import sqlite3
 import tempfile
 from pathlib import Path
-import routine_registry
+from declan.turn import routine_registry
 
 class RegistryTests(unittest.TestCase):
     def sample(self):

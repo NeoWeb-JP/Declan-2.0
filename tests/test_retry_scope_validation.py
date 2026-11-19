@@ -1,6 +1,6 @@
 """Retry scope contract tests."""
 import unittest
-from retry_scope_validation import assist_scope, normalize_origin_id, same_origin_scope, valid_retry_scope
+from declan.turn.retry_scope_validation import assist_scope, normalize_origin_id, same_origin_scope, valid_retry_scope
 
 
 class RetryScopeValidationTests(unittest.TestCase):

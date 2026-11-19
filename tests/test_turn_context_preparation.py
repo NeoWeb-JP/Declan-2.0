@@ -1,7 +1,7 @@
 """Turn context preparation regression tests."""
 import unittest
 from unittest.mock import Mock
-from turn_context_preparation import prepare_turn_context
+from declan.turn.turn_context_preparation import prepare_turn_context
 
 
 class TurnContextPreparationTests(unittest.TestCase):

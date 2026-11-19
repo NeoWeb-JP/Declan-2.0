@@ -1,7 +1,7 @@
 """Non-blocking routine execution gate ownership regressions."""
 import unittest
 
-from routine_execution_gates import RoutineExecutionGates
+from declan.turn.routine_execution_gates import RoutineExecutionGates
 
 
 class RoutineExecutionGatesTests(unittest.TestCase):

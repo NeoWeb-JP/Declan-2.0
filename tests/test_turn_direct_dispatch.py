@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import turn_direct_dispatch as direct
+from declan.turn import turn_direct_dispatch as direct
 
 
 class DirectDispatchTests(unittest.TestCase):

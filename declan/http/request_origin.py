@@ -1,6 +1,6 @@
 """Validated request-origin context for chat and Assist requests."""
 import re
-from retry_scope_validation import assist_scope, normalize_origin_id
+from declan.turn.retry_scope_validation import assist_scope, normalize_origin_id
 
 
 def request_context(path, body):

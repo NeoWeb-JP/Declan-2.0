@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 import server
-import routine_execution_dispatch as dispatch
+from declan.turn import routine_execution_dispatch as dispatch
 from execution_results import Outcome
 
 

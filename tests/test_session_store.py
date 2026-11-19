@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import server
 
-import session_store
+from declan.turn import session_store
 
 
 class SessionStoreTests(unittest.TestCase):

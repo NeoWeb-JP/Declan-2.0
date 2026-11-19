@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from declan.music import music
-from command_registry import Dependencies, RequestContext, registry
+from declan.turn.command_registry import Dependencies, RequestContext, registry
 from execution_results import ExecutionResult, Outcome
 
 

@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import turn_http_entry
+from declan.turn import turn_http_entry
 
 
 class TurnHTTPEntryTests(unittest.TestCase):

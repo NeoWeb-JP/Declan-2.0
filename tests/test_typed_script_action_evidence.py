@@ -7,7 +7,7 @@ from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
 from execution_results import Outcome
-from routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
+from declan.turn.routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
 from declan.ha.script_action_evidence import ScriptActionEvidence, SCRIPT_ACTION_STATUSES, parse_script_actions
 from declan.ha import script_discovery
 

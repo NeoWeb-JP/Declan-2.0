@@ -3,7 +3,7 @@
 import unittest
 from types import SimpleNamespace
 
-from sensitive_confirmation_resolution import resolved_confirmation
+from declan.turn.sensitive_confirmation_resolution import resolved_confirmation
 
 
 class SensitiveConfirmationResolutionTests(unittest.TestCase):

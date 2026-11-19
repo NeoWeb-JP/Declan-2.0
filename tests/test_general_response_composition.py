@@ -1,7 +1,7 @@
 """General response composition regression tests."""
 import unittest
 from unittest.mock import Mock
-from response_composition import general_reply
+from declan.turn.response_composition import general_reply
 from execution_results import Outcome
 
 

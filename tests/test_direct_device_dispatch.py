@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 SERVER = (Path(__file__).resolve().parents[1] / "server.py").read_text()
-STAGE = (Path(__file__).resolve().parents[1] / "turn_fallback_dispatch.py").read_text()
+STAGE = (Path(__file__).resolve().parents[1] / "declan/turn/turn_fallback_dispatch.py").read_text()
 
 
 class DirectDeviceDispatchTests(unittest.TestCase):

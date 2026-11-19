@@ -5,7 +5,7 @@ from execution_results import (
     ActionStatus, DispatchResult, ExecutionResult, MovieLaunchResult,
     MovieLaunchStatus, Outcome, parse_outcome,
 )
-from information_result import InformationResult
+from declan.turn.information_result import InformationResult
 from local_outcome_contracts import routine_execution_result, timer_execution_result
 from declan.music.music_provider_result import music_execution_result
 

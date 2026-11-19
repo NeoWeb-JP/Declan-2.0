@@ -13,23 +13,23 @@ from declan.ha import household_routine_dispatch as household_routine_dispatch
 from declan.ha import ha_speech_transport as ha_speech_transport
 from declan.music import music_stop_dispatch as music_stop_dispatch
 from declan.ha import movie_ha_helpers as movie_ha_helpers
-import bedroom_routine_dispatch as bedroom_routine_dispatch
+from declan.turn import bedroom_routine_dispatch as bedroom_routine_dispatch
 from declan.music import media_title_search as media_title_search
 from declan.ai import ai_fallback_dispatch as ai_fallback_dispatch
-import routine_request_selection as routine_request_selection
-import routine_execution_dispatch as routine_execution_dispatch
+from declan.turn import routine_request_selection as routine_request_selection
+from declan.turn import routine_execution_dispatch as routine_execution_dispatch
 from declan.ha import lighting_execution_dispatch as lighting_execution_dispatch
 from declan.ha import ha_household_status as ha_household_status
 import server_lifecycle as server_lifecycle
-import routine_turn_orchestration as routine_turn_orchestration
+from declan.turn import routine_turn_orchestration as routine_turn_orchestration
 from declan.ha import light_command_parsing
 from declan.http import post_ingress_orchestration as post_ingress_orchestration
-import turn_dispatch_orchestration as turn_dispatch_orchestration
-import turn_session_preflight as turn_session_preflight
-import turn_response_completion as turn_response_completion
-import command_vocabulary
+from declan.turn import turn_dispatch_orchestration as turn_dispatch_orchestration
+from declan.turn import turn_session_preflight as turn_session_preflight
+from declan.turn import turn_response_completion as turn_response_completion
+from declan.turn import command_vocabulary
 from declan.http import http_handler_adapters
-import turn_http_entry
+from declan.turn import turn_http_entry
 import domain_boundary_helpers
 from declan.ha import household_selection_boundaries
 import legacy_response_adapters
@@ -50,7 +50,7 @@ from execution_results import ExecutionResult as ExecutionResult, Outcome as Out
 from declan.voice.arbitration import CaptureArbiter as CaptureArbiter
 
 import conditions as conditions
-import sensitive_confirmations as sensitive_confirmations
+from declan.turn import sensitive_confirmations as sensitive_confirmations
 import diagnostics
 import declan_logs as declan_logs
 import configuration as configuration
@@ -60,37 +60,37 @@ from declan.http import health_readiness as health_readiness
 from declan.voice import voice_profiles as voice_profiles
 from declan.voice import voicepipeline as voicepipeline
 from declan.ha import device_status as device_status
-import retry_learning as retry_learning
-import retry_training_persistence as retry_training_persistence
-import conversation_persistence as conversation_persistence
-import turn_finalization as turn_finalization
-import turn_response_orchestration as turn_response_orchestration
-import turn_persistence_orchestration as turn_persistence_orchestration
-import session_context_retrieval as session_context_retrieval
-import retry_context as retry_context
-import retry_cancellation as retry_cancellation
-import sensitive_confirmation_response as sensitive_confirmation_response
-import sensitive_confirmation_decision as sensitive_confirmation_decision
-import sensitive_confirmation_turn as sensitive_confirmation_turn
-import routine_preview_detection as routine_preview_detection
-import routine_preview_dispatch as routine_preview_dispatch
-import guest_assignment_command as guest_assignment_command
-import roast_command_dispatch as roast_command_dispatch
+from declan.turn import retry_learning as retry_learning
+from declan.turn import retry_training_persistence as retry_training_persistence
+from declan.turn import conversation_persistence as conversation_persistence
+from declan.turn import turn_finalization as turn_finalization
+from declan.turn import turn_response_orchestration as turn_response_orchestration
+from declan.turn import turn_persistence_orchestration as turn_persistence_orchestration
+from declan.turn import session_context_retrieval as session_context_retrieval
+from declan.turn import retry_context as retry_context
+from declan.turn import retry_cancellation as retry_cancellation
+from declan.turn import sensitive_confirmation_response as sensitive_confirmation_response
+from declan.turn import sensitive_confirmation_decision as sensitive_confirmation_decision
+from declan.turn import sensitive_confirmation_turn as sensitive_confirmation_turn
+from declan.turn import routine_preview_detection as routine_preview_detection
+from declan.turn import routine_preview_dispatch as routine_preview_dispatch
+from declan.turn import guest_assignment_command as guest_assignment_command
+from declan.turn import roast_command_dispatch as roast_command_dispatch
 from declan.timers import timer_command_dispatch as timer_command_dispatch
 from declan.ha import lighting_command_dispatch as lighting_command_dispatch
 from declan.ha import lighting_context_finalization as lighting_context_finalization
 from declan.ai import fallback_entity_authorization as fallback_entity_authorization
 from declan.ai import guarded_fallback_dispatch as guarded_fallback_dispatch
-import turn_context_preparation as turn_context_preparation
-import turn_session_entry as turn_session_entry
-import turn_preflight_entry as turn_preflight_entry
-import turn_preview_stage as turn_preview_stage
-import turn_direct_dispatch as turn_direct_dispatch
-import turn_routine_stage as turn_routine_stage
-import turn_fallback_dispatch as turn_fallback_dispatch
-import turn_response_preparation as turn_response_preparation
-import turn_atomic_finalization as turn_atomic_finalization
-import turn_response_composition as turn_response_composition
+from declan.turn import turn_context_preparation as turn_context_preparation
+from declan.turn import turn_session_entry as turn_session_entry
+from declan.turn import turn_preflight_entry as turn_preflight_entry
+from declan.turn import turn_preview_stage as turn_preview_stage
+from declan.turn import turn_direct_dispatch as turn_direct_dispatch
+from declan.turn import turn_routine_stage as turn_routine_stage
+from declan.turn import turn_fallback_dispatch as turn_fallback_dispatch
+from declan.turn import turn_response_preparation as turn_response_preparation
+from declan.turn import turn_atomic_finalization as turn_atomic_finalization
+from declan.turn import turn_response_composition as turn_response_composition
 import history as history
 from declan.http import post_body_routing as post_body_routing
 from declan.music import music as music
@@ -111,7 +111,7 @@ from declan.http import post_request_entry
 from declan.http import post_entry_gates as post_entry_gates
 from declan.http import http_response_transport as http_response_transport
 from declan.http import http_ingress_security as http_ingress_security
-import sensitive_confirmation_resolution as sensitive_confirmation_resolution
+from declan.turn import sensitive_confirmation_resolution as sensitive_confirmation_resolution
 from declan.voice import web_stt
 from declan.ai import openai_planner
 from declan.ai import ai_settings
@@ -122,32 +122,32 @@ from declan.ai import ai_context as ai_context
 from declan.ai import ai_intent_gate as ai_intent_gate
 from declan.ai import guarded_fallback as guarded_fallback
 from declan.ha import ha_dispatcher as ha_dispatcher
-import routine_registry as routine_registry
-from routine_action_evidence import parse_routine_actions as parse_routine_actions
+from declan.turn import routine_registry as routine_registry
+from declan.turn.routine_action_evidence import parse_routine_actions as parse_routine_actions
 from declan.ha.home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
-from routine_selection_results import RoutineSelection, RoutineTurnSelection
+from declan.turn.routine_selection_results import RoutineSelection, RoutineTurnSelection
 from declan.ha.lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
 from declan.ha.movie_action_evidence import MovieActionEvidence as MovieActionEvidence
 from declan.ai.action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence as extend_action_evidence
 from declan.ai.fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
 from declan.ha import script_discovery as script_discovery
-from intent_preprocessing import preprocess_speech as preprocess_speech
-from personality import add_sass as add_sass, choose_line as choose_line
-import routine_responses as routine_responses
-import routine_follow_on as routine_follow_on
-import response_composition as response_composition
-import command_responses as command_responses
-import command_registry as command_registry
-import session_orchestration as session_orchestration
-import session_store as session_store
-import routine_cooldown as routine_cooldown
-import active_routine_registry as active_routine_registry
-import routine_execution_gates as routine_execution_gates
-import routine_cancellation as routine_cancellation
-import session_turn_state as session_turn_state
+from declan.turn.intent_preprocessing import preprocess_speech as preprocess_speech
+from declan.turn.personality import add_sass as add_sass, choose_line as choose_line
+from declan.turn import routine_responses as routine_responses
+from declan.turn import routine_follow_on as routine_follow_on
+from declan.turn import response_composition as response_composition
+from declan.turn import command_responses as command_responses
+from declan.turn import command_registry as command_registry
+from declan.turn import session_orchestration as session_orchestration
+from declan.turn import session_store as session_store
+from declan.turn import routine_cooldown as routine_cooldown
+from declan.turn import active_routine_registry as active_routine_registry
+from declan.turn import routine_execution_gates as routine_execution_gates
+from declan.turn import routine_cancellation as routine_cancellation
+from declan.turn import session_turn_state as session_turn_state
 from declan.ha import lighting_intents as lighting_intents
-import roast as roast
-import personality_policy as personality_policy
+from declan.turn import roast as roast
+from declan.turn import personality_policy as personality_policy
 
 (DECLAN_EVENT_LOG, SESSION_STORE, CAPTURE_ARBITER, SENSITIVE_CONFIRMATIONS,
  ROUTINE_EXECUTION_GATES, ROUTINE_COOLDOWN, ACTIVE_ROUTINE_REGISTRY) = server_runtime_state.create_runtime(
