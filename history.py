@@ -228,7 +228,7 @@ def verified_recording_turns(interaction_ids):
             except (TypeError, ValueError):
                 continue
             recording_id = speaker.get("interaction_id") if isinstance(speaker, dict) else None
-            if recording_id not in requested:
+            if type(recording_id) is not str or recording_id not in requested:
                 continue
             if recording_id in matches:
                 ambiguous.add(recording_id)
