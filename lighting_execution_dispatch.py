@@ -2,7 +2,10 @@
 import json
 import re
 import sqlite3
+from time import monotonic
 from urllib.error import HTTPError
+
+import diagnostics
 from execution_results import ExecutionResult, Outcome
 from lighting_action_evidence import LightingActionStatus, LightingActionReason
 
@@ -283,6 +286,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         if entity not in room_off_entities and matches_goal(state, direction, levels.get(entity), target_levels[entity]):
             already_set.add(entity)
             record_action(label, direction, LightingActionStatus.ALREADY_SET, entity=entity)
+    dispatch_started = monotonic()
     dispatch_deadline = clock() + 1.75
     for direction, percent in verified:
         entity_ids = [entity for entity, (_, _, goal) in selected.items()
@@ -322,6 +326,8 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             continue
         pending.update({entity: direction for entity in entity_ids})
 
+    diagnostics.record('lights_dispatch', dispatch_started, lights=len(selected), pending=len(pending))
+    verify_started = monotonic()
     deadline = clock() + 3
     last_reported = {}
     while pending and clock() < deadline:
@@ -350,6 +356,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 pass
         if pending:
             sleeper(min(0.25, max(0, deadline - clock())))
+    diagnostics.record('lights_verify', verify_started, lights=len(selected), unconfirmed=len(pending))
     for entity, direction in pending.items():
         label = selected[entity][0]
         state = last_reported.get(entity, "no state reported")
