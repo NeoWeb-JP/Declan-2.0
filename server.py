@@ -16,12 +16,12 @@ import movie_ha_helpers
 import bedroom_routine_dispatch
 import media_title_search
 import ai_fallback_dispatch
-import routine_request_selection
+import routine_request_selection as routine_request_selection
 import routine_execution_dispatch
 import lighting_execution_dispatch
-import ha_household_status
+import ha_household_status as ha_household_status
 import server_lifecycle
-import routine_turn_orchestration
+import routine_turn_orchestration as routine_turn_orchestration
 import light_command_parsing
 import post_ingress_orchestration as post_ingress_orchestration
 import turn_dispatch_orchestration as turn_dispatch_orchestration
@@ -31,11 +31,12 @@ import command_vocabulary
 import http_handler_adapters
 import turn_http_entry
 import domain_boundary_helpers
+import household_selection_boundaries
 import sys
 from pathlib import Path as Path
 from threading import Thread
 from time import monotonic, sleep
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit as urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
@@ -122,7 +123,7 @@ from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence
-import script_discovery
+import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses as routine_responses
@@ -194,33 +195,16 @@ def home_assistant_status():
 
 
 def home_assistant_status_result() -> HomeAssistantStatusResult:
-    return ha_household_status.home_assistant_status_result(
-        environ=os.environ, history_store=history, request_factory=Request,
-        opener_factory=build_opener, proxy_factory=ProxyHandler,
-        redirect_factory=NoRedirect, parse_url=urlsplit,
-    )
-
+    return household_selection_boundaries.home_assistant_status_result(r=sys.modules[__name__])
 
 def configured_guest_mode_entity():
-    return ha_household_status.configured_guest_mode_entity(entities=household_entities)
-
+    return household_selection_boundaries.configured_guest_mode_entity(r=sys.modules[__name__])
 
 def read_guest_mode():
-    return ha_household_status.read_guest_mode(
-        environ=os.environ, entities=household_entities,
-        request_factory=Request, opener_factory=build_opener,
-        proxy_factory=ProxyHandler, redirect_factory=NoRedirect, parse_url=urlsplit,
-    )
-
+    return household_selection_boundaries.read_guest_mode(r=sys.modules[__name__])
 
 def read_visitors_present():
-    return ha_household_status.read_visitors_present(
-        environ=os.environ, config=configuration,
-        visitors_entity=VISITORS_PRESENT_ENTITY,
-        request_factory=Request, opener_factory=build_opener,
-        proxy_factory=ProxyHandler, redirect_factory=NoRedirect, parse_url=urlsplit,
-    )
-
+    return household_selection_boundaries.read_visitors_present(r=sys.modules[__name__])
 
 def routine_action_results(steps):
     """Compatibility API retaining bounded plain-string evidence mappings."""
@@ -244,22 +228,10 @@ MOVIE_ROOMS = r"lounge|living room|bedroom|master bedroom|here"
 
 
 def parse_movie_request(phrase):
-    return routine_request_selection.parse_movie_request(
-        phrase, rooms=MOVIE_ROOMS, apps=MOVIE_APPS,
-    )
-
-
-HOUSE_STATUS_REQUESTS = routine_request_selection.HOUSE_STATUS_REQUESTS
-
+    return household_selection_boundaries.parse_movie_request(phrase, r=sys.modules[__name__])
 
 def select_routine_result(phrase, origin) -> RoutineSelection | None:
-    return routine_request_selection.select_routine_result(
-        phrase, origin, connect=ha_device_connection,
-        discovery_module=script_discovery, movie_parser=parse_movie_request,
-        morning_phrases=GOOD_MORNING_PHRASES, night_phrases=GOOD_NIGHT_PHRASES,
-        dinner_phrases=DINNER_PHRASES, sexy_commands=SEXY_TIME_COMMANDS,
-    )
-
+    return household_selection_boundaries.select_routine_result(phrase, origin, r=sys.modules[__name__])
 
 def select_routine(phrase, origin):
     result = select_routine_result(phrase, origin)
@@ -267,10 +239,7 @@ def select_routine(phrase, origin):
 
 
 def select_routine_turn_result(phrase, origin) -> RoutineTurnSelection | None:
-    return routine_turn_orchestration.select_routine_turn_result(
-        phrase, origin, select=select_routine_result, parse_movie=parse_movie_request,
-    )
-
+    return household_selection_boundaries.select_routine_turn_result(phrase, origin, r=sys.modules[__name__])
 
 def select_routine_turn(phrase, origin):
     result = select_routine_turn_result(phrase, origin)
@@ -278,17 +247,10 @@ def select_routine_turn(phrase, origin):
 
 
 def preview_routine_result(phrase, origin=None):
-    return routine_turn_orchestration.preview_routine_result(
-        phrase, origin, select_turn=select_routine_turn_result,
-    )
-
+    return household_selection_boundaries.preview_routine_result(phrase, origin, r=sys.modules[__name__])
 
 def execute_routine_result(selection, action_results, *, approved=False):
-    return routine_turn_orchestration.execute_routine_result(
-        selection, action_results, approved=approved,
-        discovery=script_discovery, connect=ha_device_connection,
-    )
-
+    return household_selection_boundaries.execute_routine_result(selection, action_results, approved=approved, r=sys.modules[__name__])
 
 def _routine_legacy_triple(result, status):
     """Preserve legacy routine callers while validating discovered script outcomes."""
