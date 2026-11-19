@@ -10,6 +10,7 @@ DISPATCH = (ROOT / "turn_dispatch_orchestration.py").read_text()
 PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
 FINALIZATION = (ROOT / "turn_atomic_finalization.py").read_text()
 COMPLETION = (ROOT / "turn_response_completion.py").read_text()
+HTTP_ENTRY = (ROOT / "turn_http_entry.py").read_text()
 
 
 class DirectFinalDispatchTests(unittest.TestCase):
@@ -36,8 +37,10 @@ class DirectFinalDispatchTests(unittest.TestCase):
         context = FINALIZATION.index("turn_context_preparation.prepare_turn_context(", lock)
         compose = FINALIZATION.index("turn_response_composition.compose_turn_result(", context)
         persist = FINALIZATION.index("turn_persistence_orchestration.persist_turn_result(", compose)
-        send = SERVER.index("self.send_json(200, response.to_wire())")
-        self.assertLess(COMPLETION.index("turn_atomic_finalization.finalize("), send)
+        send = HTTP_ENTRY.index("handler.send_json(200, response.to_wire())")
+        self.assertIn("turn_response_completion.complete(", HTTP_ENTRY)
+        self.assertIn("turn_atomic_finalization.finalize(", COMPLETION)
+        self.assertGreater(send, HTTP_ENTRY.index("turn_response_completion.complete("))
         self.assertLess(lock, context)
         self.assertLess(context, compose)
         self.assertLess(compose, persist)

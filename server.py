@@ -23,12 +23,13 @@ import ha_household_status
 import server_lifecycle
 import routine_turn_orchestration
 import light_command_parsing
-import post_ingress_orchestration
-import turn_dispatch_orchestration
-import turn_session_preflight
-import turn_response_completion
+import post_ingress_orchestration as post_ingress_orchestration
+import turn_dispatch_orchestration as turn_dispatch_orchestration
+import turn_session_preflight as turn_session_preflight
+import turn_response_completion as turn_response_completion
 import command_vocabulary
 import http_handler_adapters
+import turn_http_entry
 import sys
 from pathlib import Path as Path
 from threading import Thread
@@ -118,7 +119,7 @@ from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, H
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
-from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
+from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence
 import script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
@@ -614,35 +615,7 @@ class Handler(BaseHTTPRequestHandler):
         return post_request_entry.dispatch(self, handle_post=self.handle_post)
 
     def handle_post(self):
-        prepared = post_ingress_orchestration.prepare(self, r=sys.modules[__name__])
-        if prepared is None:
-            return
-        body, message, session_id = prepared
-        turn = turn_session_preflight.prepare(
-            self, body, message, session_id, r=sys.modules[__name__],
-        )
-        if turn is None:
-            return
-        session_id, phrase, effective_message = turn.session_id, turn.phrase, turn.effective_message
-        pending_retry = turn.pending_retry
-        source, scope, origin_device, satellite = turn.source, turn.scope, turn.origin_device, turn.satellite
-        last_lights, last_device, last_information = turn.last_lights, turn.last_device, turn.last_information
-        action_results = ActionEvidenceBuffer()
-        dispatch_result = turn_dispatch_orchestration.dispatch(
-            phrase, source=source, origin_device=origin_device,
-            satellite=satellite, action_results=action_results,
-            scope=scope, last_lights=last_lights,
-            last_device=last_device, last_information=last_information,
-            r=sys.modules[__name__],
-        )
-        response = turn_response_completion.complete(
-            self, body=body, message=message, effective_message=effective_message,
-            session_id=session_id, phrase=phrase, source=source, scope=scope,
-            pending_retry=pending_retry, action_results=action_results,
-            dispatch_result=dispatch_result, r=sys.modules[__name__],
-        )
-        self.send_json(200, response.to_wire())
-
+        return turn_http_entry.handle_post(self, r=sys.modules[__name__])
 
 def main():
     return server_lifecycle.main(

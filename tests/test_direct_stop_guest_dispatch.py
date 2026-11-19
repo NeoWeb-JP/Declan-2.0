@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
 DIRECT = (ROOT / "turn_direct_dispatch.py").read_text()
 DISPATCH = (ROOT / "turn_dispatch_orchestration.py").read_text()
+HTTP_ENTRY = (ROOT / "turn_http_entry.py").read_text()
 
 
 class DirectCommandDispatchTests(unittest.TestCase):
@@ -25,7 +26,8 @@ class DirectCommandDispatchTests(unittest.TestCase):
         direct = DISPATCH.index("turn_direct_dispatch.dispatch(")
         stop = DIRECT.index("stop_command_dispatch.dispatch_stop(")
         guest = DIRECT.index("roast_guest_dispatch.dispatch_roast_or_guest_result(", stop)
-        self.assertIn("turn_dispatch_orchestration.dispatch(", SERVER)
+        self.assertIn("turn_http_entry.handle_post(", SERVER)
+        self.assertIn("turn_dispatch_orchestration.dispatch(", HTTP_ENTRY)
         self.assertGreaterEqual(confirmation, 0)
         self.assertGreaterEqual(direct, 0)
         self.assertLess(stop, guest)
