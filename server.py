@@ -32,6 +32,7 @@ import http_handler_adapters
 import turn_http_entry
 import domain_boundary_helpers
 import household_selection_boundaries
+import legacy_response_adapters
 import sys
 from pathlib import Path as Path
 from threading import Thread
@@ -571,61 +572,34 @@ def main():
 
 
 def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
-    """Compatibility API for mapped routine reply/outcome/status triples."""
-    return _routine_legacy_triple(*run_custom_routine_result(
-        name, action_results, approved=approved, parameters=parameters))
-
+    return legacy_response_adapters.run_custom_routine(name, action_results, approved=approved, parameters=parameters, r=sys.modules[__name__])
 
 def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None, approved=False):
-    """Compatibility API for mapped routine execution."""
-    return _routine_legacy_triple(*run_routine_result(
-        period, action_results=action_results, movie_action=movie_action,
-        movie_room=movie_room, movie_app=movie_app, approved=approved))
-
+    return legacy_response_adapters.run_routine(period, action_results=action_results, movie_action=movie_action, movie_room=movie_room, movie_app=movie_app, approved=approved, r=sys.modules[__name__])
 
 def format_routine_result(result, request_id, routine_id, period, movie_action, action_results):
-    """Compatibility API for correlated routine completion replies."""
-    return _routine_legacy_triple(*routine_completion_result(
-        result, request_id, routine_id, period, movie_action, action_results))
-
+    return legacy_response_adapters.format_routine_result(result, request_id, routine_id, period, movie_action, action_results, r=sys.modules[__name__])
 
 def run_sexy_time(operation, connection, *, approved=False):
-    """Compatibility API for the mapped bedroom routine."""
-    return _routine_legacy_triple(*run_sexy_time_result(operation, connection, approved=approved))
-
+    return legacy_response_adapters.run_sexy_time(operation, connection, approved=approved, r=sys.modules[__name__])
 
 def launch_movie_app(connection, remote, app):
-    """Compatibility API for app-launch status and detail strings."""
-    return launch_movie_app_result(connection, remote, app).as_legacy_pair()
-
+    return legacy_response_adapters.launch_movie_app(connection, remote, app, r=sys.modules[__name__])
 
 def start_dinner(connection, *, approved=False):
-    """Compatibility API for announcement reply/outcome strings."""
-    return start_dinner_result(connection, approved=approved).as_legacy_pair()
-
+    return legacy_response_adapters.start_dinner(connection, approved=approved, r=sys.modules[__name__])
 
 def guest_assignment(operation, connection):
-    """Compatibility API for guest assignment reply/outcome strings."""
-    return guest_assignment_result(operation, connection).as_legacy_pair()
-
+    return legacy_response_adapters.guest_assignment(operation, connection, r=sys.modules[__name__])
 
 def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
-    """Compatibility API for marked switch-as-light reply/outcome pairs."""
-    result = set_switch_as_light_result(name, desired_state, inventory, connection,
-                                      preview=preview, action_results=action_results)
-    return result.as_legacy_pair() if result is not None else None
-
+    return legacy_response_adapters.set_switch_as_light(name, desired_state, inventory, connection, preview=preview, action_results=action_results, r=sys.modules[__name__])
 
 def guarded_openai_fallback(message, *, source, exposed_entities=()):
-    """Compatibility API retaining the reply/outcome/action-steps triple."""
-    response = guarded_openai_fallback_result(message, source=source, exposed_entities=exposed_entities)
-    return response.as_legacy_triple() if response is not None else None
-
+    return legacy_response_adapters.guarded_openai_fallback(message, source=source, exposed_entities=exposed_entities, r=sys.modules[__name__])
 
 def preview_routine(phrase, origin=None):
-    """Compatibility API for read-only preview reply/outcome pairs."""
-    return preview_routine_result(phrase, origin).as_legacy_pair()
-
+    return legacy_response_adapters.preview_routine(phrase, origin, r=sys.modules[__name__])
 if __name__ == "__main__":
     declan_logs.install()
     main()
