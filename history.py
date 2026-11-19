@@ -201,8 +201,16 @@ def recent(before=None, limit=50):
         turns = [dict(row) for row in connection.execute(query, args)]
     for turn in turns:
         turn["created_at"] = datetime.fromtimestamp(turn["created_at"], timezone.utc).isoformat()
-        turn["action_results"] = json.loads(turn["action_results"]) if turn["action_results"] else []
-        turn["speaker_match"] = json.loads(turn["speaker_match"]) if turn["speaker_match"] else None
+        # Corrupt legacy JSON must not break the entire History page.
+        for field, expected_type, fallback in (
+            ("action_results", list, []),
+            ("speaker_match", dict, None),
+        ):
+            try:
+                decoded = json.loads(turn[field]) if turn[field] else fallback
+            except (TypeError, ValueError):
+                decoded = fallback
+            turn[field] = decoded if type(decoded) is expected_type else fallback
     return turns
 
 
