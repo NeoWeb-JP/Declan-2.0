@@ -1,0 +1,43 @@
+"""Regression coverage for extracted legacy response conversion boundaries."""
+import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+
+import legacy_response_adapters as adapters
+import server
+
+
+class LegacyResponseAdapterTests(unittest.TestCase):
+    def test_routine_triple_uses_live_result_callback(self):
+        r = Mock()
+        result = SimpleNamespace(reply="done", outcome=SimpleNamespace(value="confirmed"))
+        r.run_custom_routine_result.return_value = (result, 200)
+        r._routine_legacy_triple.side_effect = lambda typed, status: (typed.reply, typed.outcome.value, status)
+        self.assertEqual(adapters.run_custom_routine("morning", approved=True, r=r), ("done", "confirmed", 200))
+        r.run_custom_routine_result.assert_called_once_with("morning", None, approved=True, parameters=None)
+
+    def test_routine_execution_forwards_all_options(self):
+        r = Mock()
+        r.run_routine_result.return_value = ("typed", 202)
+        r._routine_legacy_triple.return_value = ("reply", "started", 202)
+        self.assertEqual(adapters.run_routine("movie", movie_action="start", movie_room="bedroom", approved=True, r=r), ("reply", "started", 202))
+        self.assertEqual(r.run_routine_result.call_args.kwargs["movie_room"], "bedroom")
+        r._routine_legacy_triple.assert_called_once_with("typed", 202)
+
+    def test_nullable_switch_and_fallback_preserve_none(self):
+        r = Mock()
+        r.set_switch_as_light_result.return_value = None
+        r.guarded_openai_fallback_result.return_value = None
+        self.assertIsNone(adapters.set_switch_as_light("fan", "on", {}, None, r=r))
+        self.assertIsNone(adapters.guarded_openai_fallback("hello", source="voice", r=r))
+
+    def test_public_server_wrapper_uses_patched_callback(self):
+        typed = Mock()
+        typed.as_legacy_pair.return_value = ("done", "confirmed")
+        with patch.object(server, "guest_assignment_result", return_value=typed) as result:
+            self.assertEqual(server.guest_assignment("set", None), ("done", "confirmed"))
+            result.assert_called_once_with("set", None)
+
+
+if __name__ == "__main__":
+    unittest.main()
