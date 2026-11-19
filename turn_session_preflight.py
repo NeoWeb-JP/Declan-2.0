@@ -41,7 +41,7 @@ def prepare(handler, body, message, session_id, *, r):
     diagnostics = r.diagnostics
     sensitive_confirmation_resolution = r.sensitive_confirmation_resolution
     turn = turn_session_entry.prepare(
-        self, body, message=message, session_id=session_id,
+        handler, body, message=message, session_id=session_id,
         arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
         new_session_id=secrets.token_urlsafe, session_store=SESSION_STORE,
         now=monotonic(), idle_seconds=IDLE_SECONDS,
@@ -52,7 +52,7 @@ def prepare(handler, body, message, session_id, *, r):
     source, scope, origin_device, satellite = turn.source, turn.scope, turn.origin_device, turn.satellite
     last_lights, last_device, last_information = turn.recent_context
     preflight = turn_preflight_entry.resolve(
-        self, body, message=message, session_id=session_id,
+        handler, body, message=message, session_id=session_id,
         scope=scope, source=source, satellite=satellite,
         origin_device=origin_device, session_store=SESSION_STORE,
         now=monotonic(),
