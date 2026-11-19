@@ -114,10 +114,13 @@ def learned_intent(phrase):
 def teach_intent(turn_id, target, unmatched_reply):
     with database() as connection:
         turn = connection.execute(
-            "SELECT message FROM turns WHERE id = ? AND created_at >= ?",
+            "SELECT message FROM turns WHERE id = ? AND source = 'assist' AND created_at >= ?",
             (turn_id, time() - retention_seconds()),
         ).fetchone()
-        phrase = normalize_phrase(turn[0]) if turn else ""
+        raw_phrase = turn[0] if turn else ""
+        if not isinstance(raw_phrase, str) or any(ord(char) < 32 for char in raw_phrase):
+            raise ValueError("Choose a command from history (up to 120 characters).")
+        phrase = normalize_phrase(raw_phrase)
         if not 0 < len(phrase) <= 120:
             raise ValueError("Choose a command from history (up to 120 characters).")
         if not isinstance(target, str) or any(ord(char) < 32 for char in target):
@@ -255,6 +258,8 @@ def edit_intent(phrase, target, previous):
         raise ValueError("Enter a valid phrase and command.")
     if any(ord(char) < 32 for char in phrase):
         raise ValueError("Enter a valid phrase, up to 120 characters.")
+    if any(ord(char) < 32 for char in target):
+        raise ValueError("Enter a different command, up to 120 characters.")
     phrase = normalize_phrase(phrase)
     target = normalize_phrase(target)
     if not 0 < len(phrase) <= 120:
