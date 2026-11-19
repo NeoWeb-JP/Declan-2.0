@@ -15,10 +15,10 @@ JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 class NativeChatContractTests(unittest.TestCase):
     def test_backend_token_exception_is_only_for_chat_post(self):
         ast.parse(AUTH)
-        self.assertIn("r.post_entry_gates.enforce(", POST_INGRESS)
+        self.assertIn("post_entry_gates.enforce(", POST_INGRESS)
         self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "declan/http/post_entry_gates.py").read_text())
         self.assertIn("post_request_preflight.enforce(", (ROOT / "declan/http/post_request_entry.py").read_text())
-        self.assertIn("r.post_origin_auth_http.enforce_access,", POST_INGRESS)
+        self.assertIn("post_origin_auth_http.enforce_access,", POST_INGRESS)
         self.assertIn('"/api/chat"', AUTH)
         self.assertIn('len(token) >= 32', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)

@@ -24,7 +24,7 @@ class NativeVoiceHistoryTests(unittest.TestCase):
         ast.parse(ACCESS)
         self.assertIn('if operation == "history":', ACCESS)
         self.assertIn('return set(body) != {"operation"}', ACCESS)
-        self.assertIn("r.post_payload_validation.read_authorized_body(", POST_INGRESS)
+        self.assertIn("post_payload_validation.read_authorized_body(", POST_INGRESS)
         self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "declan/http/post_payload_validation.py").read_text())
 
     def test_panel_history_is_read_only(self):

@@ -22,7 +22,7 @@ class NativeVoiceCorrectionContract(unittest.TestCase):
     def test_backend_limits_remote_correction_shape(self):
         ast.parse(ACCESS)
         self.assertIn('body.get("confirm") is not True', ACCESS)
-        self.assertIn("r.post_payload_validation.read_authorized_body(", POST_INGRESS)
+        self.assertIn("post_payload_validation.read_authorized_body(", POST_INGRESS)
         self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "declan/http/post_payload_validation.py").read_text())
 
     def test_ui_requires_review_revision_and_confirmation(self):

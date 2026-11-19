@@ -20,7 +20,7 @@ class VoiceReviewContractTests(unittest.TestCase):
         self.assertIn('handler.path == "/api/voicepipeline"', (ROOT / "declan/http/get_access_gate_http.py").read_text())
         self.assertIn('not voice_review_auth', (ROOT / "declan/http/get_access_gate_http.py").read_text())
         ast.parse(ACCESS)
-        self.assertIn("r.post_payload_validation.read_authorized_body(", POST_INGRESS)
+        self.assertIn("post_payload_validation.read_authorized_body(", POST_INGRESS)
         self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "declan/http/post_payload_validation.py").read_text())
         self.assertIn('operation not in {"resolve", "audio", "history", "correct"}', ACCESS)
         self.assertIn('body.get("action") not in {"confirm", "assign", "dismiss", "enrol"}', ACCESS)

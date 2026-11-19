@@ -18,7 +18,7 @@ class NativeIntentsTests(unittest.TestCase):
         ast.parse(VIEW)
         ast.parse(HISTORY)
         self.assertIn('"/api/native/intents"', ROUTES)
-        self.assertIn("r.post_body_routing.dispatch(", POST_INGRESS)
+        self.assertIn("post_body_routing.dispatch(", POST_INGRESS)
         self.assertIn("training_history_post.handles(handler.path)", (ROOT / "declan/http/post_body_routing.py").read_text())
         self.assertIn("native_training_post.handle_native_intents(", ROUTES)
         self.assertIn('history.edit_intent(body["phrase"], body["target"], body["previous"])', TRAINING)

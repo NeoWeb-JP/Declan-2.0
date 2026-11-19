@@ -24,7 +24,7 @@ class NativeVoicePlaybackContract(unittest.TestCase):
         ast.parse(ACCESS)
         self.assertIn('operation not in {"resolve", "audio", "history", "correct"}', ACCESS)
         self.assertIn('return set(body) != {"operation", "interaction_id"}', ACCESS)
-        self.assertIn("r.post_payload_validation.read_authorized_body(", POST_INGRESS)
+        self.assertIn("post_payload_validation.read_authorized_body(", POST_INGRESS)
         self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "declan/http/post_payload_validation.py").read_text())
 
     def test_native_panel_handles_unknown_and_audio(self):

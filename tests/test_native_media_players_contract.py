@@ -22,7 +22,7 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn('get_request_dispatch.dispatch(', (ROOT / 'server.py').read_text())
         self.assertIn('get_access_gate_http.enforce_access(', (ROOT / 'declan/http/get_request_dispatch.py').read_text())
         self.assertIn('not players_auth', (ROOT / 'declan/http/get_access_gate_http.py').read_text())
-        self.assertIn('r.post_body_routing.dispatch(', POST_INGRESS)
+        self.assertIn('post_body_routing.dispatch(', POST_INGRESS)
         self.assertIn('settings_voice_post.handles(handler.path)', (ROOT / 'declan/http/post_body_routing.py').read_text())
         self.assertIn('media_settings_post.handles(path)', (ROOT / 'declan' / 'voice' / 'settings_voice_post.py').read_text())
         media_post = (ROOT / "declan" / "music" / "media_settings_post.py").read_text()
@@ -31,10 +31,10 @@ class MediaPlayersContractTests(unittest.TestCase):
         ast.parse(AUTH)
         self.assertIn('"/api/settings/media-players"', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
-        self.assertIn("r.post_entry_gates.enforce(", POST_INGRESS)
+        self.assertIn("post_entry_gates.enforce(", POST_INGRESS)
         self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "declan/http/post_entry_gates.py").read_text())
         self.assertIn("post_request_preflight.enforce(", (ROOT / "declan/http/post_request_entry.py").read_text())
-        self.assertIn("r.post_origin_auth_http.enforce_access,", POST_INGRESS)
+        self.assertIn("post_origin_auth_http.enforce_access,", POST_INGRESS)
 
     def test_admin_proxy_and_payload_validation(self):
         ast.parse(VIEW)
