@@ -19,9 +19,14 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 
 jobs:
   notify:
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.event == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
@@ -55,8 +60,16 @@ jobs:
           message="$marker
           PR #$PR_NUMBER | CI $status"
           # Update a previous notification to avoid a stream of bot comments.
-          existing=$(gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" --paginate \
-            --jq '.[] | select(.user.type == "Bot" and (.body | contains("<!-- declan-pr-ci-status -->"))) | .id' | tail -n 1)
+          if ! gh api "repos/$GH_REPO" --jq '.full_name' >/dev/null; then
+            echo "::error::GitHub token cannot access repository metadata."
+            exit 1
+          fi
+          if ! comments=$(gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq '.[] | select(.user.type == "Bot" and (.body | contains("<!-- declan-pr-ci-status -->"))) | .id'); then
+            echo "::error::Unable to read PR comments. Check repository Actions token permissions and organisation policies."
+            exit 1
+          fi
+          existing=$(printf '%s\n' "$comments" | tail -n 1)
           if [[ -n "$existing" ]]; then
             gh api -X PATCH "repos/$GH_REPO/issues/comments/$existing" -f body="$message" >/dev/null
             echo "Updated CI status comment on PR #$PR_NUMBER ($status)"
