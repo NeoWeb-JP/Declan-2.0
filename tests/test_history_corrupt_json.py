@@ -1,6 +1,5 @@
 """History reads survive malformed and wrong-shaped legacy JSON."""
 
-import json
 from time import time
 
 import history
