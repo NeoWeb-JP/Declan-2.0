@@ -5,6 +5,7 @@ This is a focused pre-PR aid, not a replacement for the full test suite.
 """
 
 import argparse
+import shutil
 import ast
 from pathlib import Path
 import subprocess
@@ -13,8 +14,8 @@ import sys
 
 def source_at_ref(ref, path):
     result = subprocess.run(
-        ["git", "show", f"{ref}:{path}"], capture_output=True, text=True,
-        check=False,
+        [shutil.which("git") or "/usr/bin/git", "show", f"{ref}:{path}"],
+        capture_output=True, text=True, check=False,  # nosec B603: fixed git command, no shell
     )
     if result.returncode:
         raise RuntimeError(f"Cannot read {path} at {ref}: {result.stderr.strip()}")
@@ -23,8 +24,9 @@ def source_at_ref(ref, path):
 
 def changed_python_files(ref):
     result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMR", f"{ref}...HEAD"],
-        capture_output=True, text=True, check=True,
+        [shutil.which("git") or "/usr/bin/git", "diff", "--name-only",
+         "--diff-filter=ACMR", f"{ref}...HEAD"],
+        capture_output=True, text=True, check=True,  # nosec B603: fixed git command, no shell
     )
     return [p for p in result.stdout.splitlines() if p.endswith(".py")]
 
