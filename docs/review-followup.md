@@ -32,7 +32,7 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 | Restrictive intent gate | #760 follow-up removes fixed action-word filtering. Bounded unmatched text reaches the opt-in planner after local handlers; the model must return an empty plan for unrelated chat, status questions or ambiguity. Authenticated exposure, allowed domains, budgets and confirmations still apply. Synthetic route regressions cover implicit requests and no-action responses. |
 | Free-string JSON schema | #760 follow-up uses request-specific entity and service enums paired per domain, plus the owner's action-count limit. Local validation still independently rejects exposure/service/count/dependency violations. Empty permitted context makes no provider call or reservation. |
 | Toggle/preflight mismatch | #760 follow-up shares the verified-service vocabulary across validator, preflight and dispatcher. Toggle and unverifiable cover-stop are excluded. Script/media remain outside live AI allowed domains; no permissions are widened. |
-| Lexical context selection | Confirmed over-limit inventory uses word overlap and can reject broad/alias requests. Review area/alias resolution and safe bounded grouping; do not truncate away required actions silently. |
+| Lexical context selection | The next #760 batch reads HA's configured area/floor names and aliases through an authenticated, admin-only, read-only endpoint for over-limit inventories. It selects complete matching groups intersected with existing exposure/domain permissions, carries aliases/floors into model context and rejects ambiguity, stale metadata, unsupported exclusions, oversized context or broad groups exceeding owner action limits before AI spending. Older integrations retain canonical-name/exact-ID fallback; configured aliases require the updated HA integration. No automatic household synonym guesses or multi-request execution are added. |
 | Sensitive garage/gate actions | Generic guarded path defaults to unconfirmed. Do not set confirmation true automatically. Verify and explain the policy, or add a correctly origin-bound confirmation flow. |
 | General chat/questions | Current action planner is not a general chat service. This needs an explicit product scope decision, budget/privacy controls and separate acceptance criteria. |
 | Synchronous timeout/retries | The 12-second request timeout is present. Review voice latency and acknowledgement semantics; retries must reserve/charge conservatively and never duplicate actions. |
@@ -54,9 +54,10 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 
 ## Priority after this batch
 
-1. Live model completion/latency evidence and area/alias context selection,
-   preserving exposure and sensitive-action controls. Planner/schema/preflight
-   alignment and implicit-input eligibility are implemented in the #760 batch.
+1. Live model completion/latency evidence and sensitive-action policy clarity,
+   preserving exposure and confirmation controls. Planner/schema/preflight,
+   implicit-input eligibility and bounded area/alias selection are implemented
+   in the #760 batches.
 2. Updater crash/data rollback fault testing and production key/backup lifecycle.
 3. Cross-module typing and stable behavioral tests, followed by deliberate
    architecture improvements where accepted scope needs revisiting.
@@ -105,3 +106,36 @@ Local #760 batch checks: all 2,413 Python regressions pass, with 87.03% line
 coverage; mypy passes across 678 source files; Ruff and Bandit pass. Require
 final-head GitHub CI before merge. Issue #760 remains open for the unimplemented
 findings and the live acceptance evidence described above.
+
+## #760 area and floor selection
+
+The HA integration supplies only location IDs, names, aliases and area-to-floor
+relationships. It does not supply entity permissions or cause device actions.
+The backend performs one bounded 1.5-second read (at most 1 MiB), only when the
+already permission-filtered inventory exceeds the planning context limit.
+Metadata remains outside the model until selection attaches relevant labels to
+permitted rows. Registry failure does not permit guessed aliases or floors.
+
+Deployment requires updating the native HA integration as well as the backend,
+then restarting Home Assistant to register the new endpoint. Until
+then, canonical area names and exact entity IDs still work; alias-only requests
+receive a clarification. The existing 100-entity context and owner action limits
+remain enforced. "Everything off" across an oversized scope is explicitly
+refused, rather than implemented as a silently partial group or extra API calls.
+Mixed exclusions that cannot be safely scoped also require separate commands.
+
+Behavioral coverage includes an actual server-to-metadata-to-model-to-verified-HA
+dispatch path using synthetic network transports, alias collisions, floor/domain
+intersection, oversized/empty groups, registry failure, changed area names and
+malformed exposure lists. The backend authorization test now checks live function
+behavior instead of a source-text condition. No live device/API acceptance is
+claimed.
+
+Registry interfaces verified against Home Assistant 2026.11.2:
+[area registry](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/helpers/area_registry.py),
+[floor registry](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/helpers/floor_registry.py).
+
+Validation gates for this batch are full Python regression/coverage, repository
+mypy, Ruff, Bandit and HA integration validation. Use the PR checks on the exact
+final head for current test counts and coverage. Live HA registry/deployment
+acceptance remains separate from these synthetic interface and transport tests.

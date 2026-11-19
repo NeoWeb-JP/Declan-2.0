@@ -55,11 +55,19 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
             attrs = row.get("attributes")
             if not isinstance(attrs, dict):
                 raise NonBillablePlanningError("Invalid entity attributes")
+            for key in ('declan_area_aliases', 'declan_floor_aliases'):
+                aliases = row.get(key, [])
+                if not isinstance(aliases, list) or len(aliases) > 32 or any(
+                        not isinstance(alias, str) or len(alias) > 160 for alias in aliases):
+                    raise NonBillablePlanningError("Invalid location aliases")
             context.append({
                 "entity_id": row["entity_id"],
                 "state": str(row.get("state", ""))[:80],
                 "name": str(attrs.get("friendly_name", ""))[:120],
-                "area": str(row.get("declan_area") or "")[:120],
+                "area": str(row.get("declan_area") or "")[:160],
+                "area_aliases": row.get('declan_area_aliases', []),
+                "floor": str(row.get('declan_floor') or '')[:160],
+                "floor_aliases": row.get('declan_floor_aliases', []),
                 "brightness": attrs.get("brightness") if type(attrs.get("brightness")) is int else None,
                 "position": attrs.get("current_position") if type(attrs.get("current_position")) is int else None,
             })

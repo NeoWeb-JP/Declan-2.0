@@ -47,6 +47,24 @@ def read(connection, *, music=False):
     return read_result(connection, music=music).as_legacy_pair()
 
 
+def read_locations(connection):
+    """Read bounded registry metadata, never entity exposure or permissions."""
+    url, headers, opener = connection
+    request = Request(url + '/api/declan_two/ai-locations', headers=headers)
+    try:
+        with opener.open(request, timeout=1.5) as response:
+            raw = response.read(MAX_PAGE_BYTES + 1)
+        if len(raw) > MAX_PAGE_BYTES:
+            return None
+        payload = json.loads(raw)
+        return payload if isinstance(payload, dict) else None
+    except HTTPError as error:
+        error.close()
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
 def read_result(connection, *, music=False) -> InventoryResult:
     url, headers, opener = connection
     domains = ('media_player', 'assist_satellite') if music else DEVICE_DOMAINS

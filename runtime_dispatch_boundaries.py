@@ -92,5 +92,6 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), r):
         dispatcher=r.ha_dispatcher.dispatch_result, pricing=r.ai_pricing.charge,
         bounded_plan=r._bounded_ai_plan, evidence_factory=r.FallbackActionEvidence,
         response_factory=r.guarded_fallback_dispatch.FallbackResponse,
+        location_reader=r.ha_inventory.read_locations,
     )
 
