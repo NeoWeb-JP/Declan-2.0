@@ -1,7 +1,6 @@
 """Local Declan 2.0 chat prototype. Run with python server.py."""
-import argparse
+import argparse as argparse
 import ipaddress
-import json
 import logging
 import os
 import re
@@ -26,7 +25,6 @@ import server_lifecycle
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
-from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
