@@ -54,7 +54,7 @@ import fallback_entity_authorization
 import guarded_fallback_dispatch
 import turn_context_preparation
 import turn_session_entry
-import turn_preflight
+import turn_preflight_entry
 import turn_preview_stage
 import turn_direct_dispatch
 import turn_routine_stage
@@ -1969,11 +1969,11 @@ class Handler(BaseHTTPRequestHandler):
         lighting_context = None
         status_target = None
         information_context = None
-        preflight = turn_preflight.resolve(
+        preflight = turn_preflight_entry.resolve(
             self, body, message=message, session_id=session_id,
             scope=scope, source=source, satellite=satellite,
-            origin_device=origin_device, sessions=SESSION_STORE.sessions,
-            lock=SESSION_STORE.lock, now=monotonic(),
+            origin_device=origin_device, session_store=SESSION_STORE,
+            now=monotonic(),
             preprocess=preprocess_speech, normalize=history.normalize_phrase,
             learned_intent=history.learned_intent,
             retry_window=retry_learning.WINDOW_SECONDS,
