@@ -36,6 +36,7 @@ import legacy_response_adapters
 import runtime_dispatch_boundaries
 import inventory_stop_boundaries
 import compatibility_facade
+import service_entry_boundaries
 import sys
 from pathlib import Path as Path
 from threading import Thread
@@ -247,12 +248,7 @@ def execute_routine(selection, action_results, *, approved=False):
     return compatibility_facade.execute_routine(selection, action_results, approved=approved, r=sys.modules[__name__])
 
 def run_custom_routine_result(name, action_results=None, *, approved=False, parameters=None):
-    return routine_execution_dispatch.run_custom_routine_result(
-        name, action_results=action_results, approved=approved, parameters=parameters,
-        registry=routine_registry, connect=ha_device_connection, areas_reader=read_ha_areas,
-        token_hex=secrets.token_hex, request_factory=Request, tracker=track_routine,
-        parse_steps=routine_action_results_typed, extend_evidence=extend_action_evidence,
-    )
+    return service_entry_boundaries.run_custom_routine_result(name, action_results=action_results, approved=approved, parameters=parameters, r=sys.modules[__name__])
 
 
 def chained_outcome(routine, lighting):
@@ -265,31 +261,19 @@ def search_media(phrase):
     return compatibility_facade.search_media(phrase, r=sys.modules[__name__])
 
 def search_media_result(phrase):
-    return media_title_search.search_media_result(
-        phrase, config=configuration, connect=ha_device_connection,
-        agents=media_search_agents, request_factory=Request,
-    )
+    return service_entry_boundaries.search_media_result(phrase, r=sys.modules[__name__])
 
 
 def launch_movie_app_result(connection, remote, app):
-    return movie_ha_helpers.launch_movie_app_result(
-        connection, remote, app, request_factory=Request,
-    )
+    return service_entry_boundaries.launch_movie_app_result(connection, remote, app, r=sys.modules[__name__])
 
 
 def discover_movie_entities(connection, room, *, script, remote, needs_remote):
-    return movie_ha_helpers.discover_movie_entities(
-        connection, room, script=script, remote=remote, needs_remote=needs_remote,
-        inventory_reader=read_ha_inventory_result, area_reader=read_ha_areas,
-        inventory_module=ha_inventory,
-    )
+    return service_entry_boundaries.discover_movie_entities(connection, room, script=script, remote=remote, needs_remote=needs_remote, r=sys.modules[__name__])
 
 
 def verify_legacy_lounge_start(connection, script):
-    return movie_ha_helpers.verify_legacy_lounge_start(
-        connection, script, inventory_reader=read_ha_inventory_result,
-        inventory_module=ha_inventory, entities=household_entities,
-    )
+    return service_entry_boundaries.verify_legacy_lounge_start(connection, script, r=sys.modules[__name__])
 
 
 @diagnostics.timed("ha_routine")
@@ -311,10 +295,7 @@ def handle_light_request_result(phrase, *, action_results=None, last_lights=(), 
     return runtime_dispatch_boundaries.handle_light_request_result(phrase, action_results=action_results, last_lights=last_lights, origin_device=origin_device, r=sys.modules[__name__])
 
 def ha_device_connection():
-    return ha_speech_transport.ha_device_connection(
-        environ=os.environ, redirect_handler=NoRedirect,
-        proxy_handler=ProxyHandler, opener_factory=build_opener,
-    )
+    return service_entry_boundaries.ha_device_connection(r=sys.modules[__name__])
 
 
 @diagnostics.timed("bedroom_routine")
@@ -392,13 +373,7 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=()):
 
 def converse(message, session_id, routine_reply=None, *, lighting_context=None, scope=None, guest_mode=None):
     """Compatibility entry point; caller holds SESSION_STORE.lock."""
-    return session_orchestration.converse(
-        message, session_id, routine_reply, lighting_context=lighting_context,
-        scope=scope, guest_mode=guest_mode, sessions=SESSION_STORE.sessions,
-        idle_seconds=IDLE_SECONDS, name_pattern=NAME_PATTERN,
-        chat_commands=CHAT_COMMANDS, unmatched_reply=UNMATCHED_REPLY,
-        decorate=add_sass, recall=SESSION_STORE.chat_recall,
-    )
+    return service_entry_boundaries.converse(message, session_id, routine_reply, lighting_context=lighting_context, scope=scope, guest_mode=guest_mode, r=sys.modules[__name__])
 
 
 @diagnostics.timed("ha_transcription")
