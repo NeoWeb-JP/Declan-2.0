@@ -14,7 +14,8 @@ class SatelliteContextTests(unittest.TestCase):
         ast.parse(capture_source)
         turn_source = Path(__file__).resolve().parents[1].joinpath("turn_initialization.py").read_text()
         ast.parse(turn_source)
-        self.assertIn("turn_initialization.prepare(", source)
+        self.assertIn("turn_session_entry.prepare(", source)
+        self.assertIn("turn_initialization.prepare(", (ROOT / "turn_session_entry.py").read_text())
         self.assertIn("assist_capture_http.suppress_duplicate(", turn_source)
         self.assertIn('speaker["confidence"] >= 0.85', capture_source)
         # Scope checks live in the extracted session context retrieval module.
