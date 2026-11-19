@@ -17,11 +17,10 @@ class TrainingSourceIntegrityTests(unittest.TestCase):
         history.DATABASE = self.original_database
         self.directory.cleanup()
 
-    def test_training_rejects_non_assist_history_turn(self):
-        turn_id = history.record("session", "chat", "turn lights on", "sorry")
-        with self.assertRaisesRegex(ValueError, "Choose a command from history"):
-            history.teach_intent(turn_id, "switch lights on", "sorry")
-        self.assertEqual(history.learned_intents(), {})
+    def test_training_allows_non_assist_history_turn(self):
+        turn_id = history.record("session", "browser_keyboard", "turn lights on", "sorry")
+        history.teach_intent(turn_id, "switch lights on", "sorry")
+        self.assertEqual(history.learned_intent("turn lights on"), "switch lights on")
 
     def test_training_rejects_invalid_recorded_source(self):
         turn_id = history.record("session", "assist", "turn\nlights on", "sorry")
