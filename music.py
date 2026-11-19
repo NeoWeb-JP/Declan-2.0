@@ -17,7 +17,7 @@ from random import choices
 from tempfile import NamedTemporaryFile
 import music_runtime_state
 from threading import Thread
-from time import monotonic, sleep
+from time import monotonic, sleep, time
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request
@@ -119,6 +119,8 @@ def preference_db():
         db.execute("CREATE TABLE IF NOT EXISTS preferences (uri TEXT PRIMARY KEY, weight INTEGER NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS recent_playlists (id INTEGER PRIMARY KEY, category TEXT, uri TEXT)")
         db.execute("CREATE TABLE IF NOT EXISTS playlist_play_counts (uri TEXT PRIMARY KEY, plays INTEGER NOT NULL DEFAULT 0)")
+        db.execute("CREATE TABLE IF NOT EXISTS search_cache (key TEXT PRIMARY KEY, uri TEXT NOT NULL, kind TEXT NOT NULL, "
+                   "name TEXT NOT NULL, saved REAL NOT NULL)")
         yield db
 
 
@@ -653,6 +655,21 @@ def saved_spotify_selection(title, artist):
     return None
 
 
+def search_cache_ttl():
+    """Seconds a resolved Spotify search stays valid; 0 disables the cache."""
+    raw = os.environ.get("DECLAN_SPOTIFY_SEARCH_CACHE_DAYS", "").strip()
+    try:
+        days = float(raw) if raw else 7.0
+    except ValueError:
+        days = 7.0
+    return max(0.0, min(days, 365.0)) * 86400
+
+
+def search_cache_key(title, artist):
+    market = os.environ.get("DECLAN_SPOTIFY_MARKET", "GB").strip().upper()
+    return "|".join((" ".join(title.casefold().split()), " ".join(artist.casefold().split()), market))
+
+
 def search_media(connection, destination, title, artist, provider):
     if provider == "spotify":
         with preference_db() as db:
@@ -683,6 +700,18 @@ def search_media(connection, destination, title, artist, provider):
                         return selected.replace("spotify://", "https://open.spotify.com/", 1), "playlist", title
         types = (("track",) if artist else ("playlist",) if title.endswith(" music")
                  else ("track", "album", "artist", "playlist"))
+        # Track/album/artist lookups are deterministic, so remember what they resolved to.
+        # Playlist picks are weighted-random and never cached.
+        ttl = search_cache_ttl() if types != ("playlist",) else 0
+        cache_key = search_cache_key(title, artist)
+        if ttl:
+            with preference_db() as db:
+                row = db.execute("SELECT uri, kind, name, saved FROM search_cache WHERE key = ?", (cache_key,)).fetchone()
+                if row and (time() - row[3] > ttl or weights.get(media_key(row[0]), 1) <= 0):
+                    db.execute("DELETE FROM search_cache WHERE key = ?", (cache_key,))  # expired or now disliked
+                    row = None
+            if row:
+                return row[0], row[1], row[2]
         options = spotify_search(connection[2], title, artist, types)
         options = [item for item in options if weights.get(media_key(item[0]), 1) > 0]
         if types == ("playlist",) and options:
@@ -690,8 +719,13 @@ def search_media(connection, destination, title, artist, provider):
                 pool = [item for item in options if media_key(item[0]) not in recent[:count]]
                 if pool:
                     return choices(pool, weights=[weights.get(media_key(item[0]), 1) for item in pool])[0]  # nosec B311 - weighted playlist selection, not security randomness
-        return next((item for item in options if item[2].casefold() == title.casefold()),
-                    options[0] if options else None)
+        chosen = next((item for item in options if item[2].casefold() == title.casefold()),
+                      options[0] if options else None)
+        if ttl and chosen is not None:
+            with preference_db() as db:
+                db.execute("INSERT OR REPLACE INTO search_cache(key, uri, kind, name, saved) VALUES (?, ?, ?, ?, ?)",
+                           (cache_key, chosen[0], chosen[1], chosen[2], time()))
+        return chosen
     entry = request(connection, "/api/template", {
         "template": "{{ config_entry_id(" + json.dumps(destination) + ") or '' }}",
     })
