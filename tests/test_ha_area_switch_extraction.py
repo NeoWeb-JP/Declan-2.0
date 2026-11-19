@@ -4,7 +4,6 @@ import unittest
 from unittest.mock import patch
 
 import server
-import ha_area_switch_actions as actions
 from execution_results import Outcome
 
 
@@ -85,6 +84,7 @@ class AreaSwitchExtractionTests(unittest.TestCase):
         self.assertEqual(result, "sentinel")
         self.assertIs(extracted.call_args.kwargs["request_factory"], server.Request)
         self.assertIs(extracted.call_args.kwargs["append_evidence"], server.append_action_evidence)
+        self.assertIs(extracted.call_args.kwargs["evidence_factory"], server.LightingActionEvidence)
 
 
 if __name__ == "__main__":
