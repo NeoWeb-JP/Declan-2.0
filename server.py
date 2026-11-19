@@ -16,12 +16,12 @@ import movie_ha_helpers
 import bedroom_routine_dispatch
 import media_title_search
 import ai_fallback_dispatch
-import routine_request_selection
+import routine_request_selection as routine_request_selection
 import routine_execution_dispatch
 import lighting_execution_dispatch
-import ha_household_status
+import ha_household_status as ha_household_status
 import server_lifecycle
-import routine_turn_orchestration
+import routine_turn_orchestration as routine_turn_orchestration
 import light_command_parsing
 import post_ingress_orchestration as post_ingress_orchestration
 import turn_dispatch_orchestration as turn_dispatch_orchestration
