@@ -63,6 +63,8 @@ def _migrate_schema():
                 source TEXT NOT NULL, message TEXT NOT NULL, reply TEXT NOT NULL
             )""")
             connection.execute("CREATE INDEX IF NOT EXISTS turns_created ON turns(created_at)")
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS turns_source_created ON turns(source, created_at)")
             columns = {row[1] for row in connection.execute("PRAGMA table_info(turns)")}
             for column in ("outcome", "routine_status", "action_results", "phrase_suggestion",
                            "speaker_match", "diagnostic_id"):
@@ -229,6 +231,8 @@ def verified_recording_turns(interaction_ids):
     ):
         raise ValueError("Invalid recording identifiers.")
     requested = set(interaction_ids)
+    if not requested:
+        return {}
     matches = {}
     ambiguous = set()
     with database() as connection:
