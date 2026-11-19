@@ -26,6 +26,7 @@ import routine_turn_orchestration
 import light_command_parsing
 import post_ingress_orchestration
 import turn_dispatch_orchestration
+import turn_session_preflight
 import sys
 from pathlib import Path
 from threading import Thread
@@ -53,12 +54,12 @@ import conversation_persistence
 import turn_finalization
 import turn_response_orchestration
 import turn_persistence_orchestration
-import session_context_retrieval
-import retry_context
-import retry_cancellation
-import sensitive_confirmation_response
-import sensitive_confirmation_decision
-import sensitive_confirmation_turn
+import session_context_retrieval as session_context_retrieval
+import retry_context as retry_context
+import retry_cancellation as retry_cancellation
+import sensitive_confirmation_response as sensitive_confirmation_response
+import sensitive_confirmation_decision as sensitive_confirmation_decision
+import sensitive_confirmation_turn as sensitive_confirmation_turn
 import routine_preview_detection as routine_preview_detection
 import routine_preview_dispatch as routine_preview_dispatch
 import guest_assignment_command as guest_assignment_command
@@ -69,8 +70,8 @@ import lighting_context_finalization as lighting_context_finalization
 import fallback_entity_authorization
 import guarded_fallback_dispatch
 import turn_context_preparation
-import turn_session_entry
-import turn_preflight_entry
+import turn_session_entry as turn_session_entry
+import turn_preflight_entry as turn_preflight_entry
 import turn_preview_stage as turn_preview_stage
 import turn_direct_dispatch as turn_direct_dispatch
 import turn_routine_stage as turn_routine_stage
@@ -98,7 +99,7 @@ import post_request_entry
 import post_entry_gates as post_entry_gates
 import http_response_transport
 import http_ingress_security
-import sensitive_confirmation_resolution
+import sensitive_confirmation_resolution as sensitive_confirmation_resolution
 import web_stt
 import openai_planner
 import ai_settings
@@ -118,7 +119,7 @@ from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence
 import script_discovery
-from intent_preprocessing import preprocess_speech
+from intent_preprocessing import preprocess_speech as preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses
 import routine_follow_on as routine_follow_on
@@ -685,45 +686,18 @@ class Handler(BaseHTTPRequestHandler):
         if prepared is None:
             return
         body, message, session_id = prepared
-        turn = turn_session_entry.prepare(
-            self, body, message=message, session_id=session_id,
-            arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
-            new_session_id=secrets.token_urlsafe, session_store=SESSION_STORE,
-            now=monotonic(), idle_seconds=IDLE_SECONDS,
-            retrieve=session_context_retrieval.recent_context,
+        turn = turn_session_preflight.prepare(
+            self, body, message, session_id, r=sys.modules[__name__],
         )
         if turn is None:
             return
+        session_id, phrase, effective_message = turn.session_id, turn.phrase, turn.effective_message
+        pending_retry = turn.pending_retry
         source, scope, origin_device, satellite = turn.source, turn.scope, turn.origin_device, turn.satellite
-        last_lights, last_device, last_information = turn.recent_context
+        last_lights, last_device, last_information = turn.last_lights, turn.last_device, turn.last_information
         routine_reply = outcome = routine_status = None
         action_results = ActionEvidenceBuffer()
-        light_result = None
-        lighting_context = None
-        status_target = None
-        information_context = None
-        preflight = turn_preflight_entry.resolve(
-            self, body, message=message, session_id=session_id,
-            scope=scope, source=source, satellite=satellite,
-            origin_device=origin_device, session_store=SESSION_STORE,
-            now=monotonic(),
-            preprocess=preprocess_speech, normalize=history.normalize_phrase,
-            learned_intent=history.learned_intent,
-            retry_window=retry_learning.WINDOW_SECONDS,
-            consume_retry=retry_context.consume_pending_retry,
-            cancel_phrases=retry_learning.CANCEL, converse=converse,
-            record=history.record, cancel_retry=retry_cancellation.cancel_retry_result,
-            confirm=sensitive_confirmation_turn.confirmation_turn_result,
-            evaluate=sensitive_confirmation_decision.evaluate_result,
-            confirmation_response=sensitive_confirmation_response.confirmation_response,
-            guest_commands=GUEST_COMMANDS, confirmations=SENSITIVE_CONFIRMATIONS,
-            diagnostic_id=diagnostics.current_id,
-            resolve_confirmation=sensitive_confirmation_resolution.resolved_confirmation,
-        )
-        if preflight is None:
-            return
-        session_id, phrase, effective_message = preflight.session_id, preflight.phrase, preflight.effective_message
-        pending_retry = preflight.pending_retry
+        light_result = lighting_context = status_target = information_context = None
         dispatch_result = turn_dispatch_orchestration.dispatch(
             phrase, source=source, origin_device=origin_device,
             satellite=satellite, action_results=action_results,
