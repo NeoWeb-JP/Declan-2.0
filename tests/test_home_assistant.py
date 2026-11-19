@@ -265,10 +265,10 @@ class LightingTests(TestCase):
         self.assertFalse(any("/services/" in path for path, _ in self.ha.calls))
 
     def test_home_assistant_status(self):
-        self.assertEqual(server.home_assistant_status(), "connected")
+        self.assertEqual(server.home_assistant_status_result().status.value, "connected")
         self.assertEqual(server.read_guest_mode(), "off")
         self.ha.fail = "/api/"
-        self.assertEqual(server.home_assistant_status(), "disconnected")
+        self.assertEqual(server.home_assistant_status_result().status.value, "disconnected")
 
 
 class ServiceTests(TestCase):

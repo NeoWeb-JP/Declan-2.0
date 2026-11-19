@@ -23,18 +23,7 @@ class CompatibilityFacadeTests(unittest.TestCase):
         r.search_media_result.return_value.as_legacy_pair.return_value = ("music", "found")
         self.assertEqual(facade.search_media("music", r=r), ("music", "found"))
 
-    def test_pending_stop_uses_live_result_callback(self):
-        r = Mock()
-        r.stop_pending_routines_result.return_value = ("result", 200)
-        r._routine_legacy_triple.return_value = ("stopped", "ok", 200)
-        self.assertEqual(facade.stop_pending_routines(r=r), ("stopped", "ok", 200))
-        r._routine_legacy_triple.assert_called_once_with("result", 200)
 
-    def test_transcription_preserves_extra_options(self):
-        r = Mock()
-        r.traced_transcribe_result.return_value.text = "hello"
-        self.assertEqual(facade.traced_transcribe("audio", language="en", r=r), "hello")
-        r.traced_transcribe_result.assert_called_once_with("audio", language="en")
 
     def test_public_wrapper_uses_patched_result(self):
         typed = Mock()

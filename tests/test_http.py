@@ -30,7 +30,6 @@ class APITests(TestCase):
             with self.subTest(text=text), \
                  patch.dict(server.os.environ, {"DECLAN_HA_TOKEN": "test-token"}), \
                  patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
-                 patch.object(server, "traced_transcribe", side_effect=AssertionError("legacy transcript adapter")), \
                  patch.object(server.web_stt, "transcribe_result", return_value=result) as transcribe:
                 request = Request(self.origin + "/api/stt", data=b"\0\1", headers={
                     "Origin": self.origin, "Content-Type": "application/octet-stream"})
@@ -448,8 +447,7 @@ class APITests(TestCase):
 
     def test_routine_event_retains_typed_steps_until_history_boundary(self):
         from declan.turn.routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
-        with patch.object(server, "routine_action_results", side_effect=AssertionError("legacy evidence")), \
-             patch.object(server.history, "record", wraps=server.history.record) as record:
+        with patch.object(server.history, "record", wraps=server.history.record) as record:
             status, _ = self.request("/api/assist/history", headers={
                 "Content-Type": "application/json", "Authorization": "Bearer test"}, body={
                     "message": "routine event", "reply": "Finished",

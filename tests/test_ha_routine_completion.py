@@ -104,7 +104,7 @@ class RoutineResultTests(unittest.TestCase):
         self.assertEqual(self.run_script("success", steps, recorded)[1], "reported_success")
         self.assertEqual(recorded[1]["status"], "requested")
         import server
-        self.assertEqual(server.routine_action_results(recorded)[1]["status"], "requested")
+        self.assertEqual(server.routine_action_results_typed(recorded)[1].to_wire()["status"], "requested")
         failed: list[dict[str, Any]]
         failed = []
         self.assertEqual(self.run_script("success", [{**steps[0], "status": "unverified"}, steps[1]], failed)[1], "unverified")

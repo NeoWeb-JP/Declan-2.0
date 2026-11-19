@@ -24,12 +24,10 @@ class LegacyResponseAdapterTests(unittest.TestCase):
         self.assertEqual(r.run_routine_result.call_args.kwargs["movie_room"], "bedroom")
         r._routine_legacy_triple.assert_called_once_with("typed", 202)
 
-    def test_nullable_switch_and_fallback_preserve_none(self):
+    def test_nullable_switch_preserves_none(self):
         r = Mock()
         r.set_switch_as_light_result.return_value = None
-        r.guarded_openai_fallback_result.return_value = None
         self.assertIsNone(adapters.set_switch_as_light("fan", "on", {}, None, r=r))
-        self.assertIsNone(adapters.guarded_openai_fallback("hello", source="voice", r=r))
 
     def test_public_server_wrapper_uses_patched_callback(self):
         typed = Mock()

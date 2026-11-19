@@ -82,12 +82,11 @@ class ProviderDispatchOutcomeTests(unittest.TestCase):
         opener.open.assert_called_once()
         self.assertEqual(json.loads(opener.open.call_args.args[0].data), {"entity_id": "script.make_tea"})
 
-    def test_cancellation_legacy_adapter_returns_plain_strings(self):
+    def test_cancellation_result_carries_typed_outcome(self):
         with patch.object(server, "stop_pending_routines_result", return_value=(
                 ExecutionResult("None active", Outcome.CONFIRMED), None)):
-            legacy = server.stop_pending_routines()
-        self.assertEqual(legacy, ("None active", "confirmed", None))
-        self.assertIs(type(legacy[1]), str)
+            result, status = server.stop_pending_routines_result()
+        self.assertEqual((result.reply, result.outcome.value, status), ("None active", "confirmed", None))
 
 
 if __name__ == "__main__":

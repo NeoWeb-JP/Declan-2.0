@@ -15,8 +15,7 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
     def test_movie_launch_preserves_acceptance_without_claiming_confirmation(self):
         opener = Mock()
         opener.open.side_effect = [io.BytesIO(b'{"state":"on"}'), io.BytesIO(b'[]')]
-        with patch.object(server, "launch_movie_app", side_effect=AssertionError("legacy launch")):
-            result = server.launch_movie_app_result(("http://ha", {}, opener), "remote.tv", ("TV", "tv"))
+        result = server.launch_movie_app_result(("http://ha", {}, opener), "remote.tv", ("TV", "tv"))
         self.assertIs(result.status, MovieLaunchStatus.SENT)
         self.assertEqual(opener.open.call_count, 2)
         self.assertEqual(json.loads(opener.open.call_args.args[0].data)["delay_secs"], 2)
@@ -43,10 +42,7 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
         opener = Mock()
         with patch.object(server.personality_policy, "overnight_announcement_allowed", return_value=False):
             result = server.start_dinner_result(("http://ha", {}, opener))
-            legacy = server.start_dinner(("http://ha", {}, opener))
         self.assertIs(result.outcome, Outcome.SKIPPED)
-        self.assertEqual(legacy, result.as_legacy_pair())
-        self.assertIs(type(legacy[1]), str)
         opener.open.assert_not_called()
 
     def test_dinner_receipt_and_uncertain_request_remain_distinct(self):

@@ -241,7 +241,8 @@ class MusicTests(MusicFixture):
         ), patch.object(server, "read_guest_mode", return_value="off"), patch.object(
             server.routine_registry, "load", return_value={"sexy_time": {"script": "script.declan_sexy_time_controller", "sensitive": False}}
         ):
-            reply, outcome, detail = server.run_sexy_time("start", ("http://ha", {}, self))
+            result, detail = server.run_sexy_time_result("start", ("http://ha", {}, self))
+            outcome = result.outcome.value
             self.assertEqual(outcome, "confirmed", detail)
             self.assertEqual(script_calls[-1]["operation"], "start")
             self.assertEqual(script_calls[-1]["music_player"], target)
@@ -250,7 +251,8 @@ class MusicTests(MusicFixture):
             self.assertEqual(self.searches[-1]["q"], "sexy time music")
             self.players[target]["state"] = "playing"
             operation = "end"
-            reply, outcome, detail = server.run_sexy_time("end", ("http://ha", {}, self))
+            result, detail = server.run_sexy_time_result("end", ("http://ha", {}, self))
+            outcome = result.outcome.value
             self.assertEqual(outcome, "confirmed", detail)
             self.assertEqual(self.calls[-1], ("media_stop", {"entity_id": target}))
             self.assertEqual(self.players[self.bedroom]["state"], "idle")
