@@ -7,11 +7,11 @@ import secrets
 import sqlite3 as sqlite3
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
-import ha_inventory
-import ha_area_switch_actions
+import ha_inventory as ha_inventory
+import ha_area_switch_actions as ha_area_switch_actions
 import household_routine_dispatch as household_routine_dispatch
 import ha_speech_transport as ha_speech_transport
-import music_stop_dispatch
+import music_stop_dispatch as music_stop_dispatch
 import movie_ha_helpers
 import bedroom_routine_dispatch as bedroom_routine_dispatch
 import media_title_search
@@ -34,6 +34,7 @@ import domain_boundary_helpers
 import household_selection_boundaries
 import legacy_response_adapters
 import runtime_dispatch_boundaries
+import inventory_stop_boundaries
 import sys
 from pathlib import Path as Path
 from threading import Thread
@@ -92,7 +93,7 @@ import music
 import approved_media_players as approved_media_players
 import spotify_playlists as spotify_playlists
 import music_playlists_post as music_playlists_post
-import timers
+import timers as timers
 import updates
 import post_operational_routing as post_operational_routing
 import media_settings_routes as media_settings_routes
@@ -121,9 +122,9 @@ import routine_registry
 from routine_action_evidence import parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
-from lighting_action_evidence import LightingActionEvidence
+from lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence as MovieActionEvidence
-from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
+from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
 import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
@@ -358,68 +359,39 @@ def approved_area_labels(areas):
     return domain_boundary_helpers.approved_area_labels(areas, room_key=music.room_key)
 
 def read_ha_inventory(connection):
-    return read_ha_inventory_result(connection).as_legacy_pair()
-
+    return inventory_stop_boundaries.read_ha_inventory(connection, r=sys.modules[__name__])
 
 def read_ha_inventory_result(connection) -> ha_inventory.InventoryResult:
-    return ha_inventory.read_result(connection)
+    return inventory_stop_boundaries.read_ha_inventory_result(connection, r=sys.modules[__name__])
 
 
 def read_music_inventory(connection):
-    return read_music_inventory_result(connection).as_legacy_pair()
-
+    return inventory_stop_boundaries.read_music_inventory(connection, r=sys.modules[__name__])
 
 def read_music_inventory_result(connection) -> ha_inventory.InventoryResult:
-    return ha_inventory.read_result(connection, music=True)
+    return inventory_stop_boundaries.read_music_inventory_result(connection, r=sys.modules[__name__])
 
 
 def stop_everywhere_result(connection):
-    """Return a typed stop-all result with playback diagnostics."""
-    return _stop_everywhere_typed_core(connection)
-
+    return inventory_stop_boundaries.stop_everywhere_result(connection, r=sys.modules[__name__])
 
 def stop_everywhere_output(connection):
-    """Legacy stop-all response for existing callers."""
-    typed, status = stop_everywhere_result(connection)
-    return typed.reply, typed.outcome.value, status
-
+    return inventory_stop_boundaries.stop_everywhere_output(connection, r=sys.modules[__name__])
 
 def _stop_everywhere_typed_core(connection):
-    return music_stop_dispatch.stop_everywhere_result(
-        connection, inventory_reader=read_music_inventory_result,
-        inventory_module=ha_inventory, music_provider=music,
-    )
-
+    return inventory_stop_boundaries._stop_everywhere_typed_core(connection, r=sys.modules[__name__])
 
 def stop_origin_output(connection, satellite, device):
-    """Preserve legacy triple response for callers of origin-specific Stop."""
-    result, status = stop_origin_result(connection, satellite, device)
-    return result.reply, result.outcome.value, status
-
+    return inventory_stop_boundaries.stop_origin_output(connection, satellite, device, r=sys.modules[__name__])
 
 def stop_origin_result(connection, satellite, device):
-    return music_stop_dispatch.stop_origin_result(
-        connection, satellite, device, inventory_reader=read_music_inventory_result,
-        inventory_module=ha_inventory, music_provider=music, timer_provider=timers,
-    )
-
+    return inventory_stop_boundaries.stop_origin_result(connection, satellite, device, r=sys.modules[__name__])
 
 def read_ha_areas(connection, origin=None):
-    """Compatibility boundary for Home Assistant area discovery."""
-    return ha_area_switch_actions.read_ha_areas(
-        connection, origin, request_factory=Request,
-    )
-
+    return inventory_stop_boundaries.read_ha_areas(connection, origin, r=sys.modules[__name__])
 
 def set_switch_as_light_result(name, desired_state, inventory, connection, *, preview=False, action_results=None):
-    """Compatibility boundary for explicitly marked switch lights."""
-    return ha_area_switch_actions.set_switch_as_light_result(
-        name, desired_state, inventory, connection,
-        preview=preview, action_results=action_results,
-        request_factory=Request, append_evidence=append_action_evidence,
-        evidence_factory=LightingActionEvidence,
-    )
-
+    return inventory_stop_boundaries.set_switch_as_light_result(name, desired_state, inventory, connection, preview=preview, action_results=action_results, r=sys.modules[__name__])
 
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
