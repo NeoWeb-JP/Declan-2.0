@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
 AUTH = (ROOT / "post_origin_auth_http.py").read_text()
 BACKEND = (ROOT / "server.py").read_text()
 MEDIA_ROUTES = (ROOT / "media_settings_routes.py").read_text()
@@ -15,13 +16,12 @@ JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 class MediaPlayersContractTests(unittest.TestCase):
     def test_backend_token_is_scoped_to_player_settings(self):
         get = BACKEND[BACKEND.index("    def do_GET(self):"):BACKEND.index("    def do_POST(self):")]
-        post = BACKEND[BACKEND.index("    def handle_post(self):"):]
         self.assertIn('settings_read_routes.handles(handler.path)', (ROOT / 'get_request_dispatch.py').read_text())
         self.assertIn('"/api/settings/media-players"', (ROOT / "settings_read_routes.py").read_text())
         self.assertIn('get_request_dispatch.dispatch(', get)
         self.assertIn('get_access_gate_http.enforce_access(', (ROOT / 'get_request_dispatch.py').read_text())
         self.assertIn('not players_auth', (ROOT / 'get_access_gate_http.py').read_text())
-        self.assertIn('post_body_routing.dispatch(', post)
+        self.assertIn('r.post_body_routing.dispatch(', POST_INGRESS)
         self.assertIn('settings_voice_post.handles(handler.path)', (ROOT / 'post_body_routing.py').read_text())
         self.assertIn('media_settings_post.handles(path)', (ROOT / 'settings_voice_post.py').read_text())
         media_post = (ROOT / "media_settings_post.py").read_text()
@@ -30,10 +30,10 @@ class MediaPlayersContractTests(unittest.TestCase):
         ast.parse(AUTH)
         self.assertIn('"/api/settings/media-players"', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
-        self.assertIn("post_entry_gates.enforce(", post)
+        self.assertIn("r.post_entry_gates.enforce(", POST_INGRESS)
         self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "post_entry_gates.py").read_text())
         self.assertIn("post_request_preflight.enforce(", (ROOT / "post_request_entry.py").read_text())
-        self.assertIn("post_origin_auth_http.enforce_access,", post)
+        self.assertIn("r.post_origin_auth_http.enforce_access,", POST_INGRESS)
 
     def test_admin_proxy_and_payload_validation(self):
         ast.parse(VIEW)

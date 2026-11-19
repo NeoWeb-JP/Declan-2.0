@@ -4,6 +4,7 @@ import ast
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
 COMPONENT = ROOT / "custom_components" / "declan_two"
 SERVER = (ROOT / "server.py").read_text()
 NATIVE_READ = (ROOT / "native_read_routes.py").read_text()
@@ -22,7 +23,7 @@ class NativeMicrophoneSettingsTests(unittest.TestCase):
         for expected in ("not user.is_admin", "application/json", "640000",
                          "len(audio) % 2", "allow_redirects=False", "Bearer {entry.data['token']}"):
             self.assertIn(expected, source)
-        self.assertIn('post_entry_gates.enforce(', SERVER)
+        self.assertIn('r.post_entry_gates.enforce(', POST_INGRESS)
         self.assertIn('handler.path == "/api/stt"', (ROOT / 'post_entry_gates.py').read_text())
         ingress = (ROOT / "http_ingress_security.py").read_text()
         ast.parse(ingress)
