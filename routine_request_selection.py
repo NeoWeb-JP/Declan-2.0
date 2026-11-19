@@ -1,6 +1,6 @@
 """Home Assistant routine request parsing and selection."""
 import re
-from routine_selection import RoutineSelection, RoutineSelectionKind
+from routine_selection_results import RoutineSelection, RoutineSelectionKind
 
 
 def parse_movie_request(phrase, *, rooms, apps):
