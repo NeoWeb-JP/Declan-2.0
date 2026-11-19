@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 ENTITY = re.compile(r"media_player\.[a-z0-9_]+\Z")
-DEFAULT_PATH = Path(__file__).with_name(".data") / "approved-media-players.json"
+DEFAULT_PATH = Path(__file__).resolve().parents[2] / ".data" / "approved-media-players.json"
 
 
 def config_path():

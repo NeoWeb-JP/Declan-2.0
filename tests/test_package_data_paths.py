@@ -9,6 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = [
     ("declan.updates.updates", "APP", "."),
     ("declan.timers.timers", "DATABASE", ".data/timers.sqlite3"),
+    ("declan.music.music", "SPOTIFY_SETTINGS", ".data/spotify-settings.json"),
+    ("declan.music.approved_media_players", "DEFAULT_PATH", ".data/approved-media-players.json"),
+    ("declan.music.spotify_playlists", "DEFAULT_PATH", ".data/spotify-playlists.json"),
 ]
 
 

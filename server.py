@@ -11,10 +11,10 @@ import ha_inventory as ha_inventory
 import ha_area_switch_actions as ha_area_switch_actions
 import household_routine_dispatch as household_routine_dispatch
 import ha_speech_transport as ha_speech_transport
-import music_stop_dispatch as music_stop_dispatch
+from declan.music import music_stop_dispatch as music_stop_dispatch
 import movie_ha_helpers as movie_ha_helpers
 import bedroom_routine_dispatch as bedroom_routine_dispatch
-import media_title_search as media_title_search
+from declan.music import media_title_search as media_title_search
 import ai_fallback_dispatch as ai_fallback_dispatch
 import routine_request_selection as routine_request_selection
 import routine_execution_dispatch as routine_execution_dispatch
@@ -34,7 +34,7 @@ import domain_boundary_helpers
 import household_selection_boundaries
 import legacy_response_adapters
 import runtime_dispatch_boundaries
-import inventory_stop_boundaries
+from declan.music import inventory_stop_boundaries
 import compatibility_facade
 import service_entry_boundaries
 import server_bootstrap
@@ -54,7 +54,7 @@ import sensitive_confirmations as sensitive_confirmations
 import diagnostics
 import declan_logs as declan_logs
 import configuration as configuration
-import media_search_agents as media_search_agents
+from declan.music import media_search_agents as media_search_agents
 import household_entities as household_entities
 import health_readiness as health_readiness
 import voice_profiles as voice_profiles
@@ -93,14 +93,14 @@ import turn_atomic_finalization as turn_atomic_finalization
 import turn_response_composition as turn_response_composition
 import history as history
 import post_body_routing as post_body_routing
-import music as music
-import approved_media_players as approved_media_players
-import spotify_playlists as spotify_playlists
-import music_playlists_post as music_playlists_post
+from declan.music import music as music
+from declan.music import approved_media_players as approved_media_players
+from declan.music import spotify_playlists as spotify_playlists
+from declan.music import music_playlists_post as music_playlists_post
 from declan.timers import timers as timers
 from declan.updates import updates as updates
 import post_operational_routing as post_operational_routing
-import media_settings_routes as media_settings_routes
+from declan.music import media_settings_routes as media_settings_routes
 import get_request_dispatch as get_request_dispatch
 import speech_http_routes as speech_http_routes
 import assist_auth_http as assist_auth_http

@@ -6,7 +6,7 @@ import logging
 from urllib.error import HTTPError
 from pathlib import Path
 from threading import Thread
-from playlist_refresh_state import PlaylistRefreshState
+from declan.music.playlist_refresh_state import PlaylistRefreshState
 
 CATEGORIES = ("country", "braai", "romantic", "sexy_time", "rock", "afrikaans",
               "80s", "90s", "work_focus", "adhd_focus", "massage")
@@ -14,7 +14,7 @@ CAPACITY = 25
 URI = re.compile(r"(?:spotify(?::|://)playlist[:/]|https://open\.spotify\.com/playlist/)([A-Za-z0-9]{22})(?:\?[^#]*)?\Z")
 RUNTIME = PlaylistRefreshState()
 LOGGER = logging.getLogger(__name__)
-DEFAULT_PATH = Path(__file__).with_name(".data") / "spotify-playlists.json"
+DEFAULT_PATH = Path(__file__).resolve().parents[2] / ".data" / "spotify-playlists.json"
 
 
 def canonical(value):
@@ -62,7 +62,7 @@ def normalize(raw):
     playback, not erased from the catalogue. Only discovery-owned entries
     rotate during refresh.
     """
-    import music
+    from declan.music import music
     with music.preference_db() as db:
         preferences = dict(db.execute(
             "SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://playlist/%'"
@@ -129,7 +129,7 @@ def manage(body):
         raise ValueError("Invalid playlist change")
     category, operation = body["category"], body["operation"]
     if category in {"disliked_songs", "disliked_playlists"} and operation == "restore":
-        import music
+        from declan.music import music
         value = body["playlist"]
         kind = "track" if category == "disliked_songs" else "playlist"
         if not isinstance(value, str) or not re.fullmatch(r"spotify://" + kind + r"/[A-Za-z0-9]{22}", value):
@@ -150,7 +150,7 @@ def manage(body):
         data = load()
         item = data[category]
         if operation in {"favourite", "unfavourite", "dislike", "restore"}:
-            import music
+            from declan.music import music
             with music.preference_db() as db:
                 if operation == "dislike":
                     db.execute("INSERT INTO preferences(uri, weight) VALUES (?, 0) ON CONFLICT(uri) DO UPDATE SET weight = 0", (selected,))
@@ -206,7 +206,7 @@ def manage(body):
 
 def listing():
     with RUNTIME.lock:
-        import music
+        from declan.music import music
         with music.preference_db() as db:
             weights = dict(db.execute("SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://playlist/%'"))
             plays = dict(db.execute("SELECT uri, plays FROM playlist_play_counts"))
@@ -227,7 +227,7 @@ def refresh(discovered, titles=None):
             if category in discovered:
                 # Preserve liked discovery entries, even when Spotify search
                 # no longer returns them. Dislikes stay excluded globally.
-                import music
+                from declan.music import music
                 with music.preference_db() as db:
                     liked = {uri for uri, weight in db.execute(
                         "SELECT uri, weight FROM preferences WHERE uri LIKE 'spotify://playlist/%'"
@@ -261,7 +261,7 @@ def discover(opener, category):
     """Search exactly one user-selected category; never refresh everything."""
     if category not in load():
         raise ValueError("Select a Spotify category to refresh")
-    import music
+    from declan.music import music
     targets = (category,)
     results = {}
     titles = {}

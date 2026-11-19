@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import music
-import spotify_playlists
+from declan.music import music
+from declan.music import spotify_playlists
 
 A = "spotify://playlist/" + "A" * 22
 B = "spotify://playlist/" + "B" * 22

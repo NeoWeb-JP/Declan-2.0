@@ -10,7 +10,7 @@ import conversation_persistence
 import device_result_response
 import early_command_result
 import information_result_response
-import stop_result_response
+from declan.music import stop_result_response
 import turn_finalization
 
 

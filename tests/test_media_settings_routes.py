@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock
 
-import media_settings_routes as routes
+from declan.music import media_settings_routes as routes
 
 
 class MediaSettingsRoutesTests(TestCase):

@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from execution_results import Outcome
 
 import roast_guest_dispatch
-import stop_command_dispatch
-import stop_result_response
+from declan.music import stop_command_dispatch
+from declan.music import stop_result_response
 
 
 @dataclass(frozen=True)

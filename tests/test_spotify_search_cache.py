@@ -2,7 +2,7 @@
 import os
 from unittest.mock import patch
 
-import music
+from declan.music import music
 from test_music import MusicFixture
 
 PHRASE = "play hello by adele in the kitchen"

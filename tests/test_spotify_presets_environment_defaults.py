@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-import music
+from declan.music import music
 
 
 TRACK = "0123456789ABCDEFGHIJKL"

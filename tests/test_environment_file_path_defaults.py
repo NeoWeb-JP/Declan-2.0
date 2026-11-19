@@ -4,8 +4,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-import approved_media_players
-import spotify_playlists
+from declan.music import approved_media_players
+from declan.music import spotify_playlists
 
 
 class EnvironmentFilePathDefaultsTests(unittest.TestCase):

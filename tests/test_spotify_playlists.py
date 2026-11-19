@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import spotify_playlists as playlists
+from declan.music import spotify_playlists as playlists
 
 
 class SpotifyPlaylists(unittest.TestCase):
@@ -58,7 +58,7 @@ class SpotifyPlaylists(unittest.TestCase):
         self.assertEqual(saved["country"]["playlists"], [self.b])
 
     def test_category_playback_uses_curated_playlist_without_search(self):
-        import music
+        from declan.music import music
         from pathlib import Path
         playlists.manage({"category": "country", "playlist": self.a, "operation": "add"})
         with patch.object(music, "PREFERENCES", Path(self.temp.name) / "preferences.sqlite3"), \
@@ -68,7 +68,7 @@ class SpotifyPlaylists(unittest.TestCase):
         self.assertEqual(selected[1], "playlist")
 
     def test_manual_category_discovery_uses_declan_spotify_search_and_preserves_pins(self):
-        import music
+        from declan.music import music
         playlists.manage({"category": "braai", "playlist": self.a, "operation": "add"})
         playlists.manage({"category": "braai", "playlist": self.b, "operation": "delete"})
         results = [
@@ -83,7 +83,7 @@ class SpotifyPlaylists(unittest.TestCase):
         self.assertEqual(data["braai"]["excluded"], [self.b])
 
     def test_custom_genre_persists_and_refreshes_without_replacing_other_genres(self):
-        import music
+        from declan.music import music
         result = playlists.manage({"operation": "add_genre", "genre": "Blues & Soul"})
         self.assertIn("blues_soul", result["categories"])
         playlists.manage({"category": "blues_soul", "playlist": self.a, "operation": "add"})

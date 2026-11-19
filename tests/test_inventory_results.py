@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import ha_inventory
-import music
+from declan.music import music
 import server
 from execution_results import Outcome
 

@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-import inventory_stop_boundaries as boundaries
+from declan.music import inventory_stop_boundaries as boundaries
 import server
 
 

@@ -6,7 +6,7 @@ from routine_selection_results import RoutineTurnSelection
 import re
 
 from execution_results import ExecutionResult, Outcome
-from music_provider_result import music_execution_result
+from declan.music.music_provider_result import music_execution_result
 from local_outcome_contracts import timer_execution_result, routine_execution_result
 from device_status import DeviceStatusResult
 from information_result import InformationResult

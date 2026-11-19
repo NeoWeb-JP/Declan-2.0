@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
-import music
+from declan.music import music
 import server
 
 

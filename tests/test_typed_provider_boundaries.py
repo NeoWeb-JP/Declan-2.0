@@ -7,7 +7,7 @@ from execution_results import (
 )
 from information_result import InformationResult
 from local_outcome_contracts import routine_execution_result, timer_execution_result
-from music_provider_result import music_execution_result
+from declan.music.music_provider_result import music_execution_result
 
 
 class TypedBoundaryTests(unittest.TestCase):

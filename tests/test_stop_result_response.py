@@ -1,7 +1,7 @@
 """Stop command result conversion regression tests."""
 import unittest
 from unittest.mock import Mock
-from stop_result_response import stop_result_response
+from declan.music.stop_result_response import stop_result_response
 
 
 class StopResultResponseTests(unittest.TestCase):

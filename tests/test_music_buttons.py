@@ -1,6 +1,6 @@
 """Explicit MA targets reuse the real Spotify search and playback path."""
 import test_music as music_fixture
-import music
+from declan.music import music
 
 
 class MusicButtonTests(music_fixture.MusicFixture):

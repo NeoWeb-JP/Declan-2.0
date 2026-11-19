@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-import music
+from declan.music import music
 from execution_results import ExecutionResult, Outcome
 
 

@@ -3,11 +3,11 @@
 import json
 import diagnostics
 import ha_inventory
-import approved_media_players
+from declan.music import approved_media_players
 from execution_results import ExecutionResult, Outcome
-from music_provider_result import music_execution_result
-from music_provider_result import PlayerAvailability, PlayerAvailabilityResult
-from music_provider_result import MusicFailureKind, MusicRequestFailure
+from declan.music.music_provider_result import music_execution_result
+from declan.music.music_provider_result import PlayerAvailability, PlayerAvailabilityResult
+from declan.music.music_provider_result import MusicFailureKind, MusicRequestFailure
 import os
 import re
 import sqlite3
@@ -15,7 +15,7 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from random import choices
 from tempfile import NamedTemporaryFile
-import music_runtime_state
+from declan.music import music_runtime_state
 from threading import Thread
 from time import monotonic, sleep, time
 from urllib.error import HTTPError
@@ -50,7 +50,7 @@ SPOTIFY_REFERENCE = re.compile(
     r"(?:https://open\.spotify\.com/|spotify(?:--[\w-]+)?://|spotify:)"
     r"(track|album|artist|playlist)[/:]([A-Za-z0-9]{22})/?(?:\?[^\s#]*)?"
 )
-SPOTIFY_SETTINGS = Path(__file__).with_name(".data") / "spotify-settings.json"
+SPOTIFY_SETTINGS = Path(__file__).resolve().parents[2] / ".data" / "spotify-settings.json"
 PREFERENCES = SPOTIFY_SETTINGS.with_name("music-preferences.sqlite3")
 
 
@@ -684,7 +684,7 @@ def search_media(connection, destination, title, artist, provider):
             return uri.replace("spotify://", "https://open.spotify.com/", 1), kind, name
         # Curated category playlists take precedence over generic Spotify search.
         # The catalogue is owned by Declan 2.0, not the retired HA integration.
-        import spotify_playlists
+        from declan.music import spotify_playlists
         category = "_".join(title.casefold().replace("-", " ").split())
         if category.endswith("_music"):
             category = category[:-6]

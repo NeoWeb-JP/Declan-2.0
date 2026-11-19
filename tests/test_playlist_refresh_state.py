@@ -4,8 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 import unittest
 from unittest.mock import Mock, patch
 
-import spotify_playlists
-from playlist_refresh_state import PlaylistRefreshState
+from declan.music import spotify_playlists
+from declan.music.playlist_refresh_state import PlaylistRefreshState
 
 
 class PlaylistRefreshStateTests(unittest.TestCase):

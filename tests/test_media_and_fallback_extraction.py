@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 import server
-import media_title_search
+from declan.music import media_title_search
 import ai_fallback_dispatch
 from execution_results import Outcome
 

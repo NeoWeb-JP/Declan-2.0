@@ -3,7 +3,7 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
-import music_playlists_post
+from declan.music import music_playlists_post
 
 
 class MusicPlaylistsPostTests(TestCase):

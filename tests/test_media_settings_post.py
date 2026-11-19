@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 
-import media_settings_post
+from declan.music import media_settings_post
 
 
 class Handler:

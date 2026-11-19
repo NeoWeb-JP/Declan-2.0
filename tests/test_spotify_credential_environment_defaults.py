@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-import music
+from declan.music import music
 
 
 class SpotifyCredentialEnvironmentDefaultsTests(unittest.TestCase):
