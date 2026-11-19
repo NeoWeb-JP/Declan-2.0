@@ -194,6 +194,11 @@ def record(session_id, source, message, reply, outcome=None, routine_status=None
 
 
 def recent(before=None, limit=50):
+    """Read retained turns with bounded, well-formed pagination arguments."""
+    if limit is not None and (type(limit) is not int or not 1 <= limit <= 500):
+        raise ValueError("History page size must be between 1 and 500.")
+    if before is not None and (type(before) is not int or before <= 0):
+        raise ValueError("History cursor must be a positive integer.")
     with database() as connection:
         connection.row_factory = sqlite3.Row
         query = "SELECT * FROM turns WHERE created_at >= ?"
