@@ -123,6 +123,13 @@ def learned_intents():
 
 
 def learned_intent(phrase):
+    """Resolve corrections using the same normalisation as training writes."""
+    if not isinstance(phrase, str):
+        return None
+    try:
+        phrase = validated_training_phrase(phrase, "Invalid trained phrase.")
+    except ValueError:
+        return None
     with database() as connection:
         _intent_table(connection)
         row = connection.execute("SELECT target FROM learned_intents WHERE phrase = ?", (phrase,)).fetchone()
@@ -159,6 +166,8 @@ def forget_intent(phrase):
 
 def teach_phrase(phrase, target, *, automatic=False):
     """Save an explicit correction, or add a retry without overwriting user training."""
+    if type(automatic) is not bool:
+        raise ValueError("Automatic training must be enabled or disabled.")
     if not isinstance(phrase, str) or not isinstance(target, str):
         raise ValueError("Enter a phrase and the command you meant.")
     phrase = validated_training_phrase(phrase, "Enter a different command, up to 120 characters.")
