@@ -114,8 +114,8 @@ def learned_intent(phrase):
 def teach_intent(turn_id, target, unmatched_reply):
     with database() as connection:
         turn = connection.execute(
-            "SELECT message FROM turns WHERE id = ?",
-            (turn_id,),
+            "SELECT message FROM turns WHERE id = ? AND created_at >= ?",
+            (turn_id, time() - retention_seconds()),
         ).fetchone()
         phrase = normalize_phrase(turn[0]) if turn else ""
         if not 0 < len(phrase) <= 120:
@@ -167,7 +167,7 @@ def has_recent_assist():
     with database() as connection:
         return connection.execute(
             "SELECT 1 FROM turns WHERE source = ? AND created_at >= ? LIMIT 1",
-            ("assist", time() - 300),
+            ("assist", time() - min(300, retention_seconds())),
         ).fetchone() is not None
 
 
@@ -228,7 +228,7 @@ def verified_recording_turns(interaction_ids):
         rows = connection.execute(
             "SELECT id, speaker_match FROM turns WHERE source = 'assist' AND "
             "created_at >= ? AND speaker_match IS NOT NULL",
-            (time() - 7 * 24 * 60 * 60,),
+            (time() - min(7 * 24 * 60 * 60, retention_seconds()),),
         )
         for turn_id, encoded in rows:
             try:
