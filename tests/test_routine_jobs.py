@@ -319,12 +319,33 @@ class RoutineJobTests(audit_tests.AuditViewFixture):
     async def test_storage_failure_rejects_request_without_scheduling(self):
         state = await self.jobs_view.job_state(self.hass)
         async def fail(*args): raise OSError("private-path")
-        with patch.object(state["store"], "async_save", fail):
+        with patch.object(state["store"], "async_save", fail), self.assertLogs(level="ERROR") as logs:
             payload, options = await self.endpoint.post(self.request())
         self.assertEqual(options["status"], 503)
         self.assertEqual(self.pending, [])
         self.assertEqual(state["jobs"], {})
         self.assertNotIn("private-path", str(payload))
+        self.assertIn("OSError", "\n".join(logs.output))
+        self.assertNotIn("private-path", "\n".join(logs.output))
+
+    async def test_unavailable_job_storage_is_logged_by_type_only(self):
+        async def broken(hass):
+            raise OSError("private-path")
+        with patch.object(self.jobs_view, "job_state", broken), self.assertLogs(level="ERROR") as logs:
+            payload, options = await self.endpoint.post(self.request())
+        self.assertEqual(options["status"], 503)
+        self.assertEqual(self.pending, [])
+        self.assertIn("storage unavailable (OSError)", "\n".join(logs.output))
+        self.assertNotIn("private-path", "\n".join(logs.output))
+
+    async def test_scheduling_failure_is_logged_by_type_only(self):
+        self.hass.async_create_background_task = MagicMock(side_effect=RuntimeError("private-path"))
+        with self.assertLogs(level="ERROR") as logs:
+            payload, options = await self.endpoint.post(self.request())
+        self.assertEqual(options["status"], 503)
+        self.assertEqual(payload["error"], "scheduling_failed")
+        self.assertIn("could not be scheduled (RuntimeError)", "\n".join(logs.output))
+        self.assertNotIn("private-path", "\n".join(logs.output))
 
     async def test_background_results_reopen_review_and_reach_audit(self):
         before = await self.view.collect_report(self.hass)

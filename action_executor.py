@@ -2,6 +2,9 @@
 from action_plan import CandidateAction, ActionReadiness, execution_order_result
 # Re-export ActionResult for existing Python callers.
 from execution_results import ActionResult, ActionStatus, DispatchResult, ExecutionResult, Outcome
+import logging
+
+LOGGER = logging.getLogger(__name__)
 
 
 def execute_verified(plan, dispatcher):
@@ -25,8 +28,10 @@ def execute_verified(plan, dispatcher):
             continue
         try:
             dispatch = DispatchResult.coerce(dispatcher(action))
-        except Exception:
+        except Exception as error:
             # Never expose provider exceptions or their secrets in voice/history.
+            # Log only the type so a programming error is not silent.
+            LOGGER.warning("Action dispatch failed for %s.%s (%s)", action.entity_id, action.service, type(error).__name__)
             dispatch = DispatchResult(ActionStatus.FAILED, "Dispatch or verification failed")
         results.append(ActionResult(index, action.entity_id, action.service,
                                     dispatch.status, dispatch.detail[:240]))

@@ -5,8 +5,11 @@ import re
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
+import logging
 
 from .ha_audit import TraceExecution, TraceOutcome, classify_trace_typed, trace_step_wire, trace_steps_typed
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -79,6 +82,7 @@ class DeclanScriptResultView(HomeAssistantView):
             raise web.HTTPBadRequest()
         try:
             result = await lookup_result_typed(request.app["hass"], entity_id, context_id)
-        except Exception:
+        except Exception as error:
+            _LOGGER.warning("Script trace lookup failed (%s)", type(error).__name__)
             result = ScriptTraceResult(entity_id, context_id)
         return web.json_response(result.to_wire(), headers={"Cache-Control": "no-store"})
