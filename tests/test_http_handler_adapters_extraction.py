@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock
 
-import http_handler_adapters as adapters
+from declan.http import http_handler_adapters as adapters
 
 
 class HTTPHandlerAdapterTests(unittest.TestCase):

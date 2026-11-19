@@ -1,7 +1,7 @@
 """Pre-conversation POST routes for settings and training history."""
 
 from declan.voice import settings_voice_post
-import training_history_post
+from declan.http import training_history_post
 
 
 def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,

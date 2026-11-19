@@ -8,8 +8,8 @@ import unittest
 from unittest.mock import Mock
 
 import diagnostic_metrics
-import native_read_routes
-import settings_read_routes
+from declan.http import native_read_routes
+from declan.http import settings_read_routes
 
 
 class DiagnosticMetricsTests(unittest.TestCase):

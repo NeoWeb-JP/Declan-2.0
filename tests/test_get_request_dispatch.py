@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-import get_request_dispatch
+from declan.http import get_request_dispatch
 
 
 class FakeHandler:

@@ -2,7 +2,7 @@
 import json
 import unittest
 from types import SimpleNamespace
-import history_read_routes
+from declan.http import history_read_routes
 
 
 class Handler:

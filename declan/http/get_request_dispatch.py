@@ -1,11 +1,11 @@
 """Authenticated GET route orchestration, separate from the HTTP handler."""
 
-import get_access_gate_http
-import history_read_routes
-import native_read_routes
-import operational_read_routes
-import settings_read_routes
-import system_read_routes
+from declan.http import get_access_gate_http
+from declan.http import history_read_routes
+from declan.http import native_read_routes
+from declan.http import operational_read_routes
+from declan.http import settings_read_routes
+from declan.http import system_read_routes
 
 
 def dispatch(handler, *, assist_token, ingress, logo_path, health_readiness,

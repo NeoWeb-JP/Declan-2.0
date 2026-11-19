@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import training_history_post as routes
+from declan.http import training_history_post as routes
 
 
 class TrainingHistoryPostTests(unittest.TestCase):

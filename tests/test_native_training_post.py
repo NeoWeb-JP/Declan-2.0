@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock
 
-import native_training_post as routes
+from declan.http import native_training_post as routes
 
 
 class NativeTrainingPostTests(TestCase):

@@ -1,7 +1,7 @@
 """Regression tests for extracted native read-only routes."""
 import unittest
 from types import SimpleNamespace
-import native_read_routes
+from declan.http import native_read_routes
 
 
 class Handler:

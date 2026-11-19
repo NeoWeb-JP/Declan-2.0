@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
-import settings_read_routes
+from declan.http import settings_read_routes
 
 
 class Handler:

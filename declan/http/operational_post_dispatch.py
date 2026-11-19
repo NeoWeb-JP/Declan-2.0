@@ -1,5 +1,5 @@
 """Operational POST routing around shared request validation."""
-import operational_post_routes
+from declan.http import operational_post_routes
 from declan.voice import speech_http_routes
 
 

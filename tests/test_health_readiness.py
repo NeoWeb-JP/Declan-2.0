@@ -4,7 +4,7 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import health_readiness
+from declan.http import health_readiness
 
 
 class DatabaseHealthTests(unittest.TestCase):
