@@ -4,8 +4,8 @@ import io
 import json
 import logging
 import unittest
-from unittest.mock import patch
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import http_response_transport
 
