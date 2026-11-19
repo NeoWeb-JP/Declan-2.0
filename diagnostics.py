@@ -131,6 +131,18 @@ def amend(trace, entry):
         pass
 
 
+def record(name, started, **fields):
+    """Append an already-finished stage that began at monotonic() == started."""
+    trace = ACTIVE.get()
+    if trace is None or len(trace['stages']) >= 80:
+        return
+    entry = {'stage': name}
+    set_outcome(entry, DiagnosticOutcome.COMPLETED)
+    entry.update(fields)
+    entry['duration_ms'] = round((monotonic() - started) * 1000)
+    trace['stages'].append({key: value for key, value in entry.items() if not key.startswith('_')})
+
+
 @contextmanager
 def stage(name):
     trace = ACTIVE.get()

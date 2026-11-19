@@ -1,6 +1,7 @@
 """Read command-relevant state fields in bounded HA template pages."""
 import json
 from dataclasses import dataclass
+import diagnostics
 from execution_results import Outcome
 from time import monotonic
 from urllib.error import HTTPError
@@ -66,6 +67,15 @@ def read_locations(connection):
 
 
 def read_result(connection, *, music=False) -> InventoryResult:
+    with diagnostics.stage('ha_inventory_music' if music else 'ha_inventory') as entry:
+        result = _read_result(connection, music=music)
+        entry['rows'] = len(result.rows) if result.rows is not None else None
+        if result.error is not None:
+            diagnostics.set_outcome(entry, result.error)
+        return result
+
+
+def _read_result(connection, *, music=False) -> InventoryResult:
     url, headers, opener = connection
     domains = ('media_player', 'assist_satellite') if music else DEVICE_DOMAINS
     fields = MUSIC_FIELDS if music else DEVICE_FIELDS
