@@ -83,8 +83,10 @@ class SensitiveConfirmationTests(unittest.TestCase):
         self.assertIn("confirmation_response(", turn)
         self.assertIn("confirmations.evaluate(", decision)
         self.assertIn("candidate, None, guest_commands, {}, set()", decision)
-        self.assertIn("script_discovery.execute_result(", server)
-        self.assertIn("script_discovery.enqueue_result(", server)
+        orchestration = Path(__file__).resolve().parents[1].joinpath("routine_turn_orchestration.py").read_text()
+        self.assertIn("discovery.execute_result(", orchestration)
+        self.assertIn("discovery.enqueue_result(", orchestration)
+        self.assertIn("discovery=script_discovery", server)
 
 
 if __name__=="__main__":

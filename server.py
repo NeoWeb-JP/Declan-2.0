@@ -22,13 +22,14 @@ import routine_execution_dispatch
 import lighting_execution_dispatch
 import ha_household_status
 import server_lifecycle
+import routine_turn_orchestration
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from execution_results import ExecutionResult, Outcome
+from execution_results import ExecutionResult as ExecutionResult, Outcome
 from arbitration import CaptureArbiter
 
 import conditions
@@ -107,7 +108,7 @@ import ha_dispatcher
 import routine_registry
 from routine_action_evidence import parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
-from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
+from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
@@ -297,14 +298,9 @@ def select_routine(phrase, origin):
 
 
 def select_routine_turn_result(phrase, origin) -> RoutineTurnSelection | None:
-    for join in re.finditer(r"(?:,\s*|\s+)(?:and then|and|then) (?=turn |make |set |dim |play )", phrase):
-        follow_on = phrase[join.end():]
-        if follow_on.startswith("play ") and parse_movie_request(phrase[:join.start()].removeprefix("run ")):
-            continue
-        if routine := select_routine_result(phrase[:join.start()], origin):
-            return RoutineTurnSelection(RoutineSelection.coerce(routine), follow_on)
-    routine = select_routine_result(phrase, origin)
-    return RoutineTurnSelection(RoutineSelection.coerce(routine)) if routine is not None else None
+    return routine_turn_orchestration.select_routine_turn_result(
+        phrase, origin, select=select_routine_result, parse_movie=parse_movie_request,
+    )
 
 
 def select_routine_turn(phrase, origin):
@@ -312,49 +308,17 @@ def select_routine_turn(phrase, origin):
     return RoutineTurnSelection.coerce(result).as_legacy_pair() if result is not None else None
 
 
-
 def preview_routine_result(phrase, origin=None):
-    """Read-only preview of a Home Assistant script; never dispatch actions."""
-    selection = select_routine_turn_result(phrase, origin)
-    if not selection:
-        return ExecutionResult("I couldn't find that script in Home Assistant. Nothing has been run.", Outcome.UNRESOLVED)
-    selection = RoutineTurnSelection.coerce(selection)
-    routine = selection.routine
-    if selection.follow_on:
-        return ExecutionResult("I cannot preview chained commands yet. Nothing has been run.", Outcome.UNRESOLVED)
-    if routine.kind is RoutineSelectionKind.AMBIGUOUS:
-        return ExecutionResult("Several Home Assistant scripts match. Nothing has been run.", Outcome.UNRESOLVED)
-    if routine.kind is RoutineSelectionKind.HOUSE_STATUS_MISSING:
-        return ExecutionResult("I couldn't find a House Status script in Home Assistant. Nothing has been run.", Outcome.NOT_CONFIGURED)
-    if routine.kind is not RoutineSelectionKind.SCRIPT:
-        return ExecutionResult("I couldn't identify a Home Assistant script. Nothing has been run.", Outcome.UNRESOLVED)
-    script = routine.entity_id
-    variables = ", ".join(f"{key}={value}" for key, value in routine.options.items())
-    detail = f" with {variables}" if variables else ""
-    return ExecutionResult(f"Preview: I would request Home Assistant script {script}{detail}. "
-            "The script's internal actions and final reply cannot be predicted without running it. "
-            "Simulated spoken response: Starting the routine. Nothing has been run.", Outcome.PREVIEW)
+    return routine_turn_orchestration.preview_routine_result(
+        phrase, origin, select_turn=select_routine_turn_result,
+    )
 
 
 def execute_routine_result(selection, action_results, *, approved=False):
-    """Typed execution result for local routine selection with optional status."""
-    selection = RoutineSelection.coerce(selection)
-    options = selection.options
-    if selection.kind is RoutineSelectionKind.SCRIPT:
-        if options.get("_declan_background"):
-            return script_discovery.enqueue_result(
-                ha_device_connection(), selection.entity_id,
-                {key: value for key, value in options.items() if not key.startswith("_declan_")})
-        return script_discovery.execute_result(
-            ha_device_connection(), {"entity_id": selection.entity_id},
-            parameters={key: value for key, value in options.items() if not key.startswith("_declan_")},
-            expect_response=options.get("_declan_expect_response", False),
-            action_results=action_results)
-    if selection.kind is RoutineSelectionKind.AMBIGUOUS:
-        return ExecutionResult("Several Home Assistant scripts match that name. Please use a more specific name.", Outcome.UNRESOLVED), None
-    if selection.kind is RoutineSelectionKind.HOUSE_STATUS_MISSING:
-        return ExecutionResult("I could not find a House Status script in Home Assistant.", Outcome.NOT_CONFIGURED), None
-    return ExecutionResult("I couldn't find that routine in Home Assistant.", Outcome.NOT_CONFIGURED), None
+    return routine_turn_orchestration.execute_routine_result(
+        selection, action_results, approved=approved,
+        discovery=script_discovery, connect=ha_device_connection,
+    )
 
 
 def _routine_legacy_triple(result, status):
