@@ -28,6 +28,31 @@ class VoiceCleanupCommandTests(unittest.TestCase):
                 self.assertEqual(db.execute('SELECT count(*) FROM samples').fetchone()[0], 0)
             self.assertEqual(list((data / 'upgrade-backups').iterdir()), [old])
 
+    def test_partial_cleanup_reports_failure_after_cleaning_healthy_backup(self):
+        with tempfile.TemporaryDirectory() as temp:
+            data = Path(temp)
+            corrupt = data / 'upgrade-backups' / 'a-corrupt'
+            healthy = data / 'upgrade-backups' / 'b-healthy'
+            corrupt.mkdir(parents=True)
+            healthy.mkdir()
+            (corrupt / 'voice-profiles.sqlite3').write_bytes(b'corrupt')
+            with contextlib.closing(sqlite3.connect(healthy / 'voice-profiles.sqlite3')) as db:
+                db.execute('CREATE TABLE samples (id TEXT, audio BLOB)')
+                db.execute('INSERT INTO samples VALUES (?, ?)', ('s1', b'private audio'))
+                db.commit()
+            output = io.StringIO()
+            errors = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                with self.assertRaises(SystemExit) as raised:
+                    sanitize_voice_backups.main(['--data-dir', str(data)])
+            self.assertEqual(raised.exception.code, 1)
+            self.assertEqual(output.getvalue(), '')
+            self.assertIn('sanitized 1 database(s)', errors.getvalue())
+            self.assertIn('1 database(s) require operator review', errors.getvalue())
+            self.assertNotIn(str(data), errors.getvalue())
+            with contextlib.closing(sqlite3.connect(healthy / 'voice-profiles.sqlite3')) as db:
+                self.assertEqual(db.execute('SELECT count(*) FROM samples').fetchone()[0], 0)
+
     def test_invalid_data_directory_fails_without_creating_it(self):
         with tempfile.TemporaryDirectory() as temp:
             missing = Path(temp) / 'missing'

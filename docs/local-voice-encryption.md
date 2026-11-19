@@ -22,6 +22,8 @@ The production lock was updated using wheel SHA-256 hashes from successful GitHu
 
 ## Read-only readiness check
 
+Retained local upgrade backups can be cleaned separately with `python -m sanitize_voice_backups --data-dir /path/to/.data`. If an individual voice database is corrupt or cannot be replaced, cleanup still attempts the remaining regular snapshot databases and exits with failure and counts requiring operator review. Successfully cleaned databases stay cleaned; damaged originals are preserved for operator handling. A partial cleanup is not proof of complete erasure. External backups and VoicePipeline storage require separate handling.
+
 With the production backend stopped and the key available through the normal protected environment, run `python -m check_voice_encryption --database /path/to/.data/voice-profiles.sqlite3`. Exit 0 means the database integrity check passed and all existing samples authenticated with the configured key. Exit 2 means plaintext samples remain and require the explicit migration before activation. Exit 1 means a missing/incorrect key, damaged database or other validation failure. This check never writes the database, generates a key or performs migration; it does not validate the separate VoicePipeline service.
 
 ## Release activation gate
