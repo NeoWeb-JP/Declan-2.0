@@ -1,7 +1,7 @@
 """Voice confirmation decision and origin-binding tests."""
 import unittest
 from unittest.mock import Mock
-from sensitive_confirmation_decision import evaluate
+from declan.turn.sensitive_confirmation_decision import evaluate
 
 
 class SensitiveConfirmationDecisionTests(unittest.TestCase):

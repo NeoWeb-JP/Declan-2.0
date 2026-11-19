@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from declan.ai import ai_credentials
 from declan.voice import voicepipeline
-from sensitive_write_state import SensitiveWriteState
+from declan.turn.sensitive_write_state import SensitiveWriteState
 
 
 class SensitiveWriteStateTests(unittest.TestCase):

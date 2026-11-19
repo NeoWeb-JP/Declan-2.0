@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import turn_preflight as preflight
+from declan.turn import turn_preflight as preflight
 
 
 class TurnPreflightTests(unittest.TestCase):

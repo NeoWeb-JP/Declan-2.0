@@ -1,7 +1,7 @@
 """Spoken response orchestration precedence regression tests."""
 import unittest
 from unittest.mock import Mock
-from turn_response_orchestration import compose
+from declan.turn.turn_response_orchestration import compose
 
 
 class ResponseOrchestrationTests(unittest.TestCase):

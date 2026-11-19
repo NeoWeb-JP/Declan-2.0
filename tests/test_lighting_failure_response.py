@@ -1,7 +1,7 @@
 """Lighting failure response extraction regression tests."""
 import unittest
 from unittest.mock import Mock
-from response_composition import lighting_failure_reply
+from declan.turn.response_composition import lighting_failure_reply
 
 
 class LightingFailureReplyTests(unittest.TestCase):

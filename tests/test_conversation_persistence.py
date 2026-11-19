@@ -2,7 +2,7 @@
 import sqlite3
 import unittest
 from unittest.mock import Mock
-from conversation_persistence import save_turn
+from declan.turn.conversation_persistence import save_turn
 
 
 class ConversationPersistenceTests(unittest.TestCase):

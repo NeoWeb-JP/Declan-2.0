@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import turn_preflight_entry
+from declan.turn import turn_preflight_entry
 
 
 class TurnPreflightEntryTests(unittest.TestCase):

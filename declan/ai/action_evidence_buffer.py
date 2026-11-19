@@ -5,7 +5,7 @@ from enum import StrEnum
 from execution_results import ActionResult, ActionStatus
 from declan.ai.fallback_action_evidence import FallbackActionEvidence
 from declan.ha.lighting_action_evidence import LightingActionEvidence, parse_lighting_reason
-from routine_action_evidence import RoutineActionEvidence
+from declan.turn.routine_action_evidence import RoutineActionEvidence
 
 
 class LegacyCompletionStatus(StrEnum):

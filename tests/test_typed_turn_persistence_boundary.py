@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock
 
-from turn_persistence_orchestration import persist_turn_result
+from declan.turn.turn_persistence_orchestration import persist_turn_result
 
 
 class TypedPersistenceTests(unittest.TestCase):

@@ -3,7 +3,7 @@ from typing import Any
 import unittest
 from unittest.mock import Mock
 from types import SimpleNamespace
-from routine_follow_on_dispatch import execute_follow_on
+from declan.turn.routine_follow_on_dispatch import execute_follow_on
 
 
 class RoutineFollowOnDispatchTests(unittest.TestCase):

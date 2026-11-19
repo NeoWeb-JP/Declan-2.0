@@ -4,8 +4,8 @@ import unittest
 from dataclasses import replace
 
 from execution_results import ExecutionResult, Outcome
-from retry_cancellation import RetryCancellationResult
-from turn_response import TurnResponse
+from declan.turn.retry_cancellation import RetryCancellationResult
+from declan.turn.turn_response import TurnResponse
 
 
 class ResponsePayloadIsolationTests(unittest.TestCase):

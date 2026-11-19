@@ -17,7 +17,7 @@ class CustomRoutineTests(unittest.TestCase):
         self.assertEqual(server.run_custom_routine("tea")[1], "not_configured")
 
     def test_sensitive_gate_requires_confirmation_not_voice_id(self):
-        import sensitive_confirmations
+        from declan.turn import sensitive_confirmations
         self.mapping["tea"]["sensitive"] = True
         group = sensitive_confirmations.sensitive_group("make tea", (("custom:tea", {}), None), {}, {})
         self.assertEqual(group, "custom:tea")

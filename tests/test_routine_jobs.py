@@ -10,7 +10,7 @@ from io import BytesIO
 import unittest
 
 from declan.ha import script_discovery
-import personality_policy
+from declan.turn import personality_policy
 import server
 import test_ha_audit as audit_tests
 

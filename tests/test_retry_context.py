@@ -1,7 +1,7 @@
 """One-shot retry context and scope isolation tests."""
 from typing import Any
 import unittest
-from retry_context import consume_pending_retry
+from declan.turn.retry_context import consume_pending_retry
 
 
 class RetryContextTests(unittest.TestCase):

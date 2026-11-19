@@ -1,6 +1,6 @@
 """Recent session context scope and expiry regression tests."""
 import unittest
-from session_context_retrieval import recent_context
+from declan.turn.session_context_retrieval import recent_context
 
 
 class SessionContextRetrievalTests(unittest.TestCase):

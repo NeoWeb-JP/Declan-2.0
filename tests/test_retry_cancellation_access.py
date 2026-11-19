@@ -4,7 +4,7 @@ import threading
 import unittest
 from unittest.mock import Mock
 
-from retry_cancellation_access import cancel_pending_retry
+from declan.turn.retry_cancellation_access import cancel_pending_retry
 
 
 class RetryCancellationAccessTests(unittest.TestCase):

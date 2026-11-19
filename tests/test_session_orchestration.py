@@ -5,7 +5,7 @@ import unittest
 from collections import OrderedDict
 from unittest.mock import patch
 
-import session_orchestration
+from declan.turn import session_orchestration
 
 
 class SessionOrchestrationTests(unittest.TestCase):

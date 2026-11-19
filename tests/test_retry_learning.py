@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import history
-import retry_learning
+from declan.turn import retry_learning
 import server
 
 

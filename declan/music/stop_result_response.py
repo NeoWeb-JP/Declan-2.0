@@ -1,5 +1,5 @@
 """Convert a dispatched stop command into its legacy reply and status."""
-from command_response import CommandResponse
+from declan.turn.command_response import CommandResponse
 
 
 def stop_response(stop_result):

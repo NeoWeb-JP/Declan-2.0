@@ -1,7 +1,7 @@
 """Response persona context regression tests."""
 import unittest
 from unittest.mock import Mock
-from response_persona_context import resolve_response_persona
+from declan.turn.response_persona_context import resolve_response_persona
 
 
 class ResponsePersonaContextTests(unittest.TestCase):

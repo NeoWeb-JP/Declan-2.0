@@ -1,7 +1,7 @@
 from typing import Any, cast
 import unittest
 
-from intent_preprocessing import preprocess_speech
+from declan.turn.intent_preprocessing import preprocess_speech
 
 
 class SpeechPreprocessingTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 import re
 import unittest
 
-import command_vocabulary as vocabulary
+from declan.turn import command_vocabulary as vocabulary
 import server
 
 
