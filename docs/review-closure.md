@@ -149,3 +149,24 @@ items for the supported configuration surface. It does not prove arbitrary
 dynamic names, every possible invalid input, third-party HA options or deployed
 settings. Changes to supported settings must update the behavior matrix and
 regressions. Live privacy and deployment acceptance stays in #496.
+
+## Main dispatch contract
+
+The turn-dispatch result validates reply/status metadata and normalizes known
+legacy outcome values to `Outcome` before response preparation. Unknown outcome
+values are rejected rather than allowed into fallback or response decisions;
+`None` remains the unmatched-turn sentinel. This validation occurs after handler
+execution and cannot undo actions already performed. Providers must still
+validate before dispatching actions.
+
+The `routine_status` field is explanatory display text produced by Stop/routine
+handlers and forwarded to history/HTTP. It is not the execution-state enum:
+`outcome` and typed action evidence carry those decisions. Preserve free-form
+status wording and do not infer completion from it. The same distinction applies
+to `CommandResponse` and `TurnResponse`. Internal stage context fields still
+contain broadly typed objects, so this does not complete the repository-wide
+typed-contract finding or remove the live server dependency facade.
+
+`tests/test_turn_dispatch_outcome_contract.py` covers all known enum members,
+unknown/malformed outcomes, unmatched turns and display-status separation.
+Extraction tests use real enum values instead of the invalid mock status `ok`.
