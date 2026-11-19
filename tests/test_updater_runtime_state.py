@@ -3,8 +3,8 @@
 import threading
 import unittest
 
-from update_results import UpdateJobState
-from updater_runtime_state import UpdaterRuntimeState
+from declan.updates.update_results import UpdateJobState
+from declan.updates.updater_runtime_state import UpdaterRuntimeState
 
 
 def selection(commit="a", *, prerelease=False, include_prereleases=False):

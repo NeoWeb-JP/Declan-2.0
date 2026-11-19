@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import updates
+from declan.updates import updates
 
 
 class InstalledReleaseVersionTests(unittest.TestCase):

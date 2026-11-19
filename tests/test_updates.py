@@ -5,7 +5,7 @@ from threading import Event
 from unittest import TestCase, skipUnless
 from unittest.mock import patch
 
-import updates
+from declan.updates import updates
 
 
 class UpdateTests(TestCase):

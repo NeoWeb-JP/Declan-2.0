@@ -14,10 +14,10 @@ from http.client import HTTPException
 from pathlib import Path
 from tempfile import mkdtemp
 from threading import Thread
-from updater_runtime_state import UpdaterRuntimeState
+from declan.updates.updater_runtime_state import UpdaterRuntimeState
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
-from update_results import UpdateJobState, UpdateStatusResult
+from declan.updates.update_results import UpdateJobState, UpdateStatusResult
 
 
 _LOGGER = logging.getLogger("declan.updater.install")
@@ -27,7 +27,7 @@ REPOSITORY = "https://github.com/NeoWeb-JP/Declan-2.0.git"
 RELEASES_API = "https://api.github.com/repos/NeoWeb-JP/Declan-2.0/releases?per_page=100"
 MAX_RELEASE_BYTES = 2 * 1024 * 1024
 VERSION = re.compile(r"v?(\d{1,8})\.(\d{1,8})\.(\d{1,8})(?:-[0-9A-Za-z.-]{1,20})?")
-APP = Path(__file__).resolve().parent
+APP = Path(__file__).resolve().parents[2]  # repository root, not this package
 RUNTIME = UpdaterRuntimeState()
 
 
