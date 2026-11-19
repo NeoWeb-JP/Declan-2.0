@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/voice_review_view.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
 ACCESS = (ROOT / "voicepipeline_access_http.py").read_text()
@@ -23,7 +24,7 @@ class NativeVoiceHistoryTests(unittest.TestCase):
         ast.parse(ACCESS)
         self.assertIn('if operation == "history":', ACCESS)
         self.assertIn('return set(body) != {"operation"}', ACCESS)
-        self.assertIn("post_payload_validation.read_authorized_body(", SERVER)
+        self.assertIn("r.post_payload_validation.read_authorized_body(", POST_INGRESS)
         self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "post_payload_validation.py").read_text())
 
     def test_panel_history_is_read_only(self):
