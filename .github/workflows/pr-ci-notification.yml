@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   notify:
-    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.pull_requests[0].number != null }}
+    if: ${{ github.event.workflow_run.event == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Post or update concise PR CI status
@@ -19,6 +19,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         shell: bash
         run: |
@@ -29,6 +30,15 @@ jobs:
             cancelled) status="CANCELLED" ;;
             *) status="UNKNOWN" ;;
           esac
+          # workflow_run.pull_requests may be empty; recover the PR from its head SHA.
+          if [[ -z "$PR_NUMBER" ]]; then
+            PR_NUMBER=$(gh api "repos/$GH_REPO/commits/$HEAD_SHA/pulls" \
+              --jq '[.[] | select(.base.ref == "main" and .head.sha == env.HEAD_SHA)] | first | .number // empty')
+          fi
+          if [[ -z "$PR_NUMBER" ]]; then
+            echo "No matching PR found for $HEAD_SHA; skipping notification."
+            exit 0
+          fi
           marker='<!-- declan-pr-ci-status -->'
           message="$marker
           PR #$PR_NUMBER | CI $status"
