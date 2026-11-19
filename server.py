@@ -76,14 +76,12 @@ import media_settings_routes
 import get_request_dispatch
 import speech_http_routes
 import assist_auth_http
-import voicepipeline_access_http
-import post_payload_http
+import post_payload_validation
 import post_origin_auth_http
 import post_route_gate_http
 import post_request_entry
 import http_response_transport
 import http_ingress_security
-import post_validation_errors_http
 import sensitive_confirmation_resolution
 import web_stt
 import openai_planner
@@ -1914,12 +1912,12 @@ class Handler(BaseHTTPRequestHandler):
         if not post_request_entry.enforce_content_type(self):
             return
         try:
-            body = post_payload_http.read_json_body(self)
             # Assist-token callers may review or resolve pending matches, but not
             # perform destructive VoicePipeline management operations.
-            if not voicepipeline_access_http.enforce_access(
-                self, body, ingress=self.has_ingress_access(),
-            ):
+            body = post_payload_validation.read_authorized_body(
+                self, ingress=self.has_ingress_access(),
+            )
+            if body is None:
                 return
             if post_body_routing.dispatch(
                 self, body, spotify_save=self.spotify_settings,
@@ -1947,9 +1945,9 @@ class Handler(BaseHTTPRequestHandler):
                 self, body, updates=updates, release_version=RELEASE_VERSION,
             ):
                 return
-            message, session_id = request_validation.message_and_session(body)
+            message, session_id = post_payload_validation.message_and_session(body)
         except (ValueError, TypeError, KeyError, AttributeError):
-            post_validation_errors_http.send_validation_error(self)
+            post_payload_validation.send_validation_error(self)
             return
         if post_operational_routing.dispatch_after_validation(
             self, body, message=message, session_id=session_id,
