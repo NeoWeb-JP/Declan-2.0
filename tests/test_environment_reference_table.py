@@ -21,6 +21,9 @@ class EnvironmentReferenceTests(unittest.TestCase):
         names = [re.match(r"\| `([A-Z][A-Z0-9_]*)` \|", row) for row in rows[2:]]
         self.assertTrue(all(names), "Every environment table row needs a variable name")
         self.assertEqual(len(names), len({match.group(1) for match in names if match}))
+        all_names = re.findall(r"^\| `([A-Z][A-Z0-9_]*)` \|", content, re.MULTILINE)
+        self.assertCountEqual(all_names, [match.group(1) for match in names if match],
+                              "Operator variable rows must not be orphaned outside the table")
 
     def test_every_operator_variable_has_purpose_and_example(self):
         content = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")

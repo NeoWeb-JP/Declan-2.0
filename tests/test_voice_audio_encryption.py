@@ -8,11 +8,21 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from voice_audio_crypto import MAGIC, decrypt, encrypt
+from voice_audio_crypto import MAGIC, decrypt, encrypt, _key
 from migrate_voice_audio import migrate
 
 
 class VoiceEncryptionTests(unittest.TestCase):
+    def test_key_has_no_default_and_rejects_blank_malformed_or_wrong_length_values(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(RuntimeError):
+                _key()
+        for value in ('', ' ', 'not-base64!', base64.urlsafe_b64encode(b'k' * 31).decode(),
+                      base64.urlsafe_b64encode(b'k' * 33).decode()):
+            with self.subTest(value=value), patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': value}):
+                with self.assertRaises(RuntimeError):
+                    _key()
+
     def test_encryption_roundtrip_and_wrong_identity(self):
         key = base64.urlsafe_b64encode(b'k' * 32).decode()
         with patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': key}):
