@@ -51,6 +51,7 @@ def sanitize_retained_voice_snapshots(directory):
     if root.is_symlink() or not root.is_dir():
         raise ValueError('Upgrade backup directory is not a regular directory.')
     sanitized = 0
+    failed = 0
     for folder in sorted(root.iterdir()):
         if folder.is_symlink() or not folder.is_dir():
             raise ValueError('Unexpected upgrade backup entry.')
@@ -72,8 +73,14 @@ def sanitize_retained_voice_snapshots(directory):
             os.chmod(temporary, 0o600)
             os.replace(temporary, source)
             sanitized += 1
+        except (OSError, ValueError, sqlite3.Error):
+            failed += 1
         finally:
             temporary.unlink(missing_ok=True)
+    if failed:
+        raise ValueError(
+            f'Voice backup cleanup incomplete: sanitized {sanitized} database(s); '
+            f'{failed} database(s) require operator review.')
     return sanitized
 
 
