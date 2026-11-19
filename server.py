@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import secrets
-import sqlite3
+import sqlite3 as sqlite3
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
 import ha_inventory
@@ -78,23 +78,23 @@ import turn_response_preparation
 import turn_atomic_finalization
 import turn_response_composition
 import history
-import post_body_routing
+import post_body_routing as post_body_routing
 import music
 import approved_media_players
 import spotify_playlists
-import music_playlists_post
+import music_playlists_post as music_playlists_post
 import timers
 import updates
-import post_operational_routing
+import post_operational_routing as post_operational_routing
 import media_settings_routes
 import get_request_dispatch
 import speech_http_routes
-import assist_auth_http
-import post_payload_validation
-import post_origin_auth_http
-import post_route_gate_http
+import assist_auth_http as assist_auth_http
+import post_payload_validation as post_payload_validation
+import post_origin_auth_http as post_origin_auth_http
+import post_route_gate_http as post_route_gate_http
 import post_request_entry
-import post_entry_gates
+import post_entry_gates as post_entry_gates
 import http_response_transport
 import http_ingress_security
 import sensitive_confirmation_resolution
