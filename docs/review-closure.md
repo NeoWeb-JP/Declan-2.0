@@ -73,3 +73,30 @@ Household-specific configuration and personalisation remain a separate audit.
 Issue #12's owner decisions, including Edd pronunciation and routine semantics,
 must be preserved. No original Batch 3 parent checkbox is completed by this
 record alone.
+
+## Household audit after PR #747
+
+At main `4f643c0`, the ingress default is loopback, not the original household
+IP. Backend helper targets in `household_entities.py` have validated saved or
+environment overrides; their legacy defaults preserve existing installations.
+`tests/test_household_entities.py` covers overrides, domain validation and guest
+service payloads. The example scripts under `home_assistant/` still contain
+fixed bedroom lights, projector and guest-helper targets. Those templates need
+an explicit installation-configuration design and action/readback tests before
+the original household checkbox can be completed. Do not silently change their
+device targets on an installed household.
+
+The Edd-to-Ed TTS pronunciation in `custom_components/declan_two/voice_text.py`
+is required by Issue #12 and should be retained. This does not dispose of other
+personalisation or certify every configuration file.
+
+## Response payload ownership
+
+Normal and retry-cancellation results detach their session payload on
+construction and serialization, including nested values. Caller-owned input,
+wire output and metadata callbacks cannot mutate retained payloads through
+shared aliases. `tests/test_response_payload_isolation.py` covers those paths
+and dataclass replacement. This is boundary isolation, not recursively immutable
+storage: direct mutation through `session_response` remains possible, and
+`routine_status` remains a compatibility string. The broader typed-outcome
+inventory and acceptance decision remain open.

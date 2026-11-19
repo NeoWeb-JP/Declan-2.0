@@ -1,5 +1,6 @@
 """Typed final-turn metadata with an explicit response-mapping adapter."""
 from dataclasses import dataclass
+from copy import deepcopy
 
 from execution_results import Outcome
 
@@ -19,9 +20,10 @@ class TurnResponse:
             object.__setattr__(self, "outcome", Outcome(self.outcome))
         if self.routine_status is not None and not isinstance(self.routine_status, str):
             raise ValueError("Routine status must be text or None")
+        object.__setattr__(self, "session_response", deepcopy(self.session_response))
 
     def to_wire(self, apply_outcome_metadata=None):
-        reply = dict(self.session_response)
+        reply = deepcopy(self.session_response)
         if apply_outcome_metadata is not None:
             apply_outcome_metadata(reply, outcome=self.outcome, routine_status=self.routine_status)
         if self.outcome is not None:

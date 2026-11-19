@@ -1,5 +1,6 @@
 """Cancel a pending conversational retry and persist the cancellation."""
 import sqlite3
+from copy import deepcopy
 from dataclasses import dataclass, replace
 from execution_results import ExecutionResult, Outcome
 
@@ -17,9 +18,10 @@ class RetryCancellationResult:
             raise ValueError("Retry cancellation requires a session response")
         if type(self.history_saved) is not bool:
             raise ValueError("History saved must be a boolean")
+        object.__setattr__(self, "session_response", deepcopy(self.session_response))
 
     def to_wire(self):
-        reply = dict(self.session_response)
+        reply = deepcopy(self.session_response)
         reply.update(reply=self.result.reply, outcome=self.result.outcome.value,
                      continue_conversation=False)
         if not self.history_saved:
