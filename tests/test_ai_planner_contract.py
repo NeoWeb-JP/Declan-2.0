@@ -102,7 +102,59 @@ class PlannerContractTests(PlannerFixture):
         self.payload = completed([{'entity_id': 'cover.garage', 'service': 'open_cover', 'depends_on': []}])
         result = self.ask('the garage needs opening', exposed=('cover.garage',))
         self.assertIs(result.result.outcome, Outcome.UNRESOLVED)
+        self.assertIn("AI can't operate garage or gate covers", result.result.reply)
+        self.assertIn('Use Home Assistant directly', result.result.reply)
+        self.assertIn('No devices were changed', result.result.reply)
+        self.assertEqual(result.result.actions, ())
+        self.assertEqual(self.spent(), 65)
         self.ha.open.assert_not_called()
+
+    def test_sensitive_cover_blocks_entire_mixed_plan_in_either_order(self):
+        self.inventory = [
+            {'entity_id': 'light.study', 'state': 'off', 'attributes': {}},
+            {'entity_id': 'cover.entry', 'state': 'closed',
+             'attributes': {'device_class': 'gate', 'friendly_name': 'Private entrance'}},
+        ]
+        actions = [
+            {'entity_id': 'light.study', 'service': 'turn_on', 'depends_on': []},
+            {'entity_id': 'cover.entry', 'service': 'open_cover', 'depends_on': []},
+        ]
+        for plan in (actions, list(reversed(actions))):
+            with self.subTest(plan=plan):
+                self.payload = completed(plan)
+                result = self.ask('open the entrance and light the study',
+                                  exposed=('light.study', 'cover.entry'))
+                self.assertIs(result.result.outcome, Outcome.UNRESOLVED)
+                self.assertIn('No devices were changed', result.result.reply)
+                self.assertNotIn('Private entrance', result.result.reply)
+                self.assertNotIn('cover.entry', result.result.reply)
+                self.assertEqual(result.result.actions, ())
+                self.ha.open.assert_not_called()
+        self.assertEqual(self.spent(), 130)
+
+    def test_yes_or_provider_claim_cannot_authorise_sensitive_covers(self):
+        self.inventory = [{'entity_id': 'cover.entry', 'state': 'open',
+                           'attributes': {'device_class': 'garage'}}]
+        # The live route has no origin-bound AI confirmation ticket. Neither
+        # utterance text nor provider prose can supply the trusted flag.
+        for utterance in ('close the entrance', 'yes', 'yes, I confirm the entrance'):
+            self.payload = completed([{'entity_id': 'cover.entry', 'service': 'close_cover', 'depends_on': []}])
+            self.payload['confirmation'] = True
+            result = self.ask(utterance, exposed=('cover.entry',))
+            self.assertIs(result.result.outcome, Outcome.UNRESOLVED)
+            self.assertIn('Use Home Assistant directly', result.result.reply)
+            self.assertEqual(result.result.actions, ())
+        self.ha.open.assert_not_called()
+        self.assertEqual(self.spent(), 195)
+
+    def test_ordinary_blind_with_misleading_name_still_uses_verified_dispatch(self):
+        self.inventory = [{'entity_id': 'cover.garage_blind', 'state': 'closed',
+                           'attributes': {'device_class': 'blind'}}]
+        self.payload = completed([{'entity_id': 'cover.garage_blind', 'service': 'open_cover', 'depends_on': []}])
+        self.ha.open.side_effect = lambda *args, **kwargs: io.BytesIO(b'{"state":"open"}')
+        result = self.ask('open the garage blind', exposed=('cover.garage_blind',))
+        self.assertIs(result.result.outcome, Outcome.CONFIRMED)
+        self.assertEqual(self.ha.open.call_count, 2)
 
     def test_incomplete_status_is_explained_and_settles_known_usage(self):
         self.payload = {'status': 'incomplete', 'incomplete_details': {'reason': 'max_output_tokens'},

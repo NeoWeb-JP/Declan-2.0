@@ -7,6 +7,10 @@ SENSITIVE_DOMAINS = frozenset({"script"})
 UNAVAILABLE = frozenset({"unavailable", "unknown"})
 
 
+class SensitiveCoverConfirmationRequired(ValueError):
+    """Trusted HA metadata requires confirmation before any plan execution."""
+
+
 def preflight(plan, inventory, *, confirmed_sensitive=False):
     """Fail the whole plan closed if any action is not safely actionable.
 
@@ -40,7 +44,7 @@ def preflight(plan, inventory, *, confirmed_sensitive=False):
         if (action.entity_id.startswith("cover.")
                 and attributes.get("device_class") in {"garage", "gate"}
                 and not confirmed_sensitive):
-            raise ValueError("Garage and gate controls require explicit confirmation")
+            raise SensitiveCoverConfirmationRequired("Garage and gate controls require explicit confirmation")
         if action.service in {"media_play", "media_pause", "media_stop"}:
             features = attributes.get("supported_features")
             if type(features) is not int:

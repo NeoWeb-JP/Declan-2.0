@@ -4,6 +4,14 @@ const {test} = require('node:test');
 const {JSDOM} = require('jsdom');
 const source = readFileSync('custom_components/declan_two/frontend/panel.js', 'utf8');
 
+test('AI settings explains the cover restriction and directs users to Home Assistant', t => {
+  const {root} = panel(t, {});
+  const policy = root.querySelector('.settings-section--ai').textContent;
+  assert.match(policy, /AI cannot directly run scripts or garage\/gate controls/);
+  assert.match(policy, /Use Home Assistant directly for these covers/);
+  assert.match(policy, /saying yes to AI does not authorise them/);
+});
+
 test('AI settings displays remaining budget and exhausted reservation capacity', async t => {
   const fixture = panel(t, {key_configured:true, month_usage_micro_usd:4980000,
     settings:{enabled:true, model:'gpt-5-mini', monthly_budget_usd:'5.00', request_ceiling_usd:'0.05', allowed_domains:['light']}});
