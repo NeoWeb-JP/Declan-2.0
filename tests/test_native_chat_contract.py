@@ -19,7 +19,7 @@ class NativeChatContractTests(unittest.TestCase):
         self.assertIn("r.post_entry_gates.enforce(", POST_INGRESS)
         self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "post_entry_gates.py").read_text())
         self.assertIn("post_request_preflight.enforce(", (ROOT / "post_request_entry.py").read_text())
-        self.assertIn("post_origin_auth_http.enforce_access,", block)
+        self.assertIn("r.post_origin_auth_http.enforce_access,", POST_INGRESS)
         self.assertIn('"/api/chat"', AUTH)
         self.assertIn('len(token) >= 32', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
