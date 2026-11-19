@@ -24,6 +24,22 @@ The Home Assistant app uses Ingress to proxy the standalone server. It has a sep
 
 Use HTTPS when the upstream connection crosses an untrusted network. Do not expose the server's HTTP port to the public Internet. Browser microphone capture requires an HTTPS Home Assistant origin and microphone permission.
 
+## Household routine scripts
+
+Files under `home_assistant/` contain household-specific script examples, not
+portable device mappings. Do not paste or replace them unchanged on a different
+installation. Review every action target, state/readback template, area name,
+guest helper and active-routine helper first. In particular, the bedroom and
+movie examples contain fixed light/projector IDs. Changing only action targets
+while leaving verification templates unchanged can produce incorrect outcomes.
+
+Home Assistant owns the installed script definitions. Configure and verify them
+there, then let Declan discover the scripts under Issue #12's current policy.
+Test start, end, failure and Stop behavior with the intended devices and confirm
+reported outcomes match observed state. Declan's backend helper overrides do not
+rewrite the YAML examples or installed scripts. Repository tests and an updated
+backend do not establish that household YAML has been migrated.
+
 ## Updating and troubleshooting
 
 The Assist integration, Home Assistant app and standalone service have separate release lifecycles. See [Proxmox updates](../PROXMOX-UPDATES.md) and the [main README](../README.md) for detailed operational notes. If the panel does not load, first verify the standalone service, the app's upstream URL/token, and the Home Assistant ingress connection.
