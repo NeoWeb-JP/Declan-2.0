@@ -1,6 +1,6 @@
 """Pre-conversation POST routes for settings and training history."""
 
-import settings_voice_post
+from declan.voice import settings_voice_post
 import training_history_post
 
 

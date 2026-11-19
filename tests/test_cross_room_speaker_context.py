@@ -10,7 +10,7 @@ class SatelliteContextTests(unittest.TestCase):
         self.assertNotIn("SPEAKER_CONTEXTS", source)
         self.assertNotIn("speaker_scope", source)
         capture_source = Path(__file__).resolve().parents[1].joinpath(
-            "assist_capture_http.py").read_text()
+            "declan", "voice", "assist_capture_http.py").read_text()
         ast.parse(capture_source)
         turn_source = Path(__file__).resolve().parents[1].joinpath("turn_initialization.py").read_text()
         ast.parse(turn_source)

@@ -6,7 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
-ACCESS = (ROOT / "voicepipeline_access_http.py").read_text()
+ACCESS = (ROOT / "declan" / "voice" / "voicepipeline_access_http.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/voice_review_view.py").read_text()
 JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()

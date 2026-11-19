@@ -47,7 +47,7 @@ from urllib.parse import urlsplit as urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler as ProxyHandler, Request as Request, build_opener as build_opener
 
 from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
-from arbitration import CaptureArbiter as CaptureArbiter
+from declan.voice.arbitration import CaptureArbiter as CaptureArbiter
 
 import conditions as conditions
 import sensitive_confirmations as sensitive_confirmations
@@ -57,8 +57,8 @@ import configuration as configuration
 from declan.music import media_search_agents as media_search_agents
 from declan.ha import household_entities as household_entities
 import health_readiness as health_readiness
-import voice_profiles as voice_profiles
-import voicepipeline as voicepipeline
+from declan.voice import voice_profiles as voice_profiles
+from declan.voice import voicepipeline as voicepipeline
 from declan.ha import device_status as device_status
 import retry_learning as retry_learning
 import retry_training_persistence as retry_training_persistence
@@ -102,8 +102,8 @@ from declan.updates import updates as updates
 import post_operational_routing as post_operational_routing
 from declan.music import media_settings_routes as media_settings_routes
 import get_request_dispatch as get_request_dispatch
-import speech_http_routes as speech_http_routes
-import assist_auth_http as assist_auth_http
+from declan.voice import speech_http_routes as speech_http_routes
+from declan.voice import assist_auth_http as assist_auth_http
 import post_payload_validation as post_payload_validation
 import post_origin_auth_http as post_origin_auth_http
 import post_route_gate_http as post_route_gate_http
@@ -112,7 +112,7 @@ import post_entry_gates as post_entry_gates
 import http_response_transport as http_response_transport
 import http_ingress_security as http_ingress_security
 import sensitive_confirmation_resolution as sensitive_confirmation_resolution
-import web_stt
+from declan.voice import web_stt
 from declan.ai import openai_planner
 from declan.ai import ai_settings
 from declan.ai import ai_credentials

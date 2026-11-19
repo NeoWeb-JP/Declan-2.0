@@ -9,7 +9,7 @@ from contextlib import closing
 from pathlib import Path
 import sqlite3
 
-from voice_audio_crypto import MAGIC, encrypt, decrypt, _aesgcm
+from declan.voice.voice_audio_crypto import MAGIC, encrypt, decrypt, _aesgcm
 
 
 def migrate(path):

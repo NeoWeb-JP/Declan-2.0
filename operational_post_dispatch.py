@@ -1,6 +1,6 @@
 """Operational POST routing around shared request validation."""
 import operational_post_routes
-import speech_http_routes
+from declan.voice import speech_http_routes
 
 
 def handles_pre_validation(path):

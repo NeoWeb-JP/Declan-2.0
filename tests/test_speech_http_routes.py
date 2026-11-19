@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock
 
-import speech_http_routes as routes
+from declan.voice import speech_http_routes as routes
 
 
 class SpeechHttpRoutesTests(TestCase):

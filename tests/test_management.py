@@ -21,8 +21,8 @@ import diagnostics
 import history
 import server
 import state_backup
-import voice_profiles
-import voicepipeline
+from declan.voice import voice_profiles
+from declan.voice import voicepipeline
 
 
 def wav(seconds=1, value=1000, rate=16000):

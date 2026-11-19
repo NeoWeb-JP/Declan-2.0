@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import settings_voice_post as routes
+from declan.voice import settings_voice_post as routes
 
 
 class SettingsVoicePostTests(unittest.TestCase):

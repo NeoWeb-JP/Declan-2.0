@@ -10,7 +10,7 @@ VIEW = (ROOT / "custom_components/declan_two/management_view.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 CONFIG = (ROOT / "configuration.py").read_text()
 IMPORT_ROUTE = (ROOT / "settings_import_post.py").read_text()
-DISPATCH = (ROOT / "settings_voice_post.py").read_text()
+DISPATCH = (ROOT / "declan" / "voice" / "settings_voice_post.py").read_text()
 
 class NativeImportContracts(unittest.TestCase):
     def test_backend_reuses_atomic_validated_import(self):
