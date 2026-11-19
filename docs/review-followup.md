@@ -135,7 +135,7 @@ Registry interfaces verified against Home Assistant 2026.11.2:
 [area registry](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/helpers/area_registry.py),
 [floor registry](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/helpers/floor_registry.py).
 
-Local checks for this batch: all 2,437 Python regressions pass, with 87.15% line
-coverage; mypy passes across 681 source files; Ruff and Bandit pass. Require
-final-head GitHub CI before merge. Live HA registry/deployment acceptance remains
-separate from these synthetic interface and transport tests.
+Validation gates for this batch are full Python regression/coverage, repository
+mypy, Ruff, Bandit and HA integration validation. Use the PR checks on the exact
+final head for current test counts and coverage. Live HA registry/deployment
+acceptance remains separate from these synthetic interface and transport tests.
