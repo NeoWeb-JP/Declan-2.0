@@ -1,7 +1,6 @@
 """Local Declan 2.0 chat prototype. Run with python server.py."""
-import argparse
+import argparse as argparse
 import ipaddress
-import json
 import logging
 import os
 import re
@@ -22,10 +21,10 @@ import routine_request_selection
 import routine_execution_dispatch
 import lighting_execution_dispatch
 import ha_household_status
+import server_lifecycle
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
-from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
@@ -966,76 +965,16 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--assist-lan", action="store_true", help="Allow the authenticated Assist endpoint on the LAN.")
-    parser.add_argument("--port", type=int, help="Override the default port (8765, or 52737 in Assist LAN mode).")
-    args = parser.parse_args()
-    port = args.port if args.port is not None else (ASSIST_PORT if args.assist_lan else 8765)
-    if not 0 <= port <= 65535:
-        parser.error("--port must be between 0 and 65535.")
-    if args.assist_lan and port == 0:
-        parser.error("Assist LAN mode needs a fixed port. Omit --port to use 52737.")
-    if args.assist_lan and len(os.environ.get("DECLAN_ASSIST_TOKEN", "")) < 32:
-        parser.error("--assist-lan requires a DECLAN_ASSIST_TOKEN of at least 32 characters.")
-    history.retention_seconds()  # Reject invalid retention before accepting requests.
-    history.initialize()
-    timers.initialize()
-    # Assist LAN mode explicitly exposes the server to configured LAN clients;
-    # the Assist token is validated above before opening the listener.
-    bind_address = "0.0.0.0" if args.assist_lan else "127.0.0.1"  # nosec B104
-    if args.assist_lan:
-        bind_address = os.environ.get('DECLAN_BIND_ADDRESS', bind_address)
-        try:
-            address = ipaddress.ip_address(bind_address)
-            if address.version != 4:
-                raise ValueError
-        except ValueError:
-            parser.error('DECLAN_BIND_ADDRESS must be an IPv4 address.')
-    try:
-        server = ThreadingHTTPServer((bind_address, port), Handler)
-    except OSError as error:
-        parser.exit(1, f"Declan could not open port {port}: {error}\n")
-    with server:
-        worker = Thread(target=server.serve_forever, daemon=True)
-        worker.start()
-        next_prune = monotonic()
-        next_music_check = monotonic() + 5
-        url = f"http://127.0.0.1:{server.server_port}"
-        try:
-            opener = build_opener(ProxyHandler({}))
-            with opener.open(url + "/health", timeout=3) as response:
-                if json.load(response) != {"status": "ok"}:
-                    raise ValueError("Unexpected health response.")
-            DECLAN_EVENT_LOG.info("Declan backend started and health check passed (port %d)", server.server_port)
-            while worker.is_alive():
-                worker.join(timeout=0.5)
-                if updates.RUNTIME.restart.is_set():
-                    DECLAN_EVENT_LOG.info("Restarting Declan to activate selected release")
-                    raise SystemExit(75)
-                try:
-                    timers.ring_due(opener)
-                except Exception:
-                    logging.exception("Timer alarms could not be checked.")
-                if monotonic() >= next_music_check:
-                    next_music_check = monotonic() + 5
-                    try:
-                        music.skip_blocked_tracks(ha_device_connection(), read_music_inventory_result)
-                    except Exception:
-                        logging.exception("Blocked music could not be checked.")
-                if monotonic() >= next_prune:
-                    try:
-                        history.prune()
-                    except Exception:
-                        logging.exception("Conversation history could not be pruned.")
-                    next_prune = monotonic() + 3600
-        except (URLError, TimeoutError, ValueError) as error:
-            parser.exit(1, f"Declan bound {url} but its local health check failed: {error}\n")
-        except KeyboardInterrupt:
-            DECLAN_EVENT_LOG.info("Declan backend stopped by keyboard interrupt")
-        finally:
-            server.shutdown()
-            worker.join()
-
+    return server_lifecycle.main(
+        description=__doc__, argv=None, environ=os.environ,
+        history_store=history, timer_store=timers,
+        server_factory=ThreadingHTTPServer, handler=Handler,
+        thread_factory=Thread, clock=monotonic,
+        opener_factory=build_opener, proxy_factory=ProxyHandler,
+        logger=DECLAN_EVENT_LOG, updates_module=updates, music_module=music,
+        ha_connect=ha_device_connection, music_inventory=read_music_inventory_result,
+        ip_address=ipaddress.ip_address, assist_port=ASSIST_PORT,
+    )
 
 
 def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):

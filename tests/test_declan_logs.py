@@ -37,9 +37,10 @@ class DeclanLogTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         server_source = (root / "server.py").read_text()
         transport_source = (root / "http_response_transport.py").read_text()
+        lifecycle_source = (root / "server_lifecycle.py").read_text()
         self.assertIn('logging.getLogger("declan.server")', server_source)
         self.assertIn('DECLAN_EVENT_LOG.setLevel(logging.INFO)', server_source)
-        self.assertIn('Declan backend started and health check passed', server_source)
+        self.assertIn('Declan backend started and health check passed', lifecycle_source)
         self.assertIn('http_response_transport.send_body(', server_source)
         self.assertIn('logger.info("HTTP %d POST %s"', transport_source)
         self.assertIn('logger.warning("HTTP %d %s %s"', transport_source)
