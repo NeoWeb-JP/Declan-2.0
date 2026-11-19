@@ -58,7 +58,9 @@ The stable launcher starts each selected release and allows 30 seconds for a loc
 
 After a healthy start, cleanup retains the three newest release directories and three newest upgrade snapshots, plus any older current/previous releases. Virtual environments are removed with their releases. Symlink entries are never traversed for deletion. This bounds historical copies of deleted voice samples to the retained snapshots; deleting a sample does not erase those snapshots immediately.
 
-Rollback restores application code, not shared data. Release migrations must remain backward compatible with `previous`; take a container backup before a schema-breaking upgrade. The startup check verifies the local server, not real Home Assistant playback or every endpoint.
+If a freshly activated release passes that health check but then exits with an error within five minutes, the launcher rolls back to `previous` once and logs a warning. A crash later than that, a clean exit, or a crash of a release that was not just activated is not rolled back; the launcher exits so systemd reports and restarts it as usual. After a rollback the launcher never switches back automatically.
+
+Rollback restores application code, not shared data. Release migrations must remain backward compatible with `previous`; take a container backup before a schema-breaking upgrade. The voice-sample encryption migration is one-way: an older release cannot read samples after `migrate_voice_audio` has run, so run it as its own deliberate step with a backup (see `docs/local-voice-encryption.md`), never as a side effect of an update. The startup check verifies the local server, not real Home Assistant playback or every endpoint.
 
 Before testing a downgrade that may change stored data, take a container backup. If the selected build fails to start or predates the Updates button, restore the last build from the container console:
 

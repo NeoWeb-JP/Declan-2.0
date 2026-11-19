@@ -107,3 +107,68 @@ class SupervisorTests(TestCase):
         self.assertTrue(external.exists())
         self.assertFalse((backups / 'extra-0').exists())
         self.assertTrue((backups / 'extra-5').exists())
+
+
+@skipUnless(os.name == 'posix', 'Linux deployment uses symbolic links')
+class EarlyCrashRollbackTests(TestCase):
+    """A new release that is healthy at startup but crashes soon after goes back once."""
+
+    def setUp(self):
+        self.root = Path(self.enterContext(TemporaryDirectory()))
+        self.new = self.root / 'releases' / 'new'
+        self.old = self.root / 'releases' / 'old'
+        for build in (self.new, self.old):
+            build.mkdir(parents=True)
+            (build / 'server.py').touch()
+        (self.root / 'current').symlink_to(self.new)
+        (self.root / 'previous').symlink_to(self.old)
+        self.enterContext(patch.object(supervisor.signal, 'signal'))
+        self.enterContext(patch.object(supervisor, 'healthy', return_value=True))
+        self.enterContext(patch.object(supervisor, 'prune_old'))
+
+    def child(self, code):
+        child = Mock()
+        child.wait.return_value = code
+        return child
+
+    def run_supervisor(self, children, clock):
+        launch = Mock(side_effect=children)
+        with patch.object(supervisor, 'monotonic', side_effect=clock):
+            result = supervisor.supervise(self.root, launch=launch)
+        return result, launch
+
+    def test_early_crash_after_update_restart_rolls_back_once(self):
+        # start -> exit 75 (update activated) -> new release crashes 10 s in -> previous runs
+        result, launch = self.run_supervisor(
+            [self.child(75), self.child(1), self.child(0)], [0, 5, 100, 110])
+        self.assertEqual(result, 0)
+        self.assertEqual((self.root / 'current').resolve(), self.old)
+        self.assertEqual([call.kwargs['cwd'] for call in launch.call_args_list], [self.new, self.new, self.old])
+
+    def test_previous_release_crashing_early_does_not_ping_pong(self):
+        result, launch = self.run_supervisor(
+            [self.child(75), self.child(1), self.child(2)], [0, 5, 100, 110, 200, 210])
+        self.assertEqual(result, 2)
+        self.assertEqual(launch.call_count, 3)
+
+    def test_crash_on_first_start_is_not_rolled_back(self):
+        result, launch = self.run_supervisor([self.child(1)], [0, 10])
+        self.assertEqual(result, 1)
+        self.assertEqual((self.root / 'current').resolve(), self.new)
+        self.assertEqual(launch.call_count, 1)
+
+    def test_late_crash_after_update_is_a_normal_failure(self):
+        result, _ = self.run_supervisor([self.child(75), self.child(1)], [0, 5, 5 + supervisor.EARLY_CRASH_SECONDS])
+        self.assertEqual(result, 1)
+        self.assertEqual((self.root / 'current').resolve(), self.new)
+
+    def test_clean_exit_is_never_rolled_back(self):
+        result, _ = self.run_supervisor([self.child(75), self.child(0)], [0, 5, 100, 110])
+        self.assertEqual(result, 0)
+        self.assertEqual((self.root / 'current').resolve(), self.new)
+
+    def test_missing_previous_release_returns_the_crash_code(self):
+        (self.root / 'previous').unlink()
+        result, launch = self.run_supervisor([self.child(75), self.child(3)], [0, 5, 100, 110])
+        self.assertEqual(result, 3)
+        self.assertEqual(launch.call_count, 2)
