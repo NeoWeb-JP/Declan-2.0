@@ -4,7 +4,7 @@ import sqlite3
 from unittest import TestCase
 from unittest.mock import Mock
 
-import voice_post_routes
+from declan.voice import voice_post_routes
 
 
 class PipelineError(Exception):

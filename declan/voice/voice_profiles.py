@@ -12,11 +12,11 @@ import struct
 from time import time
 import wave
 
-from voice_audio_crypto import encrypt, decrypt
+from declan.voice.voice_audio_crypto import encrypt, decrypt
 from state_backup import sanitize_retained_voice_snapshots
 from contextlib import closing, contextmanager
 
-DATABASE = Path(__file__).resolve().parent / '.data' / 'voice-profiles.sqlite3'
+DATABASE = Path(__file__).resolve().parents[2] / '.data' / 'voice-profiles.sqlite3'
 _LOGGER = logging.getLogger('declan.voice_profiles')
 
 

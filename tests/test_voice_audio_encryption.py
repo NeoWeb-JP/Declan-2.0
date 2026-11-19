@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from voice_audio_crypto import MAGIC, decrypt, encrypt, _key
+from declan.voice.voice_audio_crypto import MAGIC, decrypt, encrypt, _key
 from migrate_voice_audio import migrate
 
 

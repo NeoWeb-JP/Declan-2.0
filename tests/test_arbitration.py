@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from time import monotonic, time
 from unittest import TestCase
 
-from arbitration import CaptureArbiter
+from declan.voice.arbitration import CaptureArbiter
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 

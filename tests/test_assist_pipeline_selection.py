@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import Mock
 
-import web_stt
+from declan.voice import web_stt
 
 
 class AssistPipelineSelectionTests(unittest.TestCase):

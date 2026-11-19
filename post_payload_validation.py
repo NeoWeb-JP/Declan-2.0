@@ -3,7 +3,7 @@
 import post_payload_http
 import post_validation_errors_http
 import request_validation
-import voicepipeline_access_http
+from declan.voice import voicepipeline_access_http
 
 
 def read_authorized_body(handler, *, ingress):

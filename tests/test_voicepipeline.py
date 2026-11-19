@@ -7,7 +7,7 @@ from unittest import TestCase
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
-import voicepipeline as vp
+from declan.voice import voicepipeline as vp
 
 SPEAKERS = [{'id': 'speaker-jaco', 'name': 'Jaco', 'reference_clip_count': 3},
             {'id': 'speaker-ed', 'name': 'Ed', 'reference_clip_count': 5}]
