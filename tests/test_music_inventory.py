@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
 from declan.music import music
-import server
+import legacy_wire
 
 
 class MusicInventoryTests(TestCase):
@@ -49,7 +49,7 @@ class MusicInventoryTests(TestCase):
 
         opener = Mock()
         opener.open.side_effect = open_request
-        inventory, error = server.read_music_inventory(("http://ha.invalid", {}, opener))
+        inventory, error = legacy_wire.read_music_inventory(("http://ha.invalid", {}, opener))
         self.assertIsNone(error)
         self.assertEqual(calls, ["/api/template"])
         player = inventory[0]
@@ -63,10 +63,10 @@ class MusicInventoryTests(TestCase):
     def test_unavailable_states_do_not_produce_partial_inventory(self):
         opener = Mock()
         opener.open.side_effect = HTTPError("http://ha.invalid/api/states", 401, "Unauthorized", Message(), None)
-        self.assertEqual(server.read_music_inventory(("http://ha.invalid", {}, opener)), (None, "unavailable"))
+        self.assertEqual(legacy_wire.read_music_inventory(("http://ha.invalid", {}, opener)), (None, "unavailable"))
         self.assertEqual(opener.open.call_count, 1)
 
     def test_unavailable_registry_does_not_produce_partial_inventory(self):
         opener = Mock()
         opener.open.side_effect = [HTTPError("http://ha.invalid/api/template", 500, "Error", Message(), None)]
-        self.assertEqual(server.read_music_inventory(("http://ha.invalid", {}, opener)), (None, "unavailable"))
+        self.assertEqual(legacy_wire.read_music_inventory(("http://ha.invalid", {}, opener)), (None, "unavailable"))

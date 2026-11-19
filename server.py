@@ -279,15 +279,9 @@ def render_web_voice(message):
 def approved_area_labels(areas):
     return domain_boundary_helpers.approved_area_labels(areas, room_key=music.room_key)
 
-def read_ha_inventory(connection):
-    return inventory_stop_boundaries.read_ha_inventory(connection, r=sys.modules[__name__])
-
 def read_ha_inventory_result(connection) -> ha_inventory.InventoryResult:
     return inventory_stop_boundaries.read_ha_inventory_result(connection, r=sys.modules[__name__])
 
-
-def read_music_inventory(connection):
-    return inventory_stop_boundaries.read_music_inventory(connection, r=sys.modules[__name__])
 
 def read_music_inventory_result(connection) -> ha_inventory.InventoryResult:
     return inventory_stop_boundaries.read_music_inventory_result(connection, r=sys.modules[__name__])
@@ -296,14 +290,8 @@ def read_music_inventory_result(connection) -> ha_inventory.InventoryResult:
 def stop_everywhere_result(connection):
     return inventory_stop_boundaries.stop_everywhere_result(connection, r=sys.modules[__name__])
 
-def stop_everywhere_output(connection):
-    return inventory_stop_boundaries.stop_everywhere_output(connection, r=sys.modules[__name__])
-
 def _stop_everywhere_typed_core(connection):
     return inventory_stop_boundaries._stop_everywhere_typed_core(connection, r=sys.modules[__name__])
-
-def stop_origin_output(connection, satellite, device):
-    return inventory_stop_boundaries.stop_origin_output(connection, satellite, device, r=sys.modules[__name__])
 
 def stop_origin_result(connection, satellite, device):
     return inventory_stop_boundaries.stop_origin_result(connection, satellite, device, r=sys.modules[__name__])

@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 
+import legacy_wire
 import server
 
 
@@ -27,7 +28,7 @@ class ServerStopEverywhereTests(unittest.TestCase):
              patch.object(server.music, "request", side_effect=dispatch), \
              patch.object(server.music, "wait_for",
                           side_effect=lambda conn, entity, predicate, **kw: predicate(players[entity])):
-            _, outcome, reply = server.stop_everywhere_output(object())
+            _, outcome, reply = legacy_wire.stop_everywhere_output(object())
         self.assertEqual(outcome, "confirmed", reply)
         self.assertEqual(calls, [group])
 
@@ -49,7 +50,7 @@ class ServerStopEverywhereTests(unittest.TestCase):
              patch.object(server.music, "request", side_effect=dispatch), \
              patch.object(server.music, "wait_for",
                           side_effect=lambda conn, entity, predicate, **kw: predicate(players[entity])):
-            _, outcome, reply = server.stop_everywhere_output(object())
+            _, outcome, reply = legacy_wire.stop_everywhere_output(object())
         self.assertEqual(outcome, "confirmed", reply)
         self.assertEqual(calls, [approved])
 
