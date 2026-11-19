@@ -3,7 +3,7 @@ import json
 import re
 import sqlite3
 from urllib.error import HTTPError
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 
 
 def home_assistant_status_result(*, environ, history_store, request_factory, opener_factory, proxy_factory, redirect_factory, parse_url):

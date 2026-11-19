@@ -1,14 +1,14 @@
 """Prioritized local handlers, with pure matching and injected execution dependencies."""
 from collections.abc import Callable
 from dataclasses import dataclass
-import ha_inventory
+from declan.ha import ha_inventory
 from routine_selection_results import RoutineTurnSelection
 import re
 
 from execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result
 from local_outcome_contracts import timer_execution_result, routine_execution_result
-from device_status import DeviceStatusResult
+from declan.ha.device_status import DeviceStatusResult
 from information_result import InformationResult
 
 

@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler
 
 from arbitration import CaptureArbiter
 from declan_ingress.http_server import BoundedHTTPServer
-import ha_inventory
+from declan.ha import ha_inventory
 from declan.music import music
 from declan.timers import timers
 

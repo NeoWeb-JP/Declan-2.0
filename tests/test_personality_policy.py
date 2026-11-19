@@ -3,7 +3,7 @@ from datetime import datetime
 import unittest
 
 import personality_policy as p
-import household_language
+from declan.ha import household_language
 
 
 class PersonalityPolicyTests(unittest.TestCase):

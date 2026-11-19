@@ -1,16 +1,16 @@
 """Discover and run Home Assistant scripts without per-script approval."""
 from execution_results import ExecutionResult, Outcome
-from script_action_evidence import parse_script_actions
+from declan.ha.script_action_evidence import parse_script_actions
 from action_evidence_buffer import extend_action_evidence
-from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, CorrelatedTraceResult
-from script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
-from script_provider_results import ScriptReason
+from declan.ha.script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, CorrelatedTraceResult
+from declan.ha.script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
+from declan.ha.script_provider_results import ScriptReason
 import json
 import re
 import secrets
 from dataclasses import dataclass
 from enum import StrEnum
-from script_discovery_cache import ScriptDiscoveryCache
+from declan.ha.script_discovery_cache import ScriptDiscoveryCache
 from urllib.error import HTTPError
 from urllib.request import Request
 from urllib.parse import urlencode

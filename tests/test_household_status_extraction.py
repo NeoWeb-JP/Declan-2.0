@@ -3,10 +3,10 @@ import unittest
 from unittest.mock import patch
 
 import server
-import ha_household_status as status_module
+from declan.ha import ha_household_status as status_module
 import routine_execution_dispatch as routine_module
 from execution_results import Outcome
-from home_assistant_results import HomeAssistantStatus
+from declan.ha.home_assistant_results import HomeAssistantStatus
 
 
 class HouseholdStatusExtractionTests(unittest.TestCase):

@@ -7,22 +7,22 @@ import secrets as secrets
 import sqlite3 as sqlite3
 from http.server import BaseHTTPRequestHandler as BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer  # noqa: F401 - compatibility export
-import ha_inventory as ha_inventory
-import ha_area_switch_actions as ha_area_switch_actions
-import household_routine_dispatch as household_routine_dispatch
-import ha_speech_transport as ha_speech_transport
+from declan.ha import ha_inventory as ha_inventory
+from declan.ha import ha_area_switch_actions as ha_area_switch_actions
+from declan.ha import household_routine_dispatch as household_routine_dispatch
+from declan.ha import ha_speech_transport as ha_speech_transport
 from declan.music import music_stop_dispatch as music_stop_dispatch
-import movie_ha_helpers as movie_ha_helpers
+from declan.ha import movie_ha_helpers as movie_ha_helpers
 import bedroom_routine_dispatch as bedroom_routine_dispatch
 from declan.music import media_title_search as media_title_search
 import ai_fallback_dispatch as ai_fallback_dispatch
 import routine_request_selection as routine_request_selection
 import routine_execution_dispatch as routine_execution_dispatch
-import lighting_execution_dispatch as lighting_execution_dispatch
-import ha_household_status as ha_household_status
+from declan.ha import lighting_execution_dispatch as lighting_execution_dispatch
+from declan.ha import ha_household_status as ha_household_status
 import server_lifecycle as server_lifecycle
 import routine_turn_orchestration as routine_turn_orchestration
-import light_command_parsing
+from declan.ha import light_command_parsing
 import post_ingress_orchestration as post_ingress_orchestration
 import turn_dispatch_orchestration as turn_dispatch_orchestration
 import turn_session_preflight as turn_session_preflight
@@ -31,7 +31,7 @@ import command_vocabulary
 import http_handler_adapters
 import turn_http_entry
 import domain_boundary_helpers
-import household_selection_boundaries
+from declan.ha import household_selection_boundaries
 import legacy_response_adapters
 import runtime_dispatch_boundaries
 from declan.music import inventory_stop_boundaries
@@ -55,11 +55,11 @@ import diagnostics
 import declan_logs as declan_logs
 import configuration as configuration
 from declan.music import media_search_agents as media_search_agents
-import household_entities as household_entities
+from declan.ha import household_entities as household_entities
 import health_readiness as health_readiness
 import voice_profiles as voice_profiles
 import voicepipeline as voicepipeline
-import device_status as device_status
+from declan.ha import device_status as device_status
 import retry_learning as retry_learning
 import retry_training_persistence as retry_training_persistence
 import conversation_persistence as conversation_persistence
@@ -77,8 +77,8 @@ import routine_preview_dispatch as routine_preview_dispatch
 import guest_assignment_command as guest_assignment_command
 import roast_command_dispatch as roast_command_dispatch
 from declan.timers import timer_command_dispatch as timer_command_dispatch
-import lighting_command_dispatch as lighting_command_dispatch
-import lighting_context_finalization as lighting_context_finalization
+from declan.ha import lighting_command_dispatch as lighting_command_dispatch
+from declan.ha import lighting_context_finalization as lighting_context_finalization
 import fallback_entity_authorization as fallback_entity_authorization
 import guarded_fallback_dispatch as guarded_fallback_dispatch
 import turn_context_preparation as turn_context_preparation
@@ -121,16 +121,16 @@ import ai_budget as ai_budget
 import ai_context as ai_context
 import ai_intent_gate as ai_intent_gate
 import guarded_fallback as guarded_fallback
-import ha_dispatcher as ha_dispatcher
+from declan.ha import ha_dispatcher as ha_dispatcher
 import routine_registry as routine_registry
 from routine_action_evidence import parse_routine_actions as parse_routine_actions
-from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
+from declan.ha.home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
-from lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
-from movie_action_evidence import MovieActionEvidence as MovieActionEvidence
+from declan.ha.lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
+from declan.ha.movie_action_evidence import MovieActionEvidence as MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence as extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
-import script_discovery as script_discovery
+from declan.ha import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
 from personality import add_sass as add_sass, choose_line as choose_line
 import routine_responses as routine_responses
@@ -145,7 +145,7 @@ import active_routine_registry as active_routine_registry
 import routine_execution_gates as routine_execution_gates
 import routine_cancellation as routine_cancellation
 import session_turn_state as session_turn_state
-import lighting_intents as lighting_intents
+from declan.ha import lighting_intents as lighting_intents
 import roast as roast
 import personality_policy as personality_policy
 

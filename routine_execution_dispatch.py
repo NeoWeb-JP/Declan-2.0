@@ -4,7 +4,7 @@ import re
 import sqlite3
 from urllib.error import HTTPError
 from execution_results import ExecutionResult, Outcome, MovieLaunchStatus
-from script_provider_results import ScriptProviderResult, ScriptReportedOutcome
+from declan.ha.script_provider_results import ScriptProviderResult, ScriptReportedOutcome
 from routine_action_evidence import RoutineActionStatus
 
 

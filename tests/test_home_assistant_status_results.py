@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 import server
 
 

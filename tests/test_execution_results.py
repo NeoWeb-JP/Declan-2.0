@@ -12,7 +12,7 @@ from action_executor import ActionResult, execute_verified, summarise, summarise
 from action_plan import validate_plan
 from execution_results import ActionStatus, DispatchResult, ExecutionResult, Outcome
 from guarded_fallback import run_guarded_result, run_guarded_fallback
-from ha_dispatcher import dispatch_result, dispatch_verified
+from declan.ha.ha_dispatcher import dispatch_result, dispatch_verified
 from test_ha_dispatcher import Opener
 import history
 import server

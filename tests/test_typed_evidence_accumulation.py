@@ -8,9 +8,9 @@ from action_evidence_wire import action_evidence_to_wire
 from execution_results import Outcome
 from execution_results import ActionResult, ActionStatus, MovieLaunchStatus
 from fallback_action_evidence import FallbackActionEvidence
-from movie_action_evidence import MovieActionEvidence
+from declan.ha.movie_action_evidence import MovieActionEvidence
 from action_evidence_buffer import evidence_completed
-from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
+from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
 import personality_policy
 import response_composition

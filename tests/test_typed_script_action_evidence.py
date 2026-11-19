@@ -8,8 +8,8 @@ from unittest.mock import Mock, patch
 
 from execution_results import Outcome
 from routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
-from script_action_evidence import ScriptActionEvidence, SCRIPT_ACTION_STATUSES, parse_script_actions
-import script_discovery
+from declan.ha.script_action_evidence import ScriptActionEvidence, SCRIPT_ACTION_STATUSES, parse_script_actions
+from declan.ha import script_discovery
 
 
 class TypedScriptActionEvidenceTests(unittest.TestCase):

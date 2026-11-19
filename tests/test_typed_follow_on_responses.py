@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 from command_response import CommandResponse
 from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
-import lighting_result_dispatch
+from declan.ha import lighting_result_dispatch
 import response_composition
 import routine_follow_on
 import routine_follow_on_dispatch

@@ -1,6 +1,6 @@
 """Lighting context finalization regression tests."""
 import unittest
-from lighting_context_finalization import confirmed_lighting_context
+from declan.ha.lighting_context_finalization import confirmed_lighting_context
 from execution_results import Outcome
 
 

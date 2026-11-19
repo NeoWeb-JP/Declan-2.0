@@ -3,7 +3,7 @@ from typing import Any
 import unittest
 from session_turn_state import update_turn
 from execution_results import Outcome
-from lighting_action_evidence import LightingActionEvidence, LightingActionStatus, LightingActionReason
+from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus, LightingActionReason
 
 
 class SessionTurnStateTests(unittest.TestCase):

@@ -10,7 +10,7 @@ from unittest.mock import patch
 from urllib.request import Request, urlopen
 
 import conditions
-import device_status
+from declan.ha import device_status
 import server
 from declan.timers import timers
 from execution_results import ExecutionResult, Outcome

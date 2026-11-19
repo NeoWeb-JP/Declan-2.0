@@ -2,7 +2,7 @@ import io
 import json
 import unittest
 from action_plan import CandidateAction
-from ha_dispatcher import dispatch_verified
+from declan.ha.ha_dispatcher import dispatch_verified
 
 
 class Opener:

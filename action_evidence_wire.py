@@ -1,7 +1,7 @@
 """Explicit serialization boundary for typed and existing legacy action rows."""
 from execution_results import ActionResult
-from lighting_action_evidence import LightingActionEvidence
-from movie_action_evidence import MovieActionEvidence
+from declan.ha.lighting_action_evidence import LightingActionEvidence
+from declan.ha.movie_action_evidence import MovieActionEvidence
 from routine_action_evidence import RoutineActionEvidence
 from fallback_action_evidence import FallbackActionEvidence
 

@@ -8,7 +8,7 @@ from urllib.error import HTTPError
 
 import diagnostics
 from execution_results import ExecutionResult, Outcome
-from lighting_action_evidence import LightingActionStatus, LightingActionReason
+from declan.ha.lighting_action_evidence import LightingActionStatus, LightingActionReason
 
 
 MAX_PARALLEL_REQUESTS = 6

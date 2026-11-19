@@ -1,7 +1,7 @@
 import unittest
 
 from action_plan import validate_plan, CandidateAction
-from ha_action_preflight import preflight
+from declan.ha.ha_action_preflight import preflight
 
 
 class PreflightTests(unittest.TestCase):

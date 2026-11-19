@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 import diagnostics
-import ha_inventory
+from declan.ha import ha_inventory
 import server
 import test_home_assistant as fixtures
 from execution_results import Outcome

@@ -6,7 +6,7 @@ import unittest
 from io import BytesIO
 from urllib.error import HTTPError
 from unittest.mock import Mock, MagicMock, patch
-import script_discovery
+from declan.ha import script_discovery
 
 
 class RoutineResultTests(unittest.TestCase):

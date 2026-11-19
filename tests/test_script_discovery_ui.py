@@ -4,7 +4,7 @@ import unittest
 
 PANEL = (Path(__file__).resolve().parents[1] /
          "custom_components/declan_two/frontend/panel.js").read_text(encoding="utf-8")
-DISCOVERY = (Path(__file__).resolve().parents[1] / "script_discovery.py").read_text(encoding="utf-8")
+DISCOVERY = (Path(__file__).resolve().parents[1] / "declan" / "ha" / "script_discovery.py").read_text(encoding="utf-8")
 
 
 class ScriptDiscoveryUITests(unittest.TestCase):

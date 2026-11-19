@@ -4,7 +4,7 @@ This module never performs household actions or changes command outcomes.
 """
 from datetime import datetime, time
 from response_rotation_state import ResponseRotationState
-import household_language
+from declan.ha import household_language
 from action_evidence_buffer import evidence_value
 from execution_results import Outcome, parse_outcome
 from routine_action_evidence import RoutineActionStatus

@@ -8,7 +8,7 @@ from action_executor import execute_verified, summarise_result
 from execution_results import ExecutionResult, Outcome
 from action_plan import validate_plan
 from ai_budget import reserve, settle
-from ha_action_preflight import preflight
+from declan.ha.ha_action_preflight import preflight
 import logging
 from model_response_results import NonBillablePlanningError
 

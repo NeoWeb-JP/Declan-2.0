@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 from urllib.error import HTTPError
 
-import ha_inventory
+from declan.ha import ha_inventory
 
 
 class LocationViewTests(unittest.IsolatedAsyncioTestCase):

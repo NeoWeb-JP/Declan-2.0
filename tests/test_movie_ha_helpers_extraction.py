@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 import server
-import movie_ha_helpers as helpers
+from declan.ha import movie_ha_helpers as helpers
 from execution_results import MovieLaunchStatus
 
 

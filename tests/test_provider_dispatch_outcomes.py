@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import command_registry
 from active_routine_registry import ActiveRoutineRegistry
 import server
-import script_discovery
+from declan.ha import script_discovery
 from execution_results import ExecutionResult, Outcome
 
 

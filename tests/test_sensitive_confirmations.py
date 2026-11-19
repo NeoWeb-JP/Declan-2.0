@@ -91,7 +91,7 @@ class SensitiveConfirmationTests(unittest.TestCase):
         self.assertIn("discovery.execute_result(", orchestration)
         self.assertIn("discovery.enqueue_result(", orchestration)
         self.assertIn("household_selection_boundaries.execute_routine_result(", server)
-        boundary = (Path(__file__).resolve().parents[1] / "household_selection_boundaries.py").read_text()
+        boundary = (Path(__file__).resolve().parents[1] / "declan" / "ha" / "household_selection_boundaries.py").read_text()
         self.assertIn("discovery=r.script_discovery", boundary)
 
 

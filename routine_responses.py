@@ -37,7 +37,7 @@ def response_phase(outcome) -> ResponsePhase | None:
 def defaults(item):
     import personality_policy as policy
     import personality
-    import script_discovery
+    from declan.ha import script_discovery
     profile: dict[str, dict[str, dict[str, list[str]]]] = {phase: {mode: {action: [] for action in ACTIONS} for mode in MODES} for phase in PHASES}
     aliases = script_discovery.phrases(item)
     category = next((name for name, aliases_for in (

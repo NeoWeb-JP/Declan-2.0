@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 
 import ai_fallback_dispatch
 import ai_settings
-import ha_inventory
+from declan.ha import ha_inventory
 from ai_budget import BudgetExhausted, monthly_reserved
 from ai_pricing import charge
 from guarded_fallback import run_guarded_result

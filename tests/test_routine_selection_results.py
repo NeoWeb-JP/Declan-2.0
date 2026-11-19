@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from command_registry import RequestContext, routine_registry
 from execution_results import ExecutionResult, Outcome
 from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
-import script_discovery
+from declan.ha import script_discovery
 import server
 
 

@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import configuration
-import household_entities
+from declan.ha import household_entities
 import server
 from execution_results import Outcome
 

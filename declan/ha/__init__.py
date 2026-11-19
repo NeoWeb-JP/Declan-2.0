@@ -1,0 +1,1 @@
+"""Declan ha domain."""

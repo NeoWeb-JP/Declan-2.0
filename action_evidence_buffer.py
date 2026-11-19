@@ -1,10 +1,10 @@
 """Opt-in typed accumulation with compatibility for existing list callers."""
 from action_evidence_wire import TYPED_EVIDENCE
-from movie_action_evidence import MovieActionEvidence
+from declan.ha.movie_action_evidence import MovieActionEvidence
 from enum import StrEnum
 from execution_results import ActionResult, ActionStatus
 from fallback_action_evidence import FallbackActionEvidence
-from lighting_action_evidence import LightingActionEvidence, parse_lighting_reason
+from declan.ha.lighting_action_evidence import LightingActionEvidence, parse_lighting_reason
 from routine_action_evidence import RoutineActionEvidence
 
 

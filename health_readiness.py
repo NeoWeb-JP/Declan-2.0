@@ -3,7 +3,7 @@ import sqlite3
 from dataclasses import dataclass
 
 import history
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 
 
 def database_ready():

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from command_response import CommandResponse
 from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
 import conversation_persistence
-import device_result_response
+from declan.ha import device_result_response
 import early_command_result
 import information_result_response
 from declan.music import stop_result_response

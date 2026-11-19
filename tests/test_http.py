@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 
 import server
 from execution_results import ExecutionResult, Outcome
-from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
+from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from declan_ingress import proxy
 

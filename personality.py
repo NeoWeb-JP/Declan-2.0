@@ -1,7 +1,7 @@
 """Short, outcome-specific replies for Declan's built-in commands."""
 
 from response_rotation_state import ResponseRotationState
-import household_language
+from declan.ha import household_language
 
 
 LINES = {

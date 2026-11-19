@@ -9,7 +9,7 @@ from urllib.error import HTTPError
 from io import BytesIO
 import unittest
 
-import script_discovery
+from declan.ha import script_discovery
 import personality_policy
 import server
 import test_ha_audit as audit_tests

@@ -3,7 +3,7 @@ from typing import Any, cast
 import unittest
 
 import health_readiness
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 
 
 class HomeAssistantReadinessPolicyTests(unittest.TestCase):

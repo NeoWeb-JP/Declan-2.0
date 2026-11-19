@@ -4,9 +4,9 @@ from unittest.mock import patch
 
 import server
 from execution_results import Outcome
-from script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
-from script_provider_results import ScriptReason
-from script_provider_results import CorrelatedTraceResult
+from declan.ha.script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, parse_trace_outcome
+from declan.ha.script_provider_results import ScriptReason
+from declan.ha.script_provider_results import CorrelatedTraceResult
 
 
 class ScriptProviderResultTests(unittest.TestCase):

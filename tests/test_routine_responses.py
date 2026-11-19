@@ -9,7 +9,7 @@ from unittest.mock import patch
 import history
 import routine_responses as responses
 import personality_policy
-import script_discovery
+from declan.ha import script_discovery
 from execution_results import Outcome, parse_outcome
 
 

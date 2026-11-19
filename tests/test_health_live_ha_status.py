@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 import server
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 
 
 class HomeAssistantDependencyReadinessTests(unittest.TestCase):

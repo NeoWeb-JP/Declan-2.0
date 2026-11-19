@@ -2,7 +2,7 @@
 from typing import Any
 import unittest
 from unittest.mock import Mock
-from lighting_result_dispatch import dispatch_lighting_result
+from declan.ha.lighting_result_dispatch import dispatch_lighting_result
 
 
 class LightingResultDispatchTests(unittest.TestCase):

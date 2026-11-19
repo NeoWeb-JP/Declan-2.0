@@ -2,7 +2,7 @@
 
 import json
 import diagnostics
-import ha_inventory
+from declan.ha import ha_inventory
 from declan.music import approved_media_players
 from execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result

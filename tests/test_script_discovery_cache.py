@@ -6,8 +6,8 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-import script_discovery
-from script_discovery_cache import ScriptDiscoveryCache
+from declan.ha import script_discovery
+from declan.ha.script_discovery_cache import ScriptDiscoveryCache
 
 
 def payload(name):

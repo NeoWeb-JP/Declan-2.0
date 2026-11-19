@@ -6,7 +6,7 @@ from execution_results import ExecutionResult, Outcome
 from ai_budget import BudgetExhausted, MICRO_USD
 from model_response_results import IncompletePlanningError, PlanningTimeoutError
 from ai_context import ContextSelectionError
-from ha_action_preflight import SensitiveCoverConfirmationRequired
+from declan.ha.ha_action_preflight import SensitiveCoverConfirmationRequired
 from ai_pricing import model_profile, require_available, RetiredModelError
 
 LOGGER = logging.getLogger(__name__)

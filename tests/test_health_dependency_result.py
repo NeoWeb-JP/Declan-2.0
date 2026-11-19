@@ -2,7 +2,7 @@
 import unittest
 
 from health_readiness import DependencyHealth
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 
 
 class DependencyHealthResultTests(unittest.TestCase):

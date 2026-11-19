@@ -1,7 +1,7 @@
 """Lighting command dispatch regression tests."""
 import unittest
 from unittest.mock import Mock
-from lighting_command_dispatch import dispatch_lighting
+from declan.ha.lighting_command_dispatch import dispatch_lighting
 
 
 class LightingCommandDispatchTests(unittest.TestCase):

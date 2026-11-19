@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-import script_discovery
+from declan.ha import script_discovery
 import server
 
 

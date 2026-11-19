@@ -4,9 +4,9 @@ from execution_results import Outcome
 
 import information_command_dispatch
 import information_result_response
-import device_command_dispatch
-import device_result_response
-import lighting_result_dispatch
+from declan.ha import device_command_dispatch
+from declan.ha import device_result_response
+from declan.ha import lighting_result_dispatch
 
 
 @dataclass(frozen=True)
