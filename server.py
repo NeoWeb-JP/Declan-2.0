@@ -7,11 +7,11 @@ import secrets
 import sqlite3 as sqlite3
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
-import ha_inventory
-import ha_area_switch_actions
+import ha_inventory as ha_inventory
+import ha_area_switch_actions as ha_area_switch_actions
 import household_routine_dispatch as household_routine_dispatch
 import ha_speech_transport as ha_speech_transport
-import music_stop_dispatch
+import music_stop_dispatch as music_stop_dispatch
 import movie_ha_helpers
 import bedroom_routine_dispatch as bedroom_routine_dispatch
 import media_title_search
@@ -93,7 +93,7 @@ import music
 import approved_media_players as approved_media_players
 import spotify_playlists as spotify_playlists
 import music_playlists_post as music_playlists_post
-import timers
+import timers as timers
 import updates
 import post_operational_routing as post_operational_routing
 import media_settings_routes as media_settings_routes
@@ -122,7 +122,7 @@ import routine_registry
 from routine_action_evidence import parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
-from lighting_action_evidence import LightingActionEvidence
+from lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence as MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
 from fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
