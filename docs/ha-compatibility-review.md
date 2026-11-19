@@ -11,7 +11,10 @@ not functional voice acceptance, the deployed Declan code version or absence of
 OpenAI credentials elsewhere. No device actions or configuration writes were
 performed.
 
-## Legacy naming disposition proposed for acceptance
+## Accepted legacy naming disposition
+
+Accepted through merged PR #757. Retain this allowlist rather than pursuing a
+destructive blanket rename.
 
 Retain the remaining compatibility identifiers:
 
@@ -27,8 +30,8 @@ Retain the remaining compatibility identifiers:
 - `declan_local_result` in example YAML is a local response variable, not an
   installed integration identifier. Renaming it has no architecture benefit.
 
-Recommend dispositioning the original rename finding with this explicit
-allowlist. Do not remove working adapters to reach zero legacy search matches.
+The original rename finding is dispositioned with this explicit allowlist.
+Do not remove working adapters to reach zero legacy search matches.
 Any retirement requires producer/entity/cache inventory and a tested migration.
 This proposal does not certify names in external HA configuration.
 
