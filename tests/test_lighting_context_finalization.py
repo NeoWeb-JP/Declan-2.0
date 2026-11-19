@@ -6,6 +6,7 @@ from execution_results import Outcome
 
 class LightingContextFinalizationTests(unittest.TestCase):
     def test_typed_outcome_gate_matches_legacy_and_rejects_unknown_values(self):
+        outcome: object
         for outcome in Outcome:
             self.assertEqual(self.context(outcome=outcome), self.context(outcome=outcome.value))
         for outcome in ("future_outcome", [], None):

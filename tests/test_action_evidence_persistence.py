@@ -1,4 +1,7 @@
 """Typed action evidence crosses response/history boundaries as plain JSON."""
+from lighting_action_evidence import LightingActionStatus
+from routine_action_evidence import RoutineActionStatus
+from typing import Any, cast
 import io
 import json
 import sqlite3
@@ -21,8 +24,8 @@ import server
 class ActionEvidencePersistenceTests(unittest.TestCase):
     def rows(self):
         return [ActionResult(0, "light.study", "light.turn_on", ActionStatus.CONFIRMED),
-                LightingActionEvidence("Study", "turn_on", "planned", "light.study"),
-                RoutineActionEvidence("Music", "requested", required=False),
+                LightingActionEvidence("Study", "turn_on", LightingActionStatus.PLANNED, "light.study"),
+                RoutineActionEvidence("Music", RoutineActionStatus.REQUESTED, required=False),
                 MovieActionEvidence("TV", MovieLaunchStatus.SENT, "remote.tv", "Accepted"),
                 {"target": "legacy", "status": "custom_legacy", "extra": [1, True]}]
 
@@ -74,12 +77,12 @@ class ActionEvidencePersistenceTests(unittest.TestCase):
         record.assert_called_once()
 
     def test_movie_evidence_is_frozen_and_cannot_claim_confirmed_completion(self):
-        evidence = MovieActionEvidence("TV", "sent", "remote.tv", "Accepted")
+        evidence = MovieActionEvidence("TV", MovieLaunchStatus.SENT, "remote.tv", "Accepted")
         self.assertEqual(evidence.to_wire()["status"], "sent")
         with self.assertRaises(FrozenInstanceError):
-            evidence.status = MovieLaunchStatus.FAILED
+            setattr(evidence, 'status', MovieLaunchStatus.FAILED)
         with self.assertRaises(ValueError):
-            MovieActionEvidence("TV", "confirmed", "remote.tv", "Accepted")
+            cast(Any, MovieActionEvidence)("TV", "confirmed", "remote.tv", "Accepted")
 
     def test_movie_provider_emits_sent_or_skipped_evidence_without_repeated_dispatch(self):
         for outcome, expected in ((Outcome.REPORTED_SUCCESS, MovieLaunchStatus.SENT),
@@ -87,6 +90,7 @@ class ActionEvidencePersistenceTests(unittest.TestCase):
             opener = Mock()
             opener.open.return_value = io.BytesIO(b'{"service_response":{}}')
             mapping = {"movie": {"script": "script.movie", "remote": "remote.tv", "fields": {}, "sensitive": False}}
+            actions: list[dict[str, Any]]
             actions = []
             with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
                  patch.object(server.routine_registry, "load", return_value=mapping), \

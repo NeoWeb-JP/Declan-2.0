@@ -7,8 +7,8 @@ import training_history_post as routes
 
 class TrainingHistoryPostTests(unittest.TestCase):
     def setUp(self):
+        self.responses: list[tuple[int, object]] = []
         self.handler = SimpleNamespace(path="", send_json=lambda status, payload: self.responses.append((status, payload)))
-        self.responses = []
         self.body = {"action": "test"}
         self.kwargs = dict(
             command_responses=object(), routine_responses=object(),

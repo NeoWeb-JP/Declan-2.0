@@ -12,6 +12,7 @@ class FiniteNumberTests(unittest.TestCase):
                 self.assertTrue(finite_number(value))
 
     def test_invalid_timing_values(self):
+        value: object
         for value in (None, True, False, "10", [], {}, float("nan"),
                       float("inf"), float("-inf"), 10 ** 1000):
             with self.subTest(type=type(value).__name__):

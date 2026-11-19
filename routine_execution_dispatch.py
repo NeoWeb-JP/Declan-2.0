@@ -103,7 +103,7 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
         extend_evidence(action_results, steps)
     required = [step for step in steps if step.required is not False]
     confirmed = any(step.completed for step in required)
-    if outcome is ScriptReportedOutcome.SUCCESS and (not required or len(steps) != len(raw_steps)
+    if outcome is ScriptReportedOutcome.SUCCESS and (not required or not isinstance(raw_steps, (list, dict)) or len(steps) != len(raw_steps)
                                  or any(not step.completed for step in required)):
         outcome = ScriptReportedOutcome.PARTIAL if confirmed else ScriptReportedOutcome.UNKNOWN
     elif outcome is ScriptReportedOutcome.PARTIAL and not confirmed:
@@ -123,7 +123,7 @@ def routine_completion_result(result, request_id, routine_id, period, movie_acti
             if type(battery) is int and 0 <= battery <= 50:
                 reminder = sass(f"The Peugeot is at {battery}% and isn't plugged in.", "bedtime_ev", guest_mode)
                 reply += f" {reminder}"
-            if type(temperature) in (int, float) and -40 <= temperature <= 16:
+            if isinstance(temperature, (int, float)) and type(temperature) in (int, float) and -40 <= temperature <= 16:
                 reply += f" It's {temperature:g} degrees indoors and the heating isn't running."
         detail = ("Home Assistant reports all lights are off." if period == "night"
                   else "Home Assistant confirmed the required steps.")

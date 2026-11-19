@@ -1,4 +1,5 @@
 """Regression tests for fallback eligibility and authorization boundaries."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 
@@ -9,8 +10,10 @@ from guarded_fallback_dispatch import dispatch_fallback
 
 class FallbackOrchestrationTests(unittest.TestCase):
     def setUp(self):
+        self.args: dict[str, Any]
         self.auth = Mock(return_value=("light.kitchen",))
         self.fallback = Mock(return_value=("AI reply", "confirmed", ["action"]))
+        self.actions: list[dict[str, Any]]
         self.actions = []
         self.args = dict(
             routine_reply=None, light_result=None,

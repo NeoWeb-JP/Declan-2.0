@@ -25,7 +25,7 @@ class DependencyHealthResultTests(unittest.TestCase):
         from dataclasses import FrozenInstanceError
         result = DependencyHealth(True, HomeAssistantStatusResult(HomeAssistantStatus.CONNECTED))
         with self.assertRaises(FrozenInstanceError):
-            result.database = False
+            setattr(result, 'database', False)
 
 
 if __name__ == "__main__":

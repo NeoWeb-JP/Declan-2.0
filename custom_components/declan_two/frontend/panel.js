@@ -1995,7 +1995,19 @@ class DeclanTwoNativePanel extends HTMLElement {
         form.elements.namedItem('domain_' + domain).checked = data.allowed_domains.includes(domain);
       }
       status.textContent = response.key_configured ? 'AI settings loaded. OpenAI API key configured.' : 'AI settings loaded. Configure an OpenAI API key before enabling fallback.';
-      this.shadowRoot.querySelector('.ai-usage').textContent = 'Monthly usage information is available in the AI settings response.';
+      const monthly = Number(data.monthly_budget_usd);
+      const ceiling = Number(data.request_ceiling_usd);
+      const reserved = response.month_usage_micro_usd;
+      const usage = this.shadowRoot.querySelector('.ai-usage');
+      if (Number.isFinite(monthly) && monthly >= 0 && Number.isSafeInteger(reserved) && reserved >= 0) {
+        const remaining = Math.max(0, monthly - reserved / 1000000);
+        usage.textContent = '$' + remaining.toFixed(2) + ' remaining this month; spend and pending reservations: $' + (reserved / 1000000).toFixed(2) + '.';
+        if (Number.isFinite(ceiling) && ceiling > 0 && remaining + 0.0000001 < ceiling) {
+          usage.textContent += ' Budget exhausted for another full request reservation. Local commands still work.';
+        }
+      } else {
+        usage.textContent = 'Monthly budget information is unavailable.';
+      }
     } catch (error) {
       this._aiSettings = null;
       const detail = error?.message ? ': ' + String(error.message).slice(0, 180) : '';

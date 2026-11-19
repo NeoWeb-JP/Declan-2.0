@@ -10,6 +10,7 @@ from execution_results import Outcome
 
 class ConfirmationResponseTests(unittest.TestCase):
     def test_reply_results_retain_typed_outcomes_until_serialization(self):
+        decision: object
         expected = {ConfirmationDecision.PROMPT: Outcome.CONFIRMATION_PROMPT,
                     ConfirmationDecision.CANCELLED: Outcome.CONFIRMATION_CANCELLED,
                     ConfirmationDecision.DENIED: Outcome.CONFIRMATION_DENIED}
@@ -20,6 +21,7 @@ class ConfirmationResponseTests(unittest.TestCase):
                 if decision not in expected:
                     self.assertIsNone(result)
                     continue
+                assert result is not None
                 self.assertIs(result.outcome, expected[decision])
                 self.assertIs(result.continue_conversation, decision is ConfirmationDecision.PROMPT)
                 with self.assertRaises(AttributeError):

@@ -1,4 +1,5 @@
 """Sensitive Assist confirmations: expiry, origin, replay, speaker and alias safety."""
+from typing import Any
 import os
 import unittest
 from unittest.mock import patch
@@ -43,6 +44,7 @@ class SensitiveConfirmationTests(unittest.TestCase):
             self.assertEqual(sc.sensitive_group("guests have left",None,{"guests have left":"clear"}),"guest")
             self.assertEqual(sc.sensitive_group("dinner time",None,{},None,{"dinner time"}),"dinner")
     def test_good_night_respects_unchecked_confirmation_setting(self):
+        routine: tuple[Any, ...]
         routine = (("night", {}), None)
         mapping = {"night": {"script": "script.good_night", "phrases": ["good night"],
                              "fields": {}, "sensitive": False}}
@@ -53,6 +55,7 @@ class SensitiveConfirmationTests(unittest.TestCase):
                                             group=None, speaker=None)[0], "allow")
 
     def test_good_night_respects_checked_confirmation_setting(self):
+        routine: tuple[Any, ...]
         routine = (("night", {}), None)
         mapping = {"night": {"script": "script.good_night", "phrases": ["good night"],
                              "fields": {}, "sensitive": True}}

@@ -16,6 +16,7 @@ class HistoryEntryIntegrityTests(unittest.TestCase):
         history.DATABASE = Path(directory.name) / "history.sqlite3"
 
     def test_training_rejects_invalid_history_ids(self):
+        turn_id: object
         for turn_id in (True, False, 0, -1, "1", 1.5, [], {}):
             with self.subTest(turn_id=turn_id):
                 with self.assertRaisesRegex(ValueError, "valid command"):

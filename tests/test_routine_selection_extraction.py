@@ -30,6 +30,7 @@ class RoutineSelectionExtractionTests(unittest.TestCase):
     def test_house_status_missing_ha_is_explicit(self):
         with patch.object(server, "ha_device_connection", return_value=None):
             result = server.select_routine_result("house status", None)
+        assert result is not None
         self.assertEqual(result.kind, RoutineSelectionKind.HOUSE_STATUS_MISSING)
 
     def test_unconfigured_ha_does_not_select_other_routines(self):

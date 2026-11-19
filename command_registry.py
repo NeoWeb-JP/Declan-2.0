@@ -137,7 +137,10 @@ def registry(deps):
         return HandledCommand("music_play", music_execution_result(result))
 
     def media_search(context, phrase):
-        result = deps.search_media(phrase)
+        search = deps.search_media
+        if search is None:
+            raise ValueError("Media search is not configured")
+        result = search(phrase)
         return HandledCommand("media_search", result if isinstance(result, ExecutionResult) else ExecutionResult(*result))
 
     return HandlerRegistry((

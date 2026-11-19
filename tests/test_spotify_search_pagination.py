@@ -28,8 +28,7 @@ class FakeSpotify:
 
 class SpotifyPaginationTests(unittest.TestCase):
     def setUp(self):
-        music.spotify_token = None
-        self.addCleanup(setattr, music, "spotify_token", None)
+        self.enterContext(patch.object(music.RUNTIME, "spotify_token", None))
 
     def test_collects_25_playlists_in_ten_ten_five_pages(self):
         fake = FakeSpotify()

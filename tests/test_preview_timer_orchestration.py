@@ -1,5 +1,6 @@
 """Preview-first timer orchestration regressions."""
 
+from execution_results import Outcome
 import unittest
 from unittest.mock import Mock
 
@@ -36,12 +37,12 @@ class PreviewTimerOrchestrationTests(unittest.TestCase):
         self.assertEqual(calls[1][2]["opener"], "opener")
 
     def test_typed_preview_precedes_timer(self):
-        preview = ExecutionResult("preview", "confirmed")
-        timer = Mock(result=ExecutionResult("timer", "confirmed"))
+        preview = ExecutionResult("preview", Outcome.CONFIRMED)
+        timer = Mock(result=ExecutionResult("timer", Outcome.CONFIRMED))
         self.assertIs(select_early_result(preview, timer), preview)
 
     def test_typed_timer_selected_without_preview(self):
-        result = ExecutionResult("timer", "confirmed")
+        result = ExecutionResult("timer", Outcome.CONFIRMED)
         self.assertIs(select_early_result(None, Mock(result=result)), result)
 
     def test_untyped_timer_rejected(self):

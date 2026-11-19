@@ -1,4 +1,5 @@
 """Routine follow-on dispatch regression tests."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 from types import SimpleNamespace
@@ -13,6 +14,7 @@ class RoutineFollowOnDispatchTests(unittest.TestCase):
         self.dispatch.routine_follow_on = None
         self.execute = Mock(return_value=SimpleNamespace(reply="chained", outcome="partial",
                          lighting_context=("lights",), routine_voice_result="voice"))
+        self.actions: list[dict[str, Any]]
         self.actions = []
         self.args = dict(origin_device="bedroom", satellite="kitchen",
                          action_results=self.actions, scope="house", execute=self.execute,

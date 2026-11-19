@@ -1,4 +1,5 @@
 """Regression tests for the Home Assistant ingress token environment gate."""
+from email.message import Message
 import os
 import unittest
 from unittest.mock import patch
@@ -9,7 +10,8 @@ import server
 class IngressTokenEnvironmentDefaultsTests(unittest.TestCase):
     def allowed(self, environment, supplied):
         handler = object.__new__(server.Handler)
-        handler.headers = {"X-Declan-Ingress-Token": supplied}
+        handler.headers = Message()
+        handler.headers["X-Declan-Ingress-Token"] = supplied
         with patch.dict(os.environ, environment, clear=True):
             return handler.has_ingress_access()
 

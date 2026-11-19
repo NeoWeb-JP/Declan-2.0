@@ -90,6 +90,8 @@ def supervise(root, port=52737, *, launch=subprocess.Popen):
             except Exception as error:
                 # Never log exception text: paths may identify private data.
                 _LOGGER.warning("Release cleanup failed (reason=%s)", type(error).__name__)
+            if child is None:
+                return 1
             result = child.wait()
             child = None
             if stopping or result != 75:

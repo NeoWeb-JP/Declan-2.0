@@ -113,6 +113,7 @@ class PersonalityPolicyTests(unittest.TestCase):
             self.assertFalse(any(name in reply for name in ("Jaco", "Edd", "Finn", "Tux")))
 
     def test_dinner_sass_never_masks_failed_or_unverified_actions(self):
+        outcome: object
         for outcome in ("failed", "partial", "unverified", "started", "cancelled"):
             self.assertEqual(p.decorate("Dinner could not be confirmed.", category="dinner", outcome=outcome),
                              "Dinner could not be confirmed.")
@@ -152,6 +153,7 @@ class PersonalityPolicyTests(unittest.TestCase):
             self.assertTrue(any(x in reply for x in p._GUEST))
 
     def test_failures_and_safety_are_never_decorated(self):
+        outcome: object
         for outcome in p._SAFE_OUTCOMES:
             self.assertEqual(p.decorate("Could not connect.", outcome=outcome,
                                         visitor_present=False), "Could not connect.")

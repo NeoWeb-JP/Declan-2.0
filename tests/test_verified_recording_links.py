@@ -1,4 +1,5 @@
 """Regression tests for explicit voice-recording teaching links."""
+from typing import cast
 import tempfile
 import unittest
 from email.message import Message
@@ -61,16 +62,16 @@ class VerifiedRecordingLinksTests(unittest.TestCase):
         handler = object.__new__(server.Handler)
         handler.path = path
         handler.client_address = ('192.0.2.10', 12345)
-        handler.server = SimpleNamespace(server_port=52737)
+        setattr(handler, "server", SimpleNamespace(server_port=52737))
         handler.headers = Message()
         handler.headers['Authorization'] = 'Bearer ' + supplied
         handler.headers['Host'] = 'declan.internal:52737'
-        handler.has_ingress_access = lambda: False
-        handler.send_json = Mock()
-        handler.send_body = Mock()
+        setattr(handler, 'has_ingress_access', lambda: False)
+        setattr(handler, 'send_json', Mock())
+        setattr(handler, 'send_body', Mock())
         with patch.dict(server.os.environ, {'DECLAN_ASSIST_TOKEN':'x' * 32}):
             handler.do_GET()
-        return handler.send_json.call_args.args
+        return cast(Mock, handler.send_json).call_args.args
 
     def test_ha_token_from_remote_host_loads_link_and_actual_reply(self):
         history.record('s','assist','study light on it',server.UNMATCHED_REPLY,

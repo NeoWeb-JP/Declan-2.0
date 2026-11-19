@@ -1,3 +1,4 @@
+from typing import Any, cast
 import unittest
 
 from action_plan import validate_plan, execution_order
@@ -9,14 +10,15 @@ class PlanValidationTests(unittest.TestCase):
     def test_ordered_action_model_rejects_string_statuses_and_malformed_metadata(self):
         action = validate_plan({"actions": [{"entity_id": "light.kitchen", "service": "turn_on"}]},
                                {"light.kitchen"})[0]
+        status: object
         for status in ("pending", "skipped_dependency", None, [], "future_status"):
             with self.subTest(status=status), self.assertRaises(TypeError):
-                OrderedActionResult(0, action, status)
+                cast(Any, OrderedActionResult)(0, action, status)
         for index in (-1, True, "0", None):
             with self.subTest(index=index), self.assertRaises(ValueError):
-                OrderedActionResult(index, action, ActionReadiness.PENDING)
+                cast(Any, OrderedActionResult)(index, action, ActionReadiness.PENDING)
         with self.assertRaises(TypeError):
-            OrderedActionResult(0, {"entity_id": "light.kitchen"}, ActionReadiness.PENDING)
+            cast(Any, OrderedActionResult)(0, {"entity_id": "light.kitchen"}, ActionReadiness.PENDING)
         for status in ActionReadiness:
             result = OrderedActionResult(0, action, status)
             self.assertIs(result.status, status)
@@ -30,6 +32,7 @@ class PlanValidationTests(unittest.TestCase):
         ]}, {"light.kitchen", "light.study"})
         for value, expected in ((True, ActionReadiness.PENDING), (False, ActionReadiness.SKIPPED_DEPENDENCY),
                                 (1, ActionReadiness.SKIPPED_DEPENDENCY), (None, ActionReadiness.SKIPPED_DEPENDENCY)):
+            outcomes: dict[int, object]
             outcomes = {}
             decisions = execution_order_result(actions, outcomes)
             first = next(decisions)

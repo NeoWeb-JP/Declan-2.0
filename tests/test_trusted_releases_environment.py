@@ -43,6 +43,7 @@ class TrustedReleasesEnvironmentTests(unittest.TestCase):
             import stat
             from types import SimpleNamespace
             safe = SimpleNamespace(st_uid=0, st_mode=stat.S_IFREG | 0o600)
+            payload: object
             for payload in ([], {"latest": "a" * 40}, {"v1.2.3": "invalid"},
                             {"v1.2.3": "A" * 40}):
                 with self.subTest(payload=payload), patch.dict(

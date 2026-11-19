@@ -61,7 +61,10 @@ def parse_routine_actions(steps):
         if not isinstance(step, dict) or not isinstance(step.get("target"), str):
             continue
         try:
-            status = RoutineActionStatus(step.get("status"))
+            raw_status = step.get("status")
+            if not isinstance(raw_status, str):
+                continue
+            status = RoutineActionStatus(raw_status)
         except (ValueError, TypeError):
             continue
         fields = {key: step[key][:240] for key in (

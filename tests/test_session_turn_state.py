@@ -1,4 +1,5 @@
 """Session context and voice correction retry regression tests."""
+from typing import Any
 import unittest
 from session_turn_state import update_turn
 from execution_results import Outcome
@@ -16,6 +17,7 @@ class SessionTurnStateTests(unittest.TestCase):
             self.assertEqual("failed_light_phrase" in typed[0], reason is LightingActionReason.UNRESOLVED)
 
     def test_typed_and_legacy_outcomes_preserve_retry_state(self):
+        outcome: object
         for outcome in Outcome:
             with self.subTest(outcome=outcome):
                 self.assertEqual(self.update(outcome=outcome, reply_text="Done.", light=True,
@@ -77,6 +79,7 @@ class SessionTurnStateTests(unittest.TestCase):
             ("turn off kitchen", "turn off kitchen", "unresolved"),
         ):
             with self.subTest(message_type=type(message).__name__, phrase_type=type(phrase).__name__):
+                session: dict[str, Any]
                 session, reply = {}, {"reply": "Unmatched"}
                 update_turn(session, reply, message=message, phrase=phrase,
                     outcome="unresolved", scope="kitchen", status_target=None,
@@ -87,6 +90,7 @@ class SessionTurnStateTests(unittest.TestCase):
     def test_invalid_original_phrase_never_stores_retry(self):
         for message in (None, 42, "", " ", "x" * 4097):
             with self.subTest(message_type=type(message).__name__):
+                session: dict[str, Any]
                 session, reply = {}, {"reply": "Unmatched"}
                 update_turn(session, reply, message=message, phrase="unknown",
                     outcome="unresolved", scope="kitchen", status_target=None,
@@ -99,6 +103,7 @@ class SessionTurnStateTests(unittest.TestCase):
     def test_invalid_clock_never_stores_retry(self):
         for now in (None, True, float("nan"), float("inf"), 10 ** 1000):
             with self.subTest(clock_type=type(now).__name__):
+                session: dict[str, Any]
                 session, reply = {}, {"reply": "Unmatched"}
                 update_turn(session, reply, message="turn off kitchen", phrase="unknown",
                     outcome="unresolved", scope="kitchen", status_target=None,

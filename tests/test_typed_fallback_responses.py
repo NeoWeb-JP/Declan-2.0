@@ -1,4 +1,5 @@
 """Fallback retains typed execution, authorization gates and diagnostic redaction."""
+from typing import Any
 import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import MagicMock, Mock, patch
@@ -15,9 +16,11 @@ class TypedFallbackResponseTests(unittest.TestCase):
         self.execution = ExecutionResult("Cannot verify", Outcome.UNVERIFIED, (
             ActionResult(0, "light.study", "light.turn_on", ActionStatus.UNVERIFIED, "No readback"),))
         self.step = {"entity_id": "light.study", "status": "unverified", "ai_generated": True}
+        self.actions: list[dict[str, Any]]
         self.actions = []
         self.provider = Mock(return_value=FallbackResponse(self.execution, (self.step,)))
         self.auth = Mock(return_value=("light.study",))
+        self.args: dict[str, Any]
         self.args = dict(routine_reply=None, light_result=None, body={}, authorization="Bearer token",
                          bridge_token="token", source="assist", action_results=self.actions,
                          exposed_entities=self.auth, dispatch_fallback=dispatch_fallback_result,
@@ -83,7 +86,7 @@ class TypedFallbackResponseTests(unittest.TestCase):
     def test_response_is_frozen_and_legacy_adapter_preserves_plain_triple(self):
         response = FallbackResponse(self.execution, (self.step,))
         with self.assertRaises(FrozenInstanceError):
-            response.result = self.execution
+            setattr(response, 'result', self.execution)
         with patch.object(server, "guarded_openai_fallback_result", return_value=response):
             legacy = server.guarded_openai_fallback("lights", source="assist")
         self.assertEqual(legacy, ("Cannot verify", "unverified", [self.step]))

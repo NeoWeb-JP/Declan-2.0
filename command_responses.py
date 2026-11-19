@@ -47,7 +47,7 @@ def item(entity):
 def defaults(row):
     import personality
     key = item(row.get("entity_id"))["entity_id"][8:]
-    profile = {phase: {mode: {action: [] for action in library.ACTIONS}
+    profile: dict[str, dict[str, dict[str, list[str]]]] = {phase: {mode: {action: [] for action in library.ACTIONS}
                       for mode in library.MODES} for phase in library.PHASES}
     for mode, guest in (("sass", False), ("guest", True)):
         profile["completed"][mode]["default"] = list(personality.LINES[key][guest])

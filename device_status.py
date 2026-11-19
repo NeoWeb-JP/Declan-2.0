@@ -108,11 +108,11 @@ def describe_result(name, requested, inventory):
 
     if entity == SCREEN and requested in {"up", "down"} and state in {"open", "closed"}:
         position = attrs.get("current_position")
-        if state == "closed" or type(position) in (int, float) and 0 <= position <= 5:
+        if state == "closed" or isinstance(position, (int, float)) and type(position) in (int, float) and 0 <= position <= 5:
             state = "up"
-        elif type(position) in (int, float) and 80 <= position <= 100:
+        elif isinstance(position, (int, float)) and type(position) in (int, float) and 80 <= position <= 100:
             state = "down"
-        elif type(position) in (int, float) and 5 < position < 80:
+        elif isinstance(position, (int, float)) and type(position) in (int, float) and 5 < position < 80:
             state = f"partway down at {position:g} percent"
         else:
             return DeviceStatusResult(ExecutionResult(f"{label} reports it's open. I couldn't verify how far down it is.", Outcome.PARTIAL), entity)

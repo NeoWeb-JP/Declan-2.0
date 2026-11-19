@@ -7,6 +7,7 @@ import turn_preflight as preflight
 
 class TurnPreflightTests(unittest.TestCase):
     def setUp(self):
+        self.responses: list[tuple[int, object]]
         self.responses = []
         self.handler = SimpleNamespace(
             log_error=lambda *args: None,

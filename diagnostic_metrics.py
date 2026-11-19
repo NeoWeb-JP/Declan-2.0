@@ -7,6 +7,13 @@ import re
 import sqlite3
 from contextlib import closing
 from time import time
+from typing import TypedDict
+
+
+class MetricSamples(TypedDict):
+    durations: list[int | float]
+    errors: int
+    count: int
 
 # Never use an arbitrary stored URL, speaker identifier or payload as a metric label.
 ROUTES = frozenset({"/api/chat", "/api/assist", "/api/stt", "/api/tts",
@@ -30,8 +37,8 @@ def _duration(value):
 
 def aggregate(traces, *, sampled_at=None):
     """Summarise bounded, redacted traces; emit no raw messages or trace IDs."""
-    grouped = defaultdict(lambda: {"durations": [], "errors": 0, "count": 0})
-    stages = defaultdict(lambda: {"durations": [], "errors": 0, "count": 0})
+    grouped: defaultdict[str, MetricSamples] = defaultdict(lambda: {"durations": [], "errors": 0, "count": 0})
+    stages: defaultdict[str, MetricSamples] = defaultdict(lambda: {"durations": [], "errors": 0, "count": 0})
     for trace in traces:
         if not isinstance(trace, dict):
             continue

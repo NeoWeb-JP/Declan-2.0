@@ -1,5 +1,6 @@
 """Check Spotify handoffs without changing live playback."""
 
+from email.message import Message
 import io
 import json
 import unittest
@@ -8,14 +9,15 @@ from tempfile import TemporaryDirectory
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
+from typing import Any
 
 import music
 import server
 
 
-class MusicTests(unittest.TestCase):
+class MusicFixture(unittest.TestCase):
     def setUp(self):
-        self.players = {entity: {"entity_id": entity, "state": "idle",
+        self.players: dict[str, dict[str, Any]] = {entity: {"entity_id": entity, "state": "idle",
                                  "attributes": {"friendly_name": "Everywhere"} if room == "everywhere" else {},
                                  "declan_music_assistant": True,
                                  "declan_area": {"bedroom": "Master Bedroom",
@@ -58,7 +60,7 @@ class MusicTests(unittest.TestCase):
             term = query["q"][0]
             self.searches.append({"media_type": types, "q": term})
             if self.spotify_throttled:
-                raise HTTPError(request.full_url, 429, "Too Many Requests", {}, None)
+                raise HTTPError(request.full_url, 429, "Too Many Requests", Message(), None)
             result = self.search_results
             if result is None:
                 result = {"tracks": [{"name": term, "id": "0123456789AbCdEfGhIjKl"}]}
@@ -94,7 +96,7 @@ class MusicTests(unittest.TestCase):
         elif path.endswith("/media_play"):
             player["state"] = "playing"
         elif self.throttled:
-            raise HTTPError(request.full_url, 429, "Too Many Requests", {}, None)
+            raise HTTPError(request.full_url, 429, "Too Many Requests", Message(), None)
         elif self.play_response:
             self.play_response(player, data)
         else:
@@ -107,30 +109,6 @@ class MusicTests(unittest.TestCase):
     def control(self, phrase, **kwargs):
         return music.control(music.parse_control(phrase), ("http://ha", {}, self),
                              lambda _: (list(self.players.values()), None), **kwargs)
-
-    def test_unqualified_music_uses_satellite_area_and_spotify_search(self):
-        utility = "media_player.utility_queue"
-        satellite = "assist_satellite.utility"
-        self.players[utility] = {"entity_id": utility, "state": "idle", "attributes": {},
-                                 "declan_area": "Utility Room", "declan_music_assistant": True}
-        self.players[satellite] = {"entity_id": satellite, "state": "idle",
-                                  "declan_device": "utility-device", "declan_area": "Utility Room"}
-        self.players[self.bedroom]["state"] = "idle"
-        self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
-        for origin in (satellite, "utility-device"):
-            with self.subTest(origin=origin):
-                reply, outcome = music.play(music.parse("play country music"), ("http://ha", {}, self),
-                                            lambda _: (list(self.players.values()), None), origin=origin)
-                self.assertEqual(outcome, "confirmed", reply)
-                self.assertEqual(self.calls[-1][1]["entity_id"], utility)
-                self.assertEqual(self.searches[-1]["q"], "country music")
-
-    def test_unqualified_music_without_origin_asks_for_room_without_playback(self):
-        reply, outcome = self.play("play country music")
-        self.assertEqual((reply, outcome), ("Which room should I play the music in?", "unresolved"))
-        self.assertEqual(self.calls, [])
-        self.assertEqual(self.searches, [])
-
 
     def bedroom_players(self):
         # Reproduce the reported room: two TVs, one satellite wrapper, and the
@@ -156,6 +134,33 @@ class MusicTests(unittest.TestCase):
                                 "declan_area": "Master Bedroom", "declan_device": "tv-" + suffix,
                                 "declan_music_assistant": True}
         return target, native, satellite
+
+
+class MusicTests(MusicFixture):
+    def test_unqualified_music_uses_satellite_area_and_spotify_search(self):
+        utility = "media_player.utility_queue"
+        satellite = "assist_satellite.utility"
+        self.players[utility] = {"entity_id": utility, "state": "idle", "attributes": {},
+                                 "declan_area": "Utility Room", "declan_music_assistant": True}
+        self.players[satellite] = {"entity_id": satellite, "state": "idle",
+                                  "declan_device": "utility-device", "declan_area": "Utility Room"}
+        self.players[self.bedroom]["state"] = "idle"
+        self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
+        for origin in (satellite, "utility-device"):
+            with self.subTest(origin=origin):
+                reply, outcome = music.play(music.parse("play country music"), ("http://ha", {}, self),
+                                            lambda _: (list(self.players.values()), None), origin=origin)
+                self.assertEqual(outcome, "confirmed", reply)
+                self.assertEqual(self.calls[-1][1]["entity_id"], utility)
+                self.assertEqual(self.searches[-1]["q"], "country music")
+
+    def test_unqualified_music_without_origin_asks_for_room_without_playback(self):
+        reply, outcome = self.play("play country music")
+        self.assertEqual((reply, outcome), ("Which room should I play the music in?", "unresolved"))
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.searches, [])
+
+
 
     def test_bedroom_wrapper_is_preferred_over_two_available_tvs(self):
         target, native, satellite = self.bedroom_players()
@@ -303,6 +308,7 @@ class MusicTests(unittest.TestCase):
         self.assertFalse(music.PREFERENCES.exists())
 
     def test_feedback_saves_favourites_and_skips_blocked_tracks(self):
+        connection: tuple[Any, ...]
         connection = ("http://ha", {}, self)
 
         def inventory(_):
@@ -499,7 +505,7 @@ class MusicTests(unittest.TestCase):
                         if request.full_url.endswith("/" + action):
                             attempts.append(request)
                             raise HTTPError("http://ha/private?token=secret", status,
-                                            "private provider response", {}, io.BytesIO(b"private audio details"))
+                                            "private provider response", Message(), io.BytesIO(b"private audio details"))
                         return original_open(request, timeout)
 
                     invoke = (lambda: self.play("play islands in the stream in the bedroom")) if operation == "play" else (
@@ -684,6 +690,7 @@ class MusicTests(unittest.TestCase):
         music.save_spotify_credentials("new-client", "new-secret")
         music.spotify_search(self, "Dolly Parton", "", ("artist",))
         self.assertEqual(self.spotify_tokens, 2)
+        assert music.RUNTIME.spotify_token is not None
         self.assertEqual(music.RUNTIME.spotify_token[0], ("new-client", "new-secret"))
 
     def test_artist_request_verifies_the_reported_artist_of_the_new_track(self):

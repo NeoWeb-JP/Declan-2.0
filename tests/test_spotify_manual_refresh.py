@@ -1,4 +1,5 @@
 """Manual Spotify category refresh starts real discovery without blocking HA."""
+from email.message import Message
 import os
 import tempfile
 import time
@@ -53,7 +54,7 @@ class PlaylistRefreshTests(unittest.TestCase):
         uri = "spotify://playlist/" + "B"*22
         sp.manage({"category":"country","playlist":uri,"operation":"add"})
         with patch.object(music, "spotify_search", side_effect=HTTPError(
-                "https://api.spotify.com/v1/search", 403, "Forbidden", {}, None)):
+                "https://api.spotify.com/v1/search", 403, "Forbidden", Message(), None)):
             sp.start_refresh("country", lambda: object())
             self.wait()
         self.assertIn("403", sp.listing()["refresh"]["error"])

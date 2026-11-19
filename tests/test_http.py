@@ -1,5 +1,6 @@
 """Exercise Declan's browser and Assist API with isolated local state."""
 
+from typing import Any
 import io
 import json
 from pathlib import Path
@@ -307,7 +308,7 @@ class APITests(TestCase):
         token = "x" * 64
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_INGRESS_TOKEN": token}))
         self.enterContext(patch.object(proxy, "SUPERVISOR_ADDRESS", "127.0.0.1"))
-        gateway = self.enterContext(proxy.ThreadingHTTPServer(("127.0.0.1", 0), proxy.ProxyHandler))
+        gateway = self.enterContext(proxy.IngressHTTPServer(("127.0.0.1", 0), proxy.ProxyHandler))
         gateway.target = urlsplit(self.origin)
         gateway.ingress_token = token
         gateway.panel_token = "p" * 64
@@ -468,6 +469,7 @@ class APITests(TestCase):
         script = {"entity_id": "script.declan_sexy_time_controller",
                   "name": "Declan - Sexy Time Controller", "safe": True,
                   "fields": ["operation"]}
+        connection: tuple[Any, ...]
         connection = ("http://ha.invalid", {}, Mock())
         with patch.object(server, "ha_device_connection", return_value=connection), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)), \

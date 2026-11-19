@@ -1,5 +1,6 @@
 """Short-term chat recall must not revive timed-out action context."""
 
+from typing import Any, cast
 from collections import OrderedDict
 import re
 import unittest
@@ -13,6 +14,7 @@ import session_orchestration
 class ChatRecallTests(unittest.TestCase):
     def setUp(self):
         self.clock = [1000.0]
+        self.sessions: OrderedDict[str, dict[str, Any]]
         self.sessions = OrderedDict()
         self.recall = ChatRecallMemory()
         self.commands = {
@@ -68,7 +70,7 @@ class ChatRecallTests(unittest.TestCase):
             def __iter__(self):
                 raise RuntimeError("hostile iteration")
         class HostileText(str):
-            def strip(self):
+            def strip(self, chars: str | None = None) -> str:
                 raise RuntimeError("hostile strip")
         self.recall.remember("sid", {
             "last": "hello", "recent_messages": HostileHistory(["safe"]),
@@ -117,6 +119,7 @@ class ChatRecallTests(unittest.TestCase):
     def test_non_string_messages_fail_before_mutating_sessions(self):
         self.say("hello")
         before = list(self.sessions.items())
+        bad: object
         for bad in (None, 123, [], {}):
             with self.subTest(bad=repr(bad)):
                 with self.assertRaisesRegex(ValueError, "chat message must be a string"):
@@ -159,13 +162,14 @@ class ChatRecallTests(unittest.TestCase):
 
     def test_corrupt_active_sessions_are_pruned_without_crashing(self):
         self.sessions["missing-at"] = {"name": "Alex"}
-        self.sessions["not-a-dict"] = None
+        cast(Any, self.sessions)["not-a-dict"] = None
         self.sessions["bad-at"] = {"at": "yesterday"}
         self.say("hello")
         for key in ("missing-at", "not-a-dict", "bad-at"):
             self.assertNotIn(key, self.sessions)
 
     def test_invalid_client_session_ids_get_fresh_opaque_ids(self):
+        bad: object
         for bad in ([], {}, 123, True, "", "x" * 257):
             with self.subTest(bad=repr(bad)):
                 result = self.say("hello", bad)

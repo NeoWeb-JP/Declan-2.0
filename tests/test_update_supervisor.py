@@ -1,4 +1,5 @@
-import io
+from email.message import Message
+from http_test_doubles import HTTPResponse
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,8 +15,9 @@ class HealthTests(TestCase):
         child.poll.return_value = None
         for pid, body, expected in (('123', b'{"status":"ok"}', True), ('456', b'{"status":"ok"}', False),
                                     ('123', b'invalid', False)):
-            response = io.BytesIO(body)
-            response.headers = {'X-Declan-Pid': pid}
+            response = HTTPResponse(body)
+            response.headers = Message()
+            response.headers['X-Declan-Pid'] = pid
             opener = Mock()
             opener.open.return_value = response
             with patch.object(supervisor, 'monotonic', side_effect=[0, 1, 31]), patch.object(supervisor, 'sleep'):

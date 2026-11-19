@@ -30,7 +30,7 @@ def parse_light_command(phrase):
         )
         if command is None:
             return None
-        targets.append(command.group("name", "state"))
+        targets.append((command.group("name"), command.group("state")))
     name, direction = targets[0]
     for target, state in targets[1:]:
         verb = "make" if state in ("darker", "brighter", "very bright") else "turn"

@@ -31,6 +31,7 @@ class SettingsImportPostTests(TestCase):
         self.handler.send_json.assert_called_once_with(200, {"saved": True})
 
     def test_rejects_unconfirmed_and_unknown_fields(self):
+        body: object
         for body in (None, [], {"confirm": False}, {"confirm": 1}, {"unknown": True}):
             with self.subTest(body=body):
                 self.handler.reset_mock()

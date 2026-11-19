@@ -49,7 +49,7 @@ def referenced_source_files(tree):
              if isinstance(n, ast.Constant) and isinstance(n.value, str)),
             key=lambda n: (n.lineno, n.col_offset),
         )
-        names = [part.value for part in parts]
+        names = [part.value for part in parts if isinstance(part.value, str)]
         python_parts = [index for index, part in enumerate(names) if part.endswith(".py")]
         if not python_parts:
             continue

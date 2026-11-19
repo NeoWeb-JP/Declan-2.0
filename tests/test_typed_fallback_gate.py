@@ -1,4 +1,5 @@
 """Typed fallback gate: authorization, precedence and result validation."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 
@@ -11,6 +12,7 @@ class TypedFallbackGateTests(unittest.TestCase):
         self.authorize = Mock(return_value=("light.allowed",))
         self.dispatch = Mock(return_value=ExecutionResult("Done", Outcome.CONFIRMED))
         self.handler = Mock()
+        self.actions: list[dict[str, Any]]
         self.actions = []
         self.kwargs = dict(
             routine_reply=None, light_result=None,

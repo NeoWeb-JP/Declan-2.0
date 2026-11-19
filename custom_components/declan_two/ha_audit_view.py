@@ -37,7 +37,7 @@ async def collect_report(hass):
                 for service in entries}
     routines = []
     gaps = []
-    traces = {}
+    traces: dict[str, list[dict]] = {}
     from .routine_jobs import latest_results_typed
     try:
         background_results = await latest_results_typed(hass)

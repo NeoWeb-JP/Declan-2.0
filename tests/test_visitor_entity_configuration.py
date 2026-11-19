@@ -30,6 +30,7 @@ class VisitorEntityConfigurationTests(unittest.TestCase):
             opener.assert_not_called()
 
     def test_malformed_non_string_entity_is_unknown(self):
+        entity: object
         for entity in (None, 42, [], {}):
             with self.subTest(entity=entity), patch.dict(os.environ, {
                     "DECLAN_HA_URL": "https://ha.example",

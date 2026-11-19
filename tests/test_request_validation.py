@@ -38,6 +38,7 @@ class RequestValidationTests(unittest.TestCase):
                     message_and_session(body)
 
     def test_non_string_message_types_rejected(self):
+        message: object
         for message in (None, [], {}, True, 1.5):
             with self.subTest(message=repr(message)):
                 with self.assertRaises(ValueError):

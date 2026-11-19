@@ -1,4 +1,5 @@
 """POST preflight must preserve distinct Assist and management authentication."""
+from typing import Any
 import unittest
 from types import SimpleNamespace
 import post_request_preflight
@@ -6,6 +7,7 @@ import post_request_preflight
 
 class PostPreflightTests(unittest.TestCase):
     def check(self, path, *, assist=False, known=True, origin=True):
+        calls: list[tuple[Any, ...]]
         calls = []
         handler = SimpleNamespace(path=path)
         def authenticate(h, *, token):

@@ -294,6 +294,7 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
     if any(household_language.render(line) in reply
            for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST)):
         return reply
+    lines: tuple[str, ...]
     if guest or visitor_present is not False:
         lines = _DINNER_GUEST if category == "dinner" else _GUEST
         key = ("guest", category)

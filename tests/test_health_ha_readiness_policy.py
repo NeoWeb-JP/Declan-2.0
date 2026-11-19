@@ -1,4 +1,5 @@
 """Dependency health must not confuse recent activity with current reachability."""
+from typing import Any, cast
 import unittest
 
 import health_readiness
@@ -17,7 +18,7 @@ class HomeAssistantReadinessPolicyTests(unittest.TestCase):
 
     def test_rejects_untyped_status_strings(self):
         with self.assertRaises(TypeError):
-            health_readiness.home_assistant_ready("connected")
+            cast(Any, health_readiness.home_assistant_ready)("connected")
 
 
 if __name__ == "__main__":

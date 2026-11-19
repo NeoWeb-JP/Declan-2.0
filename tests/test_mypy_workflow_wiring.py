@@ -1,5 +1,6 @@
 """Ensure CI continues to enforce the mypy inventory guard."""
 from pathlib import Path
+import configparser
 import unittest
 
 
@@ -8,6 +9,12 @@ WORKFLOW = ROOT / ".github" / "workflows" / "python-quality.yml"
 
 
 class MypyWorkflowWiringTests(unittest.TestCase):
+    def test_mypy_configuration_parses_and_checks_untyped_bodies(self):
+        parser = configparser.ConfigParser(interpolation=None)
+        with (ROOT / 'mypy.ini').open(encoding='utf-8') as configuration:
+            parser.read_file(configuration)
+        self.assertTrue(parser.getboolean('mypy', 'check_untyped_defs'))
+
     def test_advisory_inventory_is_followed_by_blocking_guard(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         inventory = workflow.index("- name: Mypy dependency import inventory (advisory)")

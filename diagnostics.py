@@ -15,7 +15,7 @@ from typing import Any
 from execution_results import ExecutionResult, Outcome, parse_outcome
 
 DATABASE = Path(__file__).resolve().parent / '.data' / 'diagnostics.sqlite3'
-ACTIVE = ContextVar('declan_request_trace', default=None)
+ACTIVE: ContextVar[dict[str, Any] | None] = ContextVar('declan_request_trace', default=None)
 RETENTION = 7 * 86400
 
 

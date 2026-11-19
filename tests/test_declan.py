@@ -1,5 +1,6 @@
 """Regression checks using mocked Home Assistant data and local HTTP only."""
 
+from typing import Any
 import json
 from contextlib import ExitStack
 from datetime import date
@@ -50,12 +51,14 @@ class CoreTests(TestCase):
                          [date(2026, 11, 14), date(2026, 11, 15)])
 
     def test_unavailable_device_is_not_confirmed(self):
+        inventory: list[dict[str, Any]]
         inventory = [{"entity_id": "light.fairy_lights", "state": "unavailable",
                       "attributes": {"friendly_name": "Fairy Lights"}}]
         _, outcome, entity = device_status.describe("fairy lights", "on", inventory)
         self.assertEqual((outcome, entity), ("unavailable", "light.fairy_lights"))
 
     def test_screen_position_and_duplicate_names(self):
+        inventory: list[dict[str, Any]]
         inventory = [{"entity_id": device_status.SCREEN, "state": "open",
                       "attributes": {"current_position": 83}}]
         reply, outcome, entity = device_status.describe("projector screen", "down", inventory)
@@ -72,6 +75,7 @@ class CoreTests(TestCase):
         self.assertEqual(device_status.parse("what about the lamp", device_status.SCREEN), ("lamp", None))
 
     def test_on_off_question_prefers_lamp_but_honours_explicit_switch(self):
+        inventory: list[dict[str, Any]]
         inventory = [
             {"entity_id": "light.master_bedroom_queen_lamp", "state": "on",
              "attributes": {"friendly_name": "Queen Lamp"}},

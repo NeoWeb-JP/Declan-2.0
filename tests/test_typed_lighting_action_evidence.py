@@ -1,4 +1,5 @@
 """Lighting evidence retains planning, completion and compatibility semantics."""
+from typing import Any
 import io
 import unittest
 from dataclasses import FrozenInstanceError
@@ -13,6 +14,7 @@ import server
 
 class TypedLightingActionEvidenceTests(unittest.TestCase):
     def test_reason_codes_are_typed_without_changing_detail_wire_fields(self):
+        detail: str | None
         for reason in LightingActionReason:
             for detail in (reason, reason.value):
                 with self.subTest(detail=detail):
@@ -22,7 +24,7 @@ class TypedLightingActionEvidenceTests(unittest.TestCase):
                     self.assertEqual(evidence.to_wire(), {"target": "Study", "action": "turn_on",
                         "status": "skipped", "detail": reason.value})
                     with self.assertRaises(FrozenInstanceError):
-                        evidence.reason = None
+                        setattr(evidence, 'reason', None)
         for detail in (None, "UNRESOLVED", " unresolved", "HTTP 401", "future reason"):
             evidence = LightingActionEvidence("Study", "turn_on", LightingActionStatus.UNVERIFIED, detail=detail)
             self.assertIsNone(evidence.reason)
@@ -58,28 +60,29 @@ class TypedLightingActionEvidenceTests(unittest.TestCase):
             self.assertEqual(evidence.completed, status in {LightingActionStatus.CONFIRMED, LightingActionStatus.ALREADY_SET})
 
     def test_evidence_is_frozen_validated_and_preserves_existing_text(self):
-        evidence = LightingActionEvidence("t" * 300, "turn_on", "confirmed", detail="")
+        evidence = LightingActionEvidence("t" * 300, "turn_on", LightingActionStatus.CONFIRMED, detail="")
         self.assertEqual(evidence.to_wire()["target"], "t" * 300)
         self.assertEqual(evidence.to_wire()["detail"], "")
         self.assertNotIn("entity_id", evidence.to_wire())
         with self.assertRaises(FrozenInstanceError):
-            evidence.status = LightingActionStatus.PLANNED
+            setattr(evidence, 'status', LightingActionStatus.PLANNED)
+        fields: object
         for fields in ({"status": "requested"}, {"target": 42}, {"action": None},
                        {"entity_id": []}, {"detail": 42}):
             with self.assertRaises(ValueError):
                 LightingActionEvidence(**(dict(target="Study", action="turn_on", status="confirmed") | fields))
 
     def test_follow_up_selection_accepts_typed_and_legacy_evidence_in_order(self):
-        steps = [LightingActionEvidence("Study", "turn_on", "confirmed", "light.study"),
+        steps = [LightingActionEvidence("Study", "turn_on", LightingActionStatus.CONFIRMED, "light.study"),
                  {"status": "already_set", "entity_id": "light.kitchen"},
                  {"status": "confirmed", "entity_id": "light.study"},
-                 LightingActionEvidence("Hall", "turn_on", "planned", "light.hall"),
+                 LightingActionEvidence("Hall", "turn_on", LightingActionStatus.PLANNED, "light.hall"),
                  {"status": "unverified", "entity_id": "light.bedroom"},
                  {"status": "confirmed", "entity_id": None}, {}, "invalid"]
         self.assertEqual(confirmed_lighting_entities(steps), ("light.study", "light.kitchen"))
 
     def test_context_retains_scope_preview_failure_and_cap_guards(self):
-        step = LightingActionEvidence("Study", "turn_on", "confirmed", "light.study")
+        step = LightingActionEvidence("Study", "turn_on", LightingActionStatus.CONFIRMED, "light.study")
         self.assertEqual(confirmed_lighting_context("lights on", Outcome.CONFIRMED, "study", [step]), ("light.study",))
         for phrase, outcome, scope, rows in (("preview lights on", Outcome.CONFIRMED, "study", [step]),
                                              ("lights on", Outcome.UNVERIFIED, "study", [step]),
@@ -92,6 +95,7 @@ class TypedLightingActionEvidenceTests(unittest.TestCase):
         for desired, preview, expected in (("on", True, LightingActionStatus.PLANNED),
                                            ("off", False, LightingActionStatus.ALREADY_SET)):
             opener = Mock()
+            steps: list[dict[str, Any]]
             steps = []
             with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
                  patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
@@ -119,6 +123,7 @@ class TypedLightingActionEvidenceTests(unittest.TestCase):
             "friendly_name": "Garden light", "declan_as_light": True}}
         opener = Mock()
         opener.open.side_effect = [io.BytesIO(b'[]'), io.BytesIO(b'{"state":"on"}')]
+        steps: list[dict[str, Any]]
         steps = []
         with patch.object(server, "LightingActionEvidence", wraps=LightingActionEvidence) as model:
             result = server.set_switch_as_light_result("garden light", "on", [row], ("http://ha", {}, opener), action_results=steps)

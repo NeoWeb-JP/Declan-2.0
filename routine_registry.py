@@ -3,6 +3,7 @@
 No routine execution happens when mappings are created or imported.
 """
 import json
+from typing import Any
 import re
 import history
 
@@ -115,7 +116,7 @@ def bootstrap(available_entities):
             script = configured or fallback
             if script not in available:
                 continue
-            item = {"script": script, "phrases": phrases, "fields": {}, "sensitive": False}
+            item: dict[str, Any] = {"script": script, "phrases": phrases, "fields": {}, "sensitive": False}
             if name == "movie" or name == "movie_bedroom":
                 remote_key = "DECLAN_BEDROOM_MOVIE_REMOTE" if name == "movie_bedroom" else "DECLAN_MOVIE_REMOTE"
                 remote = configuration.get(remote_key, "")

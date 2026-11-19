@@ -1,4 +1,5 @@
 """Caller and wire mutations must not change retained response payloads."""
+from typing import Any
 import unittest
 from dataclasses import replace
 
@@ -16,6 +17,7 @@ class ResponsePayloadIsolationTests(unittest.TestCase):
         )
 
     def test_input_and_nested_wire_mutations_do_not_change_retained_response(self):
+        payload: dict[str, Any]
         for factory in self.factories():
             with self.subTest(factory=factory):
                 payload = {"session_id": "session", "reply": "Done",

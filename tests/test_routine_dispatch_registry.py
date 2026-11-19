@@ -1,4 +1,5 @@
 """Typed routine command registry tests."""
+from typing import Any
 from unittest import TestCase
 from unittest.mock import Mock
 from command_registry import RequestContext, routine_registry
@@ -6,6 +7,7 @@ from execution_results import Outcome
 
 class RoutineDispatchTests(TestCase):
     def setUp(self):
+        self.actions: list[dict[str, Any]]
         self.actions = []
         self.select = Mock(return_value=None)
         self.execute = Mock(return_value=("Routine started.", "confirmed", "Done"))
@@ -21,6 +23,7 @@ class RoutineDispatchTests(TestCase):
         self.select.assert_called_once_with("what is the weather", "kitchen")
 
     def test_executes_selected_script_once(self):
+        selection: tuple[Any, ...]
         selection = ("auto:script.declan_good_morning", {})
         self.select.return_value = (selection, None)
         result = self.dispatch("good morning")
@@ -32,6 +35,7 @@ class RoutineDispatchTests(TestCase):
         self.assertEqual(result.routine_selection, (selection, None))
 
     def test_chained_follow_on_preserved(self):
+        selection: tuple[Any, ...]
         selection = ("auto:script.declan_movie_time", {})
         self.select.return_value = (selection, "turn off kitchen")
         result = self.dispatch("movie time and turn off kitchen")

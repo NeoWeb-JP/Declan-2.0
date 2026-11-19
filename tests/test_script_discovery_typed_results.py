@@ -1,4 +1,5 @@
 """Typed script discovery results preserve existing HA execution and receipt contracts."""
+from typing import Any, cast
 import unittest
 import json
 from unittest.mock import MagicMock, patch
@@ -16,15 +17,17 @@ class ScriptDiscoveryTypedResultTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             setattr(result, "status", BackgroundReceiptStatus.UNVERIFIED)
         with self.assertRaises(TypeError):
-            BackgroundReceiptResult("accepted")
+            cast(Any, BackgroundReceiptResult)("accepted")
 
     def test_real_enqueue_preserves_conservative_receipt_decisions(self):
+        cases: list[tuple[int, object, Outcome]]
         valid = {"status": "accepted", "job_id": "declan-fixed", "entity_id": "script.morning"}
         cases = [(202, valid, Outcome.STARTED), (200, valid, Outcome.UNVERIFIED)]
         for key, value in (("status", "ACCEPTED"), ("status", "completed"),
                            ("job_id", "other"), ("entity_id", "script.other"),
                            ("status", []), ("job_id", None)):
             cases.append((202, {**valid, key: value}, Outcome.UNVERIFIED))
+        payload: object
         for payload in (None, [], {}, "accepted"):
             cases.append((202, payload, Outcome.UNVERIFIED))
         for status, payload, expected in cases:

@@ -1,4 +1,5 @@
 """Publication is a one-place release operation; installation still pins code identity."""
+from email.message import Message
 import io
 import json
 import os
@@ -99,7 +100,7 @@ class PublishedReleaseTests(TestCase):
                 updates.published_tags()
         opener = Mock()
         for code in (302, 403, 429, 500):
-            opener.open.side_effect = HTTPError('url', code, 'Unavailable', {}, None)
+            opener.open.side_effect = HTTPError('url', code, 'Unavailable', Message(), None)
             with patch.object(updates, 'build_opener', return_value=opener), self.assertRaises(OSError):
                 updates.published_tags()
         with patch.dict(os.environ, {'DECLAN_UPDATE_SOURCE': 'unknown'}), self.assertRaises(ValueError):

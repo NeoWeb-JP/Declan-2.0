@@ -39,9 +39,11 @@ class SessionContextAccessTests(unittest.TestCase):
         retrieve.assert_called_once_with(None, "lounge", now=0, idle_seconds=30)
 
     def test_invalid_ids_and_corrupt_sessions_are_missing_for_both_paths(self):
+        invalid: object
         for invalid in (None, [], {}, 42, True, "", "x" * 257):
             with self.subTest(session_id=repr(invalid)):
                 self.assert_missing(invalid, {})
+        corrupt: object
         for corrupt in (None, "session", [], 42, True):
             with self.subTest(corrupt=repr(corrupt)):
                 self.assert_missing("one", {"one": corrupt})

@@ -17,7 +17,7 @@ _recent: dict = {}
 def validate(profile):
     if not isinstance(profile, dict) or set(profile) != set(PHASES):
         raise ValueError("Invalid response sections")
-    clean = {}
+    clean: dict[str, dict[str, dict[str, list[str]]]] = {}
     for phase in PHASES:
         section = profile[phase]
         if not isinstance(section, dict) or set(section) != set(MODES):

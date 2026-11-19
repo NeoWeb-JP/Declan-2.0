@@ -1,5 +1,6 @@
 """Dispatch decisions remain enum-backed before response preparation."""
 import unittest
+from typing import Any
 
 from execution_results import Outcome
 from turn_dispatch_orchestration import DispatchResult
@@ -7,7 +8,7 @@ from turn_dispatch_orchestration import DispatchResult
 
 class DispatchOutcomeContractTests(unittest.TestCase):
     def result(self, **overrides):
-        fields = dict(reply="Observed", outcome=Outcome.CONFIRMED,
+        fields: dict[str, Any] = dict(reply="Observed", outcome=Outcome.CONFIRMED,
                       routine_status="Lights observed on", routine_turn=None,
                       routine_voice_result=None, lighting_context=None,
                       information_context=None, status_target=None, light_result=None)
@@ -21,6 +22,7 @@ class DispatchOutcomeContractTests(unittest.TestCase):
                 self.assertIs(self.result(outcome=outcome).outcome, outcome)
 
     def test_unknown_outcomes_are_rejected_instead_of_becoming_success(self):
+        outcome: object
         for outcome in ("ok", "success", "", "CONFIRMED", True, 1, {}):
             with self.subTest(outcome=outcome), self.assertRaises(ValueError):
                 self.result(outcome=outcome)

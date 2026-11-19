@@ -1,4 +1,6 @@
 """Audit regressions using loaded-source fixtures, with no HA actions."""
+from http_test_doubles import HTTPResponse
+from typing import Any
 import asyncio
 import copy
 import json
@@ -269,12 +271,13 @@ class AuditTests(unittest.TestCase):
         self.assertNotEqual(failed, failed_again)
 
 
-class AuditViewTests(unittest.IsolatedAsyncioTestCase):
+class AuditViewFixture(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         # Lightweight interface doubles; import the real collector and handler.
         self.web = SimpleNamespace(HTTPForbidden=type("Forbidden", (Exception,), {}),
                                    HTTPBadRequest=type("BadRequest", (Exception,), {}),
                                    json_response=lambda report, **kwargs: (report, kwargs))
+        saved_reviews: dict[str, Any]
         saved_reviews = {}
         class FakeStore:
             def __init__(self, hass, version, key): self.key = key
@@ -288,6 +291,7 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.areas = SimpleNamespace(async_list_areas=lambda: [SimpleNamespace(id="kitchen")])
         def module(name, **values):
             return types.SimpleNamespace(**values)
+        self.trace_rows: list[dict[str, Any]]
         self.trace_rows = []
         self.trace_details = {"context": {"id": "context1"}, "trace": {"action/0": [{"error": "secret-token"}]}}
         async def trace_list(*args):
@@ -311,18 +315,22 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.patch = patch.dict(sys.modules, modules)
         self.patch.start()
         spec = importlib.util.spec_from_file_location("audit_fixture.ha_audit_view", INTEGRATION / "ha_audit_view.py")
+        assert spec is not None and spec.loader is not None
         self.view = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.view)
         discovery_spec = importlib.util.spec_from_file_location("audit_fixture.script_discovery_view", INTEGRATION / "script_discovery_view.py")
+        assert discovery_spec is not None and discovery_spec.loader is not None
         self.discovery_view = importlib.util.module_from_spec(discovery_spec)
         discovery_spec.loader.exec_module(self.discovery_view)
         result_spec = importlib.util.spec_from_file_location("audit_fixture.script_result_view", INTEGRATION / "script_result_view.py")
+        assert result_spec is not None and result_spec.loader is not None
         self.result_view = importlib.util.module_from_spec(result_spec)
         sys.modules["audit_fixture.script_result_view"] = self.result_view
         result_spec.loader.exec_module(self.result_view)
         sys.modules["audit_fixture.script_discovery_view"] = self.discovery_view
         sys.modules["audit_fixture.script_result_view"] = self.result_view
         job_spec = importlib.util.spec_from_file_location("audit_fixture.routine_jobs", INTEGRATION / "routine_jobs.py")
+        assert job_spec is not None and job_spec.loader is not None
         self.jobs_view = importlib.util.module_from_spec(job_spec)
         sys.modules["audit_fixture.routine_jobs"] = self.jobs_view
         job_spec.loader.exec_module(self.jobs_view)
@@ -340,6 +348,32 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         self.patch.stop()
 
+    def yaml_request(self, entity_id, admin=True):
+        class Request(dict):
+            app = {"hass": self.hass}
+            query = {"entity_id": entity_id}
+        return Request(hass_user=SimpleNamespace(is_admin=admin))
+
+    def review_request(self, body, admin=True):
+        class Request(dict):
+            app = {"hass": self.hass}
+            async def json(self): return body
+        return Request(hass_user=SimpleNamespace(is_admin=admin))
+
+    def review_fixture(self, *, recovered=False, failure=None, changed=None):
+        ids = ["script.movie", "script.morning", "script.night"]
+        return audit.build_report(
+            {"light.fixture": {"state": "on" if recovered else "unavailable"}}, {}, set(), set(), {"light.turn_on"},
+            [{"entity_id": entity_id, "config": {"description": "changed" if changed == entity_id else "same",
+                "action": "light.turn_on", "entity_id": "light.fixture"},
+              "background_result": {"job_id": "new-failure" if failure == entity_id else "old-" + entity_id,
+                  "outcome": "partial" if not recovered or failure == entity_id else "reported_success"}}
+             for entity_id in ids],
+            {entity_id: [{"run_id": "old-failure", "error": "hidden"}] if not recovered else
+             [{"run_id": "new-success", "script_execution": "finished"}] for entity_id in ids})
+
+
+class AuditViewTests(AuditViewFixture):
     async def test_collector_uses_loaded_sources_and_persistent_trace_id(self):
         self.trace_rows.append({"item_id": "persistent-id", "run_id": "run1", "script_execution": "finished"})
         report = await self.view.collect_report(self.hass)
@@ -358,7 +392,6 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(disabled["editor_path"])
 
     async def test_loaded_script_fields_reach_execution_when_state_has_no_field_attributes(self):
-        import io
         import script_discovery
         fields = {"requested_action": {"required": True}, "request_id": {}, "routine_id": {}}
         loaded = SimpleNamespace(fields=fields, raw_config={"fields": fields}, unique_id="movie_time")
@@ -379,7 +412,7 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(body["requested_action"], "toggle")
             self.assertTrue(body["request_id"].startswith("declan-"))
             self.assertEqual(body["routine_id"], "script.movie_time")
-            response = io.BytesIO(json.dumps({"service_response": {"outcome": "success", "request_id": body["request_id"],
+            response = HTTPResponse(json.dumps({"service_response": {"outcome": "success", "request_id": body["request_id"],
                 "routine_id": body["routine_id"], "steps": [{"target": "screen", "status": "confirmed", "required": True}]}}).encode())
             response.status = 200
             return response
@@ -390,11 +423,6 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(self.discovery_view.declared_script_fields(SimpleNamespace(raw_config={"fields": fields})), sorted(fields))
 
-    def yaml_request(self, entity_id, admin=True):
-        class Request(dict):
-            app = {"hass": self.hass}
-            query = {"entity_id": entity_id}
-        return Request(hass_user=SimpleNamespace(is_admin=admin))
 
     async def test_yaml_export_reads_current_loaded_definition_without_runtime_metadata(self):
         entity = self.hass.data["automation"].entities[0]
@@ -462,11 +490,6 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(report["read_only"])
         self.assertEqual(options["headers"]["Cache-Control"], "no-store")
 
-    def review_request(self, body, admin=True):
-        class Request(dict):
-            app = {"hass": self.hass}
-            async def json(self): return body
-        return Request(hass_user=SimpleNamespace(is_admin=admin))
 
     async def test_review_persists_and_source_changes_are_flagged_without_clearing_it(self):
         report = await self.view.collect_report(self.hass)
@@ -487,17 +510,6 @@ class AuditViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(options["status"], 409)
         self.assertEqual(rejected["error"], "routine_changed")
 
-    def review_fixture(self, *, recovered=False, failure=None, changed=None):
-        ids = ["script.movie", "script.morning", "script.night"]
-        return audit.build_report(
-            {"light.fixture": {"state": "on" if recovered else "unavailable"}}, {}, set(), set(), {"light.turn_on"},
-            [{"entity_id": entity_id, "config": {"description": "changed" if changed == entity_id else "same",
-                "action": "light.turn_on", "entity_id": "light.fixture"},
-              "background_result": {"job_id": "new-failure" if failure == entity_id else "old-" + entity_id,
-                  "outcome": "partial" if not recovered or failure == entity_id else "reported_success"}}
-             for entity_id in ids],
-            {entity_id: [{"run_id": "old-failure", "error": "hidden"}] if not recovered else
-             [{"run_id": "new-success", "script_execution": "finished"}] for entity_id in ids})
 
     async def test_reviewing_three_routines_merges_and_survives_reload_and_recovery(self):
         report = self.review_fixture()

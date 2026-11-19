@@ -17,7 +17,10 @@ class HistoryRegressionTests(unittest.TestCase):
         history.DATABASE = Path(self.directory.name) / "history.sqlite3"
 
     def test_recent_history_skips_invalid_json_fields(self):
+        actions: object
+        speaker: object
         history.DATABASE = Path(self.directory.name) / "history.sqlite3"
+        cases: tuple[object, ...]
         cases = (
             ("{broken", "[", [], None),
             ('{"not": "actions"}', "[]", [], None),
@@ -26,7 +29,7 @@ class HistoryRegressionTests(unittest.TestCase):
             ("null", "42", [], None),
         )
         with history.database() as connection:
-            for index, (actions, speaker, _, __) in enumerate(cases):
+            for index, (actions, speaker, _expected_actions, _expected_speaker) in enumerate(cases):
                 connection.execute(
                     "INSERT INTO turns(created_at, session_id, source, message, reply, "
                     "action_results, speaker_match) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -34,7 +37,7 @@ class HistoryRegressionTests(unittest.TestCase):
                 )
         actual = list(reversed(history.recent()))
         assert len(actual) == len(cases)
-        for row, (_, __, actions, speaker) in zip(actual, cases):
+        for row, (_stored_actions, _stored_speaker, actions, speaker) in zip(actual, cases):
             assert row["action_results"] == actions
             assert row["speaker_match"] == speaker
 

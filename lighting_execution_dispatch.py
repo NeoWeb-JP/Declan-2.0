@@ -30,7 +30,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     )
 
     lights = {}
-    names = {}
+    names: dict[str, set[str]] = {}
     light_groups = set()
     dimmable = set()
     levels = {}
@@ -108,6 +108,8 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
 
         if areas is None:
             load_area_metadata()
+        if areas is None:
+            return None
 
         exception = re.fullmatch(r"everything except (?:the )?(.+)", recovered)
         if exception:
@@ -151,7 +153,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         r"\s*[,;]\s*|\s+(?:and then|as well as|and|then)\b\s*|\s+(?=turn (?:on|off)\b)",
         name,
     )
-    resolved_targets = []
+    resolved_targets: list[tuple[str, set[str] | None, str]] = []
     skipped: list[ExecutionResult] = []
     direction = desired_state
     for target in targets:
@@ -183,7 +185,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 continue
         resolved_targets.append((target, matches, direction))
 
-    target_levels = {}
+    target_levels: dict[str, int | None] = {}
 
     def record_action(target, direction, status, *, entity=None, detail=None):
         if action_results is not None and len(action_results) < 200:
@@ -193,7 +195,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             evidence = evidence_factory(target, action_name, status, entity_id=entity, detail=detail)
             append_evidence(action_results, evidence)
 
-    selected = {}
+    selected: dict[str, tuple[str, str, str]] = {}
     room_off_entities = set()
     conflicts = set()
     for target, matches, direction in resolved_targets:
@@ -255,7 +257,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     if preview:
         for entity, (label, _, direction) in selected.items():
             record_action(label, direction, LightingActionStatus.PLANNED, entity=entity)
-        groups = {}
+        groups: dict[tuple[str, int | None], list[str]] = {}
         for entity, (label, _, direction) in selected.items():
             groups.setdefault((direction, target_levels[entity]), []).append(label)
         plan = [f"set {', '.join(labels)} to {percent}%" if percent is not None
@@ -267,7 +269,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.INCOMPLETE_CORRECTION)
         return ExecutionResult(f"I left the lights unchanged because I couldn't resolve the full correction.{skipped_details}", Outcome.UNRESOLVED)
     pending = {}
-    verified = {(goal, target_levels[entity]): [] for entity, (_, _, goal) in selected.items()}
+    verified: dict[tuple[str, int | None], list[str]] = {(goal, target_levels[entity]): [] for entity, (_, _, goal) in selected.items()}
 
     def matches_goal(state, direction, level, percent):
         return state == direction and (
@@ -290,7 +292,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         if not entity_ids:
             continue
         labels = ", ".join(selected[entity][0] for entity in entity_ids)
-        data = {"entity_id": entity_ids[0] if len(entity_ids) == 1 else entity_ids}
+        data: dict[str, str | list[str] | int] = {"entity_id": entity_ids[0] if len(entity_ids) == 1 else entity_ids}
         if percent is not None:
             data["brightness_pct"] = percent
         remaining = dispatch_deadline - clock()

@@ -1,4 +1,5 @@
 """Typed Music Assistant provider entrypoint and registry compatibility tests."""
+from typing import cast
 import unittest
 from unittest.mock import Mock, patch
 
@@ -55,8 +56,8 @@ class MusicProviderTypedTests(unittest.TestCase):
         )
         result = registry(deps).dispatch(RequestContext("like", "assist"))
         self.assertIs(result.result.outcome, Outcome.MUSIC_FEEDBACK)
-        deps.control.assert_not_called()
-        deps.play.assert_not_called()
+        cast(Mock, deps.control).assert_not_called()
+        cast(Mock, deps.play).assert_not_called()
 
     def test_registry_rejects_invalid_typed_provider_response(self):
         deps = Dependencies(
@@ -70,7 +71,7 @@ class MusicProviderTypedTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             registry(deps).dispatch(RequestContext("like", "assist"))
-        deps.control.assert_not_called()
+        cast(Mock, deps.control).assert_not_called()
 
 
 if __name__ == "__main__":

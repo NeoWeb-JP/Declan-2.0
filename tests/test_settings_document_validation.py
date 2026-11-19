@@ -15,6 +15,7 @@ class SettingsDocumentValidationTests(unittest.TestCase):
         self.assertEqual(configuration.validate(self.document())["settings"], {})
 
     def test_rejects_invalid_document_shape_and_schema(self):
+        invalid: tuple[object, ...]
         invalid = (
             None, [], "settings", {},
             self.document(format="other"),

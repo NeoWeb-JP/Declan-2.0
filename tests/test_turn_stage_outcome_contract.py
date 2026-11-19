@@ -25,6 +25,7 @@ class TurnStageOutcomeContractTests(unittest.TestCase):
                     self.assertIs(factory().outcome, outcome)
 
     def test_unknown_or_malformed_outcomes_are_not_carried_to_next_stage(self):
+        outcome: object
         for outcome in ("ok", "success", "answered", "", "CONFIRMED", True, 1, {}):
             for factory in self.stages(outcome):
                 with self.subTest(outcome=outcome, stage=factory), self.assertRaises(ValueError):

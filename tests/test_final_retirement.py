@@ -1,4 +1,5 @@
 """Final retirement contract: legacy web root is gone, backend and native HA remain."""
+from email.message import Message
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -9,13 +10,15 @@ class RetirementTests(unittest.TestCase):
         handler = Handler.__new__(Handler)
         handler.path = "/"
         handler.client_address = ("127.0.0.1", 12345)
-        handler.headers = {"Host": "127.0.0.1:52737"}
+        handler.headers = Message()
+        handler.headers["Host"] = "127.0.0.1:52737"
         handler.server = type("Server", (), {"server_port": 52737})()
-        handler.send_json = lambda status, payload: setattr(handler, "result", (status, payload))
+        setattr(handler, 'send_json', lambda status, payload: setattr(handler, "result", (status, payload)))
         with patch.object(Handler, "has_ingress_access", return_value=False):
             handler.do_GET()
-        self.assertEqual(handler.result[0], 404)
-        self.assertIn("native Declan Home Assistant", handler.result[1]["error"])
+        result = getattr(handler, "result")
+        self.assertEqual(result[0], 404)
+        self.assertIn("native Declan Home Assistant", result[1]["error"])
 
     def test_backend_endpoints_and_native_panel_preserved(self):
         source = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()

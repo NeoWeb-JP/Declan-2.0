@@ -1,4 +1,5 @@
 """Typed dispatch extraction regression contracts."""
+from typing import Any
 import unittest
 from unittest.mock import Mock, patch
 
@@ -9,6 +10,7 @@ import server
 class RuntimeDispatchBoundaryTests(unittest.TestCase):
     def test_lighting_keeps_live_parser_and_execution_callbacks(self):
         r = Mock()
+        evidence: list[dict[str, Any]]
         evidence = []
         boundaries.handle_light_request_result("turn on lounge", action_results=evidence, r=r)
         kwargs = r.lighting_intents.handle_light_request_result.call_args.kwargs

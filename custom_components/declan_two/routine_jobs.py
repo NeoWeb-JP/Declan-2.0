@@ -50,11 +50,14 @@ async def job_state(hass):
     async with state["lock"]:
         if state["jobs"] is None:
             saved = await state["store"].async_load()
-            state["jobs"] = saved.get("jobs", {}) if isinstance(saved, dict) and isinstance(saved.get("jobs"), dict) else {}
+            jobs = saved.get("jobs", {}) if isinstance(saved, dict) else {}
+            if not isinstance(jobs, dict):
+                jobs = {}
+            state["jobs"] = jobs
             # A restart cannot establish whether old side effects completed.
             # Preserve the evidence and never replay an interrupted request.
             recovered = False
-            for job in state["jobs"].values():
+            for job in jobs.values():
                 if job_outcome(job.get("outcome")) in ACTIVE:
                     job.update(outcome=RoutineJobOutcome.UNVERIFIED.value, reason="interrupted", updated_at=timestamp())
                     recovered = True

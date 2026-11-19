@@ -1,4 +1,5 @@
 """Session/training/history orchestration regression tests."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 from turn_persistence_orchestration import finalize_turn
@@ -6,6 +7,7 @@ from turn_persistence_orchestration import finalize_turn
 
 class TurnPersistenceOrchestrationTests(unittest.TestCase):
     def setUp(self):
+        self.order: list[str]
         self.order = []
         self.state = Mock()
         self.training = Mock()
@@ -20,6 +22,7 @@ class TurnPersistenceOrchestrationTests(unittest.TestCase):
 
     def finalize(self):
         reply = {"session_id": "session-1", "reply": "Done"}
+        session: dict[str, Any]
         session = {}
         finalize_turn(reply, session=session, message="turn off kitchen",
             phrase="turn off kitchen", outcome="confirmed", scope="kitchen",

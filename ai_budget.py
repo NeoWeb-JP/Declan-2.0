@@ -9,6 +9,12 @@ from datetime import datetime, timezone
 MICRO_USD = 1_000_000
 
 
+class BudgetExhausted(ValueError):
+    def __init__(self, remaining_micro_usd):
+        super().__init__('Monthly OpenAI budget exhausted')
+        self.remaining_micro_usd = remaining_micro_usd
+
+
 def _month(now):
     if now is None:
         now = datetime.now(timezone.utc)
@@ -38,7 +44,8 @@ def reserve(db, *, limit_micro_usd, max_request_micro_usd, now=None):
             (max_request_micro_usd, month, limit_micro_usd, max_request_micro_usd),
         )
         if cursor.rowcount != 1:
-            raise ValueError("Monthly OpenAI budget exhausted")
+            reserved = db.execute('SELECT reserved FROM ai_budget WHERE month = ?', (month,)).fetchone()[0]
+            raise BudgetExhausted(max(0, limit_micro_usd - reserved))
         cursor = db.execute("INSERT INTO ai_reservation(month, ceiling) VALUES (?, ?)", (month, max_request_micro_usd))
         return cursor.lastrowid
 

@@ -6,6 +6,7 @@ from execution_results import Outcome
 
 class TurnFinalizationTests(unittest.TestCase):
     def test_typed_and_legacy_outcomes_preserve_suggestion_gates(self):
+        outcome: object
         for outcome in Outcome:
             with self.subTest(outcome=outcome):
                 self.assertEqual(self.suggestion(outcome=outcome), self.suggestion(outcome=outcome.value))

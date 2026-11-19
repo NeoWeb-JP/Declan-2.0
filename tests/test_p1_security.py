@@ -22,6 +22,7 @@ import server
 
 class LimiterTests(TestCase):
     def test_window_recovery_valid_reset_and_capacity(self):
+        now: list[float]
         now = [10]
         limiter = BadTokenLimiter(limit=2, capacity=2, clock=lambda: now[0])
         self.assertEqual(limiter.check('a', False), 0)
@@ -74,7 +75,7 @@ class HTTPPolicyTests(TestCase):
             headers['Authorization'] = 'Bearer ' + token
         if body is not None:
             headers['Content-Type'] = 'application/json'
-        connection = HTTPConnection(*http.server_address, timeout=4)
+        connection = HTTPConnection(http.server_address[0], http.server_address[1], timeout=4)
         try:
             connection.request(method, path, body=json.dumps(body) if body is not None else None, headers=headers)
             response = connection.getresponse()

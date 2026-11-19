@@ -1,4 +1,5 @@
 """Native backend updater must remain admin-only and reuse server update safety."""
+from typing import Any
 from pathlib import Path
 import unittest
 
@@ -84,7 +85,7 @@ class NativeUpdaterTests(unittest.TestCase):
                      "homeassistant.helpers", "homeassistant.helpers.aiohttp_client"):
             module = types.ModuleType(name)
             modules[name] = module
-        modules["aiohttp"].web = modules["aiohttp.web"]
+        vars(modules["aiohttp"])['web'] = modules["aiohttp.web"]
         class FakeResponse:
             def __init__(self, body, status=200):
                 import json
@@ -94,27 +95,29 @@ class NativeUpdaterTests(unittest.TestCase):
             def __getitem__(self, index):
                 return (self.status, self.body)[index]
 
-        modules["aiohttp.web"].json_response = lambda body, status=200, **kw: FakeResponse(body, status)
-        modules["homeassistant.components.http"].HomeAssistantView = type("HomeAssistantView", (), {})
-        modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = lambda hass: None
-        modules["aiohttp"].ClientError = type("ClientError", (Exception,), {})
-        modules["aiohttp"].ClientTimeout = lambda **kw: kw
+        vars(modules["aiohttp.web"])['json_response'] = lambda body, status=200, **kw: FakeResponse(body, status)
+        vars(modules["homeassistant.components.http"])['HomeAssistantView'] = type("HomeAssistantView", (), {})
+        vars(modules["homeassistant.helpers.aiohttp_client"])['async_get_clientsession'] = lambda hass: None
+        vars(modules["aiohttp"])['ClientError'] = type("ClientError", (Exception,), {})
+        vars(modules["aiohttp"])['ClientTimeout'] = lambda **kw: kw
 
         # Load the view as a package module so its relative compatibility import works.
         package = types.ModuleType("declan_updates_test_pkg")
         package.__path__ = []
         modules[package.__name__] = package
         compatibility = types.ModuleType("declan_updates_test_pkg.compatibility")
-        compatibility.check_server_compatibility = lambda payload: types.SimpleNamespace(compatible=True, reason="Compatible")
+        vars(compatibility)['check_server_compatibility'] = lambda payload: types.SimpleNamespace(compatible=True, reason="Compatible")
         modules[compatibility.__name__] = compatibility
         spec = importlib.util.spec_from_file_location("declan_updates_test_pkg.updates_view",
             ROOT / "custom_components/declan_two/updates_view.py")
         with patch.dict(sys.modules, modules):
+            assert spec is not None and spec.loader is not None
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             view = module.DeclanUpdatesView()
 
             class Request(dict):
+                app: dict
                 content_type = "application/json"
                 content_length = 100
                 async def json(self):
@@ -126,6 +129,7 @@ class NativeUpdaterTests(unittest.TestCase):
                 return obj
 
             async def run():
+                body: dict[str, Any]
                 admin = types.SimpleNamespace(is_admin=True)
                 guest = types.SimpleNamespace(is_admin=False)
                 self.assertEqual((await view.get(request(guest, {})))[0], 403)

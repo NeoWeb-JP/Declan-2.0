@@ -23,9 +23,12 @@ class GuardedFallbackTests(unittest.TestCase):
 
     def test_verified_action(self):
         calls = []
+        def dispatch(action):
+            calls.append(action.entity_id)
+            return "confirmed", "observed on"
         result = self.run_pipeline(
             planner=lambda text, exposed: self.plan,
-            dispatcher=lambda action: (calls.append(action.entity_id) or ("confirmed", "observed on")),
+            dispatcher=dispatch,
             charge_micro_usd=lambda: 10,
         )
         self.assertEqual(calls, ["light.kitchen"])

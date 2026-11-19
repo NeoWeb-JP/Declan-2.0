@@ -94,7 +94,7 @@ class DeclanManagementView(HomeAssistantView):
                     entries = payload.get("entries")
                     if not isinstance(entries, list) or len(entries) > 200:
                         raise ValueError("Invalid log response")
-                    safe = []
+                    safe_entries = []
                     for item in entries:
                         if not isinstance(item, dict):
                             raise ValueError("Invalid log entry")
@@ -102,8 +102,8 @@ class DeclanManagementView(HomeAssistantView):
                                    for key, cap in (("time", 64), ("level", 12),
                                                     ("source", 80), ("message", 1000))):
                             raise ValueError("Invalid log entry")
-                        safe.append({key: item[key] for key in ("time", "level", "source", "message")})
-                    return web.json_response({"entries": safe}, headers={"Cache-Control": "no-store"})
+                        safe_entries.append({key: item[key] for key in ("time", "level", "source", "message")})
+                    return web.json_response({"entries": safe_entries}, headers={"Cache-Control": "no-store"})
                 traces = payload.get("traces")
                 if not isinstance(traces, list):
                     raise ValueError("Invalid diagnostics")

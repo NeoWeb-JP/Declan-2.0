@@ -19,6 +19,7 @@ class HistoryClearTests(TestCase):
 
     def test_requires_explicit_confirmation(self):
         clear = Mock()
+        body: object
         for body in (None, [], {}, {"confirm": False}, {"confirm": 1}):
             with self.subTest(body=body):
                 self.handler.reset_mock()

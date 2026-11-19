@@ -16,11 +16,13 @@ class HistoryPaginationTests(unittest.TestCase):
         history.DATABASE = Path(self.directory.name) / "history.sqlite3"
 
     def test_invalid_page_sizes_are_rejected(self):
+        limit: object
         for limit in (0, -1, 501, True, 1.5, "50", [], {}):
             with self.subTest(limit=limit), self.assertRaisesRegex(ValueError, "page size"):
                 history.recent(limit=limit)
 
     def test_invalid_cursors_are_rejected(self):
+        cursor: object
         for cursor in (0, -1, True, 1.5, "3", [], {}):
             with self.subTest(cursor=cursor), self.assertRaisesRegex(ValueError, "cursor"):
                 history.recent(before=cursor)

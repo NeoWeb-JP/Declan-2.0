@@ -76,42 +76,42 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             "wyoming", "wyoming.client", "wyoming.asr", "wyoming.audio", "wyoming.error",
         )
         modules = {name: ModuleType(name) for name in module_names}
-        modules["aiohttp"].ClientError = OSError
-        modules["aiohttp"].ClientTimeout = Mock()
-        modules["aiohttp"].web = SimpleNamespace(json_response=Mock())
-        modules["homeassistant.components.http"].HomeAssistantView = object
-        self.form = modules["aiohttp"].FormData = Mock()
-        modules["voluptuous"].Schema = Mock()
-        modules["voluptuous"].Required = lambda name, **kwargs: name
-        modules["voluptuous"].Optional = lambda name, **kwargs: name
+        vars(modules["aiohttp"])['ClientError'] = OSError
+        vars(modules["aiohttp"])['ClientTimeout'] = Mock()
+        vars(modules["aiohttp"])['web'] = SimpleNamespace(json_response=Mock())
+        vars(modules["homeassistant.components.http"])['HomeAssistantView'] = object
+        self.form = vars(modules["aiohttp"])['FormData'] = Mock()
+        vars(modules["voluptuous"])['Schema'] = Mock()
+        vars(modules["voluptuous"])['Required'] = lambda name, **kwargs: name
+        vars(modules["voluptuous"])['Optional'] = lambda name, **kwargs: name
         for validator in ("In", "All", "Coerce", "Range", "Length"):
             setattr(modules["voluptuous"], validator, Mock())
-        modules["homeassistant.components"].tts = modules["homeassistant.components.tts"]
+        vars(modules["homeassistant.components"])['tts'] = modules["homeassistant.components.tts"]
         class FakeTextToSpeechEntity:
             async def async_will_remove_from_hass(self):
                 return None
-        modules["homeassistant.components.tts"].TextToSpeechEntity = FakeTextToSpeechEntity
-        modules["homeassistant.components.tts"].get_engine_instance = Mock(return_value=None)
-        modules["homeassistant.exceptions"].HomeAssistantError = type("HomeAssistantError", (Exception,), {})
-        modules["homeassistant.helpers.storage"].Store = Mock()
+        vars(modules["homeassistant.components.tts"])['TextToSpeechEntity'] = FakeTextToSpeechEntity
+        vars(modules["homeassistant.components.tts"])['get_engine_instance'] = Mock(return_value=None)
+        vars(modules["homeassistant.exceptions"])['HomeAssistantError'] = type("HomeAssistantError", (Exception,), {})
+        vars(modules["homeassistant.helpers.storage"])['Store'] = Mock()
         for suffix, names in {
             "client": ("AsyncTcpClient",), "asr": ("Transcribe", "Transcript"),
             "audio": ("AudioStart", "AudioChunk", "AudioStop"), "error": ("Error",),
         }.items():
             for name in names:
                 setattr(modules[f"wyoming.{suffix}"], name, Mock())
-        modules["homeassistant"].config_entries = SimpleNamespace(ConfigFlow=ConfigFlow, OptionsFlowWithReload=object)
-        modules["homeassistant.helpers"].selector = SimpleNamespace(
+        vars(modules["homeassistant"])['config_entries'] = SimpleNamespace(ConfigFlow=ConfigFlow, OptionsFlowWithReload=object)
+        vars(modules["homeassistant.helpers"])['selector'] = SimpleNamespace(
             TextSelector=Mock(), TextSelectorConfig=Mock(), TextSelectorType=SimpleNamespace(PASSWORD="password")
         )
-        self.intent = modules["homeassistant.helpers"].intent = SimpleNamespace(
+        self.intent = vars(modules["homeassistant.helpers"])['intent'] = SimpleNamespace(
             IntentResponse=Mock(),
             IntentResponseErrorCode=SimpleNamespace(FAILED_TO_HANDLE="failed_to_handle"),
         )
-        modules["homeassistant.components"].conversation = SimpleNamespace(
+        vars(modules["homeassistant.components"])['conversation'] = SimpleNamespace(
             ConversationEntity=object, ConversationResult=SimpleNamespace
         )
-        modules["homeassistant.components"].stt = SimpleNamespace(
+        vars(modules["homeassistant.components"])['stt'] = SimpleNamespace(
             SpeechToTextEntity=object, SpeechResult=namedtuple("SpeechResult", "text result"),
             SpeechResultState=SimpleNamespace(SUCCESS="success", ERROR="error"),
         )
@@ -120,13 +120,13 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.response = self.request.__aenter__.return_value
         self.response.status = 200
         self.response.json = AsyncMock(return_value={"reply": "Morning", "session_id": "new"})
-        modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = Mock(return_value=self.session)
-        modules["homeassistant.helpers.entity_registry"].async_get = Mock(
+        vars(modules["homeassistant.helpers.aiohttp_client"])['async_get_clientsession'] = Mock(return_value=self.session)
+        vars(modules["homeassistant.helpers.entity_registry"])['async_get'] = Mock(
             return_value=SimpleNamespace(async_get_entity_id=Mock(
                 return_value="tts.declan_2_0_voice_manager"
             ))
         )
-        modules["homeassistant.helpers"].entity_registry = modules["homeassistant.helpers.entity_registry"]
+        vars(modules["homeassistant.helpers"])['entity_registry'] = modules["homeassistant.helpers.entity_registry"]
         self.enterContext(patch.dict("sys.modules", modules))
         self.component = import_module("custom_components.declan_two")
         self.conversation = import_module("custom_components.declan_two.conversation")

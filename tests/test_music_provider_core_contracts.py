@@ -1,4 +1,5 @@
 """Validate music provider results before they leave legacy public APIs."""
+from email.message import Message
 import unittest
 import io
 import json
@@ -23,7 +24,7 @@ class MusicProviderCoreContractTests(unittest.TestCase):
                 self.assertEqual(failure.http_status, code)
                 with self.assertRaises(AttributeError):
                     setattr(failure, "kind", MusicFailureKind.TIMEOUT)
-                error = HTTPError("http://private.invalid/?token=secret", code, "secret provider message", {}, io.BytesIO())
+                error = HTTPError("http://private.invalid/?token=secret", code, "secret provider message", Message(), io.BytesIO())
                 with patch.object(music, "_request", side_effect=error) as request, patch.object(music.diagnostics, "persist"):
                     with music.diagnostics.request("/api/assist") as trace:
                         with self.assertRaises(HTTPError) as raised:

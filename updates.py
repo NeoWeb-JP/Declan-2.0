@@ -168,7 +168,10 @@ def status():
 
 
 def version_order(tag):
-    numbers = tuple(map(int, VERSION.fullmatch(tag).groups()))
+    match = VERSION.fullmatch(tag)
+    if match is None:
+        raise ValueError("Invalid release version")
+    numbers = tuple(map(int, match.groups()))
     suffix = tag.partition('-')[2]
     parts = tuple((0, int(part)) if part.isdigit() else (1, part) for part in suffix.split('.'))
     return (*numbers, not bool(suffix), parts, tag)

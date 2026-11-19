@@ -24,7 +24,7 @@ def trusted_speaker(speaker):
     confidence = speaker.get("confidence")
     allowed = {x.strip().casefold() for x in os.environ.get("DECLAN_TRUSTED_SPEAKERS", "").split(",") if x.strip()}
     return (isinstance(name, str) and bool(name.strip()) and name.strip().casefold() in allowed
-            and type(confidence) in (int, float) and 0.85 <= confidence <= 1.0)
+            and isinstance(confidence, (int, float)) and type(confidence) in (int, float) and 0.85 <= confidence <= 1.0)
 
 
 def _mapped_sensitive(name):

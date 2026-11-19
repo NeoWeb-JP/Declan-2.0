@@ -3,6 +3,7 @@ import ast
 from pathlib import Path
 import re
 import unittest
+from typing import Any
 from unittest.mock import patch
 
 import script_discovery
@@ -10,7 +11,7 @@ import script_discovery
 VIEW = Path(__file__).resolve().parents[1] / "custom_components/declan_two/script_discovery_view.py"
 tree = ast.parse(VIEW.read_text(encoding="utf-8"))
 function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "inspect_script")
-namespace = {"re": re, "LIGHT": re.compile(r"light\.[a-z0-9_]+\Z"),
+namespace: dict[str, Any] = {"re": re, "LIGHT": re.compile(r"light\.[a-z0-9_]+\Z"),
              "SAFE_ACTIONS": {"light.turn_on", "light.turn_off", "light.toggle"}}
 exec(compile(ast.Module(body=[function], type_ignores=[]), str(VIEW), "exec"), namespace)
 inspect_script = namespace["inspect_script"]
@@ -22,6 +23,7 @@ class ScriptSafetyTests(unittest.TestCase):
             "target": {"entity_id": "light.dining_room"}, "data": {"brightness_pct": 30}}]}))
 
     def test_unknown_and_dangerous_scripts_fail_closed(self):
+        definition: object
         for definition in (
             None, {}, {"sequence": []},
             {"sequence": [{"action": "lock.unlock", "target": {"entity_id": "lock.front_door"}}]},

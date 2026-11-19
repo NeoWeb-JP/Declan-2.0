@@ -25,6 +25,7 @@ class SessionContextRetrievalTests(unittest.TestCase):
                          ((), None, None))
 
     def test_malformed_scope_does_not_restore_context(self):
+        scope: object
         for scope in ("", "  ", "x" * 257, 42, [],
                       ("assist", None, None, None),
                       ("assist", "device"), ("assist", "x" * 129, None, None)):
@@ -110,6 +111,7 @@ class SessionContextRetrievalTests(unittest.TestCase):
                          (("light.kitchen",), "light.kitchen", ("weather",)))
 
     def test_non_mapping_previous_context_is_ignored(self):
+        previous: object
         for previous in ("hello", [], 123):
             with self.subTest(previous=repr(previous)):
                 self.assertEqual(recent_context(previous, "kitchen", now=101, idle_seconds=10),

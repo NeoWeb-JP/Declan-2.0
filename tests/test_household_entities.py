@@ -1,5 +1,6 @@
 """Configurable household entity validation and guest dispatch regressions."""
 
+from typing import Any
 import json
 import unittest
 from unittest.mock import Mock, patch
@@ -43,6 +44,7 @@ class HouseholdEntitiesTests(unittest.TestCase):
                                                else "switch", "")
 
     def test_settings_import_validates_entity_domains(self):
+        doc: dict[str, Any]
         doc = {"format": "declan-settings", "schema_version": 1, "settings": {
             "DECLAN_GUEST_MODE_ENTITY": "input_boolean.visitor_authority",
             "DECLAN_GUEST_REGISTER_ENTITY": "input_text.house_sitters",

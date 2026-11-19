@@ -1,4 +1,6 @@
 """Verify that HA routine acknowledgements are not confused with execution."""
+from typing import Any
+from email.message import Message
 import json
 import unittest
 from io import BytesIO
@@ -9,6 +11,7 @@ import script_discovery
 
 class RoutineResultTests(unittest.TestCase):
     def run_script(self, outcome, steps=None, recorded=None, reason=None):
+        item: dict[str, Any]
         item = {"entity_id": "script.declan_local_good_morning",
                 "name": "Declan - Good Morning - Shared Local Routine",
                 "fields": ["request_id", "routine_id"], "safe": True}
@@ -51,13 +54,14 @@ class RoutineResultTests(unittest.TestCase):
         self.assertEqual(failed, "Good Morning could not be verified.")
 
     def test_unsupported_response_falls_back_once_without_claiming_success(self):
+        item: dict[str, Any]
         item = {"entity_id": "script.declan_local_good_morning",
                 "name": "Good Morning", "fields": ["request_id", "routine_id"]}
         calls = []
         def open_request(request, timeout=None):
             calls.append(request.full_url)
             if "?return_response" in request.full_url:
-                raise HTTPError(request.full_url, 400, "Bad Request", {},
+                raise HTTPError(request.full_url, 400, "Bad Request", Message(),
                                 BytesIO(b'{"message":"Service does not support response data"}'))
             response = MagicMock()
             response.status = 200
@@ -73,11 +77,12 @@ class RoutineResultTests(unittest.TestCase):
         self.assertIn("does not support returning", reply)
 
     def test_other_400_never_retries_and_exposes_reason(self):
+        item: dict[str, Any]
         item = {"entity_id": "script.declan_local_good_morning",
                 "name": "Good Morning", "fields": []}
         opener = Mock()
         opener.open.side_effect = HTTPError(
-            "http://ha", 400, "Bad Request", {},
+            "http://ha", 400, "Bad Request", Message(),
             BytesIO(b'{"message":"extra keys not allowed @ data"}'))
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
             reply, outcome, _ = script_discovery.execute(("http://ha", {}, opener), item)
@@ -92,6 +97,7 @@ class RoutineResultTests(unittest.TestCase):
         self.assertIn("completed successfully", reply)
 
     def test_queued_optional_music_does_not_block_required_lighting_success(self):
+        recorded: list[dict[str, Any]]
         recorded = []
         steps = [{"target": "dining", "status": "confirmed", "required": True},
                  {"target": "dinner_music", "action": "request_playback", "status": "requested", "required": False}]
@@ -99,11 +105,13 @@ class RoutineResultTests(unittest.TestCase):
         self.assertEqual(recorded[1]["status"], "requested")
         import server
         self.assertEqual(server.routine_action_results(recorded)[1]["status"], "requested")
+        failed: list[dict[str, Any]]
         failed = []
         self.assertEqual(self.run_script("success", [{**steps[0], "status": "unverified"}, steps[1]], failed)[1], "unverified")
         self.assertEqual(failed, [])
 
     def test_live_dinner_selection_carries_reply_category_without_hardcoded_entity(self):
+        item: dict[str, Any]
         import server
         item = {"entity_id": "script.whatever_ha_calls_it", "name": "Declan - Dinner Is Served", "fields": [], "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
@@ -134,6 +142,7 @@ class RoutineResultTests(unittest.TestCase):
         self.assertEqual(self.run_script("partial")[1], "partial")
 
     def test_guard_reasons_preserve_legacy_dispatch_boundaries(self):
+        reason: object
         for outcome in ("unknown", "busy"):
             for reason, text in (("screen_moving", "still moving"),
                                  ("screen_position_unverified", "safe screen position"),

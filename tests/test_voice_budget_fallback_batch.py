@@ -17,6 +17,7 @@ VoiceBudget = MODULE.VoiceBudget
 
 class Store:
     def __init__(self):
+        self.value: dict[str, int] | None
         self.value = None
         self.saves = []
         self.async_save = AsyncMock(side_effect=self.save)
@@ -36,6 +37,7 @@ class VoiceBudgetBatchTests(unittest.IsolatedAsyncioTestCase):
         await budget.reserve("abc", "primary", limit=6)
         await budget.reserve("def", "primary", limit=6)
         self.assertEqual(len(store.saves), 2)
+        assert store.value is not None
         self.assertEqual(store.value["primary_characters"], 6)
         with self.assertRaisesRegex(ValueError, "limit reached"):
             await budget.reserve("extra", "primary", limit=6)
@@ -54,7 +56,9 @@ class VoiceBudgetBatchTests(unittest.IsolatedAsyncioTestCase):
             store.async_save.assert_not_awaited()
         await budget.reserve("Hi", "fallback")
         store.async_save.assert_awaited_once()
+        assert store.value is not None
         self.assertEqual(store.value["fallback_attempts"], MODULE.FALLBACK_SAVE_BATCH)
+        assert store.value is not None
         self.assertEqual(store.value["fallback_characters"], MODULE.FALLBACK_SAVE_BATCH * 2)
 
     async def test_primary_save_durably_includes_prior_fallback_usage(self):
@@ -62,7 +66,9 @@ class VoiceBudgetBatchTests(unittest.IsolatedAsyncioTestCase):
         budget = VoiceBudget(store=store, today=lambda: "2026-11-18")
         await budget.reserve("fallback", "fallback")
         await budget.reserve("primary", "primary", limit=20)
+        assert store.value is not None
         self.assertEqual(store.value["fallback_attempts"], 1)
+        assert store.value is not None
         self.assertEqual(store.value["primary_attempts"], 1)
         self.assertTrue(await budget.flush())
         self.assertEqual(len(store.saves), 1)
@@ -72,6 +78,7 @@ class VoiceBudgetBatchTests(unittest.IsolatedAsyncioTestCase):
         budget = VoiceBudget(store=store, today=lambda: "2026-11-18")
         await budget.reserve("backup", "fallback")
         self.assertTrue(await budget.flush())
+        assert store.value is not None
         self.assertEqual(store.value["fallback_attempts"], 1)
         self.assertTrue(await budget.flush())
         self.assertEqual(len(store.saves), 1)
@@ -113,6 +120,7 @@ class VoiceBudgetBatchTests(unittest.IsolatedAsyncioTestCase):
                 return False
         results = await asyncio.gather(*(attempt() for _ in range(20)))
         self.assertEqual(sum(results), 5)
+        assert store.value is not None
         self.assertEqual(store.value["primary_characters"], 15)
         self.assertEqual(len(store.saves), 5)
 

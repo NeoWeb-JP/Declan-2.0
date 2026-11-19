@@ -1,13 +1,9 @@
 """Explicit MA targets reuse the real Spotify search and playback path."""
-import unittest
 import test_music as music_fixture
 import music
 
 
-class MusicButtonTests(unittest.TestCase):
-    setUp = music_fixture.MusicTests.setUp
-    open = music_fixture.MusicTests.open
-    play = music_fixture.MusicTests.play
+class MusicButtonTests(music_fixture.MusicFixture):
 
     def register(self):
         for entity, row in self.players.items():
