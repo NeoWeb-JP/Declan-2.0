@@ -47,7 +47,11 @@ class DeclanLogTests(unittest.TestCase):
         self.assertIn('logger.info("HTTP %d POST %s"', transport_source)
         self.assertIn('logger.warning("HTTP %d %s %s"', transport_source)
         self.assertIn('route = urlsplit(handler.path).path', transport_source)
-        logging.getLogger("declan.server").info("HTTP 200 POST /api/assist")
+        logger = logging.getLogger("declan.server")
+        previous_level = logger.level
+        self.addCleanup(logger.setLevel, previous_level)
+        logger.setLevel(logging.INFO)
+        logger.info("HTTP 200 POST /api/assist")
         self.assertEqual(declan_logs.recent("INFO")[0]["message"],
                          "HTTP 200 POST /api/assist")
 

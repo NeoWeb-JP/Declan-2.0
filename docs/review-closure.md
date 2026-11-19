@@ -100,3 +100,32 @@ and dataclass replacement. This is boundary isolation, not recursively immutable
 storage: direct mutation through `session_response` remains possible, and
 `routine_status` remains a compatibility string. The broader typed-outcome
 inventory and acceptance decision remain open.
+
+## Batch 4: CI, documentation and observability
+
+At merged #748 main `167bfae`, `.github/workflows/python-quality.yml` has a
+blocking repository mypy step, followed by a dependency inventory and a blocking
+guard that permits only missing Home Assistant runtime imports. This is not
+strict typing: `mypy.ini` skips following imports and checks untyped function
+bodies. The original evaluate/enforce-mypy task is implemented for that stated
+scope; expanding strictness is a separate decision. All five workflow checks on
+#748's code commit `c0d2f0f` report success, including Python quality, regression,
+browser, HACS and encryption-lock verification.
+
+README already links separate installation, changelog, architecture, environment
+and example configuration documents. The repository-wide environment-name
+inventory is tested, but inventory coverage is not proof of every unset, blank
+and invalid default. Keep the broader defaults audit open until each setting
+has recorded behavior and safety-relevant regression coverage.
+
+`declan_logs.py` provides a bounded structured log feed with redaction;
+`http_response_transport.py` emits route/status events, and
+`diagnostic_metrics.py` aggregates bounded route/stage counts, errors and
+latencies without private payload labels. The historical "print only" finding
+is stale. These implementations do not establish an external monitoring service,
+alert delivery or live household acceptance. Regression evidence is in
+`tests/test_declan_logs.py` and `tests/test_diagnostic_metrics.py`.
+
+The operational logging regression now sets and restores its logger level
+explicitly. It must pass in isolation without relying on another test importing
+the server to initialize logging.
