@@ -183,7 +183,8 @@ class DeclanRoutineJobsView(HomeAssistantView):
         context = self.context(request)
         try:
             state = await job_state(hass)
-        except Exception:
+        except Exception as error:
+            _LOGGER.error("Declan routine job storage unavailable (%s)", type(error).__name__)
             return web.json_response({"error": "storage_unavailable"}, status=503)
         async with state["lock"]:
             if body["job_id"] in state["jobs"]:
@@ -199,13 +200,15 @@ class DeclanRoutineJobsView(HomeAssistantView):
             jobs = {**state["jobs"], body["job_id"]: job}
             try:
                 await state["store"].async_save({"jobs": jobs})
-            except Exception:
+            except Exception as error:
+                _LOGGER.error("Declan routine job could not be saved (%s)", type(error).__name__)
                 return web.json_response({"error": "storage_unavailable"}, status=503)
             state["jobs"] = jobs
         work = run_job(hass, state, job, service, parameters, fields, context)
         try:
             hass.async_create_background_task(work, "declan-routine-" + body["job_id"], eager_start=False)
-        except Exception:
+        except Exception as error:
+            _LOGGER.error("Declan routine job could not be scheduled (%s)", type(error).__name__)
             work.close()
             await save_job(state, {**job, "outcome": RoutineJobOutcome.FAILED.value, "reason": "scheduling_failed", "updated_at": timestamp()})
             return web.json_response({"error": "scheduling_failed"}, status=503)

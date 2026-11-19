@@ -177,7 +177,8 @@ class DeclanAuditReviewView(HomeAssistantView):
                 records.pop(body["entity_id"], None)
             try:
                 await state["store"].async_save(records)
-            except Exception:
+            except Exception as error:
+                _LOGGER.error("Home Assistant audit review could not be saved (%s)", type(error).__name__)
                 return web.json_response({"error": "review_save_failed"}, status=503,
                                          headers={"Cache-Control": "no-store"})
             state["records"] = records

@@ -660,9 +660,12 @@ class AuditViewTests(AuditViewFixture):
         self.assertEqual(options["headers"], {"Cache-Control": "no-store"})
         async def fail(*args):
             raise TimeoutError("secret error")
-        with patch.object(self.result_view, "lookup_result_typed", fail):
+        with patch.object(self.result_view, "lookup_result_typed", fail), self.assertLogs(level="WARNING") as logs:
             failed, _ = await self.result_view.DeclanScriptResultView().get(request)
         self.assertEqual(failed, result)
+        # The failure is visible in the log by type only, never with its message.
+        self.assertIn("TimeoutError", "\n".join(logs.output))
+        self.assertNotIn("secret error", "\n".join(logs.output))
 
 
 if __name__ == "__main__":

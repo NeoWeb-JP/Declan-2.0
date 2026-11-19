@@ -30,9 +30,13 @@ class ExecutorTests(unittest.TestCase):
             if action.entity_id == "light.a":
                 raise RuntimeError("secret token")
             return "confirmed", "verified"
-        result = execute_verified(self.plan, dispatch)
+        with self.assertLogs("action_executor", level="WARNING") as logs:
+            result = execute_verified(self.plan, dispatch)
         self.assertEqual(result[0].detail, "Dispatch or verification failed")
         self.assertEqual(result[1].status, "confirmed")
+        # Logged by type so a programming error is not silent, but never with its message.
+        self.assertIn("light.a.turn_on (RuntimeError)", logs.output[0])
+        self.assertNotIn("secret token", logs.output[0])
 
     def test_invalid_dispatch_status_fails_closed(self):
         result = execute_verified(self.plan[:1], lambda _: ("success", "sent"))
