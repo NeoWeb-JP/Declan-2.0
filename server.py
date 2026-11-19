@@ -28,6 +28,7 @@ import post_ingress_orchestration
 import turn_dispatch_orchestration
 import turn_session_preflight
 import turn_response_completion
+import command_vocabulary
 import sys
 from pathlib import Path
 from threading import Thread
@@ -166,59 +167,19 @@ def stop_pending_routines_result():
 IDLE_SECONDS = 300
 ASSIST_PORT = 52737
 RELEASE_VERSION: str | None = updates.configured_release_version()
-SEXY_TIME_COMMANDS = {
-    **{phrase: "start" for name in ("sexy time", "sixty time", "60 time", "bedroom mood", "romance mode")
-       for phrase in (name, f"start {name}", f"activate {name}")},
-    **{phrase: "end" for name in ("sexy time", "sixty time", "60 time", "bedroom mood", "romance mode")
-       for phrase in (f"end {name}", f"stop {name}")},
-}
-DINNER_PHRASES = {
-    "dinner is served", "it's dinner time", "time for dinner", "it's time for dinner",
-    "announce dinner", "start dinner time", "dinner time",
-}
-GUEST_MODE_ENTITY = "input_boolean.guest_mode"
-GUEST_REGISTER_ENTITY = "input_text.guests_in_charge"
-VISITORS_PRESENT_ENTITY = "input_boolean.visitors_present"  # fallback when no explicit mapping exists
-GUEST_COMMANDS = {
-    "who's in charge": "check",
-    "who is in charge of the house": "check",
-    "who is looking after the house tonight": "check",
-    "who is in charge": "check",
-    "who is looking after the house": "check",
-    "the guests have left": "clear",
-    "our guests have left": "clear",
-    "all guests have left": "clear",
-    "all guest have left": "clear",
-    "the guest has left": "clear",
-    "our guest has left": "clear",
-    "guests have left": "clear",
-    "guest has left": "clear",
-    "everyone has left": "clear",
-    "clear the guests in charge": "clear",
-}
-UNMATCHED_REPLY = "I didn't catch what you wanted me to do. Could you say it another way?"
-NAME_PATTERN = re.compile(r"my name is ([^\W\d_][\w '\u2019-]{0,39})", re.I)
-CHAT_COMMANDS = {
-    "what's my name": "recall_name", "what is my name": "recall_name",
-    "do you remember my name": "recall_name",
-    "what did i just say": "recall_message", "what did i say": "recall_message",
-    "what did i say earlier": "recall_earlier", "what have i said": "recall_earlier",
-    "forget this conversation": "forget_chat", "forget our conversation": "forget_chat",
-    "what time is it": "time", "what is the time": "time", "tell me the time": "time",
-    "what's the time": "time", "what’s the time": "time",
-    "hello": "greeting", "hi": "greeting", "hey": "greeting", "hello declan": "greeting",
-}
-GOOD_MORNING_SCRIPT = "script.declan_good_morning_shared_local_routine"
-GOOD_MORNING_PHRASES = {
-    "good morning", "morning", "start the morning routine", "declan test good morning",
-}
-
-GOOD_NIGHT_SCRIPT = "script.declan_good_night_shared_local_routine"
-GOOD_NIGHT_PHRASES = {
-    "good night", "good night declan", "goodnight", "it's bedtime",
-    "it’s bedtime", "time for bed", "shut the house down", "start the bedtime routine",
-}
-
+SEXY_TIME_COMMANDS = command_vocabulary.SEXY_TIME_COMMANDS
+DINNER_PHRASES = command_vocabulary.DINNER_PHRASES
+GUEST_MODE_ENTITY = command_vocabulary.GUEST_MODE_ENTITY
+GUEST_REGISTER_ENTITY = command_vocabulary.GUEST_REGISTER_ENTITY
+VISITORS_PRESENT_ENTITY = command_vocabulary.VISITORS_PRESENT_ENTITY
+GUEST_COMMANDS = command_vocabulary.GUEST_COMMANDS
+UNMATCHED_REPLY = command_vocabulary.UNMATCHED_REPLY
+NAME_PATTERN = command_vocabulary.NAME_PATTERN
+CHAT_COMMANDS = command_vocabulary.CHAT_COMMANDS
+GOOD_MORNING_SCRIPT = command_vocabulary.GOOD_MORNING_SCRIPT
+GOOD_MORNING_PHRASES = command_vocabulary.GOOD_MORNING_PHRASES
+GOOD_NIGHT_SCRIPT = command_vocabulary.GOOD_NIGHT_SCRIPT
+GOOD_NIGHT_PHRASES = command_vocabulary.GOOD_NIGHT_PHRASES
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
