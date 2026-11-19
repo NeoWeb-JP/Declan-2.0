@@ -187,3 +187,31 @@ wire adapters continue to emit strings. The original typed-outcome finding still
 requires final inventory/disposition of provider and compatibility boundaries;
 remaining `object` context annotations alone are not evidence of string-based
 execution decisions.
+
+## Typed outcome audit disposition
+
+Baseline: merged #754 main `84ba32a`. The original replace-stringly-typed-outcomes
+implementation scope is satisfied for the reviewed command/turn execution paths:
+execution discriminators use enums and result dataclasses. Keep the following
+intentional boundaries; removing their strings would break external contracts.
+
+| Boundary | Typed internal contract | Intentional external/compatibility behavior |
+| --- | --- | --- |
+| Timer, routine, music, information providers | `ExecutionResult`, `Outcome`, `InformationResult` | Legacy pairs/triples are validated by `local_outcome_contracts`, `music_provider_result` and `InformationResult.coerce` |
+| Ordered action dispatch/readback | `DispatchResult`, `ActionStatus`, `ActionResult` | Legacy dispatcher tuples are coerced; action status strings are emitted by wire adapters |
+| Script receipts/reports/traces | `BackgroundReceiptResult`, `ScriptProviderResult`, trace enums | Exact HTTP/payload correlation is parsed at ingress; reported/accepted is distinct from verified completion |
+| Model completion | `ModelResponseResult` | Provider status and output strings are parsed before plan decoding; incomplete results cannot become completed plans |
+| Confirmation | `ConfirmationDecisionResult`, `ConfirmationTurnResult` | The active preflight calls `confirmation_turn_result`; the old string-comparing function remains a legacy API |
+| Turn stages and final response | `Outcome` across all stage result dataclasses and `TurnResponse` | `None` denotes no outcome; wire adapters emit strings; routine status is explanatory text |
+| Inventory, STT and updater | `InventoryResult`, `TranscriptionResult`, `UpdateStatusResult` | Existing public JSON/text responses remain stable; unknown states retain conservative interpretation |
+| Diagnostics and retained history | Serialized strings from typed results | Metrics classify bounded stored/wire labels; they do not authorize execution |
+
+Verification includes provider identity retention, malformed and hostile legacy
+input rejection, dependency skips, acknowledgement-only results, unknown status
+handling and typed-to-wire compatibility. Broad `object` annotations for context
+payloads and the mutable session-response mapping remain architecture concerns,
+not evidence that execution outcomes still depend on arbitrary strings. This
+disposition does not assert strict typing of every payload or eliminate
+compatibility APIs. Any newly discovered internal string-based execution decision
+needs a specific regression and reopens that scope; do not keep this checkbox
+open solely because external JSON and human-readable detail remain strings.
