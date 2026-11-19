@@ -23,18 +23,18 @@ def prepare(handler, *, r):
             handler, body, spotify_save=handler.spotify_settings,
             ai_replace_key=r.ai_credentials.replace_key,
             ai_save=r.ai_settings.save, ai_configured=r.ai_credentials.configured,
-            r.music=r.music, r.spotify_playlists=r.spotify_playlists,
+            music=r.music, spotify_playlists=r.spotify_playlists,
             playlist_handler=r.music_playlists_post.handle_music_playlists,
             opener_factory=lambda: r.build_opener(r.ProxyHandler({})),
             voice_manage=r.voicepipeline.manage,
             pipeline_error=r.voicepipeline.PipelineError,
             profiles_manage=r.voice_profiles.manage,
             preview=r.configuration.preview, apply=r.configuration.apply,
-            r.command_responses=r.command_responses,
-            r.routine_responses=r.routine_responses,
+            command_responses=r.command_responses,
+            routine_responses=r.routine_responses,
             discover=r.script_discovery.discover_result,
-            connection=r.ha_device_connection, r.history=r.history,
-            r.voicepipeline=r.voicepipeline, unmatched_reply=r.UNMATCHED_REPLY,
+            connection=r.ha_device_connection, history=r.history,
+            voicepipeline=r.voicepipeline, unmatched_reply=r.UNMATCHED_REPLY,
             forget_intent=r.history.forget_intent,
             edit_intent=r.history.edit_intent,
             teach_intent=r.history.teach_intent,
@@ -42,12 +42,12 @@ def prepare(handler, *, r):
         ):
             return
         if r.post_operational_routing.dispatch_before_validation(
-            handler, body, r.updates=r.updates, release_version=r.RELEASE_VERSION,
+            handler, body, updates=r.updates, release_version=r.RELEASE_VERSION,
         ):
             return
         message, session_id = r.post_payload_validation.message_and_session(body)
     except (ValueError, TypeError, KeyError, AttributeError):
-        r.post_payload_validation.send_validation_error(self)
+        r.post_payload_validation.send_validation_error(handler)
         return
     if r.post_operational_routing.dispatch_after_validation(
         handler, body, message=message, session_id=session_id,
