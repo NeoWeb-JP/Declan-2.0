@@ -6,6 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "server.py").read_text()
 STAGE = (ROOT / "turn_fallback_dispatch.py").read_text()
+DISPATCH = (ROOT / "turn_dispatch_orchestration.py").read_text()
 PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
 FINALIZATION = (ROOT / "turn_atomic_finalization.py").read_text()
 
@@ -15,7 +16,7 @@ class DirectFinalDispatchTests(unittest.TestCase):
         ast.parse(SERVER)
         ast.parse(STAGE)
         self.assertIn("lighting_result_dispatch.dispatch_lighting_response(", STAGE)
-        self.assertIn("turn_fallback_dispatch.dispatch(", SERVER)
+        self.assertIn("turn_fallback_dispatch.dispatch(", DISPATCH)
         self.assertIn("turn_response_preparation.prepare(", SERVER)
         self.assertIn("fallback_orchestration.resolve_fallback_result(", PREPARATION)
         self.assertIn("response_persona_context.resolve_response_persona(", PREPARATION)
