@@ -1,5 +1,6 @@
 """Resolve, dispatch and verify Home Assistant lighting actions."""
 import json
+from concurrent.futures import ThreadPoolExecutor
 import re
 import sqlite3
 from time import monotonic
@@ -8,6 +9,21 @@ from urllib.error import HTTPError
 import diagnostics
 from execution_results import ExecutionResult, Outcome
 from lighting_action_evidence import LightingActionStatus, LightingActionReason
+
+
+MAX_PARALLEL_REQUESTS = 6
+
+
+def concurrently(function, items):
+    """Return [function(item) ...] in input order, running up to six at once.
+
+    One item (the common single-light case) runs inline with no thread.
+    """
+    items = list(items)
+    if len(items) < 2:
+        return [function(item) for item in items]
+    with ThreadPoolExecutor(max_workers=min(len(items), MAX_PARALLEL_REQUESTS)) as pool:
+        return list(pool.map(function, items))
 
 
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
@@ -288,23 +304,24 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             record_action(label, direction, LightingActionStatus.ALREADY_SET, entity=entity)
     dispatch_started = monotonic()
     dispatch_deadline = clock() + 1.75
+    batches = []
     for direction, percent in verified:
         entity_ids = [entity for entity, (_, _, goal) in selected.items()
                       if (goal, target_levels[entity]) == (direction, percent) and entity not in already_set]
         verified[direction, percent] = [label for entity, (label, _, goal) in selected.items()
                                         if (goal, target_levels[entity]) == (direction, percent) and entity in already_set]
-        if not entity_ids:
-            continue
-        labels = ", ".join(selected[entity][0] for entity in entity_ids)
+        if entity_ids:
+            batches.append((direction, percent, entity_ids))
+
+    def send(batch):
+        """Send one service call; return None when sent, else the failure kind."""
+        direction, percent, entity_ids = batch
         data: dict[str, str | list[str] | int] = {"entity_id": entity_ids[0] if len(entity_ids) == 1 else entity_ids}
         if percent is not None:
             data["brightness_pct"] = percent
         remaining = dispatch_deadline - clock()
         if remaining <= 0:
-            for entity in entity_ids:
-                record_action(selected[entity][0], direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.DISPATCH_TIME_LIMIT)
-            skipped.append(ExecutionResult(f"I ran out of time before sending the command for {labels}.", Outcome.UNVERIFIED))
-            continue
+            return "time"
         action = request_factory(
             f"{url}/api/services/light/turn_{direction}",
             data=json.dumps(data).encode(),
@@ -315,45 +332,68 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 pass
         except HTTPError as error:
             error.close()
-            for entity in entity_ids:
-                record_action(selected[entity][0], direction, LightingActionStatus.FAILED, entity=entity, detail=f"HTTP {error.code}")
-            skipped.append(ExecutionResult(f"Home Assistant returned HTTP {error.code} for {labels}.", Outcome.ACTION_ERROR))
-            continue
+            return error
         except OSError:
+            return "no_response"
+        return None
+
+    # Independent service calls share one deadline, so send them together.
+    # Outcomes are applied below in the original group order.
+    for batch, failure in zip(batches, concurrently(send, batches)):
+        direction, percent, entity_ids = batch
+        labels = ", ".join(selected[entity][0] for entity in entity_ids)
+        if failure == "time":
+            for entity in entity_ids:
+                record_action(selected[entity][0], direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.DISPATCH_TIME_LIMIT)
+            skipped.append(ExecutionResult(f"I ran out of time before sending the command for {labels}.", Outcome.UNVERIFIED))
+        elif isinstance(failure, HTTPError):
+            for entity in entity_ids:
+                record_action(selected[entity][0], direction, LightingActionStatus.FAILED, entity=entity, detail=f"HTTP {failure.code}")
+            skipped.append(ExecutionResult(f"Home Assistant returned HTTP {failure.code} for {labels}.", Outcome.ACTION_ERROR))
+        elif failure == "no_response":
             for entity in entity_ids:
                 record_action(selected[entity][0], direction, LightingActionStatus.UNVERIFIED, entity=entity, detail=LightingActionReason.NO_DISPATCH_RESPONSE)
             skipped.append(ExecutionResult(f"I didn't get a response for {labels}.", Outcome.UNVERIFIED))
-            continue
-        pending.update({entity: direction for entity in entity_ids})
+        else:
+            pending.update({entity: direction for entity in entity_ids})
 
     diagnostics.record('lights_dispatch', dispatch_started, lights=len(selected), pending=len(pending))
     verify_started = monotonic()
     deadline = clock() + 3
     last_reported = {}
+    def read_state(entity):
+        """One bounded state read; None when it could not be made or parsed."""
+        remaining = deadline - clock()
+        if remaining <= 0:
+            return None
+        request = request_factory(f"{url}/api/states/{entity}", headers=headers)
+        try:
+            with opener.open(request, timeout=min(remaining, 0.5)) as response:
+                observed = json.loads(response.read(65536))
+                attributes = observed.get("attributes")
+                return observed["state"], (attributes.get("brightness") if isinstance(attributes, dict) else None)
+        except HTTPError as error:
+            error.close()
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+        return None
+
     while pending and clock() < deadline:
-        for entity, direction in tuple(pending.items()):
-            remaining = deadline - clock()
-            if remaining <= 0:
-                break
-            request = request_factory(f"{url}/api/states/{entity}", headers=headers)
-            try:
-                with opener.open(request, timeout=min(remaining, 0.5)) as response:
-                    observed = json.loads(response.read(65536))
-                    state = observed["state"]
-                    attributes = observed.get("attributes")
-                    level = attributes.get("brightness") if isinstance(attributes, dict) else None
-                    percent = target_levels[entity]
-                    last_reported[entity] = f"{state}, brightness {round(level * 100 / 255)}%" if (
-                        percent is not None and isinstance(level, (int, float)) and 0 <= level <= 255
-                    ) else state
-                    if matches_goal(state, direction, level, percent):
-                        verified[direction, percent].append(selected[entity][0])
-                        record_action(selected[entity][0], direction, LightingActionStatus.CONFIRMED, entity=entity)
-                        del pending[entity]
-            except HTTPError as error:
-                error.close()
-            except (OSError, ValueError, KeyError, TypeError):
-                pass
+        # Read every pending light at once; apply results in a stable order.
+        entities = tuple(pending)
+        for entity, observed in zip(entities, concurrently(read_state, entities)):
+            if observed is None:
+                continue
+            state, level = observed
+            direction = pending[entity]
+            percent = target_levels[entity]
+            last_reported[entity] = f"{state}, brightness {round(level * 100 / 255)}%" if (
+                percent is not None and isinstance(level, (int, float)) and 0 <= level <= 255
+            ) else state
+            if matches_goal(state, direction, level, percent):
+                verified[direction, percent].append(selected[entity][0])
+                record_action(selected[entity][0], direction, LightingActionStatus.CONFIRMED, entity=entity)
+                del pending[entity]
         if pending:
             sleeper(min(0.25, max(0, deadline - clock())))
     diagnostics.record('lights_verify', verify_started, lights=len(selected), unconfirmed=len(pending))
