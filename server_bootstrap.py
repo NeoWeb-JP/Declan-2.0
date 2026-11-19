@@ -25,7 +25,7 @@ def set_lights(name, desired_state, *, brightness=None, preview=False, require_a
 
 def end_headers(handler, *, r):
     r.http_ingress_security.send_security_headers(handler)
-    return super(type(handler), handler).end_headers()
+    return r.BaseHTTPRequestHandler.end_headers(handler)
 
 
 def run(*, r):
