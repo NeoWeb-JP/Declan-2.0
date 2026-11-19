@@ -88,11 +88,13 @@ def database():
 
 
 def prune():
+    """Discard expired, malformed and future-dated turns in the hourly cleanup."""
+    now = time()
     with database() as connection:
         connection.execute(
             "DELETE FROM turns WHERE typeof(created_at) NOT IN ('integer', 'real') "
-            "OR created_at < ?",
-            (time() - retention_seconds(),),
+            "OR created_at < ? OR created_at > ?",
+            (now - retention_seconds(), now),
         )
 
 
