@@ -31,7 +31,8 @@ class SatelliteContextTests(unittest.TestCase):
         self.assertIn("session_context_access.load_recent_context(", turn_source)
         self.assertIn("retrieve=session_context_retrieval.recent_context", preflight_source)
         self.assertIn("with lock:", access_source)
-        self.assertIn('IDLE_SECONDS = 300', source)
+        self.assertIn('IDLE_SECONDS, ASSIST_PORT, RELEASE_VERSION', source)
+        self.assertIn('        300,', (Path(__file__).resolve().parents[1] / 'server_runtime_state.py').read_text())
 
 if __name__=="__main__":
     unittest.main()
