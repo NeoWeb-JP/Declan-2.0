@@ -1,6 +1,6 @@
 """Regression tests for extracted HA routine execution and completion."""
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 
 import server
 import routine_execution_dispatch as dispatch
