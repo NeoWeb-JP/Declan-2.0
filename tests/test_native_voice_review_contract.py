@@ -15,7 +15,6 @@ INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
 class VoiceReviewContractTests(unittest.TestCase):
     def test_backend_exception_limits_remote_writes(self):
         get = SERVER[SERVER.index("    def do_GET(self):"):SERVER.index("    def do_POST(self):")]
-        post = SERVER[SERVER.index("    def handle_post(self):"):]
         self.assertIn('get_request_dispatch.dispatch(', get)
         self.assertIn('get_access_gate_http.enforce_access(', (ROOT / 'get_request_dispatch.py').read_text())
         self.assertIn('handler.path == "/api/voicepipeline"', (ROOT / "get_access_gate_http.py").read_text())
