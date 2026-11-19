@@ -14,7 +14,6 @@ JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 
 class NativeChatContractTests(unittest.TestCase):
     def test_backend_token_exception_is_only_for_chat_post(self):
-        block = BACKEND[BACKEND.index("    def handle_post(self):"):BACKEND.index("    def do_GET(self):")] if BACKEND.index("    def handle_post(self):") < BACKEND.index("    def do_GET(self):") else BACKEND[BACKEND.index("    def handle_post(self):"):]
         ast.parse(AUTH)
         self.assertIn("r.post_entry_gates.enforce(", POST_INGRESS)
         self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "post_entry_gates.py").read_text())
