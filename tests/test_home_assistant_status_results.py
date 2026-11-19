@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
-from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from declan.ha.home_assistant_results import HomeAssistantStatus
 import server
 
 
@@ -21,8 +21,7 @@ class HomeAssistantStatusResultTests(unittest.TestCase):
         if error is not None:
             opener.open.side_effect = error
         with patch.dict(server.os.environ, {"DECLAN_HA_URL": "https://ha.local", "DECLAN_HA_TOKEN": "secret-token"}), \
-             patch.object(server, "build_opener", return_value=opener), \
-             patch.object(server, "home_assistant_status", side_effect=AssertionError("legacy roundtrip")):
+             patch.object(server, "build_opener", return_value=opener):
             result = server.home_assistant_status_result()
         return result, opener
 
@@ -72,9 +71,3 @@ class HomeAssistantStatusResultTests(unittest.TestCase):
                 self.assertIs(server.home_assistant_status_result().status, HomeAssistantStatus.NOT_CONFIGURED)
             build.assert_not_called()
 
-    def test_public_status_api_preserves_plain_strings(self):
-        for status in HomeAssistantStatus:
-            with patch.object(server, "home_assistant_status_result", return_value=HomeAssistantStatusResult(status)):
-                value = server.home_assistant_status()
-            self.assertEqual(value, status.value)
-            self.assertIs(type(value), str)

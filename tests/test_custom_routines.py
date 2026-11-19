@@ -69,7 +69,8 @@ class CustomRoutineTests(unittest.TestCase):
         opener = Opener()
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)):
             with server.track_routine("tea", "script.make_tea"):
-                reply, outcome, _ = server.stop_pending_routines()
+                result, _ = server.stop_pending_routines_result()
+                reply, outcome = result.reply, result.outcome.value
         self.assertIn("Cancellation requested", reply)
         self.assertIn("not rolled back", reply)
         self.assertEqual(outcome, "unverified")

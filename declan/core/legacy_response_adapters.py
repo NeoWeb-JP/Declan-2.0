@@ -19,19 +19,7 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
         result, request_id, routine_id, period, movie_action, action_results))
 
 
-def run_sexy_time(operation, connection, *, approved=False, r):
-    """Compatibility API for the mapped bedroom routine."""
-    return r._routine_legacy_triple(*r.run_sexy_time_result(operation, connection, approved=approved))
 
-
-def launch_movie_app(connection, remote, app, r):
-    """Compatibility API for app-launch status and detail strings."""
-    return r.launch_movie_app_result(connection, remote, app).as_legacy_pair()
-
-
-def start_dinner(connection, *, approved=False, r):
-    """Compatibility API for announcement reply/outcome strings."""
-    return r.start_dinner_result(connection, approved=approved).as_legacy_pair()
 
 
 def guest_assignment(operation, connection, r):
@@ -46,13 +34,7 @@ def set_switch_as_light(name, desired_state, inventory, connection, *, preview=F
     return result.as_legacy_pair() if result is not None else None
 
 
-def guarded_openai_fallback(message, *, source, exposed_entities=(), r):
-    """Compatibility API retaining the reply/outcome/action-steps triple."""
-    response = r.guarded_openai_fallback_result(message, source=source, exposed_entities=exposed_entities)
-    return response.as_legacy_triple() if response is not None else None
-
 
 def preview_routine(phrase, origin=None, *, r):
     """Compatibility API for read-only preview reply/outcome pairs."""
     return r.preview_routine_result(phrase, origin).as_legacy_pair()
-

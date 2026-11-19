@@ -150,8 +150,8 @@ class TypedPipelineTests(TestCase):
              patch.object(server.ai_pricing,"charge",return_value=10):
             for diagnostics in (True,False):
                 settings["diagnostics"]=diagnostics
-                reply,outcome,steps=server.guarded_openai_fallback(
-                    "turn on kitchen",source="assist",exposed_entities=["light.kitchen"])
+                reply,outcome,steps=server.guarded_openai_fallback_result(
+                    "turn on kitchen",source="assist",exposed_entities=["light.kitchen"]).as_legacy_triple()
                 self.assertEqual(reply,"All requested actions were confirmed.")
                 self.assertEqual(outcome,"confirmed")
                 self.assertIs(type(outcome),str)

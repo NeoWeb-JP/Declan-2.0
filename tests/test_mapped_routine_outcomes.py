@@ -86,7 +86,6 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
         for legacy, typed, arguments in (
                 (server.run_custom_routine, "run_custom_routine_result", ("tea",)),
                 (server.run_routine, "run_routine_result", ("morning",)),
-                (server.run_sexy_time, "run_sexy_time_result", ("end", None)),
                 (server.format_routine_result, "routine_completion_result", ({}, "request", "script.tea", "morning", None, []))):
             with self.subTest(provider=typed), patch.object(server, typed, return_value=(expected, "evidence")):
                 result = legacy(*arguments)

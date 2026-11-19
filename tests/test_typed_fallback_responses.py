@@ -74,8 +74,7 @@ class TypedFallbackResponseTests(unittest.TestCase):
                  patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
                  patch.object(server.ai_context, "select", return_value=inventory), \
                  patch.object(server.history, "database", return_value=MagicMock()), \
-                 patch.object(server.guarded_fallback, "run_guarded_result", return_value=self.execution) as run, \
-                 patch.object(server, "guarded_openai_fallback", side_effect=AssertionError("legacy provider")):
+                 patch.object(server.guarded_fallback, "run_guarded_result", return_value=self.execution) as run:
                 response = server.guarded_openai_fallback_result("lights on", source="assist", exposed_entities=["light.study"])
             self.assertIs(response.result, self.execution)
             wire = response.action_steps[0].to_wire()
@@ -83,16 +82,10 @@ class TypedFallbackResponseTests(unittest.TestCase):
             self.assertIs(type(wire["status"]), str)
             run.assert_called_once()
 
-    def test_response_is_frozen_and_legacy_adapter_preserves_plain_triple(self):
+    def test_response_is_frozen(self):
         response = FallbackResponse(self.execution, (self.step,))
         with self.assertRaises(FrozenInstanceError):
             setattr(response, 'result', self.execution)
-        with patch.object(server, "guarded_openai_fallback_result", return_value=response):
-            legacy = server.guarded_openai_fallback("lights", source="assist")
-        self.assertEqual(legacy, ("Cannot verify", "unverified", [self.step]))
-        self.assertIs(type(legacy[1]), str)
-        self.assertIs(type(legacy[2]), list)
-
 
 if __name__ == "__main__":
     unittest.main()

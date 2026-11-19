@@ -16,7 +16,7 @@ class TypedRoutineActionEvidenceTests(unittest.TestCase):
         self.assertEqual(len(typed), 10)
         self.assertEqual([step.to_wire() for step in typed], rows)
         self.assertTrue(all(type(step.to_wire()["status"]) is str for step in typed))
-        self.assertEqual(server.routine_action_results(rows), rows)
+        self.assertEqual([step.to_wire() for step in server.routine_action_results_typed(rows)], rows)
 
     def test_only_confirmed_and_already_set_count_as_completed(self):
         for status in RoutineActionStatus:
@@ -44,7 +44,7 @@ class TypedRoutineActionEvidenceTests(unittest.TestCase):
         self.assertIs(typed[1].status, RoutineActionStatus.REQUESTED)
         for invalid in (None, "steps", ({"target": "light", "status": "confirmed"},)):
             self.assertEqual(parse_routine_actions(invalid), ())
-            self.assertEqual(server.routine_action_results(invalid), [])
+            self.assertEqual(server.routine_action_results_typed(invalid), ())
 
     def test_evidence_is_frozen_and_rejects_invalid_fields(self):
         evidence = RoutineActionEvidence("light", RoutineActionStatus.CONFIRMED)
@@ -62,8 +62,7 @@ class TypedRoutineActionEvidenceTests(unittest.TestCase):
                    "outcome": "success", "steps": [{"target": "light", "status": "already_set"}]}
         steps: list[dict[str, Any]]
         steps = []
-        with patch.object(server, "routine_action_results", side_effect=AssertionError("legacy evidence")), \
-             patch.object(server, "add_sass", side_effect=lambda reply, *_: reply):
+        with patch.object(server, "add_sass", side_effect=lambda reply, *_: reply):
             result, _ = server.routine_completion_result(payload, "request", "script.tea", "morning", None, steps)
         self.assertIs(result.outcome, Outcome.REPORTED_SUCCESS)
         self.assertEqual(steps, [{"target": "light", "status": "already_set"}])

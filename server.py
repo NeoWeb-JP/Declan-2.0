@@ -161,9 +161,6 @@ from declan.turn import personality_policy as personality_policy
 def track_routine(name, script):
     return compatibility_facade.track_routine(name, script, r=sys.modules[__name__])
 
-def stop_pending_routines():
-    return compatibility_facade.stop_pending_routines(r=sys.modules[__name__])
-
 def stop_pending_routines_result():
     return compatibility_facade.stop_pending_routines_result(r=sys.modules[__name__])
 
@@ -179,9 +176,6 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def home_assistant_status():
-    return compatibility_facade.home_assistant_status(r=sys.modules[__name__])
-
 def home_assistant_status_result() -> HomeAssistantStatusResult:
     return household_selection_boundaries.home_assistant_status_result(r=sys.modules[__name__])
 
@@ -193,9 +187,6 @@ def read_guest_mode():
 
 def read_visitors_present():
     return household_selection_boundaries.read_visitors_present(r=sys.modules[__name__])
-
-def routine_action_results(steps):
-    return compatibility_facade.routine_action_results(steps, r=sys.modules[__name__])
 
 def routine_action_results_typed(steps):
     return compatibility_facade.routine_action_results_typed(steps, r=sys.modules[__name__])
@@ -368,9 +359,6 @@ def traced_transcribe_result(*args, **kwargs):
     return web_stt.transcribe_result(*args, **kwargs)
 
 
-def traced_transcribe(*args, **kwargs):
-    return compatibility_facade.traced_transcribe(*args, **kwargs, r=sys.modules[__name__])
-
 class Handler(BaseHTTPRequestHandler):
     timeout = 5
 
@@ -417,23 +405,11 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
 def format_routine_result(result, request_id, routine_id, period, movie_action, action_results):
     return legacy_response_adapters.format_routine_result(result, request_id, routine_id, period, movie_action, action_results, r=sys.modules[__name__])
 
-def run_sexy_time(operation, connection, *, approved=False):
-    return legacy_response_adapters.run_sexy_time(operation, connection, approved=approved, r=sys.modules[__name__])
-
-def launch_movie_app(connection, remote, app):
-    return legacy_response_adapters.launch_movie_app(connection, remote, app, r=sys.modules[__name__])
-
-def start_dinner(connection, *, approved=False):
-    return legacy_response_adapters.start_dinner(connection, approved=approved, r=sys.modules[__name__])
-
 def guest_assignment(operation, connection):
     return legacy_response_adapters.guest_assignment(operation, connection, r=sys.modules[__name__])
 
 def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
     return legacy_response_adapters.set_switch_as_light(name, desired_state, inventory, connection, preview=preview, action_results=action_results, r=sys.modules[__name__])
-
-def guarded_openai_fallback(message, *, source, exposed_entities=()):
-    return legacy_response_adapters.guarded_openai_fallback(message, source=source, exposed_entities=exposed_entities, r=sys.modules[__name__])
 
 def preview_routine(phrase, origin=None):
     return legacy_response_adapters.preview_routine(phrase, origin, r=sys.modules[__name__])
