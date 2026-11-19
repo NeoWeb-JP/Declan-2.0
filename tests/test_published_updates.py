@@ -10,7 +10,7 @@ from unittest import TestCase, skipUnless
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
-import updates
+from declan.updates import updates
 
 
 def release(tag, **changes):

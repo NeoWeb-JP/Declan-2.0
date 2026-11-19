@@ -2,7 +2,7 @@
 
 from threading import Event, Lock
 
-from update_results import UpdateJobState, UpdateStatusResult
+from declan.updates.update_results import UpdateJobState, UpdateStatusResult
 
 
 class UpdaterRuntimeState:

@@ -4,8 +4,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-import updates
-from update_results import UpdateJobState, UpdateStatusResult
+from declan.updates import updates
+from declan.updates.update_results import UpdateJobState, UpdateStatusResult
 
 
 class UpdateResultTests(unittest.TestCase):

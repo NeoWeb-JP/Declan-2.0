@@ -98,7 +98,7 @@ import approved_media_players as approved_media_players
 import spotify_playlists as spotify_playlists
 import music_playlists_post as music_playlists_post
 import timers as timers
-import updates as updates
+from declan.updates import updates as updates
 import post_operational_routing as post_operational_routing
 import media_settings_routes as media_settings_routes
 import get_request_dispatch as get_request_dispatch

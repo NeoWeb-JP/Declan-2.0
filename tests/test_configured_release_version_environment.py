@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-import updates
+from declan.updates import updates
 
 
 class ConfiguredReleaseVersionTests(unittest.TestCase):

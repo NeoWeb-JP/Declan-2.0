@@ -3,8 +3,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-import updates
-from updates import release_source
+from declan.updates import updates
+from declan.updates.updates import release_source
 
 
 class UpdateSourceEnvironmentTests(unittest.TestCase):
