@@ -33,10 +33,10 @@ jobs:
           # workflow_run.pull_requests may be empty; recover the PR from its head SHA.
           if [[ -z "$PR_NUMBER" ]]; then
             PR_NUMBER=$(gh api "repos/$GH_REPO/commits/$HEAD_SHA/pulls" \
-              --jq '[.[] | select(.base.ref == "main" and .head.sha == env.HEAD_SHA)] | first | .number // empty')
+              --jq '[.[] | select(.base.ref == "main")] | first | .number // empty')
           fi
           if [[ -z "$PR_NUMBER" ]]; then
-            echo "No matching PR found for $HEAD_SHA; skipping notification."
+            echo "::warning::No matching PR found for $HEAD_SHA; skipping notification."
             exit 0
           fi
           marker='<!-- declan-pr-ci-status -->'
@@ -47,6 +47,8 @@ jobs:
             --jq '.[] | select(.user.type == "Bot" and (.body | contains("<!-- declan-pr-ci-status -->"))) | .id' | tail -n 1)
           if [[ -n "$existing" ]]; then
             gh api -X PATCH "repos/$GH_REPO/issues/comments/$existing" -f body="$message" >/dev/null
+            echo "Updated CI status comment on PR #$PR_NUMBER ($status)"
           else
             gh api -X POST "repos/$GH_REPO/issues/$PR_NUMBER/comments" -f body="$message" >/dev/null
+            echo "Created CI status comment on PR #$PR_NUMBER ($status)"
           fi
