@@ -23,7 +23,10 @@ class NativeMicrophoneSettingsTests(unittest.TestCase):
                          "len(audio) % 2", "allow_redirects=False", "Bearer {entry.data['token']}"):
             self.assertIn(expected, source)
         self.assertIn('self.path == "/api/stt"', SERVER)
-        self.assertIn("secrets.compare_digest(", SERVER)
+        ingress = (ROOT / "http_ingress_security.py").read_text()
+        ast.parse(ingress)
+        self.assertIn("http_ingress_security.has_ingress_access(self)", SERVER)
+        self.assertIn("secrets.compare_digest(", ingress)
 
     def test_spotify_secret_never_sent_to_browser_or_overwritten(self):
         source = (COMPONENT / "settings_status_view.py").read_text()
