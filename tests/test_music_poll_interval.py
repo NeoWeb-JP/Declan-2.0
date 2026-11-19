@@ -8,8 +8,8 @@ import music
 class WaitForIntervalTests(unittest.TestCase):
     def run_wait(self, ready_after, **kwargs):
         """Return (result, sleeps) where the player is ready on poll number ready_after."""
-        polls = []
-        sleeps = []
+        polls: list[str] = []
+        sleeps: list[float] = []
 
         def request(connection, path, data=None, *, timeout=None):
             polls.append(path)
