@@ -16,7 +16,6 @@ JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 class MediaPlayersContractTests(unittest.TestCase):
     def test_backend_token_is_scoped_to_player_settings(self):
         get = BACKEND[BACKEND.index("    def do_GET(self):"):BACKEND.index("    def do_POST(self):")]
-        post = BACKEND[BACKEND.index("    def handle_post(self):"):]
         self.assertIn('settings_read_routes.handles(handler.path)', (ROOT / 'get_request_dispatch.py').read_text())
         self.assertIn('"/api/settings/media-players"', (ROOT / "settings_read_routes.py").read_text())
         self.assertIn('get_request_dispatch.dispatch(', get)
