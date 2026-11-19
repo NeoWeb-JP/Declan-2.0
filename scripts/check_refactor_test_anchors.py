@@ -32,7 +32,7 @@ def changed_python_files(ref):
 
 
 def referenced_source_files(tree):
-    """Recognise simple Path(...).read_text() assignments in test modules."""
+    """Recognise Path(...).read_text() assignments, retaining explicit paths."""
     found = {}
     for node in ast.walk(tree):
         if not isinstance(node, (ast.Assign, ast.AnnAssign)):
@@ -42,14 +42,31 @@ def referenced_source_files(tree):
             continue
         if value.func.attr != "read_text":
             continue
-        # Identify a literal Python filename anywhere in the expression.
-        names = [n.value for n in ast.walk(value) if isinstance(n, ast.Constant)
-                 and isinstance(n.value, str) and n.value.endswith(".py")]
+        # AST traversal order is not guaranteed to represent path order.
+        # Collect string path segments in their source order.
+        parts = sorted(
+            (n for n in ast.walk(value.func.value)
+             if isinstance(n, ast.Constant) and isinstance(n.value, str)),
+            key=lambda n: (n.lineno, n.col_offset),
+        )
+        names = [part.value for part in parts]
+        python_parts = [index for index, part in enumerate(names) if part.endswith(".py")]
+        if not python_parts:
+            continue
+        index = python_parts[-1]
+        # Only use contiguous literal segments after a known repository root.
+        # Ignore non-path strings in unrelated expressions.
+        filename = names[index]
+        if index > 0 and not filename.startswith("/") and "/" not in filename:
+            preceding = names[index - 1]
+            if preceding and not preceding.endswith(".py"):
+                filename = preceding.strip("/") + "/" + filename
         targets = node.targets if isinstance(node, ast.Assign) else [node.target]
         for target in targets:
-            if isinstance(target, ast.Name) and names:
-                found[target.id] = names[-1]
+            if isinstance(target, ast.Name):
+                found[target.id] = filename
     return found
+
 
 
 def anchor_references(tree):
