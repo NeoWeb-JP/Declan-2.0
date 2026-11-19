@@ -2,6 +2,7 @@
 from typing import Any
 import unittest
 from unittest.mock import patch
+import legacy_wire
 import server
 
 
@@ -15,12 +16,12 @@ class RoutineDispatchTests(unittest.TestCase):
              patch.object(server.script_discovery, "_enqueue_provider", return_value=("requested", "started", "job")) as enqueue, \
              patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("waited for music")):
             for phrase, action in server.SEXY_TIME_COMMANDS.items():
-                selection = server.select_routine(phrase, None)
+                selection = legacy_wire.select_routine(phrase, None)
                 self.assertEqual(selection[0], "auto:" + script["entity_id"])
                 self.assertEqual(selection[1]["operation"], action)
                 self.assertEqual(selection[1]["requested_action"], action)
                 self.assertEqual(selection[1]["_declan_reply_category"], "sexy")
-                self.assertEqual(server.execute_routine(selection, [])[1], "started")
+                self.assertEqual(legacy_wire.execute_routine(selection, [])[1], "started")
                 self.assertEqual(enqueue.call_args.args[2], {"operation": action, "requested_action": action})
 
     def test_end_sexy_time_does_not_run_a_start_only_script(self):
@@ -28,8 +29,8 @@ class RoutineDispatchTests(unittest.TestCase):
         script = {"entity_id": "script.sexy_time", "name": "Sexy Time", "safe": True, "fields": []}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
-            self.assertIsNone(server.select_routine("end sexy time", None))
-            self.assertIsNotNone(server.select_routine("sexy time", None))
+            self.assertIsNone(legacy_wire.select_routine("end sexy time", None))
+            self.assertIsNotNone(legacy_wire.select_routine("sexy time", None))
 
     def test_night_aliases_use_live_script_background_execution(self):
         script: dict[str, Any]
@@ -40,10 +41,10 @@ class RoutineDispatchTests(unittest.TestCase):
              patch.object(server.script_discovery, "_enqueue_provider", return_value=("requested", "started", "job")) as enqueue, \
              patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("waited for bedtime")):
             for phrase in (*server.GOOD_NIGHT_PHRASES, "declan good night shared local routine"):
-                selection = server.select_routine(phrase, None)
+                selection = legacy_wire.select_routine(phrase, None)
                 self.assertEqual(selection, ("auto:" + script["entity_id"],
                     {"_declan_background": True, "_declan_reply_category": "night"}))
-                self.assertEqual(server.execute_routine(selection, [])[1], "started")
+                self.assertEqual(legacy_wire.execute_routine(selection, [])[1], "started")
                 self.assertEqual(enqueue.call_args.args[2], {})
 
     def test_morning_aliases_and_native_name_use_background_execution(self):
@@ -55,10 +56,10 @@ class RoutineDispatchTests(unittest.TestCase):
              patch.object(server.script_discovery, "_enqueue_provider", return_value=("requested", "started", "job")) as enqueue, \
              patch.object(server.script_discovery, "_execute_provider", side_effect=AssertionError("waited for morning")):
             for phrase in (*server.GOOD_MORNING_PHRASES, "declan good morning shared local routine"):
-                selection = server.select_routine(phrase, None)
+                selection = legacy_wire.select_routine(phrase, None)
                 self.assertEqual(selection, ("auto:" + script["entity_id"],
                     {"_declan_background": True, "_declan_reply_category": "morning"}))
-                self.assertEqual(server.execute_routine(selection, [])[1], "started")
+                self.assertEqual(legacy_wire.execute_routine(selection, [])[1], "started")
                 self.assertEqual(enqueue.call_args.args[2], {})
 
     def test_movie_direction_is_parsed_without_mapping(self):
@@ -72,7 +73,7 @@ class RoutineDispatchTests(unittest.TestCase):
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
             for phrase, action in (("start movie time", "start"), ("end movie time", "end"), ("movie time", "toggle")):
-                selection = server.select_routine(phrase, None)
+                selection = legacy_wire.select_routine(phrase, None)
                 self.assertIsNotNone(selection)
                 self.assertEqual(selection[0], "auto:script.movie_time")
                 self.assertEqual(selection[1]["requested_action"], action)
@@ -84,11 +85,11 @@ class RoutineDispatchTests(unittest.TestCase):
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
             for phrase in ("what is the status of the house", "house status", "how is the house"):
                 with self.subTest(phrase=phrase):
-                    self.assertEqual(server.select_routine(phrase, None), ("auto:script.house_status", {"_declan_expect_response": True}))
+                    self.assertEqual(legacy_wire.select_routine(phrase, None), ("auto:script.house_status", {"_declan_expect_response": True}))
 
     def test_missing_house_status_never_falls_through_to_device_lookup(self):
         with patch.object(server, "ha_device_connection", return_value=None):
-            self.assertEqual(server.select_routine_turn("how is the house", None),
+            self.assertEqual(legacy_wire.select_routine_turn("how is the house", None),
                              (("unconfigured_house_status", {}), None))
 
     def test_no_saved_mapping_can_override_ha_script(self):
@@ -97,20 +98,20 @@ class RoutineDispatchTests(unittest.TestCase):
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)), \
              patch.object(server.routine_registry, "load", side_effect=AssertionError("legacy mapping accessed")):
-            self.assertEqual(server.select_routine("good night", None), ("auto:script.good_night",
+            self.assertEqual(legacy_wire.select_routine("good night", None), ("auto:script.good_night",
                 {"_declan_background": True, "_declan_reply_category": "night"}))
 
     def test_other_device_status_is_not_intercepted(self):
         with patch.object(server, "ha_device_connection", return_value=None):
-            self.assertIsNone(server.select_routine("what is the status of the projector", None))
+            self.assertIsNone(legacy_wire.select_routine("what is the status of the projector", None))
 
     def test_end_movie_time_never_selects_start_only_script(self):
         script: dict[str, Any]
         script = {"entity_id": "script.movie_time", "name": "Movie Time", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
-            self.assertIsNone(server.select_routine("end movie time", None))
-            self.assertEqual(server.select_routine("movie time", None),
+            self.assertIsNone(legacy_wire.select_routine("end movie time", None))
+            self.assertEqual(legacy_wire.select_routine("movie time", None),
                              ("auto:script.movie_time", {"operation": "toggle", "movie_action": "toggle",
                                                            "action": "toggle", "room": "lounge",
                                                            "movie_room": "lounge", "_declan_background": True}))
@@ -123,9 +124,9 @@ class RoutineDispatchTests(unittest.TestCase):
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)), \
              patch.object(server.script_discovery, "_execute_provider",
                           return_value=("All doors closed.", "reported_success", None)) as execute:
-            selection = server.select_routine("what is the status of the house", None)
+            selection = legacy_wire.select_routine("what is the status of the house", None)
             self.assertEqual(selection[0], "auto:script.declan_home_health_summary")
-            result = server.execute_routine(selection, [])
+            result = legacy_wire.execute_routine(selection, [])
             self.assertEqual(result[0], "All doors closed.")
             self.assertTrue(execute.call_args.kwargs["expect_response"])
 

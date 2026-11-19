@@ -8,6 +8,7 @@ from unittest import TestCase
 from unittest.mock import patch
 from urllib.error import HTTPError
 
+import legacy_wire
 import server
 
 from test_home_assistant import HA_ENV
@@ -47,26 +48,26 @@ class RoutineTests(TestCase):
                    {"entity_id": "script.bedroom_cinema", "name": "Bedroom Cinema", "safe": True}]
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple(scripts), None)):
-            self.assertEqual(server.select_routine("wake the house", None),
+            self.assertEqual(legacy_wire.select_routine("wake the house", None),
                              ("auto:script.wake_the_house", {}))
-            self.assertEqual(server.select_routine("bedroom cinema", None),
+            self.assertEqual(legacy_wire.select_routine("bedroom cinema", None),
                              ("auto:script.bedroom_cinema", {}))
 
     def test_builtin_sensitive_flag_fails_closed(self):
         self.mappings["morning"]["sensitive"] = True
         self.respond(self.confirmed)
-        self.assertEqual(server.run_routine("morning")[1], "unresolved")
+        self.assertEqual(legacy_wire.run_routine("morning")[1], "unresolved")
         self.assertEqual(self.calls, [])
-        self.assertEqual(server.run_routine("morning", approved=True)[1], "reported_success")
+        self.assertEqual(legacy_wire.run_routine("morning", approved=True)[1], "reported_success")
 
     def test_morning_dispatches_once_and_rejects_duplicate(self):
         self.respond(self.confirmed)
         steps: list[dict[str, Any]]
         steps = []
-        self.assertEqual(server.run_routine("morning", action_results=steps)[1], "reported_success")
+        self.assertEqual(legacy_wire.run_routine("morning", action_results=steps)[1], "reported_success")
         self.assertIn("/script/declan_good_morning_shared_local_routine?", self.calls[0].full_url)
         self.assertEqual(steps[0]["status"], "confirmed")
-        self.assertEqual(server.run_routine("morning")[1], "duplicate")
+        self.assertEqual(legacy_wire.run_routine("morning")[1], "duplicate")
         self.assertEqual(len(self.calls), 1)
 
     def test_night_private_facts_depend_on_guest_mode(self):
@@ -76,7 +77,7 @@ class RoutineTests(TestCase):
                 self.respond(lambda data: self.confirmed(data, guest_mode=guest, bedtime={
                     "battery_percent": 30, "indoor_temperature": 14,
                 }))
-                reply, outcome, detail = server.run_routine("night")
+                reply, outcome, detail = legacy_wire.run_routine("night")
                 self.assertEqual(outcome, "reported_success")
                 self.assertIn("all lights are off", detail)
                 self.assertEqual("Peugeot" in reply, guest == "off")
@@ -89,7 +90,7 @@ class RoutineTests(TestCase):
                     {"target": "Screen", "status": "confirmed"},
                     {"target": "Projector media player", "status": "unverified"},
                 ]))
-                reply, outcome, detail = server.run_routine("movie", movie_action=direction)
+                reply, outcome, detail = legacy_wire.run_routine("movie", movie_action=direction)
                 self.assertEqual(outcome, "partial")
                 self.assertIn("I couldn't confirm Projector media player.", detail)
                 intro = "Starting Movie Time. " if direction == "start" else "Ending Movie Time. "
@@ -98,13 +99,13 @@ class RoutineTests(TestCase):
 
     def test_movie_app_launch_does_not_use_unverified_legacy_mapping(self):
         with patch.object(server, "ha_device_connection", return_value=None):
-            self.assertIsNone(server.select_routine("open netflix in the lounge", "bedroom-satellite"))
+            self.assertIsNone(legacy_wire.select_routine("open netflix in the lounge", "bedroom-satellite"))
 
 
     def test_missing_movie_mapping_never_discovers_or_runs(self):
         self.mappings.pop("movie")
         with patch.object(server, "discover_movie_entities") as discover:
-            _, outcome, _ = server.run_routine("movie", movie_action="start")
+            _, outcome, _ = legacy_wire.run_routine("movie", movie_action="start")
         self.assertEqual(outcome, "not_configured")
         self.assertEqual(self.calls, [])
         discover.assert_not_called()
@@ -113,7 +114,7 @@ class RoutineTests(TestCase):
         self.respond(lambda _: {"outcome": "success"})
         steps: list[dict[str, Any]]
         steps = []
-        _, outcome, _ = server.run_routine("movie", movie_action="start",
+        _, outcome, _ = legacy_wire.run_routine("movie", movie_action="start",
                                           movie_app=server.MOVIE_APPS["netflix"], action_results=steps)
         self.assertEqual(outcome, "unverified")
         self.assertEqual(len(self.calls), 1)
@@ -123,7 +124,7 @@ class RoutineTests(TestCase):
         self.respond(lambda data: {"script.movie": self.confirmed(data, resolved_action="start")})
         steps: list[dict[str, Any]]
         steps = []
-        _, outcome, _ = server.run_routine(
+        _, outcome, _ = legacy_wire.run_routine(
             "movie", movie_action="start", movie_app=server.MOVIE_APPS["netflix"], action_results=steps,
         )
         self.assertEqual(outcome, "reported_success")
@@ -133,14 +134,14 @@ class RoutineTests(TestCase):
     def test_movie_response_from_another_run_cannot_launch_an_app(self):
         self.respond(lambda data: self.confirmed({**data, "request_id": "wrong"}, resolved_action="start"))
         with patch.object(server, "verify_legacy_lounge_start", return_value=True) as fallback:
-            _, outcome, _ = server.run_routine("movie", movie_action="start", movie_app=server.MOVIE_APPS["netflix"])
+            _, outcome, _ = legacy_wire.run_routine("movie", movie_action="start", movie_app=server.MOVIE_APPS["netflix"])
         self.assertEqual(outcome, "unverified")
         self.assertEqual(len(self.calls), 1)
         fallback.assert_not_called()
 
     def test_bedroom_mapping_does_not_use_lounge_script(self):
         self.mappings.pop("movie_bedroom")
-        _, outcome, _ = server.run_routine("movie", movie_action="start", movie_room="bedroom")
+        _, outcome, _ = legacy_wire.run_routine("movie", movie_action="start", movie_room="bedroom")
         self.assertEqual(outcome, "not_configured")
         self.assertEqual(self.calls, [])
 
@@ -159,13 +160,13 @@ class RoutineTests(TestCase):
 
     def test_rejection_is_distinct_from_an_uncertain_timeout(self):
         self.opener.open.side_effect = HTTPError("http://ha.invalid", 403, "Forbidden", Message(), None)
-        self.assertEqual(server.run_routine("morning")[1], "rejected")
+        self.assertEqual(legacy_wire.run_routine("morning")[1], "rejected")
         server.ROUTINE_COOLDOWN = server.routine_cooldown.RoutineCooldown()
         self.opener.open.side_effect = TimeoutError()
-        self.assertEqual(server.run_routine("morning")[1], "unverified")
+        self.assertEqual(legacy_wire.run_routine("morning")[1], "unverified")
 
     def test_uncorrelated_legacy_result_cannot_claim_success(self):
         self.respond(lambda _: {"status": "success", "steps": {"lights": "confirmed"}})
-        reply, outcome, _ = server.run_routine("morning")
+        reply, outcome, _ = legacy_wire.run_routine("morning")
         self.assertEqual(outcome, "unverified")
         self.assertIn("did not return a correlated completion result", reply)

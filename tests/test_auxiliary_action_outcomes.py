@@ -7,6 +7,7 @@ from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
 from declan.turn import roast_guest_dispatch
+import legacy_wire
 import server
 from declan.core.execution_results import ExecutionResult, Outcome, MovieLaunchResult, MovieLaunchStatus
 
@@ -72,16 +73,15 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
             "declan_as_light": True, "friendly_name": "Garden light"}}
         typed = server.set_switch_as_light_result("garden light", "on", [row], None, preview=True)
         self.assertIs(typed.outcome, Outcome.PREVIEW)
-        self.assertEqual(server.set_switch_as_light("garden light", "on", [row], None, preview=True), typed.as_legacy_pair())
+        self.assertEqual(legacy_wire.set_switch_as_light("garden light", "on", [row], None, preview=True), typed.as_legacy_pair())
         self.assertIsNone(server.set_switch_as_light_result("missing", "on", [row], None))
-        self.assertIsNone(server.set_switch_as_light("missing", "on", [row], None))
+        self.assertIsNone(legacy_wire.set_switch_as_light("missing", "on", [row], None))
 
     def test_lighting_fallback_bypasses_legacy_switch_provider(self):
         expected = ExecutionResult("Already on", Outcome.CONFIRMED)
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
              patch.object(server, 'read_ha_inventory_result', return_value=([], None)), \
              patch.object(server, "read_ha_areas", return_value={}), \
-             patch.object(server, "set_switch_as_light", side_effect=AssertionError("legacy switch")), \
              patch.object(server, "set_switch_as_light_result", return_value=expected) as switch:
             self.assertIs(server.set_lights_result("garden light", "on"), expected)
         switch.assert_called_once()

@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
+import legacy_wire
 import server
 from declan.core.execution_results import ExecutionResult, Outcome
 
@@ -27,8 +28,7 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
                 opener.open.side_effect = respond
                 mapping = {"tea": {"script": "script.tea", "fields": {}}}
                 with patch.object(server.routine_registry, "load", return_value=mapping), \
-                     patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
-                     patch.object(server, "run_custom_routine", side_effect=AssertionError("legacy wrapper")):
+                     patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)):
                     result, detail = server.run_custom_routine_result("tea")
                 self.assertIs(result.outcome, expected)
                 self.assertIsNone(detail)
@@ -42,7 +42,6 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
         with patch.object(server.routine_registry, "load", return_value=mapping), \
              patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
              patch.object(server, "ROUTINE_COOLDOWN", server.routine_cooldown.RoutineCooldown()), \
-             patch.object(server, "format_routine_result", side_effect=AssertionError("legacy formatter")), \
              patch.object(server, "routine_completion_result", return_value=(expected, "evidence")) as complete:
             result, detail = server.run_routine_result("morning")
         self.assertIs(result, expected)
@@ -84,9 +83,9 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
     def test_legacy_routine_adapters_preserve_plain_strings_and_detail(self):
         expected = ExecutionResult("Routine finished", Outcome.REPORTED_SUCCESS)
         for legacy, typed, arguments in (
-                (server.run_custom_routine, "run_custom_routine_result", ("tea",)),
-                (server.run_routine, "run_routine_result", ("morning",)),
-                (server.format_routine_result, "routine_completion_result", ({}, "request", "script.tea", "morning", None, []))):
+                (legacy_wire.run_custom_routine, "run_custom_routine_result", ("tea",)),
+                (legacy_wire.run_routine, "run_routine_result", ("morning",)),
+                (legacy_wire.format_routine_result, "routine_completion_result", ({}, "request", "script.tea", "morning", None, []))):
             with self.subTest(provider=typed), patch.object(server, typed, return_value=(expected, "evidence")):
                 result = legacy(*arguments)
             self.assertEqual(result, ("Routine finished", "reported_success", "evidence"))

@@ -32,7 +32,6 @@ from declan.http import http_handler_adapters
 from declan.turn import turn_http_entry
 from declan.core import domain_boundary_helpers
 from declan.ha import household_selection_boundaries
-from declan.core import legacy_response_adapters
 from declan.core import runtime_dispatch_boundaries
 from declan.music import inventory_stop_boundaries
 from declan.core import compatibility_facade
@@ -208,26 +207,14 @@ def parse_movie_request(phrase):
 def select_routine_result(phrase, origin) -> RoutineSelection | None:
     return household_selection_boundaries.select_routine_result(phrase, origin, r=sys.modules[__name__])
 
-def select_routine(phrase, origin):
-    return compatibility_facade.select_routine(phrase, origin, r=sys.modules[__name__])
-
 def select_routine_turn_result(phrase, origin) -> RoutineTurnSelection | None:
     return household_selection_boundaries.select_routine_turn_result(phrase, origin, r=sys.modules[__name__])
-
-def select_routine_turn(phrase, origin):
-    return compatibility_facade.select_routine_turn(phrase, origin, r=sys.modules[__name__])
 
 def preview_routine_result(phrase, origin=None):
     return household_selection_boundaries.preview_routine_result(phrase, origin, r=sys.modules[__name__])
 
 def execute_routine_result(selection, action_results, *, approved=False):
     return household_selection_boundaries.execute_routine_result(selection, action_results, approved=approved, r=sys.modules[__name__])
-
-def _routine_legacy_triple(result, status):
-    return compatibility_facade._routine_legacy_triple(result, status, r=sys.modules[__name__])
-
-def execute_routine(selection, action_results, *, approved=False):
-    return compatibility_facade.execute_routine(selection, action_results, approved=approved, r=sys.modules[__name__])
 
 def run_custom_routine_result(name, action_results=None, *, approved=False, parameters=None):
     return service_entry_boundaries.run_custom_routine_result(name, action_results=action_results, approved=approved, parameters=parameters, r=sys.modules[__name__])
@@ -390,20 +377,6 @@ def main():
     return server_bootstrap.main(r=sys.modules[__name__])
 
 
-def run_custom_routine(name, action_results=None, *, approved=False, parameters=None):
-    return legacy_response_adapters.run_custom_routine(name, action_results, approved=approved, parameters=parameters, r=sys.modules[__name__])
-
-def run_routine(period, *, action_results=None, movie_action=None, movie_room="lounge", movie_app=None, approved=False):
-    return legacy_response_adapters.run_routine(period, action_results=action_results, movie_action=movie_action, movie_room=movie_room, movie_app=movie_app, approved=approved, r=sys.modules[__name__])
-
-def format_routine_result(result, request_id, routine_id, period, movie_action, action_results):
-    return legacy_response_adapters.format_routine_result(result, request_id, routine_id, period, movie_action, action_results, r=sys.modules[__name__])
-
-def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
-    return legacy_response_adapters.set_switch_as_light(name, desired_state, inventory, connection, preview=preview, action_results=action_results, r=sys.modules[__name__])
-
-def preview_routine(phrase, origin=None):
-    return legacy_response_adapters.preview_routine(phrase, origin, r=sys.modules[__name__])
 if __name__ == "__main__":
     server_bootstrap.run(r=sys.modules[__name__])
 

@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 
 from declan.core import conditions
 from declan.ha import device_status
+import legacy_wire
 import server
 from declan.timers import timers
 from declan.core.execution_results import ExecutionResult, Outcome
@@ -22,8 +23,8 @@ class CoreTests(TestCase):
                   "fields": ["operation", "room"], "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, None)), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
-            self.assertEqual(server.select_routine("movie time", "satellite")[1]["room"], "lounge")
-            selection = server.select_routine("movie time in the lounge", "satellite")
+            self.assertEqual(legacy_wire.select_routine("movie time", "satellite")[1]["room"], "lounge")
+            selection = legacy_wire.select_routine("movie time in the lounge", "satellite")
             self.assertEqual(selection[1]["room"], "lounge")
 
     def test_routine_success_requires_confirmed_steps(self):
@@ -35,11 +36,11 @@ class CoreTests(TestCase):
                 {"target": "projector power", "status": "unverified"},
             ],
         }
-        _, outcome, detail = server.format_routine_result(result, "run", "script.movie", "movie", "start", [])
+        _, outcome, detail = legacy_wire.format_routine_result(result, "run", "script.movie", "movie", "start", [])
         self.assertEqual(outcome, "partial")
         self.assertIn("couldn't confirm projector power", detail)
         self.assertEqual(
-            server.format_routine_result(result, "wrong", "script.movie", "movie", "start", [])[1], "unverified"
+            legacy_wire.format_routine_result(result, "wrong", "script.movie", "movie", "start", [])[1], "unverified"
         )
 
     def test_weather_follow_up_keeps_place(self):
@@ -89,7 +90,7 @@ class CoreTests(TestCase):
 
     def test_mixed_light_commands_do_not_become_a_routine(self):
         phrase = "turn on the fairy lights and turn off the office light"
-        self.assertIsNone(server.select_routine_turn(phrase, None))
+        self.assertIsNone(legacy_wire.select_routine_turn(phrase, None))
         self.assertEqual(server.parse_light_command(phrase), ("fairy lights and turn off office light", "on"))
 
     def test_timer_duration_limits(self):

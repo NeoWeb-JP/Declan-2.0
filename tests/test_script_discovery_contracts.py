@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from declan.ha import script_discovery
+import legacy_wire
 import server
 
 
@@ -75,6 +76,6 @@ class DiscoveryContractTests(unittest.TestCase):
         with patch.object(server, "ha_device_connection", return_value=connection), \
              patch.object(script_discovery, "discover", side_effect=AssertionError("legacy discovery")), \
              patch.object(script_discovery, "match", side_effect=AssertionError("legacy matching")):
-            self.assertEqual(server.select_routine("make tea", None), ("auto:script.make_tea", {}))
+            self.assertEqual(legacy_wire.select_routine("make tea", None), ("auto:script.make_tea", {}))
             result, _ = script_discovery.execute_result(connection, {"entity_id": "script.removed"})
         self.assertEqual(result.outcome.value, "unresolved")
