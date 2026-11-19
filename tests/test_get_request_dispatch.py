@@ -1,7 +1,6 @@
 """Regression tests for extracted GET request routing and access gate."""
 
 import unittest
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import get_request_dispatch
@@ -49,18 +48,10 @@ class GetRequestDispatchTests(unittest.TestCase):
     def test_unknown_route_returns_404(self):
         handler = FakeHandler("/not-a-real-route")
         with patch.object(get_request_dispatch.get_access_gate_http, "enforce_access", return_value=True):
-            for module in (
-                get_request_dispatch.system_read_routes,
-                get_request_dispatch.native_read_routes,
-                get_request_dispatch.operational_read_routes,
-                get_request_dispatch.settings_read_routes,
-                get_request_dispatch.history_read_routes,
-            ):
-                self.addCleanup(patch.stopall)
-            with patch.object(get_request_dispatch.system_read_routes, "handles", return_value=False), \\
-                 patch.object(get_request_dispatch.native_read_routes, "handles", return_value=False), \\
-                 patch.object(get_request_dispatch.operational_read_routes, "handles", return_value=False), \\
-                 patch.object(get_request_dispatch.settings_read_routes, "handles", return_value=False), \\
+            with patch.object(get_request_dispatch.system_read_routes, "handles", return_value=False), \
+                 patch.object(get_request_dispatch.native_read_routes, "handles", return_value=False), \
+                 patch.object(get_request_dispatch.operational_read_routes, "handles", return_value=False), \
+                 patch.object(get_request_dispatch.settings_read_routes, "handles", return_value=False), \
                  patch.object(get_request_dispatch.history_read_routes, "handles", return_value=False):
                 invoke(handler)
         self.assertEqual(handler.responses, [(404, {"error": "Not found."})])
