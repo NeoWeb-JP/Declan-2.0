@@ -267,7 +267,7 @@ def read_guest_mode():
             return json.loads(response.read(4096)).get("state")
     except HTTPError as error:
         error.close()
-    except (OSError, ValueError, AttributeError, sqlite3.Error):
+    except (OSError, ValueError, TypeError, AttributeError, sqlite3.Error):
         pass
     return None
 
