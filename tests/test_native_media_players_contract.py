@@ -4,8 +4,8 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
-AUTH = (ROOT / "post_origin_auth_http.py").read_text()
+POST_INGRESS = (ROOT / "declan/http/post_ingress_orchestration.py").read_text()
+AUTH = (ROOT / "declan/http/post_origin_auth_http.py").read_text()
 BACKEND = (ROOT / "server.py").read_text()
 MEDIA_ROUTES = (ROOT / "declan" / "music" / "media_settings_routes.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/media_players_view.py").read_text()
@@ -16,14 +16,14 @@ JS = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 class MediaPlayersContractTests(unittest.TestCase):
     def test_backend_token_is_scoped_to_player_settings(self):
         get = BACKEND[BACKEND.index("    def do_GET(self):"):BACKEND.index("    def do_POST(self):")]
-        self.assertIn('settings_read_routes.handles(handler.path)', (ROOT / 'get_request_dispatch.py').read_text())
-        self.assertIn('"/api/settings/media-players"', (ROOT / "settings_read_routes.py").read_text())
+        self.assertIn('settings_read_routes.handles(handler.path)', (ROOT / 'declan/http/get_request_dispatch.py').read_text())
+        self.assertIn('"/api/settings/media-players"', (ROOT / "declan/http/settings_read_routes.py").read_text())
         self.assertIn('http_handler_adapters.do_GET(', get)
-        self.assertIn('get_request_dispatch.dispatch(', (ROOT / 'http_handler_adapters.py').read_text())
-        self.assertIn('get_access_gate_http.enforce_access(', (ROOT / 'get_request_dispatch.py').read_text())
-        self.assertIn('not players_auth', (ROOT / 'get_access_gate_http.py').read_text())
+        self.assertIn('get_request_dispatch.dispatch(', (ROOT / 'declan/http/http_handler_adapters.py').read_text())
+        self.assertIn('get_access_gate_http.enforce_access(', (ROOT / 'declan/http/get_request_dispatch.py').read_text())
+        self.assertIn('not players_auth', (ROOT / 'declan/http/get_access_gate_http.py').read_text())
         self.assertIn('r.post_body_routing.dispatch(', POST_INGRESS)
-        self.assertIn('settings_voice_post.handles(handler.path)', (ROOT / 'post_body_routing.py').read_text())
+        self.assertIn('settings_voice_post.handles(handler.path)', (ROOT / 'declan/http/post_body_routing.py').read_text())
         self.assertIn('media_settings_post.handles(path)', (ROOT / 'declan' / 'voice' / 'settings_voice_post.py').read_text())
         media_post = (ROOT / "declan" / "music" / "media_settings_post.py").read_text()
         self.assertIn('"/api/settings/media-players"', media_post)
@@ -32,8 +32,8 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn('"/api/settings/media-players"', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
         self.assertIn("r.post_entry_gates.enforce(", POST_INGRESS)
-        self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "post_entry_gates.py").read_text())
-        self.assertIn("post_request_preflight.enforce(", (ROOT / "post_request_entry.py").read_text())
+        self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "declan/http/post_entry_gates.py").read_text())
+        self.assertIn("post_request_preflight.enforce(", (ROOT / "declan/http/post_request_entry.py").read_text())
         self.assertIn("r.post_origin_auth_http.enforce_access,", POST_INGRESS)
 
     def test_admin_proxy_and_payload_validation(self):
@@ -66,7 +66,7 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn('data.room_labels && data.room_labels[room]', JS)
         self.assertIn('label.textContent = ', JS)
         ast.parse(MEDIA_ROUTES)
-        self.assertIn("media_settings_routes.approved_player_settings(", (ROOT / "http_handler_adapters.py").read_text())
+        self.assertIn("media_settings_routes.approved_player_settings(", (ROOT / "declan/http/http_handler_adapters.py").read_text())
         self.assertIn('"room_labels": room_labels', MEDIA_ROUTES)
         self.assertIn('players-save', JS)
         self.assertNotIn('option.innerHTML', JS)

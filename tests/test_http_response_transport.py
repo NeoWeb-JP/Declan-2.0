@@ -7,7 +7,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import http_response_transport
+from declan.http import http_response_transport
 
 
 class FakeHandler:

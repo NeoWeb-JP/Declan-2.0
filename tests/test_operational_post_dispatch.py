@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import operational_post_dispatch as routes
+from declan.http import operational_post_dispatch as routes
 
 
 class OperationalPostDispatchTests(unittest.TestCase):

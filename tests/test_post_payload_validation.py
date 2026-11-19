@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import post_payload_validation
+from declan.http import post_payload_validation
 
 
 class PostPayloadValidationTests(unittest.TestCase):

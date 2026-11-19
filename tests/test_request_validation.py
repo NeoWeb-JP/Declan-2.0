@@ -1,6 +1,6 @@
 """HTTP message validation regression tests."""
 import unittest
-from request_validation import message_and_session
+from declan.http.request_validation import message_and_session
 
 
 class RequestValidationTests(unittest.TestCase):

@@ -4,7 +4,7 @@ import unittest
 from email.message import Message
 from unittest.mock import Mock
 
-from post_content_type_http import enforce_json_content_type
+from declan.http.post_content_type_http import enforce_json_content_type
 
 
 class PostContentTypeTests(unittest.TestCase):

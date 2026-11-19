@@ -12,17 +12,17 @@ FRONTEND = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 class NativeHistoryContractTests(unittest.TestCase):
     def test_backend_exception_only_matches_history_listing(self):
         source = BACKEND[BACKEND.index("    def do_GET(self):"):BACKEND.index("    def do_POST(self):")]
-        gate = (ROOT / "get_access_gate_http.py").read_text()
-        dispatcher = (ROOT / "get_request_dispatch.py").read_text()
+        gate = (ROOT / "declan/http/get_access_gate_http.py").read_text()
+        dispatcher = (ROOT / "declan/http/get_request_dispatch.py").read_text()
         self.assertIn("http_handler_adapters.do_GET(", source)
-        self.assertIn("get_request_dispatch.dispatch(", (__import__("pathlib").Path(__file__).resolve().parents[1] / "http_handler_adapters.py").read_text())
+        self.assertIn("get_request_dispatch.dispatch(", (__import__("pathlib").Path(__file__).resolve().parents[1] / "declan/http/http_handler_adapters.py").read_text())
         self.assertIn("get_access_gate_http.enforce_access(", dispatcher)
         self.assertIn('urlsplit(handler.path).path == "/api/history"', gate)
         self.assertIn('len(token) >= 32', gate)
         self.assertIn('not ingress and not native_settings_auth and not history_auth', gate)
         self.assertIn('if not ingress and not native_settings_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (', gate)
         self.assertIn('settings_read_routes.handles(handler.path)', dispatcher)
-        self.assertIn('"/api/settings/media-players"', (ROOT / "settings_read_routes.py").read_text())
+        self.assertIn('"/api/settings/media-players"', (ROOT / "declan/http/settings_read_routes.py").read_text())
         self.assertIn('not ingress and not native_settings_auth and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth', gate)
         self.assertNotIn('self.path.startswith("/api/history") and len(token)', source)
 

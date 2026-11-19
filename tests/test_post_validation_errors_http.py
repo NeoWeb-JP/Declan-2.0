@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock
 
-from post_validation_errors_http import send_validation_error, validation_error_message
+from declan.http.post_validation_errors_http import send_validation_error, validation_error_message
 
 
 class PostValidationErrorTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-import post_ingress_orchestration
+from declan.http import post_ingress_orchestration
 import server
 
 

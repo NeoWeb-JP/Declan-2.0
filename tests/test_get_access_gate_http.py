@@ -1,7 +1,7 @@
 """Regression tests for the GET access policy."""
 import unittest
 from types import SimpleNamespace
-import get_access_gate_http
+from declan.http import get_access_gate_http
 
 
 class Handler:

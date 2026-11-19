@@ -1,8 +1,8 @@
 """POST request entry boundary: diagnostics and early request validation."""
 
 import diagnostics
-import post_content_type_http
-import post_request_preflight
+from declan.http import post_content_type_http
+from declan.http import post_request_preflight
 
 
 _DIAGNOSTIC_ROUTES = frozenset({

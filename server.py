@@ -23,12 +23,12 @@ from declan.ha import ha_household_status as ha_household_status
 import server_lifecycle as server_lifecycle
 import routine_turn_orchestration as routine_turn_orchestration
 from declan.ha import light_command_parsing
-import post_ingress_orchestration as post_ingress_orchestration
+from declan.http import post_ingress_orchestration as post_ingress_orchestration
 import turn_dispatch_orchestration as turn_dispatch_orchestration
 import turn_session_preflight as turn_session_preflight
 import turn_response_completion as turn_response_completion
 import command_vocabulary
-import http_handler_adapters
+from declan.http import http_handler_adapters
 import turn_http_entry
 import domain_boundary_helpers
 from declan.ha import household_selection_boundaries
@@ -56,7 +56,7 @@ import declan_logs as declan_logs
 import configuration as configuration
 from declan.music import media_search_agents as media_search_agents
 from declan.ha import household_entities as household_entities
-import health_readiness as health_readiness
+from declan.http import health_readiness as health_readiness
 from declan.voice import voice_profiles as voice_profiles
 from declan.voice import voicepipeline as voicepipeline
 from declan.ha import device_status as device_status
@@ -92,25 +92,25 @@ import turn_response_preparation as turn_response_preparation
 import turn_atomic_finalization as turn_atomic_finalization
 import turn_response_composition as turn_response_composition
 import history as history
-import post_body_routing as post_body_routing
+from declan.http import post_body_routing as post_body_routing
 from declan.music import music as music
 from declan.music import approved_media_players as approved_media_players
 from declan.music import spotify_playlists as spotify_playlists
 from declan.music import music_playlists_post as music_playlists_post
 from declan.timers import timers as timers
 from declan.updates import updates as updates
-import post_operational_routing as post_operational_routing
+from declan.http import post_operational_routing as post_operational_routing
 from declan.music import media_settings_routes as media_settings_routes
-import get_request_dispatch as get_request_dispatch
+from declan.http import get_request_dispatch as get_request_dispatch
 from declan.voice import speech_http_routes as speech_http_routes
 from declan.voice import assist_auth_http as assist_auth_http
-import post_payload_validation as post_payload_validation
-import post_origin_auth_http as post_origin_auth_http
-import post_route_gate_http as post_route_gate_http
-import post_request_entry
-import post_entry_gates as post_entry_gates
-import http_response_transport as http_response_transport
-import http_ingress_security as http_ingress_security
+from declan.http import post_payload_validation as post_payload_validation
+from declan.http import post_origin_auth_http as post_origin_auth_http
+from declan.http import post_route_gate_http as post_route_gate_http
+from declan.http import post_request_entry
+from declan.http import post_entry_gates as post_entry_gates
+from declan.http import http_response_transport as http_response_transport
+from declan.http import http_ingress_security as http_ingress_security
 import sensitive_confirmation_resolution as sensitive_confirmation_resolution
 from declan.voice import web_stt
 from declan.ai import openai_planner
