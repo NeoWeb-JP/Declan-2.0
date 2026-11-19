@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
 ACCESS = (ROOT / "voicepipeline_access_http.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/voice_review_view.py").read_text()
@@ -20,7 +21,7 @@ class VoiceReviewContractTests(unittest.TestCase):
         self.assertIn('handler.path == "/api/voicepipeline"', (ROOT / "get_access_gate_http.py").read_text())
         self.assertIn('not voice_review_auth', (ROOT / "get_access_gate_http.py").read_text())
         ast.parse(ACCESS)
-        self.assertIn("post_payload_validation.read_authorized_body(", post)
+        self.assertIn("r.post_payload_validation.read_authorized_body(", POST_INGRESS)
         self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "post_payload_validation.py").read_text())
         self.assertIn('operation not in {"resolve", "audio", "history", "correct"}', ACCESS)
         self.assertIn('body.get("action") not in {"confirm", "assign", "dismiss", "enrol"}', ACCESS)
