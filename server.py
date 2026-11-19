@@ -79,6 +79,7 @@ import post_payload_validation
 import post_origin_auth_http
 import post_route_gate_http
 import post_request_entry
+import post_entry_gates
 import http_response_transport
 import http_ingress_security
 import sensitive_confirmation_resolution
@@ -1897,18 +1898,14 @@ class Handler(BaseHTTPRequestHandler):
         return post_request_entry.dispatch(self, handle_post=self.handle_post)
 
     def handle_post(self):
-        if not post_request_entry.enforce_preflight(
+        if not post_entry_gates.enforce(
             self, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
             ingress=self.has_ingress_access(),
             authenticate_assist=assist_auth_http.authenticate_assist,
             enforce_known_route=post_route_gate_http.enforce_known_route,
             enforce_origin=post_origin_auth_http.enforce_access,
+            transcribe=self.transcribe_browser_audio,
         ):
-            return
-        if self.path == "/api/stt":
-            self.transcribe_browser_audio()
-            return
-        if not post_request_entry.enforce_content_type(self):
             return
         try:
             # Assist-token callers may review or resolve pending matches, but not

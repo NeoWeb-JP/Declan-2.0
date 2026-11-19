@@ -40,7 +40,8 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertIn('"/api/updates"', AUTH)
         self.assertIn('len(token) >= 32', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
-        self.assertIn("post_request_entry.enforce_preflight(", SERVER)
+        self.assertIn("post_entry_gates.enforce(", SERVER)
+        self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "post_entry_gates.py").read_text())
         self.assertIn("post_request_preflight.enforce(", (ROOT / "post_request_entry.py").read_text())
         self.assertIn("post_origin_auth_http.enforce_access,", SERVER)
 
