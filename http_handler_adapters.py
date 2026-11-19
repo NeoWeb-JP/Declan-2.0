@@ -34,9 +34,9 @@ def send_body(handler, status, data, content_type, filename=None, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return http_response_transport.send_body(
-            handler, status, data, content_type, filename=filename, logger=DECLAN_EVENT_LOG,
-        )
+    return http_response_transport.send_body(
+        handler, status, data, content_type, filename=filename, logger=DECLAN_EVENT_LOG,
+    )
 
 def send_json(handler, status, data, *, r):
     http_response_transport = r.http_response_transport
@@ -72,9 +72,9 @@ def send_json(handler, status, data, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return http_response_transport.send_json(
-            handler, status, data, logger=DECLAN_EVENT_LOG,
-        )
+    return http_response_transport.send_json(
+        handler, status, data, logger=DECLAN_EVENT_LOG,
+    )
 
 def spotify_settings(handler, body=None, *, r):
     http_response_transport = r.http_response_transport
@@ -110,7 +110,7 @@ def spotify_settings(handler, body=None, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return media_settings_routes.spotify_settings(handler, body, music=music)
+    return media_settings_routes.spotify_settings(handler, body, music=music)
 
 def has_ingress_access(handler, *, r):
     http_response_transport = r.http_response_transport
@@ -146,7 +146,7 @@ def has_ingress_access(handler, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return http_ingress_security.has_ingress_access(handler)
+    return http_ingress_security.has_ingress_access(handler)
 
 def approved_player_settings(handler, body=None, *, r):
     http_response_transport = r.http_response_transport
@@ -182,13 +182,13 @@ def approved_player_settings(handler, body=None, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return media_settings_routes.approved_player_settings(
-            handler, body, ha_device_connection=ha_device_connection,
-            ha_inventory=ha_inventory,
-            read_music_inventory_result=read_music_inventory_result,
-            read_ha_areas=read_ha_areas, approved_area_labels=approved_area_labels,
-            approved_media_players=approved_media_players,
-        )
+    return media_settings_routes.approved_player_settings(
+        handler, body, ha_device_connection=ha_device_connection,
+        ha_inventory=ha_inventory,
+        read_music_inventory_result=read_music_inventory_result,
+        read_ha_areas=read_ha_areas, approved_area_labels=approved_area_labels,
+        approved_media_players=approved_media_players,
+    )
 
 def do_GET(handler, *, r):
     http_response_transport = r.http_response_transport
@@ -224,21 +224,21 @@ def do_GET(handler, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return get_request_dispatch.dispatch(
-            handler, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
-            ingress=handler.has_ingress_access(),
-            logo_path=r.Path(r.__file__).with_name("logo.png"),
-            health_readiness=health_readiness,
-            ha_status=home_assistant_status_result,
-            release_version=RELEASE_VERSION, music=music,
-            configuration=configuration, script_discovery=script_discovery,
-            ha_connection=ha_device_connection, command_responses=command_responses,
-            history=history, logs=declan_logs, diagnostics=diagnostics,
-            updates=updates, voicepipeline=voicepipeline,
-            voice_profiles=voice_profiles, ai_budget=ai_budget,
-            ai_settings=ai_settings, ai_credentials=ai_credentials,
-            spotify_playlists=spotify_playlists,
-        )
+    return get_request_dispatch.dispatch(
+        handler, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+        ingress=handler.has_ingress_access(),
+        logo_path=r.Path(r.__file__).with_name("logo.png"),
+        health_readiness=health_readiness,
+        ha_status=home_assistant_status_result,
+        release_version=RELEASE_VERSION, music=music,
+        configuration=configuration, script_discovery=script_discovery,
+        ha_connection=ha_device_connection, command_responses=command_responses,
+        history=history, logs=declan_logs, diagnostics=diagnostics,
+        updates=updates, voicepipeline=voicepipeline,
+        voice_profiles=voice_profiles, ai_budget=ai_budget,
+        ai_settings=ai_settings, ai_credentials=ai_credentials,
+        spotify_playlists=spotify_playlists,
+    )
 
 def transcribe_browser_audio(handler, *, r):
     http_response_transport = r.http_response_transport
@@ -274,11 +274,11 @@ def transcribe_browser_audio(handler, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return speech_http_routes.transcribe_browser_audio(
-            handler, web_stt=web_stt, connection_factory=ha_device_connection,
-            transcribe=traced_transcribe_result,
-            token=os.environ.get("DECLAN_HA_TOKEN", "").strip(),
-            pipeline=configuration.get("DECLAN_WEB_ASSIST_PIPELINE", "").strip(),
-            logger=DECLAN_EVENT_LOG,
-        )
+    return speech_http_routes.transcribe_browser_audio(
+        handler, web_stt=web_stt, connection_factory=ha_device_connection,
+        transcribe=traced_transcribe_result,
+        token=os.environ.get("DECLAN_HA_TOKEN", "").strip(),
+        pipeline=configuration.get("DECLAN_WEB_ASSIST_PIPELINE", "").strip(),
+        logger=DECLAN_EVENT_LOG,
+    )
 
