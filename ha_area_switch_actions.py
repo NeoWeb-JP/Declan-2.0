@@ -54,7 +54,7 @@ def read_ha_areas(connection, origin=None, *, request_factory=Request):
 
 
 
-def set_switch_as_light_result(name, desired_state, inventory, connection, *, preview=False, action_results=None, request_factory=Request, append_evidence=append_action_evidence):
+def set_switch_as_light_result(name, desired_state, inventory, connection, *, preview=False, action_results=None, request_factory=Request, append_evidence=append_action_evidence, evidence_factory=LightingActionEvidence):
     """Only switch entities explicitly marked as lights may receive light commands."""
     if desired_state not in {"on", "off"}:
         return None
@@ -96,7 +96,7 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
     except (OSError, ValueError):
         verified = False
     if action_results is not None:
-        evidence = LightingActionEvidence(label, "turn_" + desired_state,
+        evidence = evidence_factory(label, "turn_" + desired_state,
                                           LightingActionStatus.CONFIRMED if verified else LightingActionStatus.UNVERIFIED,
                                           entity_id=entity)
         append_evidence(action_results, evidence)
