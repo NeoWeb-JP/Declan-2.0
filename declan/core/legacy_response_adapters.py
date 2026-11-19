@@ -22,10 +22,6 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
 
 
 
-def guest_assignment(operation, connection, r):
-    """Compatibility API for guest assignment reply/outcome strings."""
-    return r.guest_assignment_result(operation, connection).as_legacy_pair()
-
 
 def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None, r):
     """Compatibility API for marked switch-as-light reply/outcome pairs."""

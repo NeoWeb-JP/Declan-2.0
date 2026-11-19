@@ -233,14 +233,8 @@ def run_custom_routine_result(name, action_results=None, *, approved=False, para
     return service_entry_boundaries.run_custom_routine_result(name, action_results=action_results, approved=approved, parameters=parameters, r=sys.modules[__name__])
 
 
-def chained_outcome(routine, lighting):
-    return compatibility_facade.chained_outcome(routine, lighting, r=sys.modules[__name__])
-
 def chained_outcome_result(routine, lighting):
     return domain_boundary_helpers.chained_outcome_result(routine, lighting)
-
-def search_media(phrase):
-    return compatibility_facade.search_media(phrase, r=sys.modules[__name__])
 
 def search_media_result(phrase):
     return service_entry_boundaries.search_media_result(phrase, r=sys.modules[__name__])
@@ -404,9 +398,6 @@ def run_routine(period, *, action_results=None, movie_action=None, movie_room="l
 
 def format_routine_result(result, request_id, routine_id, period, movie_action, action_results):
     return legacy_response_adapters.format_routine_result(result, request_id, routine_id, period, movie_action, action_results, r=sys.modules[__name__])
-
-def guest_assignment(operation, connection):
-    return legacy_response_adapters.guest_assignment(operation, connection, r=sys.modules[__name__])
 
 def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
     return legacy_response_adapters.set_switch_as_light(name, desired_state, inventory, connection, preview=preview, action_results=action_results, r=sys.modules[__name__])

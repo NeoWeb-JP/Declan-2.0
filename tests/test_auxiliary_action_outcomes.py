@@ -86,12 +86,6 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
             self.assertIs(server.set_lights_result("garden light", "on"), expected)
         switch.assert_called_once()
 
-    def test_guest_legacy_adapter_preserves_plain_strings(self):
-        with patch.object(server, "guest_assignment_result", return_value=ExecutionResult("Cannot verify", Outcome.UNVERIFIED)):
-            result = server.guest_assignment("clear", None)
-        self.assertEqual(result, ("Cannot verify", "unverified"))
-        self.assertIs(type(result[1]), str)
-
 
 if __name__ == "__main__":
     unittest.main()

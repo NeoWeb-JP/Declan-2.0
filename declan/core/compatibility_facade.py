@@ -31,12 +31,3 @@ def _routine_legacy_triple(result, status, *, r):
 
 def execute_routine(selection, action_results, *, approved=False, r):
     return r._routine_legacy_triple(*r.execute_routine_result(selection, action_results, approved=approved))
-
-def chained_outcome(routine, lighting, *, r):
-    """Compatibility API for plain outcome strings."""
-    return r.chained_outcome_result(routine, lighting).value
-
-def search_media(phrase, *, r):
-    """Compatibility API retaining plain reply/outcome pairs."""
-    result = r.search_media_result(phrase)
-    return result.as_legacy_pair() if result is not None else None

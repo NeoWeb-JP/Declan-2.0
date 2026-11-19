@@ -123,8 +123,8 @@ class RoutineResultTests(unittest.TestCase):
 
     def test_trace_completion_preserves_chained_action_outcomes(self):
         import server
-        self.assertEqual(server.chained_outcome("execution_completed", "confirmed"), "execution_completed")
-        self.assertEqual(server.chained_outcome("execution_completed", "failed"), "partial")
+        self.assertEqual(server.chained_outcome_result("execution_completed", "confirmed").value, "execution_completed")
+        self.assertEqual(server.chained_outcome_result("execution_completed", "failed").value, "partial")
 
     def test_unknown_is_not_success(self):
         self.assertEqual(self.run_script("unknown")[1], "unverified")

@@ -57,8 +57,7 @@ class AuxiliaryProviderOutcomeTests(unittest.TestCase):
         opener.open.return_value = io.BytesIO(json.dumps(payload).encode())
         with patch.object(server.configuration, "get", return_value="conversation.declan_local"), \
              patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \
-             patch.object(server.media_search_agents, "resolve", return_value="conversation.declan_local"), \
-             patch.object(server, "search_media", side_effect=AssertionError("legacy provider")):
+             patch.object(server.media_search_agents, "resolve", return_value="conversation.declan_local"):
             expected = server.search_media_result("where can i watch Dune")
         self.assertIs(expected.outcome, Outcome.SEARCH_RESULT)
         opener.open.assert_called_once()
@@ -67,16 +66,12 @@ class AuxiliaryProviderOutcomeTests(unittest.TestCase):
         self.assertIs(result.result, expected)
         deps.search_media.assert_called_once()
 
-    def test_search_unmatched_unconfigured_and_legacy_contract(self):
+    def test_search_unmatched_and_unconfigured_contract(self):
         self.assertIsNone(server.search_media_result("hello"))
-        self.assertIsNone(server.search_media("hello"))
         with patch.object(server.configuration, "get", return_value=""), \
              patch.object(server, "ha_device_connection", return_value=None):
             result = server.search_media_result("where can i watch Dune")
-            legacy = server.search_media("where can i watch Dune")
         self.assertIs(result.outcome, Outcome.NOT_CONFIGURED)
-        self.assertEqual(legacy, result.as_legacy_pair())
-        self.assertIs(type(legacy[1]), str)
 
 
 if __name__ == "__main__":

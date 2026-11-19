@@ -24,7 +24,6 @@ class RetryLearningTests(unittest.TestCase):
         self.enterContext(patch.object(server, 'guarded_openai_fallback_result', return_value=None))
         self.enterContext(patch.object(server, 'select_routine_turn_result', return_value=None))
         self.enterContext(patch.object(server, 'handle_light_request_result', return_value=None))
-        self.enterContext(patch.object(server, 'search_media', return_value=None))
         self.enterContext(patch.object(server.CAPTURE_ARBITER, 'claim', return_value=True))
         self.enterContext(patch.dict(server.os.environ, {'DECLAN_ASSIST_TOKEN': 'test'}))
 
