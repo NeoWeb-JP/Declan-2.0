@@ -12,6 +12,10 @@ from urllib.request import ProxyHandler, build_opener
 
 _LOGGER = logging.getLogger("declan.updater.supervisor")
 
+# A freshly activated release that passes /health but then dies this soon is
+# treated as a bad release, not an ordinary runtime failure.
+EARLY_CRASH_SECONDS = 300
+
 
 def healthy(opener, port, process, timeout=30):
     deadline = monotonic() + timeout
@@ -49,6 +53,7 @@ def supervise(root, port=52737, *, launch=subprocess.Popen):
     opener = build_opener(ProxyHandler({}))
     child = None
     stopping = False
+    fresh = False  # the next launch follows a requested restart (code 75), i.e. an activated update
 
     def shutdown(signum, frame):
         nonlocal stopping
@@ -92,10 +97,23 @@ def supervise(root, port=52737, *, launch=subprocess.Popen):
                 _LOGGER.warning("Release cleanup failed (reason=%s)", type(error).__name__)
             if child is None:
                 return 1
+            started = monotonic()
             result = child.wait()
             child = None
-            if stopping or result != 75:
+            if stopping:
                 return result
+            if result == 75:
+                fresh = True
+                continue
+            if fresh and result != 0 and monotonic() - started < EARLY_CRASH_SECONDS:
+                # Passed the startup check, then crashed soon after an update: go back once.
+                previous = (root / "previous").resolve() if (root / "previous").exists() else None
+                if previous is not None and previous != selected and (previous / "server.py").is_file():
+                    _LOGGER.warning("Updated release crashed shortly after a healthy start; rolling back")
+                    select(root, previous)
+                    fresh = False
+                    continue
+            return result
     finally:
         if child is not None:
             stop(child)

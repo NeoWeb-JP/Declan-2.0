@@ -1,8 +1,11 @@
 """Claim overlapping copies once, independently of transcription arrival latency."""
+import logging
 import math
 import re
 from threading import Lock
 from time import monotonic, time
+
+_LOGGER = logging.getLogger("declan.arbitration")
 
 
 def command_key(phrase):
@@ -45,6 +48,7 @@ class CaptureArbiter:
                     return False
             # Never evict a live claim under load and accidentally execute it twice.
             if len(self.groups) >= 4096:
+                _LOGGER.warning("Capture arbiter is full; treating a command as a duplicate")
                 return False
             self.groups.append(dict(phrase=phrase, origin=origin, speaker=speaker, created=now,
                                     started_at=started_at, ended_at=ended_at, duration=duration))

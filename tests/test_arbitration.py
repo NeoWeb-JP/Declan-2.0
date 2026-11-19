@@ -1,7 +1,7 @@
 """Competing satellite captures choose one executor without fixed device maps."""
 
 from concurrent.futures import ThreadPoolExecutor
-from time import time
+from time import monotonic, time
 from unittest import TestCase
 
 from arbitration import CaptureArbiter
@@ -46,3 +46,15 @@ class ArbitrationTests(TestCase):
         snapshot = level.snapshot()
         self.assertAlmostEqual(snapshot["rms"], 0.5)
         self.assertEqual(snapshot["duration"], 2 / 16000)
+
+
+class CapacityTests(TestCase):
+    def test_full_arbiter_fails_safe_and_says_so(self):
+        arbiter = CaptureArbiter()
+        capture = {"ended_at": time(), "duration": 2, "rms": 0.5}
+        arbiter.groups = [dict(phrase=f"p{i}", origin="x", speaker=None, created=monotonic(),
+                               started_at=0, ended_at=0, duration=1) for i in range(4096)]
+        with self.assertLogs("declan.arbitration", level="WARNING") as logs:
+            self.assertFalse(arbiter.claim("new command", "kitchen", capture))
+        self.assertEqual(len(arbiter.groups), 4096)  # no live claim was evicted
+        self.assertIn("full", logs.output[0])

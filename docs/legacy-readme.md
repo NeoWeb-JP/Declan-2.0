@@ -14,7 +14,7 @@ Declan 2.0 is a household voice assistant with a standalone web service and a Ho
 
 Open **Settings → Devices & services → Declan 2.0 → Configure**. Enable the speech engines you want:
 
-- **Declan 2.0 Wyoming Speaker Recognition** sends audio to the existing VoicePipeline. Enter its Wyoming host and port (for example, `192.168.0.43:10300`). VoicePipeline still controls which backend transcribes this audio.
+- **Declan 2.0 Wyoming Speaker Recognition** sends audio to the existing VoicePipeline. Enter its Wyoming host and port (for example, `<voicepipeline-host>:10300`). VoicePipeline still controls which backend transcribes this audio.
 - **Declan 2.0 OpenAI Transcription** sends audio directly to OpenAI. Enter your OpenAI API key if it has not been configured yet. This route does not create VoicePipeline entries.
 - **Declan 2.0 Voice Manager** uses your existing ElevenLabs integration. Select `tts.elevenlabs_text_to_speech` and the same voice and cache revision used by Declan Local to reuse its saved audio. If you used a daily character limit, set it here too. The new manager tracks its own usage.
 
@@ -94,7 +94,7 @@ The [current work and live testing list](docs/now-work.md) tracks the agreed add
 
 ### One speaker profile store
 
-Set `DECLAN_VOICEPIPELINE_URL=http://192.168.0.43:8000` on the standalone Declan server and restart it. Update the **Declan 2.0 Web** HA app to **1.0.3** for the new management route, then reload the panel. If your VoicePipeline deployment requires a bearer token, set `DECLAN_VOICEPIPELINE_TOKEN` on the server too. Neither value is supplied by the browser.
+Set `DECLAN_VOICEPIPELINE_URL=http://<voicepipeline-host>:8000` on the standalone Declan server and restart it. Update the **Declan 2.0 Web** HA app to **1.0.3** for the new management route, then reload the panel. If your VoicePipeline deployment requires a bearer token, set `DECLAN_VOICEPIPELINE_TOKEN` on the server too. Neither value is supplied by the browser.
 
 Open **Settings → Voice profiles**. Existing speakers and pending recordings come directly from VoicePipeline. Speak through the satellite's Wyoming pipeline, refresh, listen, then explicitly assign the recording to an existing speaker or enrol a new name with permission. Assignment and enrolment add recognition references; the API requests a speaker-cache refresh. Names are sent exactly as enrolled, so an existing `Ed` profile remains `Ed` even when Declan displays `Edd` in conversation history.
 
@@ -102,7 +102,7 @@ History corrections use VoicePipeline's current resolution ID to reject stale ed
 
 Audio is fetched through the authenticated management route only when Listen is selected and is not persisted by Declan. Model settings, automatic model reloads, retention settings and HA webhooks are untouched. There is no second recogniser or automatic replay of audio for enrolment. The legacy local sample database is retained; new local profile/sample collection is rejected, while its existing export and deletion API operations remain available. Legacy samples are not automatically uploaded because the deployed VoicePipeline API has no upload endpoint.
 
-The Assist bridge must still use **Declan 2.0 Wyoming Speaker Recognition** at `192.168.0.43:10300` to carry speaker identity alongside the transcript. Management API connectivity does not prove recognition works. Browser microphone STT currently returns text only and still needs a separate metadata-preservation change. Recognition accuracy and cross-room context remain live acceptance work.
+The Assist bridge must still use **Declan 2.0 Wyoming Speaker Recognition** at `<voicepipeline-host>:10300` to carry speaker identity alongside the transcript. Management API connectivity does not prove recognition works. Browser microphone STT currently returns text only and still needs a separate metadata-preservation change. Recognition accuracy and cross-room context remain live acceptance work.
 
 VoicePipeline's pending resolve endpoint has no atomic stale-edit token. Declan serialises its own changes and checks that a recording is still pending, but another VoicePipeline client could resolve it in the interval. Avoid reviewing the same pending recording in both interfaces simultaneously. Failed writes are never retried automatically; refresh the list before deciding what to do next.
 
