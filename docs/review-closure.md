@@ -129,3 +129,23 @@ alert delivery or live household acceptance. Regression evidence is in
 The operational logging regression now sets and restores its logger level
 explicitly. It must pass in isolation without relying on another test importing
 the server to initialize logging.
+
+## Environment documentation audit acceptance
+
+Reviewed against merged #751 main `c88bc9a`. The README split, installation
+guide, changelog, architecture guide, environment reference and safe example
+file exist. The environment audit covers production literal reads and all
+`configuration.FIELDS` indirect fallbacks, with each inventoried name mapped to
+default/override behavior and regression evidence. Consumer review corrected
+stale claims about saved-setting environment fallback and one-time routine
+registry migration. Explicit blank environment values are preserved by the
+configuration layer and interpreted by consumers, not universally defaulted.
+
+All 119 environment-named tests passed on Ubuntu/Python 3.12, followed by 37
+combined documentation, precedence, registry, TTS, visitor, media-agent and
+pipeline tests. All five GitHub gates on merged #751's head succeeded. This
+supports completing the original documentation/default-audit implementation
+items for the supported configuration surface. It does not prove arbitrary
+dynamic names, every possible invalid input, third-party HA options or deployed
+settings. Changes to supported settings must update the behavior matrix and
+regressions. Live privacy and deployment acceptance stays in #496.
