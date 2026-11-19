@@ -47,3 +47,21 @@ def set_switch_as_light(name, desired_state, inventory, connection, *, preview=F
 
 def preview_routine(phrase, origin=None):
     return server.preview_routine_result(phrase, origin).as_legacy_pair()
+
+
+def read_ha_inventory(connection):
+    return server.read_ha_inventory_result(connection).as_legacy_pair()
+
+
+def read_music_inventory(connection):
+    return server.read_music_inventory_result(connection).as_legacy_pair()
+
+
+def stop_everywhere_output(connection):
+    typed, status = server.stop_everywhere_result(connection)
+    return typed.reply, typed.outcome.value, status
+
+
+def stop_origin_output(connection, satellite, device):
+    result, status = server.stop_origin_result(connection, satellite, device)
+    return result.reply, result.outcome.value, status

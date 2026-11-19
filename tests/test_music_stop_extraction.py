@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 
+import legacy_wire
 import server
 from declan.music import music_stop_dispatch as dispatch
 from declan.core.execution_results import Outcome
@@ -36,7 +37,7 @@ class MusicStopExtractionTests(unittest.TestCase):
         self.assertIn("satellite", status)
 
     def test_legacy_stop_all_triple_stays_compatible(self):
-        reply, outcome, status = server.stop_everywhere_output(None)
+        reply, outcome, status = legacy_wire.stop_everywhere_output(None)
         self.assertEqual(reply, "")
         self.assertEqual(outcome, Outcome.NOT_CONFIGURED.value)
         self.assertIsInstance(status, str)

@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 
+import legacy_wire
 import server
 from declan.core.execution_results import ExecutionResult, Outcome
 
@@ -26,7 +27,7 @@ class TypedStopEverywhereProviderTests(unittest.TestCase):
                 server.stop_everywhere_result("connection")
 
     def test_legacy_public_response_remains_triple(self):
-        self.assertEqual(server.stop_everywhere_output(None),
+        self.assertEqual(legacy_wire.stop_everywhere_output(None),
                          ("", "not_configured", "Home Assistant is not configured."))
 
 

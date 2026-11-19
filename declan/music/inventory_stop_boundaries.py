@@ -1,16 +1,8 @@
 """Inventory and stop-command compatibility boundaries."""
 
 
-def read_ha_inventory(connection, *, r):
-    return r.read_ha_inventory_result(connection).as_legacy_pair()
-
-
 def read_ha_inventory_result(connection, *, r):
     return r.ha_inventory.read_result(connection)
-
-
-def read_music_inventory(connection, *, r):
-    return r.read_music_inventory_result(connection).as_legacy_pair()
 
 
 def read_music_inventory_result(connection, *, r):
@@ -22,23 +14,11 @@ def stop_everywhere_result(connection, *, r):
     return r._stop_everywhere_typed_core(connection)
 
 
-def stop_everywhere_output(connection, *, r):
-    """Legacy stop-all response for existing callers."""
-    typed, status = r.stop_everywhere_result(connection)
-    return typed.reply, typed.outcome.value, status
-
-
 def _stop_everywhere_typed_core(connection, *, r):
     return r.music_stop_dispatch.stop_everywhere_result(
         connection, inventory_reader=r.read_music_inventory_result,
         inventory_module=r.ha_inventory, music_provider=r.music,
     )
-
-
-def stop_origin_output(connection, satellite, device, *, r):
-    """Preserve legacy triple response for callers of origin-specific Stop."""
-    result, status = r.stop_origin_result(connection, satellite, device)
-    return result.reply, result.outcome.value, status
 
 
 def stop_origin_result(connection, satellite, device, *, r):

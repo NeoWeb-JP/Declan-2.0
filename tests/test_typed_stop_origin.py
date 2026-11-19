@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 
+import legacy_wire
 import server
 from declan.core.execution_results import Outcome
 
@@ -13,7 +14,7 @@ class TypedStopOriginTests(unittest.TestCase):
         self.assertIn("identifiable", status)
 
     def test_legacy_wrapper_preserves_response(self):
-        self.assertEqual(server.stop_origin_output(None, None, None),
+        self.assertEqual(legacy_wire.stop_origin_output(None, None, None),
                          ("", "unresolved", "Stop needs an identifiable Assist satellite or device."))
 
     def test_discovery_error_is_typed(self):

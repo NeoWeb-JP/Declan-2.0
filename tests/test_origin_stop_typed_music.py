@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 
+import legacy_wire
 import server
 from declan.core.execution_results import ExecutionResult, Outcome
 
@@ -37,7 +38,7 @@ class OriginStopTypedMusicTests(unittest.TestCase):
              patch.object(server.music, "control_result",
                           return_value=ExecutionResult("Stopped.", Outcome.CONFIRMED)), \
              patch.object(server.timers, "stop_due"):
-            self.assertEqual(server.stop_origin_output("connection", "assist_satellite.kitchen", None),
+            self.assertEqual(legacy_wire.stop_origin_output("connection", "assist_satellite.kitchen", None),
                              ("", "confirmed", "Stopped."))
 
 

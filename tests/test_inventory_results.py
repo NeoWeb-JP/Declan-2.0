@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from declan.ha import ha_inventory
 from declan.music import music
+import legacy_wire
 import server
 from declan.core.execution_results import Outcome
 
@@ -56,8 +57,8 @@ class InventoryResultTests(unittest.TestCase):
     def test_legacy_adapters_and_callback_coercion_preserve_shapes(self):
         rows = [self.row(0)]
         self.assertEqual(ha_inventory.read(self.connection([{'total': 1, 'rows': rows}])), (rows, None))
-        self.assertEqual(server.read_ha_inventory(self.connection([{'total': 0, 'rows': []}])), ([], None))
-        self.assertEqual(server.read_music_inventory(self.connection([{'total': 0, 'rows': []}])), ([], None))
+        self.assertEqual(legacy_wire.read_ha_inventory(self.connection([{'total': 0, 'rows': []}])), ([], None))
+        self.assertEqual(legacy_wire.read_music_inventory(self.connection([{'total': 0, 'rows': []}])), ([], None))
         typed = ha_inventory.InventoryResult.coerce((rows, None))
         self.assertIs(ha_inventory.InventoryResult.coerce(typed), typed)
         self.assertEqual(typed.inventory, rows)
