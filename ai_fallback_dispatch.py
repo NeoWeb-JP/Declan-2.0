@@ -7,6 +7,7 @@ from ai_budget import BudgetExhausted, MICRO_USD
 from model_response_results import IncompletePlanningError, PlanningTimeoutError
 from ai_context import ContextSelectionError
 from ha_action_preflight import SensitiveCoverConfirmationRequired
+from ai_pricing import model_profile, require_available, RetiredModelError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -19,6 +20,15 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
         return response_factory(ExecutionResult("AI settings are unavailable; local commands still work.", Outcome.UNRESOLVED))
     if not settings["enabled"] or not intent_gate(message):
         return None
+    try:
+        profile = model_profile(settings['model'], settings.get('model_config'))
+        require_available(profile)
+    except RetiredModelError:
+        return response_factory(ExecutionResult(
+            "The configured AI model is retired. Update AI settings; local commands still work.", Outcome.UNRESOLVED))
+    except ValueError:
+        return response_factory(ExecutionResult("AI model pricing or capabilities are unavailable. Update AI settings.", Outcome.UNRESOLVED))
+    settings = {**settings, 'model_config': profile}
     connection = connect()
     if connection is None:
         return response_factory(ExecutionResult("Home Assistant is unavailable.", Outcome.UNAVAILABLE))
@@ -66,7 +76,7 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
                     }),
                 budget_db=db, monthly_limit_micro_usd=limit,
                 request_ceiling_micro_usd=ceiling,
-                charge_micro_usd=lambda: pricing(settings["model"], usage.get("value")),
+                charge_micro_usd=lambda: pricing(settings["model"], usage.get("value"), profile=settings.get('model_config')),
             )
         return response_factory(result, tuple(
             evidence_factory.from_action(action, include_detail=settings["diagnostics"])

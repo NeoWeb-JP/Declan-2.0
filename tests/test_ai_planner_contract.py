@@ -53,6 +53,50 @@ class PlannerFixture(unittest.TestCase):
 
 
 class PlannerContractTests(PlannerFixture):
+    def custom_profile(self):
+        self.settings['model'] = 'custom-model'
+        profile = {**server.ai_pricing.model_profile('gpt-6-luna'), 'model': 'custom-model',
+                   'input_usd_per_million': '2.50', 'output_usd_per_million': '7.50', 'reasoning_effort': ''}
+        self.settings['model_config'] = profile
+        return profile
+
+    def test_custom_model_profile_drives_request_and_exact_usage_settlement(self):
+        self.custom_profile()
+        result = self.ask('the room is too dark')
+        self.assertIs(result.result.outcome, Outcome.CONFIRMED)
+        body = json.loads(self.provider.open.call_args.args[0].data)
+        self.assertEqual(body['model'], 'custom-model')
+        self.assertNotIn('reasoning', body)
+        self.assertEqual(self.spent(), 400)
+
+    def test_custom_output_price_blocks_over_ceiling_request_without_spend(self):
+        self.custom_profile()['output_usd_per_million'] = '100'
+        self.assertIs(self.ask('the room is too dark').result.outcome, Outcome.UNRESOLVED)
+        self.provider.open.assert_not_called()
+        self.ha.open.assert_not_called()
+        self.assertEqual(self.spent(), 0)
+
+    def test_retired_or_mismatched_profile_does_not_plan_or_spend(self):
+        profile = self.custom_profile()
+        for updates in ({'status': 'retired'}, {'retire_on': '2000-01-01'}, {'model': 'another-model'}):
+            with self.subTest(updates=updates):
+                self.settings['model_config'] = {**profile, **updates}
+                result = self.ask('the room is too dark')
+                self.assertIs(result.result.outcome, Outcome.UNRESOLVED)
+                self.assertIn('settings', result.result.reply)
+                self.provider.open.assert_not_called()
+                self.ha.open.assert_not_called()
+                self.assertEqual(self.spent(), 0)
+
+    def test_inflight_request_keeps_original_prices_despite_settings_change(self):
+        profile = self.custom_profile()
+        def provider(*args, **kwargs):
+            profile.update(input_usd_per_million='1000', output_usd_per_million='1000', status='retired')
+            return io.BytesIO(json.dumps(self.payload).encode())
+        self.provider.open.side_effect = provider
+        self.assertIs(self.ask('the room is too dark').result.outcome, Outcome.CONFIRMED)
+        self.assertEqual(self.spent(), 400)
+
     def test_planning_timeouts_are_clear_redacted_and_never_retried_or_dispatched(self):
         errors = [TimeoutError('private provider text'), URLError(TimeoutError('private hostname'))]
         for status in (408, 504):

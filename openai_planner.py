@@ -13,7 +13,7 @@ from urllib.request import Request, build_opener, ProxyHandler
 from urllib.error import HTTPError, URLError
 
 from action_plan import validate_plan, ENTITY, SERVICES, MAX_ACTIONS
-from ai_pricing import RATES
+from ai_pricing import model_profile, rate_pair, require_available
 from model_response_results import ModelResponseResult, ModelResponseStatus, NonBillablePlanningError, IncompletePlanningError, PlanningTimeoutError
 
 MODEL_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$")
@@ -23,7 +23,7 @@ PLANNING_TIMEOUT_SECONDS = 6
 LOGGER = logging.getLogger(__name__)
 
 
-def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_key=None, usage_sink=None, inventory=None, max_cost_micro_usd=None, max_actions=MAX_ACTIONS):
+def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_key=None, usage_sink=None, inventory=None, max_cost_micro_usd=None, max_actions=MAX_ACTIONS, profile=None):
     """Return validated candidates only; never dispatch services.
 
     Fail closed on missing configuration, bad network responses or malformed
@@ -34,6 +34,12 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
     api_key = api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")
     if not isinstance(model, str) or not MODEL_RE.fullmatch(model):
         raise NonBillablePlanningError("Configure a supported OpenAI model")
+    try:
+        profile = model_profile(model, profile)
+        require_available(profile)
+        input_rate, output_rate = rate_pair(model, profile)
+    except ValueError as error:
+        raise NonBillablePlanningError(str(error)) from None
     if not isinstance(api_key, str) or not api_key.strip():
         raise NonBillablePlanningError("OpenAI API key is not configured")
     if not isinstance(utterance, str) or not 0 < len(utterance) <= 1000:
@@ -117,10 +123,9 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
                             }}},
         "store": False,
     }
-    # Both configured/priced models support low effort. Do not assume that
-    # an arbitrary externally injected model supports the same parameter.
-    if model in {"gpt-5-mini", "gpt-6-luna"}:
-        body["reasoning"] = {"effort": "low"}
+    # Capabilities are explicitly bound to the owner-selected model profile.
+    if profile['reasoning_effort']:
+        body["reasoning"] = {"effort": profile['reasoning_effort']}
     request_data = json.dumps(body).encode("utf-8")
     request = Request(
         "https://api.openai.com/v1/responses",
@@ -129,9 +134,8 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
         method="POST",
     )
     if max_cost_micro_usd is not None:
-        if type(max_cost_micro_usd) is not int or max_cost_micro_usd <= 0 or model not in RATES:
+        if type(max_cost_micro_usd) is not int or max_cost_micro_usd <= 0:
             raise NonBillablePlanningError("Invalid request cost ceiling")
-        input_rate, output_rate = RATES[model]
         worst = ((len(request_data) * input_rate
                   + MAX_OUTPUT_TOKENS * output_rate + 999999) // 1000000)
         if worst > max_cost_micro_usd:

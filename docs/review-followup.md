@@ -36,7 +36,7 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 | Sensitive garage/gate actions | Generic AI fallback deliberately does not operate garage/gate covers, including closing them. HA device-class metadata determines this policy, not names or model claims. A typed preflight refusal now explains the restriction and directs the user to Home Assistant; the whole plan is refused before any device dispatch, even if it also contains ordinary actions. A follow-up yes does not create confirmation authority. The native Settings policy is explicit. Existing local mapped-routine confirmation and the lower-level trusted confirmation API remain separate; no new AI confirmation flow is implemented. |
 | General chat/questions | Current action planner is not a general chat service. This needs an explicit product scope decision, budget/privacy controls and separate acceptance criteria. |
 | Synchronous timeout/retries | Planner socket timeout reduced from 12 to 6 seconds. Typed timeouts (including HTTP 408/504) produce a clear no-device-change reply and fixed redacted diagnostics. Responses arriving beyond the monotonic six-second response deadline are refused before parsing/dispatch; uncertain costs retain their reservation. This is not a hard wall-clock bound: DNS and socket reads can exceed it before returning. No automatic retry, fallback model, early acknowledgement or background device execution is added. Live completion frequency and voice latency remain unmeasured. |
-| Pricing/model table | Two hardcoded rate entries remain. Verified 19 November 2026 against official model pages: gpt-6-luna exists and its standard text rates match the current table. gpt-5-mini's published rates also match, but its model page is marked deprecated. Configurable pricing and model lifecycle handling remain open; this batch does not change the owner's chosen model. |
+| Pricing/model table | Native Settings now accepts a model-bound profile with exact input/output USD-per-million rates, reasoning setting, lifecycle status and optional UTC retirement date. One request snapshot drives both its spending-ceiling check and usage settlement. Retired/expired profiles block new requests before reservation, but remain readable/editable; in-flight usage still settles with original rates. Built-in rates seed older documents, preserving the selected model and enablement; GPT-5 mini is labelled deprecated, not silently replaced. Prices and lifecycle are owner-maintained, not fetched automatically or guaranteed current. DECLAN_OPENAI_MODEL applies only to legacy direct Python callers, not the live route. |
 | Key rotation | Local DVAE1 and the separate shared-storage prototype lack key-ID/keyring rotation. This remains an explicit future migration/key-lifecycle requirement, not an implemented feature. No key rotation is attempted here. |
 | Flat layout/package moves | Real navigation/coupling cost; package moves were explicitly deferred by accepted #756. Acceptance of that scope does not prove architectural quality. Revisit through a cohesive dependency/ownership change if required. |
 | Server service locator | Confirmed residual coupling, explicitly retained by #756. Narrow dependencies where a demonstrated consumer/lifecycle requirement warrants it; no wrapper-only extraction campaign. |
@@ -53,6 +53,33 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 | Integration iot_class | Requires comparison to HA's supported classification and actual runtime behavior. No metadata change is made without that check. |
 
 ## Priority after this batch
+
+### Model pricing and lifecycle operation
+
+Update both the backend and native panel, then reload the panel. Native AI
+Settings is authoritative for live requests. The environment model variable
+remains only for direct Python compatibility; it cannot override native settings.
+Older saved documents are read with a profile seeded from the existing built-in
+rates, without changing the selected model or enabling AI. Saving persists the
+profile. Existing ledger amounts are not recalculated when rates change.
+
+For another Responses API model, enter its exact ID, current standard text input
+and output prices, and a supported reasoning setting (or omit that parameter).
+Strict structured outputs must be supported by that model. Changing the model
+clears pricing/capability fields so old prices are not silently carried over.
+Positive USD-per-million rates accept up to six decimal places and at most 1000;
+charges use integer arithmetic rounded up, without cached-input discounts.
+These are configured estimates, not a guarantee of the provider's bill.
+
+Deprecated status warns without changing the selected model. Retired status or
+an optional stop date reached in UTC blocks new AI requests before spending;
+local commands continue. Expired settings remain readable so the owner can
+replace the model or disable AI. No provider catalogue is polled, and no live
+custom-model compatibility or household acceptance is claimed. Review prices
+and lifecycle after provider changes. Reference pages checked 19 November 2026:
+[GPT-5 mini](https://developers.openai.com/api/docs/models/gpt-5-mini),
+[GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna), and
+[provider deprecations](https://developers.openai.com/api/docs/deprecations).
 
 1. Live model completion/latency evidence,
    preserving exposure and confirmation controls. Planner/schema/preflight,
