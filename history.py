@@ -128,10 +128,11 @@ def learned_intent(phrase):
 
 
 def teach_intent(turn_id, target, unmatched_reply):
+    now = time()
     with database() as connection:
         turn = connection.execute(
-            "SELECT message FROM turns WHERE id = ? AND created_at >= ?",
-            (turn_id, time() - retention_seconds()),
+            "SELECT message FROM turns WHERE id = ? AND created_at BETWEEN ? AND ?",
+            (turn_id, now - retention_seconds(), now),
         ).fetchone()
         phrase = validated_training_phrase(
             turn[0] if turn else "", "Choose a command from history (up to 120 characters).")
@@ -206,10 +207,11 @@ def recent(before=None, limit=50):
         raise ValueError("History page size must be between 1 and 500.")
     if before is not None and (type(before) is not int or before <= 0):
         raise ValueError("History cursor must be a positive integer.")
+    now = time()
     with database() as connection:
         connection.row_factory = sqlite3.Row
-        query = "SELECT * FROM turns WHERE created_at >= ?"
-        args = [time() - retention_seconds()]
+        query = "SELECT * FROM turns WHERE created_at BETWEEN ? AND ?"
+        args = [now - retention_seconds(), now]
         if before is not None:
             query += " AND id < ?"
             args.append(before)
@@ -254,11 +256,12 @@ def verified_recording_turns(interaction_ids):
         return {}
     matches = {}
     ambiguous = set()
+    now = time()
     with database() as connection:
         rows = connection.execute(
             "SELECT id, speaker_match FROM turns WHERE source = 'assist' AND "
-            "created_at >= ? AND speaker_match IS NOT NULL",
-            (time() - min(7 * 24 * 60 * 60, retention_seconds()),),
+            "created_at BETWEEN ? AND ? AND speaker_match IS NOT NULL",
+            (now - min(7 * 24 * 60 * 60, retention_seconds()), now),
         )
         for turn_id, encoded in rows:
             try:
