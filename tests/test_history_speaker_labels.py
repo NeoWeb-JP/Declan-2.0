@@ -1,7 +1,7 @@
 """Regression tests for speaker labels stored in conversation history."""
 import unittest
 
-from history import speaker_match
+from declan.core.history import speaker_match
 
 
 class SpeakerMatchTests(unittest.TestCase):

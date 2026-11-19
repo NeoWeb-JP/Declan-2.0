@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class BackgroundReceiptStatus(StrEnum):

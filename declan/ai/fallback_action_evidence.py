@@ -1,6 +1,6 @@
 """Typed fallback diagnostic projection with explicit detail redaction."""
 from dataclasses import dataclass
-from execution_results import ActionResult, ActionStatus
+from declan.core.execution_results import ActionResult, ActionStatus
 
 
 @dataclass(frozen=True)

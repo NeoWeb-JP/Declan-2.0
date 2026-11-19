@@ -1,6 +1,6 @@
 """Read-only weather and local-time queries."""
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.turn.information_result import InformationResult, InformationCategory
 import json
 import math

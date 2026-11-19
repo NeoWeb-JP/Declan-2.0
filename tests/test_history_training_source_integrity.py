@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import history
+from declan.core import history
 
 
 class TrainingSourceIntegrityTests(unittest.TestCase):

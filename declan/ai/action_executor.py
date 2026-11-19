@@ -1,7 +1,7 @@
 """Execute already-authorised plans; typed results never confuse receipt with success."""
 from declan.ai.action_plan import CandidateAction, ActionReadiness, execution_order_result
 # Re-export ActionResult for existing Python callers.
-from execution_results import ActionResult, ActionStatus, DispatchResult, ExecutionResult, Outcome
+from declan.core.execution_results import ActionResult, ActionStatus, DispatchResult, ExecutionResult, Outcome
 import logging
 
 LOGGER = logging.getLogger(__name__)

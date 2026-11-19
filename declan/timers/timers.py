@@ -13,7 +13,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 DATABASE = Path(__file__).resolve().parents[2] / ".data" / "timers.sqlite3"

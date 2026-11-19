@@ -2,7 +2,7 @@
 import re
 import sqlite3
 import logging
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ai.ai_budget import BudgetExhausted, MICRO_USD
 from declan.ai.model_response_results import IncompletePlanningError, PlanningTimeoutError
 from declan.ai.ai_context import ContextSelectionError

@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock
 from declan.turn.response_composition import general_reply
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class GeneralReplyTests(unittest.TestCase):

@@ -1,8 +1,8 @@
 """Read command-relevant state fields in bounded HA template pages."""
 import json
 from dataclasses import dataclass
-import diagnostics
-from execution_results import Outcome
+from declan.core import diagnostics
+from declan.core.execution_results import Outcome
 from time import monotonic
 from urllib.error import HTTPError
 from urllib.request import Request

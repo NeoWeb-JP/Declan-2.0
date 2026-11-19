@@ -12,7 +12,7 @@ import sqlite3
 from time import monotonic, time
 from typing import Any
 
-from execution_results import ExecutionResult, Outcome, parse_outcome
+from declan.core.execution_results import ExecutionResult, Outcome, parse_outcome
 
 DATABASE = Path(__file__).resolve().parent / '.data' / 'diagnostics.sqlite3'
 ACTIVE: ContextVar[dict[str, Any] | None] = ContextVar('declan_request_trace', default=None)
@@ -176,7 +176,7 @@ def timed(name):
 
 def metrics():
     """Return a bounded, privacy-safe aggregate over the last 24 hours."""
-    import diagnostic_metrics
+    from declan.core import diagnostic_metrics
     return diagnostic_metrics.summary(DATABASE, retention=RETENTION)
 
 

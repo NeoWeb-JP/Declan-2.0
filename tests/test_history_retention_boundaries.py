@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 import json
 
-import history
+from declan.core import history
 
 
 class HistoryRegressionTests(unittest.TestCase):

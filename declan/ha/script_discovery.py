@@ -1,5 +1,5 @@
 """Discover and run Home Assistant scripts without per-script approval."""
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha.script_action_evidence import parse_script_actions
 from declan.ai.action_evidence_buffer import extend_action_evidence
 from declan.ha.script_provider_results import ScriptProviderResult, ScriptReportedOutcome, TraceProviderOutcome, CorrelatedTraceResult
@@ -221,13 +221,13 @@ def completion_from_trace_result(connection, current, result):
 
 def enqueue_result(connection, entity_id, parameters):
     """Return a validated typed background dispatch and its receipt detail."""
-    from local_outcome_contracts import routine_execution_result
+    from declan.core.local_outcome_contracts import routine_execution_result
     return routine_execution_result(_enqueue_provider(connection, entity_id, parameters))
 
 
 def execute_result(connection, item, *, parameters=None, expect_response=False, action_results=None):
     """Return a validated typed Home Assistant script result and status detail."""
-    from local_outcome_contracts import routine_execution_result
+    from declan.core.local_outcome_contracts import routine_execution_result
     return routine_execution_result(_execute_provider(
         connection, item, parameters=parameters, expect_response=expect_response,
         action_results=action_results,

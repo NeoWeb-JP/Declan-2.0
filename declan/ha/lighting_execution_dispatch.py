@@ -6,8 +6,8 @@ import sqlite3
 from time import monotonic
 from urllib.error import HTTPError
 
-import diagnostics
-from execution_results import ExecutionResult, Outcome
+from declan.core import diagnostics
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha.lighting_action_evidence import LightingActionStatus, LightingActionReason
 
 

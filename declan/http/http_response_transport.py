@@ -8,7 +8,7 @@ import json
 import os
 from urllib.parse import urlsplit
 
-import diagnostics
+from declan.core import diagnostics
 from declan_ingress.security import secure_page
 
 

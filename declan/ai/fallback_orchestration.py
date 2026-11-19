@@ -1,5 +1,5 @@
 """Gate guarded AI fallback behind local command results and HA authorization."""
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 
 
 def resolve_fallback_result(message, *, routine_reply, light_result, body,

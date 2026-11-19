@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import server
 from declan.turn import routine_execution_dispatch as dispatch
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class RoutineExecutionExtractionTests(unittest.TestCase):

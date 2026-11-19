@@ -4,7 +4,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 import unittest
 
-from log_feed_state import LogFeedState
+from declan.core.log_feed_state import LogFeedState
 
 
 class LogFeedStateTests(unittest.TestCase):

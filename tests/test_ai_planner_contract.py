@@ -10,8 +10,8 @@ from urllib.error import HTTPError, URLError
 from email.message import Message
 
 from declan.ai.ai_budget import monthly_reserved
-from execution_results import Outcome
-import history
+from declan.core.execution_results import Outcome
+from declan.core import history
 from declan.ai.model_response_results import IncompletePlanningError, NonBillablePlanningError
 from declan.ai.openai_planner import request_plan
 import server

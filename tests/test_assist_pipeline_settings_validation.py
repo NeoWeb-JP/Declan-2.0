@@ -1,7 +1,7 @@
 """Verify exported settings validate browser Assist pipeline identifiers."""
 import unittest
 
-import configuration
+from declan.core import configuration
 
 
 class AssistPipelineSettingsValidationTests(unittest.TestCase):

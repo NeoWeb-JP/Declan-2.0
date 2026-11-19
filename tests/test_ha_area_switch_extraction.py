@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 import server
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class Response:

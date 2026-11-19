@@ -1,7 +1,7 @@
 """Lighting phrase handling with injected parser and execution dependencies."""
 import re
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def _lighting_result(value):

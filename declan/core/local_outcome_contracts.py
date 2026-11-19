@@ -3,7 +3,7 @@
 Legacy providers may still return tuples. This adapter also accepts typed
 ExecutionResult objects without changing the existing HTTP response format.
 """
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 
 
 def timer_execution_result(value):

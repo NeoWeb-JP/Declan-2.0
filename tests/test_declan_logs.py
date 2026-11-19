@@ -3,7 +3,7 @@ import logging
 import unittest
 from unittest.mock import patch
 
-import declan_logs
+from declan.core import declan_logs
 
 
 class DeclanLogTests(unittest.TestCase):

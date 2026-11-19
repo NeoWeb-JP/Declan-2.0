@@ -1,5 +1,5 @@
 """Dispatch roast and guest assignment commands in existing priority order."""
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 
 
 def dispatch_roast_or_guest_result(phrase, *, roast_target, respond_to_roast,

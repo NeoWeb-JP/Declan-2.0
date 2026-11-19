@@ -5,9 +5,9 @@ from declan.ha import ha_inventory
 from declan.turn.routine_selection_results import RoutineTurnSelection
 import re
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result
-from local_outcome_contracts import timer_execution_result, routine_execution_result
+from declan.core.local_outcome_contracts import timer_execution_result, routine_execution_result
 from declan.ha.device_status import DeviceStatusResult
 from declan.turn.information_result import InformationResult
 

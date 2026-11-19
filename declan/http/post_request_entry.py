@@ -1,6 +1,6 @@
 """POST request entry boundary: diagnostics and early request validation."""
 
-import diagnostics
+from declan.core import diagnostics
 from declan.http import post_content_type_http
 from declan.http import post_request_preflight
 

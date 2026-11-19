@@ -1,12 +1,12 @@
 """Typed outcome adapters must reject hostile legacy subclasses."""
 import unittest
 
-from execution_results import (
+from declan.core.execution_results import (
     ActionStatus, DispatchResult, ExecutionResult, MovieLaunchResult,
     MovieLaunchStatus, Outcome, parse_outcome,
 )
 from declan.turn.information_result import InformationResult
-from local_outcome_contracts import routine_execution_result, timer_execution_result
+from declan.core.local_outcome_contracts import routine_execution_result, timer_execution_result
 from declan.music.music_provider_result import music_execution_result
 
 

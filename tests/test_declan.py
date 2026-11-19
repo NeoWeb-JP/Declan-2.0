@@ -9,11 +9,11 @@ from unittest import TestCase
 from unittest.mock import patch
 from urllib.request import Request, urlopen
 
-import conditions
+from declan.core import conditions
 from declan.ha import device_status
 import server
 from declan.timers import timers
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class CoreTests(TestCase):

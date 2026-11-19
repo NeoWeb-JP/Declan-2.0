@@ -1,5 +1,5 @@
 """Validate typed music provider results and legacy injected reply pairs."""
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 from dataclasses import dataclass
 from enum import StrEnum
 

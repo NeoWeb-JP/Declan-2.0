@@ -4,7 +4,7 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
+from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
 from declan.turn import retry_cancellation
 from declan.turn import roast_command_dispatch
 from declan.turn import roast_guest_dispatch

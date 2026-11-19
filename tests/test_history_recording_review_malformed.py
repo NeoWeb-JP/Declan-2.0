@@ -6,7 +6,7 @@ from pathlib import Path
 import json
 from time import time
 
-import history
+from declan.core import history
 
 
 class HistoryRegressionTests(unittest.TestCase):

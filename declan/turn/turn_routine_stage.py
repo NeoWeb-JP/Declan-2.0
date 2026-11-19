@@ -1,6 +1,6 @@
 """Select a routine and execute its chained follow-on actions."""
 from dataclasses import dataclass
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 from declan.turn import routine_follow_on_dispatch
 from declan.turn import routine_registry_dispatch

@@ -2,7 +2,7 @@
 
 import re
 
-import configuration
+from declan.core import configuration
 
 
 def resolve(key, domain, legacy_default):

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from declan.turn.command_response import CommandResponse
-from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
+from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
 from declan.turn import conversation_persistence
 from declan.ha import device_result_response
 from declan.turn import early_command_result

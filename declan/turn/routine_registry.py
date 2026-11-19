@@ -5,7 +5,7 @@ No routine execution happens when mappings are created or imported.
 import json
 from typing import Any
 import re
-import history
+from declan.core import history
 
 SCRIPT = re.compile(r"script\.[a-z0-9_]+\Z")
 NAME = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
@@ -99,7 +99,7 @@ LEGACY = {
 
 def bootstrap(available_entities):
     """Import existing configured scripts, only when verified against live HA inventory."""
-    import configuration
+    from declan.core import configuration
     available = set(available_entities)
     with history.database() as db:
         db.execute("CREATE TABLE IF NOT EXISTS routine_registry (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)")

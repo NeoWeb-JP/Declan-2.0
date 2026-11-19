@@ -3,7 +3,7 @@
 Callers serialize access to the injected session store. No server globals are imported.
 """
 from datetime import datetime
-from context_numeric_validation import finite_number
+from declan.core.context_numeric_validation import finite_number
 from time import monotonic
 import secrets
 from declan.turn.chat_recall_privacy import safe_chat_text

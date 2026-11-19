@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from declan.timers import timers
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class TimerCoreTypedTests(unittest.TestCase):

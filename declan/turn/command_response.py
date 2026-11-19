@@ -1,7 +1,7 @@
 """Typed dispatched responses with the context needed by turn orchestration."""
 from dataclasses import dataclass
 
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 
 
 @dataclass(frozen=True)

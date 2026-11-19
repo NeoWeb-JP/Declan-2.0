@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from declan.turn import command_registry
 from declan.ha import device_status
 import server
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from test_command_registry import dependencies
 
 

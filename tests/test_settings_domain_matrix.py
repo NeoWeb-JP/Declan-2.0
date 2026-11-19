@@ -1,7 +1,7 @@
 """Exercise every supported settings import entity domain."""
 import unittest
 
-import configuration
+from declan.core import configuration
 
 
 class SettingsDomainMatrixTests(unittest.TestCase):

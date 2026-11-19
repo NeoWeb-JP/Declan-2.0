@@ -1,5 +1,5 @@
 """Preview-first timer dispatch and typed early-result resolution."""
-from execution_results import ExecutionResult
+from declan.core.execution_results import ExecutionResult
 
 
 def preview_and_timer(

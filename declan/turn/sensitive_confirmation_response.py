@@ -1,6 +1,6 @@
 """Build and persist sensitive action confirmation responses."""
 import sqlite3
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 from declan.turn.confirmation_results import ConfirmationDecision, ConfirmationReplyResult
 
 

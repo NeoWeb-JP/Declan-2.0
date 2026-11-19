@@ -3,9 +3,9 @@ import re
 import sqlite3
 from enum import StrEnum
 
-import history
+from declan.core import history
 from declan.turn import response_library
-from execution_results import Outcome, parse_outcome
+from declan.core.execution_results import Outcome, parse_outcome
 
 ENTITY = re.compile(r"script\.[a-z0-9_]{1,200}\Z")
 PHASES = response_library.PHASES

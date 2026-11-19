@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-import configuration
+from declan.core import configuration
 from declan.ha import household_language
 from declan.turn import personality
 from declan.turn import personality_policy

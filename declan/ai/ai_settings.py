@@ -2,7 +2,7 @@
 import json
 import re
 
-from history import database
+from declan.core.history import database
 from declan.ai.ai_pricing import RATES, model_profile, require_available
 
 DEFAULTS = {

@@ -1,6 +1,6 @@
 """Bounded, origin-scoped retry context for conversational corrections."""
 
-from context_numeric_validation import finite_number
+from declan.core.context_numeric_validation import finite_number
 from declan.turn.retry_phrase_validation import valid_retry_phrase
 from declan.turn.retry_scope_validation import same_origin_scope
 

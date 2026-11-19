@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from declan.turn.command_registry import RequestContext, routine_registry
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.turn.routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from declan.ha import script_discovery
 import server

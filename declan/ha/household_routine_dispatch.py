@@ -6,7 +6,7 @@ import json
 import re
 import sqlite3
 from urllib.error import HTTPError
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def start_dinner_result(connection, *, approved=False, policy, registry, choose_response, guest_mode, request_factory):

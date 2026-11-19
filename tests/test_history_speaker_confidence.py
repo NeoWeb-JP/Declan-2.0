@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 import math
 
-import history
+from declan.core import history
 
 
 class HistoryRegressionTests(unittest.TestCase):

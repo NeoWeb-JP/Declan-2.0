@@ -16,9 +16,9 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import wave
 
-import configuration
-import diagnostics
-import history
+from declan.core import configuration
+from declan.core import diagnostics
+from declan.core import history
 import server
 import state_backup
 from declan.voice import voice_profiles

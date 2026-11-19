@@ -5,8 +5,8 @@ import json
 import unittest
 from unittest.mock import patch
 
-import diagnostics
-from execution_results import ExecutionResult, Outcome
+from declan.core import diagnostics
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class DiagnosticResultTests(unittest.TestCase):

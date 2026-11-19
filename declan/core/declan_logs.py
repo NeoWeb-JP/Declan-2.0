@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 import logging
 import re
-from log_feed_state import LogFeedState
+from declan.core.log_feed_state import LogFeedState
 
 STATE = LogFeedState()
 _SENSITIVE = re.compile(

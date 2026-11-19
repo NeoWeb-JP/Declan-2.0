@@ -5,10 +5,10 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-import configuration
+from declan.core import configuration
 from declan.ha import household_entities
 import server
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class HouseholdEntitiesTests(unittest.TestCase):

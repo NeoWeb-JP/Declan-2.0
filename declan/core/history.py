@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from time import time
-from database_schema_state import DatabaseSchemaState
+from declan.core.database_schema_state import DatabaseSchemaState
 from declan.ai.action_evidence_wire import action_evidence_to_wire
 
 

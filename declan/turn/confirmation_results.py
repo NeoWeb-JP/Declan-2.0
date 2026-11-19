@@ -1,7 +1,7 @@
 """Validated internal contracts for origin-bound sensitive confirmations."""
 from dataclasses import dataclass
 from enum import StrEnum
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class ConfirmationDecision(StrEnum):

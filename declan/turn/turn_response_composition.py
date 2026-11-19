@@ -1,6 +1,6 @@
 """Compose a conversation response and attach its existing outcome metadata."""
 from declan.turn.turn_response import TurnResponse
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 def compose_turn_result(message, session_id, routine_reply, *,

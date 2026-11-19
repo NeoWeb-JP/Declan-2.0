@@ -1,6 +1,6 @@
 """Dispatch stop commands before roast and guest commands."""
 from dataclasses import dataclass
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 from declan.turn import roast_guest_dispatch
 from declan.music import stop_command_dispatch

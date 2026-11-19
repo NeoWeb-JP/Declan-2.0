@@ -1,6 +1,6 @@
 """Typed app-launch evidence retains acceptance versus completion semantics."""
 from dataclasses import dataclass
-from execution_results import MovieLaunchStatus
+from declan.core.execution_results import MovieLaunchStatus
 
 
 @dataclass(frozen=True)

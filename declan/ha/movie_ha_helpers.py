@@ -3,7 +3,7 @@ import json
 import re
 import sqlite3
 from urllib.error import HTTPError
-from execution_results import MovieLaunchResult, MovieLaunchStatus
+from declan.core.execution_results import MovieLaunchResult, MovieLaunchStatus
 
 
 def launch_movie_app_result(connection, remote, app, *, request_factory):

@@ -2,7 +2,7 @@
 import unittest
 from typing import Any
 
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 from declan.turn.turn_dispatch_orchestration import DispatchResult
 
 

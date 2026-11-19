@@ -2,7 +2,7 @@
 import json
 import re
 from urllib.error import HTTPError
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def search_media_result(phrase, *, config, connect, agents, request_factory):

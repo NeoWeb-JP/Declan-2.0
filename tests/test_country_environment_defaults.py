@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import Mock, patch
 
-import conditions
+from declan.core import conditions
 
 
 class CountryEnvironmentDefaultsTests(unittest.TestCase):

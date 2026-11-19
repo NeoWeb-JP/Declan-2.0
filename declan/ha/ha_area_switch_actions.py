@@ -7,7 +7,7 @@ import re
 from urllib.error import HTTPError
 from urllib.request import Request
 
-from execution_results import ExecutionResult, Outcome
+from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from declan.ai.action_evidence_buffer import append_action_evidence
 

@@ -1,6 +1,6 @@
 """Resolve guarded fallback and response persona before session finalization."""
 from dataclasses import dataclass
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 from declan.ai import fallback_orchestration
 from declan.turn import response_persona_context

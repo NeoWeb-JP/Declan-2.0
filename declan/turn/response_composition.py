@@ -1,5 +1,5 @@
 """Pure routing of successful background routine acknowledgements to persona replies."""
-from execution_results import ExecutionResult, Outcome, parse_outcome
+from declan.core.execution_results import ExecutionResult, Outcome, parse_outcome
 from declan.ai.action_evidence_buffer import evidence_completed
 
 
