@@ -1,0 +1,42 @@
+name: PR CI mobile notification
+
+on:
+  workflow_run:
+    workflows: ["Declan CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  notify:
+    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.pull_requests[0].number != null }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post or update concise PR CI status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$CONCLUSION" in
+            success) status="PASSED" ;;
+            failure) status="FAILED" ;;
+            cancelled) status="CANCELLED" ;;
+            *) status="UNKNOWN" ;;
+          esac
+          marker='<!-- declan-pr-ci-status -->'
+          message="$marker
+          PR #$PR_NUMBER | CI $status"
+          # Update a previous notification to avoid a stream of bot comments.
+          existing=$(gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq '.[] | select(.user.type == "Bot" and (.body | contains("<!-- declan-pr-ci-status -->"))) | .id' | tail -n 1)
+          if [[ -n "$existing" ]]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$existing" -f body="$message" >/dev/null
+          else
+            gh api -X POST "repos/$GH_REPO/issues/$PR_NUMBER/comments" -f body="$message" >/dev/null
+          fi
