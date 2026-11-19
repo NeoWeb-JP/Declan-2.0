@@ -210,7 +210,10 @@ def recent(before=None, limit=50):
     now = time()
     with database() as connection:
         connection.row_factory = sqlite3.Row
-        query = "SELECT * FROM turns WHERE created_at BETWEEN ? AND ?"
+        query = (
+            "SELECT * FROM turns WHERE typeof(created_at) IN ('integer', 'real') "
+            "AND created_at BETWEEN ? AND ?"
+        )
         args = [now - retention_seconds(), now]
         if before is not None:
             query += " AND id < ?"
