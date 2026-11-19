@@ -1,7 +1,7 @@
 """Device command registry wiring regression tests."""
 import unittest
 from unittest.mock import Mock
-from device_command_dispatch import dispatch_device
+from declan.ha.device_command_dispatch import dispatch_device
 
 
 class DeviceCommandDispatchTests(unittest.TestCase):

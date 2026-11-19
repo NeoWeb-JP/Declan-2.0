@@ -2,10 +2,10 @@
 import sqlite3
 import unittest
 from unittest.mock import Mock
-from sensitive_confirmation_response import confirmation_response
-from sensitive_confirmation_response import confirmation_reply_result
-from confirmation_results import ConfirmationDecision
-from execution_results import Outcome
+from declan.turn.sensitive_confirmation_response import confirmation_response
+from declan.turn.sensitive_confirmation_response import confirmation_reply_result
+from declan.turn.confirmation_results import ConfirmationDecision
+from declan.core.execution_results import Outcome
 
 
 class ConfirmationResponseTests(unittest.TestCase):

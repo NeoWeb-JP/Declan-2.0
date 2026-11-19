@@ -2,8 +2,8 @@
 import unittest
 from unittest.mock import Mock, patch
 
-import music
-from execution_results import ExecutionResult, Outcome
+from declan.music import music
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class PlaybackCoreTypedTests(unittest.TestCase):

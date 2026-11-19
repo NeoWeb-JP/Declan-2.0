@@ -4,7 +4,7 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import configuration
+from declan.core import configuration
 
 
 class SettingsInvalidImportSafetyTests(unittest.TestCase):

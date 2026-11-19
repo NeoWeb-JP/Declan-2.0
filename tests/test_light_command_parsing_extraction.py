@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 
-import light_command_parsing
+from declan.ha import light_command_parsing
 import server
 
 

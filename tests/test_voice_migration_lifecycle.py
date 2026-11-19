@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from check_voice_encryption import inspect, main as check_main
 from migrate_voice_audio import migrate
-from voice_audio_crypto import decrypt, encrypt
+from declan.voice.voice_audio_crypto import decrypt, encrypt
 
 
 class VoiceMigrationLifecycleTests(unittest.TestCase):

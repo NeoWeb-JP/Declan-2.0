@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-import configuration
+from declan.core import configuration
 
 
 class ConfigurationEnvironmentFallbackTests(unittest.TestCase):

@@ -3,7 +3,7 @@ import sqlite3
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
-from learned_intent_resolution import resolve
+from declan.turn.learned_intent_resolution import resolve
 
 
 class LearnedIntentResolutionTests(unittest.TestCase):

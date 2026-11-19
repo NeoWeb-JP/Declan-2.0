@@ -9,14 +9,14 @@ import unittest
 from unittest.mock import Mock
 from urllib.error import HTTPError, URLError
 
-import ai_fallback_dispatch
-import ai_settings
-import ha_inventory
-from ai_budget import BudgetExhausted, monthly_reserved
-from ai_pricing import charge
-from guarded_fallback import run_guarded_result
-from model_response_results import NonBillablePlanningError
-from openai_planner import request_plan
+from declan.ai import ai_fallback_dispatch
+from declan.ai import ai_settings
+from declan.ha import ha_inventory
+from declan.ai.ai_budget import BudgetExhausted, monthly_reserved
+from declan.ai.ai_pricing import charge
+from declan.ai.guarded_fallback import run_guarded_result
+from declan.ai.model_response_results import NonBillablePlanningError
+from declan.ai.openai_planner import request_plan
 
 
 class FailureAccountingTests(unittest.TestCase):
@@ -86,7 +86,7 @@ class FailureAccountingTests(unittest.TestCase):
         self.dispatcher.assert_not_called()
 
     def test_invalid_or_missing_usage_does_not_refund_unknown_request(self):
-        with self.assertLogs('guarded_fallback', level='WARNING'):
+        with self.assertLogs('declan.ai.guarded_fallback', level='WARNING'):
             with self.assertRaisesRegex(ValueError, 'original failure'):
                 self.run_plan(Mock(side_effect=ValueError('original failure')),
                               charge_micro_usd=Mock(side_effect=ValueError('private provider data')))

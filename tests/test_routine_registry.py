@@ -4,7 +4,7 @@ from unittest.mock import patch
 import sqlite3
 import tempfile
 from pathlib import Path
-import routine_registry
+from declan.turn import routine_registry
 
 class RegistryTests(unittest.TestCase):
     def sample(self):
@@ -54,7 +54,7 @@ class RegistryTests(unittest.TestCase):
                 finally:
                     connection.close()
             with patch.object(routine_registry.history, "database", side_effect=db), patch(
-                "configuration.get", side_effect=lambda key, default="": {
+                "declan.core.configuration.get", side_effect=lambda key, default="": {
                     "DECLAN_MOVIE_SCRIPT": "script.movie_time",
                     "DECLAN_GOOD_MORNING_SCRIPT": "script.old_morning"
                 }.get(key, default)

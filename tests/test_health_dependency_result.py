@@ -1,8 +1,8 @@
 """Typed dependency health keeps HTTP serialization at the boundary."""
 import unittest
 
-from health_readiness import DependencyHealth
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from declan.http.health_readiness import DependencyHealth
+from declan.ha.home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 
 
 class DependencyHealthResultTests(unittest.TestCase):

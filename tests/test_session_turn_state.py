@@ -1,9 +1,9 @@
 """Session context and voice correction retry regression tests."""
 from typing import Any
 import unittest
-from session_turn_state import update_turn
-from execution_results import Outcome
-from lighting_action_evidence import LightingActionEvidence, LightingActionStatus, LightingActionReason
+from declan.turn.session_turn_state import update_turn
+from declan.core.execution_results import Outcome
+from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus, LightingActionReason
 
 
 class SessionTurnStateTests(unittest.TestCase):

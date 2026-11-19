@@ -1,7 +1,7 @@
 """Background routine response routing regression tests."""
 import unittest
 from unittest.mock import Mock
-from response_composition import background_reply
+from declan.turn.response_composition import background_reply
 
 
 class BackgroundReplyTests(unittest.TestCase):

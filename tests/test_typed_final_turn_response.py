@@ -4,11 +4,11 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-from execution_results import Outcome
-from turn_response import TurnResponse
-import turn_finalization
-import turn_persistence_orchestration
-import turn_response_composition
+from declan.core.execution_results import Outcome
+from declan.turn.turn_response import TurnResponse
+from declan.turn import turn_finalization
+from declan.turn import turn_persistence_orchestration
+from declan.turn import turn_response_composition
 
 
 class TypedFinalTurnResponseTests(unittest.TestCase):

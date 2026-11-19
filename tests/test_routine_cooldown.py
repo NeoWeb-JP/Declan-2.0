@@ -1,7 +1,7 @@
 """Routine cooldown concurrency and timing regression tests."""
 import threading
 import unittest
-from routine_cooldown import RoutineCooldown
+from declan.turn.routine_cooldown import RoutineCooldown
 
 
 class RoutineCooldownTests(unittest.TestCase):

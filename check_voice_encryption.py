@@ -5,7 +5,7 @@ from pathlib import Path
 import sqlite3
 
 from cryptography.exceptions import InvalidTag
-from voice_audio_crypto import MAGIC, _aesgcm, decrypt
+from declan.voice.voice_audio_crypto import MAGIC, _aesgcm, decrypt
 
 
 def inspect(database):

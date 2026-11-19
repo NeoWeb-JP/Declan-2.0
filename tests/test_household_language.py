@@ -3,10 +3,10 @@
 import unittest
 from unittest.mock import patch
 
-import configuration
-import household_language
-import personality
-import personality_policy
+from declan.core import configuration
+from declan.ha import household_language
+from declan.turn import personality
+from declan.turn import personality_policy
 
 
 class HouseholdNameTests(unittest.TestCase):

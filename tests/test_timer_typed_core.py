@@ -4,8 +4,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
-import timers
-from execution_results import ExecutionResult, Outcome
+from declan.timers import timers
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class TimerCoreTypedTests(unittest.TestCase):

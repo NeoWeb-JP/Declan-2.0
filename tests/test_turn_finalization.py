@@ -1,7 +1,7 @@
 """HTTP turn finalisation regression tests."""
 import unittest
-from turn_finalization import lighting_phrase_suggestion, apply_outcome_metadata
-from execution_results import Outcome
+from declan.turn.turn_finalization import lighting_phrase_suggestion, apply_outcome_metadata
+from declan.core.execution_results import Outcome
 
 
 class TurnFinalizationTests(unittest.TestCase):

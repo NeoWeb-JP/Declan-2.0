@@ -1,7 +1,7 @@
 """Custom routine reply composition regression tests."""
 import unittest
 from unittest.mock import Mock
-from response_composition import routine_reply
+from declan.turn.response_composition import routine_reply
 
 
 class RoutineReplyTests(unittest.TestCase):

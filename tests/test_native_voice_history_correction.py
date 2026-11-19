@@ -4,10 +4,10 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
+POST_INGRESS = (ROOT / "declan/http/post_ingress_orchestration.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/voice_review_view.py").read_text()
 SERVER = (ROOT / "server.py").read_text()
-ACCESS = (ROOT / "voicepipeline_access_http.py").read_text()
+ACCESS = (ROOT / "declan" / "voice" / "voicepipeline_access_http.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 
 class NativeVoiceCorrectionContract(unittest.TestCase):
@@ -23,7 +23,7 @@ class NativeVoiceCorrectionContract(unittest.TestCase):
         ast.parse(ACCESS)
         self.assertIn('body.get("confirm") is not True', ACCESS)
         self.assertIn("r.post_payload_validation.read_authorized_body(", POST_INGRESS)
-        self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "post_payload_validation.py").read_text())
+        self.assertIn("voicepipeline_access_http.enforce_access(", (ROOT / "declan/http/post_payload_validation.py").read_text())
 
     def test_ui_requires_review_revision_and_confirmation(self):
         self.assertNotIn('!item.current_resolution_id || !speaker) return;', PANEL)

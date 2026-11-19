@@ -22,16 +22,16 @@ class RetirementTests(unittest.TestCase):
 
     def test_backend_endpoints_and_native_panel_preserved(self):
         source = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
-        self.assertIn('get_request_dispatch.dispatch(', Path(__file__).resolve().parents[1].joinpath('http_handler_adapters.py').read_text())
-        self.assertIn('system_read_routes.handles(handler.path)', (Path(__file__).resolve().parents[1] / 'get_request_dispatch.py').read_text())
-        self.assertIn('path == "/health"', Path(__file__).resolve().parents[1].joinpath("system_read_routes.py").read_text())
+        self.assertIn('get_request_dispatch.dispatch(', Path(__file__).resolve().parents[1].joinpath('declan/http/http_handler_adapters.py').read_text())
+        self.assertIn('system_read_routes.handles(handler.path)', (Path(__file__).resolve().parents[1] / 'declan/http/get_request_dispatch.py').read_text())
+        self.assertIn('path == "/health"', Path(__file__).resolve().parents[1].joinpath("declan/http/system_read_routes.py").read_text())
         # Request-origin routing now lives in the extracted request_origin module.
         origin_source = Path(__file__).resolve().parents[1].joinpath(
-            "request_origin.py").read_text()
+            "declan/http/request_origin.py").read_text()
         self.assertIn('path == "/api/assist"', origin_source)
-        self.assertIn("turn_session_entry.prepare(", (Path(__file__).resolve().parents[1] / "turn_session_preflight.py").read_text())
-        self.assertIn("turn_initialization.prepare(", (Path(__file__).resolve().parents[1] / "turn_session_entry.py").read_text())
-        turn_source = Path(__file__).resolve().parents[1].joinpath("turn_initialization.py").read_text()
+        self.assertIn("turn_session_entry.prepare(", (Path(__file__).resolve().parents[1] / "declan/turn/turn_session_preflight.py").read_text())
+        self.assertIn("turn_initialization.prepare(", (Path(__file__).resolve().parents[1] / "declan/turn/turn_session_entry.py").read_text())
+        turn_source = Path(__file__).resolve().parents[1].joinpath("declan/turn/turn_initialization.py").read_text()
         self.assertIn("request_origin.request_context(", turn_source)
         self.assertNotIn("webbrowser.open(", source)
         self.assertTrue(Path(__file__).resolve().parents[1].joinpath(

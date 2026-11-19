@@ -14,18 +14,18 @@ from unittest.mock import Mock, patch
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler
 
-from arbitration import CaptureArbiter
+from declan.voice.arbitration import CaptureArbiter
 from declan_ingress.http_server import BoundedHTTPServer
-import ha_inventory
-import music
-import timers
+from declan.ha import ha_inventory
+from declan.music import music
+from declan.timers import timers
 
 
 class CaptureTests(TestCase):
     def test_delayed_plural_transcript_is_suppressed_without_waiting(self):
         arbiter = CaptureArbiter()
         capture = {'ended_at': time() - 4, 'duration': 2, 'rms': .3}
-        with patch('arbitration.monotonic', side_effect=[10, 30]):
+        with patch('declan.voice.arbitration.monotonic', side_effect=[10, 30]):
             self.assertTrue(arbiter.claim('turn on the light', 'kitchen', capture))
             self.assertFalse(arbiter.claim('Turn on the lights!', 'bedroom', capture))
 

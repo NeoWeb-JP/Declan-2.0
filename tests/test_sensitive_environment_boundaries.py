@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-import sensitive_confirmations as confirmations
+from declan.turn import sensitive_confirmations as confirmations
 
 
 class SensitiveEnvironmentBoundariesTests(unittest.TestCase):

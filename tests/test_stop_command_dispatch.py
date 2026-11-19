@@ -1,7 +1,7 @@
 """Stop command dispatch wiring regression tests."""
 import unittest
 from unittest.mock import Mock
-from stop_command_dispatch import dispatch_stop
+from declan.music.stop_command_dispatch import dispatch_stop
 
 
 class StopCommandDispatchTests(unittest.TestCase):

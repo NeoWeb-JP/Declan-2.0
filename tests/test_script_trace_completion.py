@@ -6,7 +6,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
-import script_discovery
+from declan.ha import script_discovery
 
 
 class TraceCompletionTests(unittest.TestCase):

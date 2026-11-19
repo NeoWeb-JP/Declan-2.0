@@ -4,7 +4,7 @@ import threading
 import unittest
 from unittest.mock import Mock
 
-from session_context_access import consume_retry_context, load_recent_context
+from declan.turn.session_context_access import consume_retry_context, load_recent_context
 
 
 class SessionContextAccessTests(unittest.TestCase):

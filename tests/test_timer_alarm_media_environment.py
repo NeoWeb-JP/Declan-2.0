@@ -4,7 +4,7 @@ import unittest
 from contextlib import nullcontext
 from unittest.mock import MagicMock, patch
 
-import timers
+from declan.timers import timers
 
 
 class TimerAlarmMediaEnvironmentTests(unittest.TestCase):

@@ -2,8 +2,8 @@
 import unittest
 from unittest.mock import Mock, patch
 
-import lighting_intents
-from execution_results import ExecutionResult, Outcome
+from declan.ha import lighting_intents
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class LightingTypedCoreTests(unittest.TestCase):

@@ -2,11 +2,11 @@
 import unittest
 from dataclasses import FrozenInstanceError
 
-from execution_results import Outcome
-from turn_direct_dispatch import DirectDispatchResult
-from turn_routine_stage import RoutineStageResult
-from turn_fallback_dispatch import FallbackDispatchResult
-from turn_response_preparation import PreparedResponse
+from declan.core.execution_results import Outcome
+from declan.turn.turn_direct_dispatch import DirectDispatchResult
+from declan.turn.turn_routine_stage import RoutineStageResult
+from declan.turn.turn_fallback_dispatch import FallbackDispatchResult
+from declan.turn.turn_response_preparation import PreparedResponse
 
 
 class TurnStageOutcomeContractTests(unittest.TestCase):

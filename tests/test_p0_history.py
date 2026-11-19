@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import patch
 
-import history
+from declan.core import history
 
 
 class HistoryConcurrencyTests(TestCase):

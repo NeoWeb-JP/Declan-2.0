@@ -1,5 +1,5 @@
 import unittest
-from ai_context import select
+from declan.ai.ai_context import select
 
 
 class AIContextTests(unittest.TestCase):

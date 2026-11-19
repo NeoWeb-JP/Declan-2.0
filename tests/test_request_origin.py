@@ -1,6 +1,6 @@
 """Request origin and scope regression tests."""
 import unittest
-from request_origin import request_context
+from declan.http.request_origin import request_context
 
 
 class RequestOriginTests(unittest.TestCase):

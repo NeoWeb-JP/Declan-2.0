@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import voice_profiles
+from declan.voice import voice_profiles
 
 
 @patch.dict(os.environ, {'DECLAN_VOICE_AUDIO_KEY': base64.urlsafe_b64encode(b'k' * 32).decode()})

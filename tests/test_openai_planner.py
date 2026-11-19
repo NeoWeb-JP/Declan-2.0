@@ -5,8 +5,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from openai_planner import request_plan
-from model_response_results import ModelResponseResult, ModelResponseStatus
+from declan.ai.openai_planner import request_plan
+from declan.ai.model_response_results import ModelResponseResult, ModelResponseStatus
 
 
 class FakeOpener:

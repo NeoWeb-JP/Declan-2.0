@@ -1,6 +1,6 @@
 import unittest
-from action_plan import validate_plan
-from action_executor import execute_verified, summarise
+from declan.ai.action_plan import validate_plan
+from declan.ai.action_executor import execute_verified, summarise
 
 
 class ExecutorTests(unittest.TestCase):
@@ -30,7 +30,7 @@ class ExecutorTests(unittest.TestCase):
             if action.entity_id == "light.a":
                 raise RuntimeError("secret token")
             return "confirmed", "verified"
-        with self.assertLogs("action_executor", level="WARNING") as logs:
+        with self.assertLogs("declan.ai.action_executor", level="WARNING") as logs:
             result = execute_verified(self.plan, dispatch)
         self.assertEqual(result[0].detail, "Dispatch or verification failed")
         self.assertEqual(result[1].status, "confirmed")

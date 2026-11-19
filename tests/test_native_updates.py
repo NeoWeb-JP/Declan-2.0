@@ -4,8 +4,8 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
-AUTH = (ROOT / "post_origin_auth_http.py").read_text()
+POST_INGRESS = (ROOT / "declan/http/post_ingress_orchestration.py").read_text()
+AUTH = (ROOT / "declan/http/post_origin_auth_http.py").read_text()
 VIEW = (ROOT / "custom_components/declan_two/updates_view.py").read_text()
 PANEL = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
 INIT = (ROOT / "custom_components/declan_two/__init__.py").read_text()
@@ -36,15 +36,15 @@ class NativeUpdaterTests(unittest.TestCase):
         self.assertNotIn('Use the existing Declan updater for now.', PANEL)
 
     def test_backend_update_routes_require_valid_bearer_or_existing_local_access(self):
-        self.assertIn('handler.path == "/api/updates/status"', (ROOT / "get_access_gate_http.py").read_text())
-        self.assertIn('not updates_auth and handler.client_address', (ROOT / "get_access_gate_http.py").read_text())
-        self.assertIn('not voice_review_auth and not updates_auth and (', (ROOT / "get_access_gate_http.py").read_text())
+        self.assertIn('handler.path == "/api/updates/status"', (ROOT / "declan/http/get_access_gate_http.py").read_text())
+        self.assertIn('not updates_auth and handler.client_address', (ROOT / "declan/http/get_access_gate_http.py").read_text())
+        self.assertIn('not voice_review_auth and not updates_auth and (', (ROOT / "declan/http/get_access_gate_http.py").read_text())
         self.assertIn('"/api/updates"', AUTH)
         self.assertIn('len(token) >= 32', AUTH)
         self.assertIn('secrets.compare_digest(', AUTH)
         self.assertIn("r.post_entry_gates.enforce(", POST_INGRESS)
-        self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "post_entry_gates.py").read_text())
-        self.assertIn("post_request_preflight.enforce(", (ROOT / "post_request_entry.py").read_text())
+        self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "declan/http/post_entry_gates.py").read_text())
+        self.assertIn("post_request_preflight.enforce(", (ROOT / "declan/http/post_request_entry.py").read_text())
         self.assertIn("r.post_origin_auth_http.enforce_access,", POST_INGRESS)
 
     def test_versions_and_compatibility_gate(self):

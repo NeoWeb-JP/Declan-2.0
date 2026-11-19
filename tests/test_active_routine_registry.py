@@ -2,7 +2,7 @@
 import threading
 import unittest
 
-from active_routine_registry import ActiveRoutineRegistry
+from declan.turn.active_routine_registry import ActiveRoutineRegistry
 
 
 class ActiveRoutineRegistryTests(unittest.TestCase):

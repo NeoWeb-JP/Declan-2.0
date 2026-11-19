@@ -1,7 +1,7 @@
 """Shared session identity validation regressions."""
 import unittest
 
-from session_identity import valid_session_id
+from declan.turn.session_identity import valid_session_id
 
 
 class SessionIdentityTests(unittest.TestCase):

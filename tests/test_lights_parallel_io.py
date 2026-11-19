@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import server
 import test_home_assistant as fixtures
-from lighting_execution_dispatch import concurrently
+from declan.ha.lighting_execution_dispatch import concurrently
 
 
 class ConcurrentlyTests(unittest.TestCase):

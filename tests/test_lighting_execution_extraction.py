@@ -3,8 +3,8 @@ import unittest
 from unittest.mock import patch
 
 import server
-import lighting_execution_dispatch as dispatch
-from execution_results import Outcome
+from declan.ha import lighting_execution_dispatch as dispatch
+from declan.core.execution_results import Outcome
 
 
 class LightingExecutionExtractionTests(unittest.TestCase):

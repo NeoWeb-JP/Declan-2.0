@@ -4,10 +4,10 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-import ha_inventory
-import music
+from declan.ha import ha_inventory
+from declan.music import music
 import server
-from execution_results import Outcome
+from declan.core.execution_results import Outcome
 
 
 class InventoryResultTests(unittest.TestCase):

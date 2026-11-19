@@ -1,7 +1,7 @@
 """Device result response regression tests."""
 import unittest
 from unittest.mock import Mock
-from device_result_response import device_result_response
+from declan.ha.device_result_response import device_result_response
 
 
 class DeviceResultResponseTests(unittest.TestCase):

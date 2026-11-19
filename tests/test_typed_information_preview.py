@@ -3,12 +3,12 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-import command_registry
-import conditions
-import routine_preview_dispatch
+from declan.turn import command_registry
+from declan.core import conditions
+from declan.turn import routine_preview_dispatch
 import server
-from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
-from information_result import InformationResult, InformationCategory
+from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
+from declan.turn.information_result import InformationResult, InformationCategory
 
 
 class TypedInformationPreviewTests(unittest.TestCase):

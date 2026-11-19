@@ -6,10 +6,10 @@ import json
 from urllib.error import HTTPError
 from unittest.mock import patch, Mock
 
-import music
-from execution_results import ExecutionResult, Outcome
-from music_provider_result import PlayerAvailability
-from music_provider_result import MusicFailureKind, MusicRequestFailure
+from declan.music import music
+from declan.core.execution_results import ExecutionResult, Outcome
+from declan.music.music_provider_result import PlayerAvailability
+from declan.music.music_provider_result import MusicFailureKind, MusicRequestFailure
 
 
 class MusicProviderCoreContractTests(unittest.TestCase):

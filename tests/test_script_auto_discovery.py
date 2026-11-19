@@ -6,7 +6,7 @@ import unittest
 from typing import Any
 from unittest.mock import patch
 
-import script_discovery
+from declan.ha import script_discovery
 
 VIEW = Path(__file__).resolve().parents[1] / "custom_components/declan_two/script_discovery_view.py"
 tree = ast.parse(VIEW.read_text(encoding="utf-8"))

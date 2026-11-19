@@ -4,12 +4,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from command_response import CommandResponse
-from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
-import lighting_result_dispatch
-import response_composition
-import routine_follow_on
-import routine_follow_on_dispatch
+from declan.turn.command_response import CommandResponse
+from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
+from declan.ha import lighting_result_dispatch
+from declan.turn import response_composition
+from declan.turn import routine_follow_on
+from declan.turn import routine_follow_on_dispatch
 
 
 class TypedFollowOnResponseTests(unittest.TestCase):

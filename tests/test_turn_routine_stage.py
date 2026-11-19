@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import turn_routine_stage as stage
+from declan.turn import turn_routine_stage as stage
 
 
 class RoutineStageTests(unittest.TestCase):

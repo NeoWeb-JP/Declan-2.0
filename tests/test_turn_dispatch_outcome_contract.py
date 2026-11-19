@@ -2,8 +2,8 @@
 import unittest
 from typing import Any
 
-from execution_results import Outcome
-from turn_dispatch_orchestration import DispatchResult
+from declan.core.execution_results import Outcome
+from declan.turn.turn_dispatch_orchestration import DispatchResult
 
 
 class DispatchOutcomeContractTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 """Guarded fallback entity authorization regression tests."""
 import unittest
-from fallback_entity_authorization import exposed_entities
+from declan.ai.fallback_entity_authorization import exposed_entities
 
 
 class FallbackEntityAuthorizationTests(unittest.TestCase):

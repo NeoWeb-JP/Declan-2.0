@@ -3,9 +3,9 @@ from typing import Any
 from unittest import TestCase
 from unittest.mock import Mock
 
-import lighting_intents
-from command_registry import RequestContext, lighting_registry
-from execution_results import Outcome
+from declan.ha import lighting_intents
+from declan.turn.command_registry import RequestContext, lighting_registry
+from declan.core.execution_results import Outcome
 
 
 class LightingRegistryTests(TestCase):

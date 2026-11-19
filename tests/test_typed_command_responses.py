@@ -4,14 +4,14 @@ from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from command_response import CommandResponse
-from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
-import conversation_persistence
-import device_result_response
-import early_command_result
-import information_result_response
-import stop_result_response
-import turn_finalization
+from declan.turn.command_response import CommandResponse
+from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
+from declan.turn import conversation_persistence
+from declan.ha import device_result_response
+from declan.turn import early_command_result
+from declan.turn import information_result_response
+from declan.music import stop_result_response
+from declan.turn import turn_finalization
 
 
 class TypedCommandResponseTests(unittest.TestCase):

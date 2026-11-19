@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import approved_media_players as approved
-import music
+from declan.music import approved_media_players as approved
+from declan.music import music
 
 
 class ApprovedMediaPlayerTests(unittest.TestCase):

@@ -2,7 +2,7 @@ import sqlite3
 import unittest
 from datetime import datetime, timezone
 
-from ai_budget import reserve, settle, monthly_reserved
+from declan.ai.ai_budget import reserve, settle, monthly_reserved
 
 
 NOW = datetime(2026, 11, 15, tzinfo=timezone.utc)

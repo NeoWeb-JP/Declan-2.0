@@ -3,7 +3,7 @@ from typing import Any
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import turn_fallback_dispatch as stage
+from declan.turn import turn_fallback_dispatch as stage
 
 
 class FallbackDispatchTests(unittest.TestCase):

@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-import timers
+from declan.timers import timers
 
 
 class BrowserTimerSatelliteEnvironmentTests(unittest.TestCase):

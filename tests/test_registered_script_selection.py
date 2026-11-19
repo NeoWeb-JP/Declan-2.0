@@ -1,7 +1,7 @@
 """Registered Home Assistant scripts are the only executable routines."""
 import unittest
 from pathlib import Path
-import script_discovery
+from declan.ha import script_discovery
 
 ROOT = Path(__file__).resolve().parents[1]
 

@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock
 
-from post_origin_auth_http import BEARER_ALLOWED_PATHS, enforce_access, is_authorized
+from declan.http.post_origin_auth_http import BEARER_ALLOWED_PATHS, enforce_access, is_authorized
 
 
 class PostOriginAuthTests(unittest.TestCase):

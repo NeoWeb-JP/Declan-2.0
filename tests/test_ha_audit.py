@@ -392,7 +392,7 @@ class AuditViewTests(AuditViewFixture):
         self.assertIsNone(disabled["editor_path"])
 
     async def test_loaded_script_fields_reach_execution_when_state_has_no_field_attributes(self):
-        import script_discovery
+        from declan.ha import script_discovery
         fields = {"requested_action": {"required": True}, "request_id": {}, "routine_id": {}}
         loaded = SimpleNamespace(fields=fields, raw_config={"fields": fields}, unique_id="movie_time")
         self.hass.data["script"] = SimpleNamespace(get_entity=lambda entity_id: loaded)

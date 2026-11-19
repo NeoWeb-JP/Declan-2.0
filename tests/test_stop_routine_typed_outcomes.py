@@ -1,8 +1,8 @@
 """Stop routine registry validates typed and legacy cancellation results."""
 import unittest
 
-import command_registry
-from execution_results import ExecutionResult, Outcome
+from declan.turn import command_registry
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class StopRoutineTypedOutcomeTests(unittest.TestCase):

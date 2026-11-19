@@ -1,7 +1,7 @@
 """Early command result precedence regression tests."""
 import unittest
 from unittest.mock import Mock
-from early_command_result import early_command_result
+from declan.turn.early_command_result import early_command_result
 
 
 class EarlyCommandResultTests(unittest.TestCase):

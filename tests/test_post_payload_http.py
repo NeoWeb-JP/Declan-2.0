@@ -4,7 +4,7 @@ import io
 import unittest
 from unittest.mock import Mock
 
-from post_payload_http import max_json_body_bytes, read_json_body
+from declan.http.post_payload_http import max_json_body_bytes, read_json_body
 
 
 class PostPayloadHttpTests(unittest.TestCase):

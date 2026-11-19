@@ -3,8 +3,8 @@ from dataclasses import replace
 from unittest import TestCase
 from unittest.mock import Mock
 
-import command_registry as commands
-from execution_results import Outcome
+from declan.turn import command_registry as commands
+from declan.core.execution_results import Outcome
 def dependencies():
     return commands.Dependencies(
         parse_status=Mock(return_value=None), describe_status=Mock(),

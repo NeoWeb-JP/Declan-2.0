@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import ai_credentials
-import voicepipeline
-from sensitive_write_state import SensitiveWriteState
+from declan.ai import ai_credentials
+from declan.voice import voicepipeline
+from declan.turn.sensitive_write_state import SensitiveWriteState
 
 
 class SensitiveWriteStateTests(unittest.TestCase):

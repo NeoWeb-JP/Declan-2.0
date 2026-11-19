@@ -3,9 +3,9 @@ import unittest
 from unittest.mock import patch
 
 import server
-import media_title_search
-import ai_fallback_dispatch
-from execution_results import Outcome
+from declan.music import media_title_search
+from declan.ai import ai_fallback_dispatch
+from declan.core.execution_results import Outcome
 
 
 class MediaAndFallbackExtractionTests(unittest.TestCase):

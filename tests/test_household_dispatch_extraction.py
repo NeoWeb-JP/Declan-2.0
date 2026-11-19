@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 import server
-import household_routine_dispatch as dispatch
+from declan.ha import household_routine_dispatch as dispatch
 
 
 class HouseholdDispatchExtractionTests(unittest.TestCase):

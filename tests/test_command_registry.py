@@ -10,9 +10,9 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-import command_registry as commands
-from execution_results import ExecutionResult, Outcome
-import history
+from declan.turn import command_registry as commands
+from declan.core.execution_results import ExecutionResult, Outcome
+from declan.core import history
 import server
 
 

@@ -1,7 +1,7 @@
 """Information command dispatch wiring regression tests."""
 import unittest
 from unittest.mock import Mock
-from information_command_dispatch import dispatch_information
+from declan.turn.information_command_dispatch import dispatch_information
 
 
 class InformationCommandDispatchTests(unittest.TestCase):

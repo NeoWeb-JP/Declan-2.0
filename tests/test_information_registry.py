@@ -2,9 +2,9 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
-import conditions
-from command_registry import RequestContext, information_registry
-from execution_results import Outcome
+from declan.core import conditions
+from declan.turn.command_registry import RequestContext, information_registry
+from declan.core.execution_results import Outcome
 
 
 class InformationRegistryTests(TestCase):

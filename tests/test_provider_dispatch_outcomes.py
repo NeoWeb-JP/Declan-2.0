@@ -4,11 +4,11 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-import command_registry
-from active_routine_registry import ActiveRoutineRegistry
+from declan.turn import command_registry
+from declan.turn.active_routine_registry import ActiveRoutineRegistry
 import server
-import script_discovery
-from execution_results import ExecutionResult, Outcome
+from declan.ha import script_discovery
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class ProviderDispatchOutcomeTests(unittest.TestCase):

@@ -7,8 +7,8 @@ from typing import Any
 import unittest
 from urllib.error import HTTPError
 
-from ai_context import ContextSelectionError, select
-from execution_results import Outcome
+from declan.ai.ai_context import ContextSelectionError, select
+from declan.core.execution_results import Outcome
 from test_ai_planner_contract import PlannerFixture, completed
 
 

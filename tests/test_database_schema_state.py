@@ -7,10 +7,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-import history
-import timers
-from database_schema_state import DatabaseSchemaState
-from timer_schema_state import TimerSchemaState
+from declan.core import history
+from declan.timers import timers
+from declan.core.database_schema_state import DatabaseSchemaState
+from declan.timers.timer_schema_state import TimerSchemaState
 
 
 class DatabaseSchemaStateTests(unittest.TestCase):

@@ -3,7 +3,7 @@ from typing import Any
 import unittest
 from unittest.mock import Mock
 
-import household_selection_boundaries as boundaries
+from declan.ha import household_selection_boundaries as boundaries
 
 
 class HouseholdSelectionBoundaryTests(unittest.TestCase):

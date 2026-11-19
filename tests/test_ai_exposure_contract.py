@@ -3,9 +3,9 @@ import ast
 from pathlib import Path
 import unittest
 from unittest.mock import Mock
-from fallback_entity_authorization import exposed_entities
-from fallback_orchestration import resolve_fallback_result
-from guarded_fallback_dispatch import dispatch_fallback_result
+from declan.ai.fallback_entity_authorization import exposed_entities
+from declan.ai.fallback_orchestration import resolve_fallback_result
+from declan.ai.guarded_fallback_dispatch import dispatch_fallback_result
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPOSURE = (ROOT / "custom_components/declan_two/ai_exposure.py").read_text()

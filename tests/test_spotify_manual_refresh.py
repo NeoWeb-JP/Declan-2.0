@@ -6,8 +6,8 @@ import time
 import unittest
 from urllib.error import HTTPError
 from unittest.mock import patch
-import spotify_playlists as sp
-from playlist_refresh_state import PlaylistRefreshState
+from declan.music import spotify_playlists as sp
+from declan.music.playlist_refresh_state import PlaylistRefreshState
 
 
 class PlaylistRefreshTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class PlaylistRefreshTests(unittest.TestCase):
         self.fail("Spotify refresh did not complete")
 
     def test_manual_refresh_populates_selected_category(self):
-        import music
+        from declan.music import music
         result = [("https://open.spotify.com/playlist/" + "A"*22, "playlist", "Country mix")]
         with patch.object(music, "spotify_search", return_value=result) as search:
             started = sp.start_refresh("country", lambda: object())
@@ -40,7 +40,7 @@ class PlaylistRefreshTests(unittest.TestCase):
         self.assertIsNone(sp.listing()["refresh"]["error"])
 
     def test_failure_retains_existing_playlists(self):
-        import music
+        from declan.music import music
         uri = "spotify://playlist/" + "B"*22
         sp.manage({"category":"country","playlist":uri,"operation":"add"})
         with patch.object(music, "spotify_search", side_effect=TimeoutError):
@@ -50,7 +50,7 @@ class PlaylistRefreshTests(unittest.TestCase):
         self.assertIn("TimeoutError", sp.listing()["refresh"]["error"])
 
     def test_spotify_forbidden_reports_status_and_keeps_catalogue(self):
-        import music
+        from declan.music import music
         uri = "spotify://playlist/" + "B"*22
         sp.manage({"category":"country","playlist":uri,"operation":"add"})
         with patch.object(music, "spotify_search", side_effect=HTTPError(

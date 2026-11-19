@@ -5,10 +5,10 @@ import sqlite3
 import unittest
 from unittest.mock import Mock
 
-from ai_budget import monthly_reserved
-from execution_results import ActionStatus, DispatchResult, Outcome
-from guarded_fallback import run_guarded_result
-from openai_planner import request_plan
+from declan.ai.ai_budget import monthly_reserved
+from declan.core.execution_results import ActionStatus, DispatchResult, Outcome
+from declan.ai.guarded_fallback import run_guarded_result
+from declan.ai.openai_planner import request_plan
 
 
 class ModelProviderDispatchTests(unittest.TestCase):

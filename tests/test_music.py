@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 from typing import Any
 
-import music
+from declan.music import music
 import server
 
 

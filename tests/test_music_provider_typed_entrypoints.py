@@ -3,9 +3,9 @@ from typing import cast
 import unittest
 from unittest.mock import Mock, patch
 
-import music
-from command_registry import Dependencies, RequestContext, registry
-from execution_results import ExecutionResult, Outcome
+from declan.music import music
+from declan.turn.command_registry import Dependencies, RequestContext, registry
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class MusicProviderTypedTests(unittest.TestCase):

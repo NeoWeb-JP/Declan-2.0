@@ -6,7 +6,7 @@ import unittest
 from io import BytesIO
 from urllib.error import HTTPError
 from unittest.mock import Mock, MagicMock, patch
-import script_discovery
+from declan.ha import script_discovery
 
 
 class RoutineResultTests(unittest.TestCase):
@@ -36,13 +36,13 @@ class RoutineResultTests(unittest.TestCase):
 
     def test_personality_only_after_verified_completion(self):
         from pathlib import Path
-        source = (Path(__file__).resolve().parents[1] / "response_composition.py").read_text()
+        source = (Path(__file__).resolve().parents[1] / "declan/turn/response_composition.py").read_text()
         self.assertIn('decision_outcome is Outcome.REPORTED_SUCCESS', source)
         self.assertIn('verified or completed or parse_music(phrase)', source)
         self.assertIn('outcome=Outcome.CONFIRMED.value if verified or completed else outcome', source)
         self.assertIn('spoken = "Sorted." if verified else reply', source)
         self.assertIn('decorated = personality.decorate(', source)
-        import personality_policy
+        from declan.turn import personality_policy
         with patch.object(personality_policy.ROTATION.random, "choice", side_effect=lambda lines: lines[0]):
             success = personality_policy.decorate(
                 "Good Morning completed successfully.", outcome="confirmed",

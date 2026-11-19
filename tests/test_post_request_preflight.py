@@ -2,7 +2,7 @@
 from typing import Any
 import unittest
 from types import SimpleNamespace
-import post_request_preflight
+from declan.http import post_request_preflight
 
 
 class PostPreflightTests(unittest.TestCase):

@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import server
-import service_entry_boundaries as boundaries
+from declan.core import service_entry_boundaries as boundaries
 
 
 class ServiceEntryBoundaryTests(unittest.TestCase):

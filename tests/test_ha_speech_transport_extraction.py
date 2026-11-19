@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 import server
-import ha_speech_transport as transport
+from declan.ha import ha_speech_transport as transport
 
 
 class SpeechTransportExtractionTests(unittest.TestCase):

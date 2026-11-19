@@ -6,9 +6,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-import diagnostics
-import music
-from music_runtime_state import MusicRuntimeState
+from declan.core import diagnostics
+from declan.music import music
+from declan.music.music_runtime_state import MusicRuntimeState
 from test_music import MusicFixture
 
 

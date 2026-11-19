@@ -10,10 +10,10 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-import command_responses as commands
-import history
-from database_schema_state import DatabaseSchemaState
-import personality
+from declan.turn import command_responses as commands
+from declan.core import history
+from declan.core.database_schema_state import DatabaseSchemaState
+from declan.turn import personality
 import server
 
 

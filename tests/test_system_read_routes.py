@@ -2,7 +2,7 @@
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-import system_read_routes
+from declan.http import system_read_routes
 
 
 class Handler:

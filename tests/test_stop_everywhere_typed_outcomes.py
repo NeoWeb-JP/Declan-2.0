@@ -1,8 +1,8 @@
 """Stop-everywhere registry supports typed and legacy playback cancellation outcomes."""
 import unittest
 
-import command_registry
-from execution_results import ExecutionResult, Outcome
+from declan.turn import command_registry
+from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class StopEverywhereTypedOutcomeTests(unittest.TestCase):

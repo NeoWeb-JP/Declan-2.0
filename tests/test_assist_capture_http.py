@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock
 
-import assist_capture_http as capture
+from declan.voice import assist_capture_http as capture
 
 
 class AssistCaptureHttpTests(unittest.TestCase):

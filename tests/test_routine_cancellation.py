@@ -5,8 +5,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from execution_results import Outcome
-import routine_cancellation
+from declan.core.execution_results import Outcome
+from declan.turn import routine_cancellation
 
 
 class Response:

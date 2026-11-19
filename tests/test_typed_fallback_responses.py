@@ -4,10 +4,10 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import MagicMock, Mock, patch
 
-from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
-from fallback_entity_authorization import exposed_entities
-from fallback_orchestration import resolve_fallback_result
-from guarded_fallback_dispatch import FallbackResponse, dispatch_fallback_result
+from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
+from declan.ai.fallback_entity_authorization import exposed_entities
+from declan.ai.fallback_orchestration import resolve_fallback_result
+from declan.ai.guarded_fallback_dispatch import FallbackResponse, dispatch_fallback_result
 import server
 
 

@@ -2,9 +2,9 @@
 import unittest
 from unittest.mock import Mock
 
-from command_registry import RequestContext, routine_registry, timer_registry
-from execution_results import ExecutionResult, Outcome
-from local_outcome_contracts import timer_execution_result, routine_execution_result
+from declan.turn.command_registry import RequestContext, routine_registry, timer_registry
+from declan.core.execution_results import ExecutionResult, Outcome
+from declan.core.local_outcome_contracts import timer_execution_result, routine_execution_result
 
 
 class LocalProviderContractsTests(unittest.TestCase):

@@ -4,9 +4,9 @@ import unittest
 import json
 from unittest.mock import MagicMock, patch
 
-import script_discovery
-from execution_results import ExecutionResult, Outcome
-from script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
+from declan.ha import script_discovery
+from declan.core.execution_results import ExecutionResult, Outcome
+from declan.ha.script_provider_results import BackgroundReceiptResult, BackgroundReceiptStatus
 
 
 class ScriptDiscoveryTypedResultTests(unittest.TestCase):

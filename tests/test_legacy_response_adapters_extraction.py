@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-import legacy_response_adapters as adapters
+from declan.core import legacy_response_adapters as adapters
 import server
 
 

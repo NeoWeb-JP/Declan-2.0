@@ -3,7 +3,7 @@
 import threading
 import unittest
 
-from music_runtime_state import MusicRuntimeState
+from declan.music.music_runtime_state import MusicRuntimeState
 
 
 class MusicRuntimeStateTests(unittest.TestCase):

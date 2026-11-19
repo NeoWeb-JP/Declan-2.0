@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from sensitive_confirmations import groups, trusted_speaker
+from declan.turn.sensitive_confirmations import groups, trusted_speaker
 
 
 class SensitiveConfirmationEnvironmentTests(unittest.TestCase):

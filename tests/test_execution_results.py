@@ -8,13 +8,13 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-from action_executor import ActionResult, execute_verified, summarise, summarise_result
-from action_plan import validate_plan
-from execution_results import ActionStatus, DispatchResult, ExecutionResult, Outcome
-from guarded_fallback import run_guarded_result, run_guarded_fallback
-from ha_dispatcher import dispatch_result, dispatch_verified
+from declan.ai.action_executor import ActionResult, execute_verified, summarise, summarise_result
+from declan.ai.action_plan import validate_plan
+from declan.core.execution_results import ActionStatus, DispatchResult, ExecutionResult, Outcome
+from declan.ai.guarded_fallback import run_guarded_result, run_guarded_fallback
+from declan.ha.ha_dispatcher import dispatch_result, dispatch_verified
 from test_ha_dispatcher import Opener
-import history
+from declan.core import history
 import server
 
 

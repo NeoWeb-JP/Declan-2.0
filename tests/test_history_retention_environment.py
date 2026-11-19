@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from history import retention_seconds
+from declan.core.history import retention_seconds
 
 
 DAY = 24 * 60 * 60

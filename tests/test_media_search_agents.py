@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import Mock
 
-import media_search_agents as agents
+from declan.music import media_search_agents as agents
 
 
 class Response:

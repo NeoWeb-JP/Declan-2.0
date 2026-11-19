@@ -1,7 +1,7 @@
 """Verify learned intention import boundaries in settings documents."""
 import unittest
 
-import configuration
+from declan.core import configuration
 
 
 class LearnedIntentImportValidationTests(unittest.TestCase):

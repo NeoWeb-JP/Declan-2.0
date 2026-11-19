@@ -15,9 +15,9 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 import server
-from execution_results import ExecutionResult, Outcome
-from lighting_action_evidence import LightingActionEvidence, LightingActionStatus
-from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
+from declan.core.execution_results import ExecutionResult, Outcome
+from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus
+from declan.turn.routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from declan_ingress import proxy
 
 READ_VISITORS_PRESENT = server.read_visitors_present
@@ -385,7 +385,7 @@ class APITests(TestCase):
             }, headers={"Authorization": "Bearer test", "Content-Type": "application/json"})
             self.assertEqual(status, 200)
             return json.loads(payload)
-        from execution_results import ExecutionResult, Outcome
+        from declan.core.execution_results import ExecutionResult, Outcome
         with patch.object(server, 'select_routine_result', return_value=("auto:script.dinner", {})), \
              patch.object(server.script_discovery, "execute_result",
                           return_value=(ExecutionResult("Dinner ready.", Outcome.REQUESTED), None)) as dinner:
@@ -447,7 +447,7 @@ class APITests(TestCase):
         self.assertEqual(self.request("/api/history", headers={"Host": "other.invalid"})[0], 403)
 
     def test_routine_event_retains_typed_steps_until_history_boundary(self):
-        from routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
+        from declan.turn.routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
         with patch.object(server, "routine_action_results", side_effect=AssertionError("legacy evidence")), \
              patch.object(server.history, "record", wraps=server.history.record) as record:
             status, _ = self.request("/api/assist/history", headers={
