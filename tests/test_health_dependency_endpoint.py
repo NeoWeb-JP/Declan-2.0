@@ -1,5 +1,6 @@
 """Dependency readiness checks preserve the existing lightweight health contract."""
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import server
@@ -9,7 +10,8 @@ class HealthDependencyEndpointTests(unittest.TestCase):
     def test_existing_health_endpoint_remains_lightweight(self):
         # Startup health remains independent of external Home Assistant availability.
         source = __import__("inspect").getsource(server)
-        self.assertIn('system_read_routes.handles(self.path)', source)
+        self.assertIn('get_request_dispatch.dispatch(', source)
+        self.assertIn('system_read_routes.handles(handler.path)', (Path(__file__).resolve().parents[1] / 'get_request_dispatch.py').read_text())
         routes = __import__("inspect").getsource(__import__("system_read_routes"))
         self.assertIn('path == "/health"', routes)
         self.assertIn('path == "/health/dependencies"', routes)

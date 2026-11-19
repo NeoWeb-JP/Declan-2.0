@@ -74,12 +74,7 @@ import timers
 import updates
 import operational_post_dispatch
 import media_settings_routes
-import native_read_routes
-import operational_read_routes
-import settings_read_routes
-import history_read_routes
-import system_read_routes
-import get_access_gate_http
+import get_request_dispatch
 import speech_http_routes
 import assist_auth_http
 import voicepipeline_access_http
@@ -1898,42 +1893,21 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def do_GET(self):
-        if not get_access_gate_http.enforce_access(
-            self, ingress=self.has_ingress_access(),
-            token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
-        ):
-            return
-        if system_read_routes.handles(self.path):
-            system_read_routes.dispatch(
-                self, logo_path=Path(__file__).with_name("logo.png"),
-                health_readiness=health_readiness,
-                ha_status=home_assistant_status_result,
-                release_version=RELEASE_VERSION,
-            )
-        elif native_read_routes.handles(self.path):
-            native_read_routes.dispatch(
-                self, music=music, configuration=configuration,
-                script_discovery=script_discovery, ha_connection=ha_device_connection,
-                command_responses=command_responses, history=history,
-                logs=declan_logs, diagnostics=diagnostics,
-            )
-        elif operational_read_routes.handles(self.path):
-            operational_read_routes.dispatch(
-                self, ha_status=home_assistant_status_result,
-                release_version=RELEASE_VERSION, updates=updates,
-                configuration=configuration,
-            )
-        elif settings_read_routes.handles(self.path):
-            settings_read_routes.dispatch(
-                self, voicepipeline=voicepipeline, voice_profiles=voice_profiles,
-                diagnostics=diagnostics, history=history, ai_budget=ai_budget,
-                ai_settings=ai_settings, ai_credentials=ai_credentials,
-                spotify_playlists=spotify_playlists,
-            )
-        elif history_read_routes.handles(self.path):
-            history_read_routes.dispatch(self, history=history)
-        else:
-            self.send_json(404, {"error": "Not found."})
+        return get_request_dispatch.dispatch(
+            self, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+            ingress=self.has_ingress_access(),
+            logo_path=Path(__file__).with_name("logo.png"),
+            health_readiness=health_readiness,
+            ha_status=home_assistant_status_result,
+            release_version=RELEASE_VERSION, music=music,
+            configuration=configuration, script_discovery=script_discovery,
+            ha_connection=ha_device_connection, command_responses=command_responses,
+            history=history, logs=declan_logs, diagnostics=diagnostics,
+            updates=updates, voicepipeline=voicepipeline,
+            voice_profiles=voice_profiles, ai_budget=ai_budget,
+            ai_settings=ai_settings, ai_credentials=ai_credentials,
+            spotify_playlists=spotify_playlists,
+        )
 
     def transcribe_browser_audio(self):
         return speech_http_routes.transcribe_browser_audio(

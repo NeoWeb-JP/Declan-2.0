@@ -13,12 +13,14 @@ class NativeHistoryContractTests(unittest.TestCase):
     def test_backend_exception_only_matches_history_listing(self):
         source = BACKEND[BACKEND.index("    def do_GET(self):"):BACKEND.index("    def do_POST(self):")]
         gate = (ROOT / "get_access_gate_http.py").read_text()
-        self.assertIn("get_access_gate_http.enforce_access(", source)
+        dispatcher = (ROOT / "get_request_dispatch.py").read_text()
+        self.assertIn("get_request_dispatch.dispatch(", source)
+        self.assertIn("get_access_gate_http.enforce_access(", dispatcher)
         self.assertIn('urlsplit(handler.path).path == "/api/history"', gate)
         self.assertIn('len(token) >= 32', gate)
         self.assertIn('not ingress and not native_settings_auth and not history_auth', gate)
         self.assertIn('if not ingress and not native_settings_auth and not history_auth and not players_auth and not voice_review_auth and not updates_auth and (', gate)
-        self.assertIn('settings_read_routes.handles(self.path)', source)
+        self.assertIn('settings_read_routes.handles(handler.path)', dispatcher)
         self.assertIn('"/api/settings/media-players"', (ROOT / "settings_read_routes.py").read_text())
         self.assertIn('not ingress and not native_settings_auth and not settings_status_auth and not capabilities_auth and not history_auth and not players_auth', gate)
         self.assertNotIn('self.path.startswith("/api/history") and len(token)', source)
