@@ -58,6 +58,44 @@ class RefactorAnchorTests(unittest.TestCase):
         )
         self.assertEqual(list(anchors.anchor_references(tree)), [])
 
+    def test_nested_source_path_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tests").mkdir()
+            (root / "package").mkdir()
+            (root / "package" / "worker.py").write_text("new_call()\n")
+            (root / "tests" / "test_contract.py").write_text(
+                'from pathlib import Path\n'
+                'ROOT = Path(__file__).resolve().parents[1]\n'
+                'SOURCE = (ROOT / "package" / "worker.py").read_text()\n'
+                'def test_contract():\n'
+                '    assert "old_call()" in SOURCE\n'
+            )
+            with patch.object(anchors, "changed_python_files", return_value=["package/worker.py"]), \
+                 patch.object(anchors, "source_at_ref", return_value="old_call()\n"):
+                findings = anchors.check("origin/main", root)
+        self.assertEqual(len(findings), 1)
+        self.assertIn("package/worker.py", findings[0])
+
+    def test_duplicate_basenames_do_not_overwrite_each_other(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tests").mkdir()
+            for folder in ("alpha", "beta"):
+                (root / folder).mkdir()
+                (root / folder / "worker.py").write_text("new_call()\n")
+            (root / "tests" / "test_contract.py").write_text(
+                'from pathlib import Path\n'
+                'SOURCE = (Path(__file__).resolve().parents[1] / "worker.py").read_text()\n'
+                'def test_contract():\n'
+                '    assert "old_call()" in SOURCE\n'
+            )
+            with patch.object(anchors, "changed_python_files",
+                              return_value=["alpha/worker.py", "beta/worker.py"]), \
+                 patch.object(anchors, "source_at_ref", return_value="old_call()\n"):
+                findings = anchors.check("origin/main", root)
+        self.assertEqual(findings, [])
+
     def test_unchanged_anchor_is_not_reported(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
