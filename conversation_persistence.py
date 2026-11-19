@@ -1,7 +1,7 @@
 """Conversation history persistence boundary for completed assistant turns."""
 import sqlite3
 from execution_results import Outcome
-from action_evidence_wire import action_evidence_to_wire
+from declan.ai.action_evidence_wire import action_evidence_to_wire
 
 
 def save_turn(reply, *, source, message, outcome, routine_status,

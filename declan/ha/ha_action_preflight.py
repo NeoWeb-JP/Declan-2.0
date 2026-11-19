@@ -1,5 +1,5 @@
 """HA action capability and safety preflight, without side effects."""
-from action_plan import CandidateAction, SERVICES
+from declan.ai.action_plan import CandidateAction, SERVICES
 
 # Services that cannot be safely inferred from the generic HA entity domain.
 # Additional sensitive actions require explicit confirmation in the caller.

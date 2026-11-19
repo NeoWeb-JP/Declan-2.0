@@ -1,9 +1,9 @@
 from typing import Any, cast
 import unittest
 
-from action_plan import validate_plan, execution_order
-from action_plan import execution_order_result, ActionReadiness
-from action_plan import OrderedActionResult
+from declan.ai.action_plan import validate_plan, execution_order
+from declan.ai.action_plan import execution_order_result, ActionReadiness
+from declan.ai.action_plan import OrderedActionResult
 
 
 class PlanValidationTests(unittest.TestCase):

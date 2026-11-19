@@ -15,7 +15,7 @@ from declan.music import music_stop_dispatch as music_stop_dispatch
 from declan.ha import movie_ha_helpers as movie_ha_helpers
 import bedroom_routine_dispatch as bedroom_routine_dispatch
 from declan.music import media_title_search as media_title_search
-import ai_fallback_dispatch as ai_fallback_dispatch
+from declan.ai import ai_fallback_dispatch as ai_fallback_dispatch
 import routine_request_selection as routine_request_selection
 import routine_execution_dispatch as routine_execution_dispatch
 from declan.ha import lighting_execution_dispatch as lighting_execution_dispatch
@@ -79,8 +79,8 @@ import roast_command_dispatch as roast_command_dispatch
 from declan.timers import timer_command_dispatch as timer_command_dispatch
 from declan.ha import lighting_command_dispatch as lighting_command_dispatch
 from declan.ha import lighting_context_finalization as lighting_context_finalization
-import fallback_entity_authorization as fallback_entity_authorization
-import guarded_fallback_dispatch as guarded_fallback_dispatch
+from declan.ai import fallback_entity_authorization as fallback_entity_authorization
+from declan.ai import guarded_fallback_dispatch as guarded_fallback_dispatch
 import turn_context_preparation as turn_context_preparation
 import turn_session_entry as turn_session_entry
 import turn_preflight_entry as turn_preflight_entry
@@ -113,14 +113,14 @@ import http_response_transport as http_response_transport
 import http_ingress_security as http_ingress_security
 import sensitive_confirmation_resolution as sensitive_confirmation_resolution
 import web_stt
-import openai_planner
-import ai_settings
-import ai_credentials
-import ai_pricing as ai_pricing
-import ai_budget as ai_budget
-import ai_context as ai_context
-import ai_intent_gate as ai_intent_gate
-import guarded_fallback as guarded_fallback
+from declan.ai import openai_planner
+from declan.ai import ai_settings
+from declan.ai import ai_credentials
+from declan.ai import ai_pricing as ai_pricing
+from declan.ai import ai_budget as ai_budget
+from declan.ai import ai_context as ai_context
+from declan.ai import ai_intent_gate as ai_intent_gate
+from declan.ai import guarded_fallback as guarded_fallback
 from declan.ha import ha_dispatcher as ha_dispatcher
 import routine_registry as routine_registry
 from routine_action_evidence import parse_routine_actions as parse_routine_actions
@@ -128,8 +128,8 @@ from declan.ha.home_assistant_results import HomeAssistantStatus as HomeAssistan
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from declan.ha.lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
 from declan.ha.movie_action_evidence import MovieActionEvidence as MovieActionEvidence
-from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence as extend_action_evidence
-from fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
+from declan.ai.action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence as append_action_evidence, extend_action_evidence as extend_action_evidence
+from declan.ai.fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
 from declan.ha import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
 from personality import add_sass as add_sass, choose_line as choose_line

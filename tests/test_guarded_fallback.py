@@ -1,8 +1,8 @@
 import sqlite3
 import unittest
-from action_plan import validate_plan
-from ai_budget import monthly_reserved
-from guarded_fallback import run_guarded_fallback
+from declan.ai.action_plan import validate_plan
+from declan.ai.ai_budget import monthly_reserved
+from declan.ai.guarded_fallback import run_guarded_fallback
 
 
 class GuardedFallbackTests(unittest.TestCase):

@@ -9,7 +9,7 @@ from urllib.request import Request
 
 from execution_results import ExecutionResult, Outcome
 from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus
-from action_evidence_buffer import append_action_evidence
+from declan.ai.action_evidence_buffer import append_action_evidence
 
 
 def read_ha_areas(connection, origin=None, *, request_factory=Request):

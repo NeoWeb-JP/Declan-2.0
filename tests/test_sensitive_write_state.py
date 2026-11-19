@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import ai_credentials
+from declan.ai import ai_credentials
 import voicepipeline
 from sensitive_write_state import SensitiveWriteState
 

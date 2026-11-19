@@ -3,7 +3,7 @@ import json
 import re
 
 from history import database
-from ai_pricing import RATES, model_profile, require_available
+from declan.ai.ai_pricing import RATES, model_profile, require_available
 
 DEFAULTS = {
     "enabled": False,

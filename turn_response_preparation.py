@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from execution_results import Outcome
 
-import fallback_orchestration
+from declan.ai import fallback_orchestration
 import response_persona_context
 
 

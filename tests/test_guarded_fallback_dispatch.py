@@ -1,7 +1,7 @@
 """Guarded fallback dispatch regression tests."""
 import unittest
 from unittest.mock import Mock
-from guarded_fallback_dispatch import dispatch_fallback
+from declan.ai.guarded_fallback_dispatch import dispatch_fallback
 
 
 class GuardedFallbackDispatchTests(unittest.TestCase):

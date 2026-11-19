@@ -1,9 +1,9 @@
 """Execute guarded AI fallback after local command handlers have declined."""
 from dataclasses import dataclass
 from execution_results import ExecutionResult
-from fallback_action_evidence import FallbackActionEvidence
-from action_evidence_wire import action_evidence_to_wire
-from action_evidence_buffer import extend_action_evidence
+from declan.ai.fallback_action_evidence import FallbackActionEvidence
+from declan.ai.action_evidence_wire import action_evidence_to_wire
+from declan.ai.action_evidence_buffer import extend_action_evidence
 
 
 @dataclass(frozen=True)

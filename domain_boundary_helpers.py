@@ -28,7 +28,7 @@ def approved_area_labels(areas, *, room_key):
 
 
 def bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None, *, planner, credentials, money):
-    from model_response_results import NonBillablePlanningError
+    from declan.ai.model_response_results import NonBillablePlanningError
     try:
         key = credentials.get_key()
     except (OSError, ValueError):
