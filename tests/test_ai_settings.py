@@ -5,9 +5,42 @@ from unittest.mock import patch
 import ai_settings
 import ai_budget
 from ai_settings import DEFAULTS, validate
+from ai_pricing import model_profile
 
 
 class AISettingsTests(unittest.TestCase):
+    def test_legacy_documents_upgrade_without_changing_model_or_enablement(self):
+        old = {key: value for key, value in DEFAULTS.items() if key != 'model_config'}
+        for model in ('gpt-5-mini', 'gpt-6-luna'):
+            configured = validate({**old, 'enabled': True, 'model': model})
+            self.assertTrue(configured['enabled'])
+            self.assertEqual(configured['model'], model)
+            self.assertEqual(configured['model_config']['model'], model)
+        self.assertEqual(validate(old)['model_config']['status'], 'deprecated')
+
+    def test_custom_profile_round_trip_and_retired_settings_remain_readable(self):
+        connection = sqlite3.connect(':memory:')
+        self.addCleanup(connection.close)
+        @contextmanager
+        def database():
+            with connection:
+                yield connection
+        profile = {**model_profile('gpt-6-luna'), 'model': 'custom-model'}
+        with patch.object(ai_settings, 'database', database):
+            saved = ai_settings.save(dict(DEFAULTS, model='custom-model', enabled=True, model_config=profile))
+            self.assertEqual(ai_settings.read(), saved)
+            # A saved date can become past while the application is running.
+            profile['retire_on'] = '2000-01-01'
+            import json
+            connection.execute('UPDATE ai_settings SET document=?', (
+                json.dumps({**saved, 'model_config': profile}),))
+            expired = ai_settings.read()
+            self.assertTrue(expired['enabled'])
+            with self.assertRaises(ValueError):
+                ai_settings.save(expired)
+            ai_settings.save({**expired, 'enabled': False})
+            self.assertFalse(ai_settings.read()['enabled'])
+
     def test_monthly_usage_before_first_ai_request(self):
         db = sqlite3.connect(":memory:")
         try:

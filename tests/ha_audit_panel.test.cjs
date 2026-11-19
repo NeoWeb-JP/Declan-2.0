@@ -4,6 +4,46 @@ const {test} = require('node:test');
 const {JSDOM} = require('jsdom');
 const source = readFileSync('custom_components/declan_two/frontend/panel.js', 'utf8');
 
+test('AI model prices load and custom model changes require fresh prices', async t => {
+  const profile = {model:'custom-model', input_usd_per_million:'1.25', output_usd_per_million:'4.75',
+    reasoning_effort:'', status:'deprecated', retire_on:'2099-01-01'};
+  const settings = {enabled:true, model:'custom-model', model_config:profile, monthly_budget_usd:'5.00',
+    request_ceiling_usd:'0.05', max_actions:3, allowed_domains:['light']};
+  const {element, root, calls} = panel(t, {key_configured:true, settings});
+  await element.loadAISettings();
+  const form = root.querySelector('.ai-settings-form');
+  assert.equal(form.elements.namedItem('model').value, 'custom-model');
+  assert.equal(form.elements.namedItem('input_usd_per_million').value, '1.25');
+  assert.match(root.querySelector('.ai-model-notice').textContent, /deprecated/);
+  form.elements.namedItem('model').value = 'new-model';
+  form.elements.namedItem('model').dispatchEvent(new element.ownerDocument.defaultView.Event('input'));
+  assert.equal(form.elements.namedItem('input_usd_per_million').value, '');
+  assert.equal(form.elements.namedItem('output_usd_per_million').value, '');
+  assert.equal(form.elements.namedItem('reasoning_effort').value, '');
+  assert.equal(form.elements.namedItem('retire_on').value, '');
+  form.elements.namedItem('input_usd_per_million').value = '2.5';
+  form.elements.namedItem('output_usd_per_million').value = '7.5';
+  element._hass.callApi = async (...args) => {calls.push(args); return {settings:args[2].settings};};
+  await element.saveAISettings();
+  const saved = calls.find(args => args[0] === 'POST')[2].settings;
+  assert.deepEqual(JSON.parse(JSON.stringify(saved.model_config)), {model:'new-model',
+    input_usd_per_million:'2.5', output_usd_per_million:'7.5', reasoning_effort:'', status:'active', retire_on:''});
+  assert.doesNotMatch(root.querySelector('.ai-model-notice').textContent, /deprecated|retired|Model changed/);
+});
+
+test('AI retired model remains editable and can be disabled', async t => {
+  const settings = {enabled:true, model:'custom-model', monthly_budget_usd:'5.00',
+    request_ceiling_usd:'0.05', max_actions:3, allowed_domains:['light'], model_config:{
+      model:'custom-model', input_usd_per_million:'1', output_usd_per_million:'2',
+      reasoning_effort:'', status:'active', retire_on:'2000-01-01'}};
+  const {element, root, calls} = panel(t, {key_configured:true, settings});
+  await element.loadAISettings();
+  assert.match(root.querySelector('.ai-model-notice').textContent, /AI requests are blocked/);
+  root.querySelector('[name="enabled"]').checked = false;
+  await element.saveAISettings();
+  assert.equal(calls.find(args => args[0] === 'POST')[2].settings.enabled, false);
+});
+
 test('AI settings explains the cover restriction and directs users to Home Assistant', t => {
   const {root} = panel(t, {});
   const policy = root.querySelector('.settings-section--ai').textContent;

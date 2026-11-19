@@ -52,7 +52,7 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_DEFAULT_COUNTRY` | Default country for contextual information lookups | `GB` |
 | `DECLAN_APPROVED_MEDIA_PLAYERS_FILE` | Optional path for per-area approved media player configuration; defaults to `.data/approved-media-players.json` beside `approved_media_players.py` | Leave unset |
 | `DECLAN_SPOTIFY_PLAYLISTS_FILE` | Optional path for Spotify playlist catalogue; defaults to `.data/spotify-playlists.json` beside `spotify_playlists.py` | Leave unset |
-| `DECLAN_OPENAI_MODEL` | Optional OpenAI planner model override; defaults to an empty string when unset | Leave unset unless configuring the planner |
+| `DECLAN_OPENAI_MODEL` | Legacy direct-Python planner default only; never overrides the live native AI settings | Configure the live model, pricing and lifecycle in native Settings |
 | `OPENAI_API_KEY` | Optional OpenAI API credential used by the planner when a key is not passed directly; defaults to an empty string when unset | Keep secret; leave unset when the planner is disabled |
 | `DECLAN_VOICE_AUDIO_KEY` | Base64url-encoded 32-byte AES-GCM key for local voice samples and release readiness; no generated default | Provision securely outside `.data`; see the local voice encryption deployment guide |
 

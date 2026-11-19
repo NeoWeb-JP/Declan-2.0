@@ -336,7 +336,15 @@ class DeclanTwoNativePanel extends HTMLElement {
             <div class="settings-section-content">
               <form class="ai-settings-form">
                 <label class="ai-toggle"><input type="checkbox" name="enabled"><span>Enable OpenAI fallback</span></label>
-                <label class="ai-field"><span>Model</span> <select name="model" required><option value="gpt-5-mini">GPT-5 mini</option><option value="gpt-6-luna">GPT-6 Luna</option></select></label>
+                <label class="ai-field"><span>Model ID</span> <input name="model" maxlength="80" list="ai-model-examples" required></label>
+                <datalist id="ai-model-examples"><option value="gpt-5-mini"></option><option value="gpt-6-luna"></option></datalist>
+                <label class="ai-field"><span>Input price (USD per million tokens)</span><input name="input_usd_per_million" inputmode="decimal"></label>
+                <label class="ai-field"><span>Output price (USD per million tokens)</span><input name="output_usd_per_million" inputmode="decimal"></label>
+                <label class="ai-field"><span>Reasoning setting supported by this model</span><select name="reasoning_effort"><option value="">Do not send a reasoning setting</option><option value="none">None</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+                <label class="ai-field"><span>Model lifecycle</span><select name="model_status"><option value="active">Active</option><option value="deprecated">Deprecated (plan a replacement)</option><option value="retired">Retired (block AI requests)</option></select></label>
+                <label class="ai-field"><span>Stop using this model on (UTC, optional)</span><input name="retire_on" type="date"></label>
+                <p class="ai-model-notice muted" role="status"></p>
+                <p class="muted">Verify current standard text prices and model capabilities with OpenAI. These are owner-maintained estimates, not a provider bill. Changing model clears prices so they must be reviewed; Declan never switches models automatically.</p>
                 <label class="ai-field"><span>Monthly budget (USD)</span> <input name="monthly_budget_usd" inputmode="decimal" required></label>
                 <label class="ai-field"><span>Maximum per request (USD)</span> <input name="request_ceiling_usd" inputmode="decimal" required></label>
                 <label class="ai-field"><span>Maximum actions</span> <input name="max_actions" type="number" min="1" max="8" required></label>
@@ -455,6 +463,13 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
       this.bindPanelEvent('.ai-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveAISettings();
+      });
+      this.bindPanelEvent('.ai-settings-form [name="model"]', 'input', () => {
+        const form = this.shadowRoot.querySelector('.ai-settings-form');
+        for (const key of ['input_usd_per_million', 'output_usd_per_million', 'retire_on']) form.elements.namedItem(key).value = '';
+        form.elements.namedItem('reasoning_effort').value = '';
+        form.elements.namedItem('model_status').value = 'active';
+        this.shadowRoot.querySelector('.ai-model-notice').textContent = 'Model changed. Enter verified prices and capabilities before saving.';
       });
       this.bindPanelEvent('.ai-key-form', 'submit', event => {
         event.preventDefault(); void this.saveAIKey();
@@ -1984,6 +1999,15 @@ class DeclanTwoNativePanel extends HTMLElement {
       const response = await this._hass.callApi('GET', 'declan_two/ai-settings');
       const data = response.settings;
       this._aiSettings = data;
+      const profile = data.model_config;
+      for (const key of ['input_usd_per_million', 'output_usd_per_million', 'reasoning_effort', 'retire_on']) {
+        form.elements.namedItem(key).value = profile?.[key] || '';
+      }
+      form.elements.namedItem('model_status').value = profile?.status || 'active';
+      const retired = profile?.status === 'retired' || (profile?.retire_on && profile.retire_on <= new Date().toISOString().slice(0, 10));
+      this.shadowRoot.querySelector('.ai-model-notice').textContent = retired
+        ? 'This model is retired. AI requests are blocked; choose a replacement or disable AI.'
+        : profile?.status === 'deprecated' ? 'This model is deprecated. Review its retirement date and choose a replacement.' : 'Review prices and lifecycle when OpenAI changes the model.';
       for (const [key, value] of Object.entries(data)) {
         const field = form.elements.namedItem(key);
         if (field) {
@@ -2024,13 +2048,25 @@ class DeclanTwoNativePanel extends HTMLElement {
     for (const key of ['model', 'monthly_budget_usd', 'request_ceiling_usd']) data[key] = form.elements.namedItem(key).value.trim();
     data.max_actions = Number(form.elements.namedItem('max_actions').value);
     data.allowed_domains = ['light', 'switch', 'fan', 'cover'].filter(domain => form.elements.namedItem('domain_' + domain).checked);
+    data.model_config = {model: data.model,
+      input_usd_per_million: form.elements.namedItem('input_usd_per_million').value.trim(),
+      output_usd_per_million: form.elements.namedItem('output_usd_per_million').value.trim(),
+      reasoning_effort: form.elements.namedItem('reasoning_effort').value,
+      status: form.elements.namedItem('model_status').value,
+      retire_on: form.elements.namedItem('retire_on').value};
+    if (!data.enabled && !data.model_config.input_usd_per_million && !data.model_config.output_usd_per_million) data.model_config = null;
     status.textContent = 'Saving AI settings…';
     try {
       const result = await this._hass.callApi('POST', 'declan_two/ai-settings', {settings: data});
       this._aiSettings = result.settings;
+      const profile = result.settings.model_config;
+      const retired = profile?.status === 'retired' || (profile?.retire_on && profile.retire_on <= new Date().toISOString().slice(0, 10));
+      this.shadowRoot.querySelector('.ai-model-notice').textContent = retired
+        ? 'This model is retired. AI requests are blocked; choose a replacement or disable AI.'
+        : profile?.status === 'deprecated' ? 'This model is deprecated. Review its retirement date and choose a replacement.' : 'Review prices and lifecycle when OpenAI changes the model.';
       status.textContent = 'AI settings saved.';
     } catch {
-      status.textContent = 'Could not save AI settings. Check budget, model and permissions.';
+      status.textContent = 'Could not save AI settings. Check model prices, lifecycle, budget and permissions.';
     }
   }
 

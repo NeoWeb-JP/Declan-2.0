@@ -34,6 +34,7 @@ def bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None,
     except (OSError, ValueError):
         raise NonBillablePlanningError('OpenAI credentials are unavailable') from None
     plan = planner.request_plan(message, exposed, model=settings["model"], api_key=key, usage_sink=usage_sink, inventory=inventory,
+        profile=settings.get('model_config'),
         max_cost_micro_usd=money(settings["request_ceiling_usd"], allow_zero=False), max_actions=settings["max_actions"])
     if len(plan) > settings["max_actions"]:
         raise ValueError("Too many proposed actions")
