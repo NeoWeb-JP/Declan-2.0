@@ -18,6 +18,7 @@ import movie_ha_helpers
 import bedroom_routine_dispatch
 import media_title_search
 import ai_fallback_dispatch
+import routine_request_selection
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
@@ -329,104 +330,21 @@ MOVIE_ROOMS = r"lounge|living room|bedroom|master bedroom|here"
 
 
 def parse_movie_request(phrase):
-    shortcut = re.fullmatch(rf"(?:open|launch) (.+?) in (?:the )?({MOVIE_ROOMS})", phrase)
-    if shortcut and shortcut[1] in MOVIE_APPS:
-        app, room = shortcut.groups()
-        return "start", room, app
-    match = re.fullmatch(
-        r"(?:(start|turn on|end|stop|turn off|toggle) )?(?:movie time|cinema time|cinema mode)"
-        rf"(?: in (?:the )?({MOVIE_ROOMS}))?(?: and (?:open|launch) (.+))?",
-        phrase,
+    return routine_request_selection.parse_movie_request(
+        phrase, rooms=MOVIE_ROOMS, apps=MOVIE_APPS,
     )
-    if not match:
-        return None
-    verb, room, app = match.groups()
-    if app:
-        app_room = re.fullmatch(rf"(.+?) in (?:the )?({MOVIE_ROOMS})", app)
-        if app_room and room is None:
-            app, room = app_room.groups()
-    direction = ("start" if verb in ("start", "turn on") else
-                 "end" if verb in ("end", "stop", "turn off") else "toggle")
-    return direction, room, app
 
 
-HOUSE_STATUS_REQUESTS = {
-    "house status", "home status", "what is the status of the house",
-    "what's the status of the house", "what is the house status",
-    "what's the house status", "give me a house status",
-    "give me the house status", "how is the house",
-}
+HOUSE_STATUS_REQUESTS = routine_request_selection.HOUSE_STATUS_REQUESTS
 
 
 def select_routine_result(phrase, origin) -> RoutineSelection | None:
-    """Resolve routine requests exclusively against Home Assistant scripts."""
-    phrase = phrase.removeprefix("run ").removeprefix("the ")
-    if not 1 <= len(phrase.split()) <= 20:
-        return None
-    is_house_status = phrase in HOUSE_STATUS_REQUESTS
-    connection = ha_device_connection()
-    if connection is None:
-        return RoutineSelection(RoutineSelectionKind.HOUSE_STATUS_MISSING) if is_house_status else None
-    discovery = script_discovery.discover_result(connection)
-    if discovery.error is not None:
-        return RoutineSelection(RoutineSelectionKind.HOUSE_STATUS_MISSING) if is_house_status else None
-    candidates = [phrase]
-    if is_house_status:
-        candidates.extend(("house status", "home health summary"))
-    if phrase in GOOD_MORNING_PHRASES:
-        candidates.append("good morning")
-    if phrase in GOOD_NIGHT_PHRASES:
-        candidates.append("good night")
-    if phrase.replace("’", "'") in DINNER_PHRASES:
-        candidates.extend(("dinner is served", "dinner"))
-    if phrase in SEXY_TIME_COMMANDS:
-        candidates.append("sexy time")
-    movie = parse_movie_request(phrase)
-    if movie:
-        direction, room, app = movie
-        candidates.extend((f"{direction} movie time",))
-        candidates.append("movie time")
-        if room:
-            candidates.insert(1, f"{direction} movie time {room}")
-    for candidate in dict.fromkeys(candidates):
-        found = script_discovery.match_result(candidate, discovery.scripts)
-        if found.status is not script_discovery.ScriptMatchStatus.NO_MATCH:
-            if found.status is script_discovery.ScriptMatchStatus.AMBIGUOUS:
-                return RoutineSelection(RoutineSelectionKind.AMBIGUOUS)
-            item = found.selected
-            # Generic Movie Time is valid for start/end only if HA declares
-            # an operation/action field that can distinguish the direction.
-            if movie and movie[0] != "toggle" and candidate == "movie time":
-                if not set(item.get("fields", [])) & {"operation", "movie_action", "action", "requested_action"}:
-                    continue
-            if (SEXY_TIME_COMMANDS.get(phrase) == "end" and candidate == "sexy time"
-                    and not set(item.get("fields", [])) & {"operation", "requested_action"}):
-                continue
-            parameters: dict = {}
-            if movie:
-                parameters = {"operation": movie[0], "movie_action": movie[0],
-                              "action": movie[0], "room": movie[1] or "lounge",
-                              "movie_room": movie[1] or "lounge"}
-                if "requested_action" in item.get("fields", []):
-                    parameters["requested_action"] = movie[0]
-                parameters["_declan_background"] = True
-            elif phrase in GOOD_MORNING_PHRASES or "good morning" in script_discovery.phrases(item):
-                parameters = {"_declan_background": True, "_declan_reply_category": "morning"}
-            elif phrase in GOOD_NIGHT_PHRASES or "good night" in script_discovery.phrases(item):
-                parameters = {"_declan_background": True, "_declan_reply_category": "night"}
-            elif phrase in SEXY_TIME_COMMANDS or "sexy time" in script_discovery.phrases(item):
-                parameters = {"operation": SEXY_TIME_COMMANDS.get(phrase, "start"),
-                              "_declan_background": True, "_declan_reply_category": "sexy"}
-                if "requested_action" in item.get("fields", []):
-                    parameters["requested_action"] = parameters["operation"]
-            if is_house_status:
-                parameters["_declan_expect_response"] = True
-            if {"dinner", "dinner is served"} & script_discovery.phrases(item):
-                parameters["_declan_reply_category"] = "dinner"
-            return RoutineSelection(RoutineSelectionKind.SCRIPT, item["entity_id"], parameters)
-    if is_house_status:
-        return RoutineSelection(RoutineSelectionKind.HOUSE_STATUS_MISSING)
-    return None
+    return routine_request_selection.select_routine_result(
+        phrase, origin, connect=ha_device_connection,
+        discovery_module=script_discovery, movie_parser=parse_movie_request,
+        morning_phrases=GOOD_MORNING_PHRASES, night_phrases=GOOD_NIGHT_PHRASES,
+        dinner_phrases=DINNER_PHRASES, sexy_commands=SEXY_TIME_COMMANDS,
+    )
 
 
 def select_routine(phrase, origin):
