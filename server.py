@@ -31,7 +31,6 @@ from declan.turn import command_vocabulary
 from declan.http import http_handler_adapters
 from declan.turn import turn_http_entry
 from declan.core import domain_boundary_helpers
-from declan.ha import household_selection_boundaries
 from declan.core import runtime_dispatch_boundaries
 from declan.core import compatibility_facade
 from declan.core import service_entry_boundaries
@@ -175,16 +174,29 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def home_assistant_status_result() -> HomeAssistantStatusResult:
-    return household_selection_boundaries.home_assistant_status_result(r=sys.modules[__name__])
+    return ha_household_status.home_assistant_status_result(
+        environ=os.environ, history_store=history, request_factory=Request,
+        opener_factory=build_opener, proxy_factory=ProxyHandler,
+        redirect_factory=NoRedirect, parse_url=urlsplit,
+    )
 
 def configured_guest_mode_entity():
-    return household_selection_boundaries.configured_guest_mode_entity(r=sys.modules[__name__])
+    return ha_household_status.configured_guest_mode_entity(entities=household_entities)
 
 def read_guest_mode():
-    return household_selection_boundaries.read_guest_mode(r=sys.modules[__name__])
+    return ha_household_status.read_guest_mode(
+        environ=os.environ, entities=household_entities,
+        request_factory=Request, opener_factory=build_opener,
+        proxy_factory=ProxyHandler, redirect_factory=NoRedirect, parse_url=urlsplit,
+    )
 
 def read_visitors_present():
-    return household_selection_boundaries.read_visitors_present(r=sys.modules[__name__])
+    return ha_household_status.read_visitors_present(
+        environ=os.environ, config=configuration,
+        visitors_entity=VISITORS_PRESENT_ENTITY,
+        request_factory=Request, opener_factory=build_opener,
+        proxy_factory=ProxyHandler, redirect_factory=NoRedirect, parse_url=urlsplit,
+    )
 
 def routine_action_results_typed(steps):
     return compatibility_facade.routine_action_results_typed(steps, r=sys.modules[__name__])
@@ -201,19 +213,33 @@ MOVIE_ROOMS = r"lounge|living room|bedroom|master bedroom|here"
 
 
 def parse_movie_request(phrase):
-    return household_selection_boundaries.parse_movie_request(phrase, r=sys.modules[__name__])
+    return routine_request_selection.parse_movie_request(
+        phrase, rooms=MOVIE_ROOMS, apps=MOVIE_APPS,
+    )
 
 def select_routine_result(phrase, origin) -> RoutineSelection | None:
-    return household_selection_boundaries.select_routine_result(phrase, origin, r=sys.modules[__name__])
+    return routine_request_selection.select_routine_result(
+        phrase, origin, connect=ha_device_connection,
+        discovery_module=script_discovery, movie_parser=parse_movie_request,
+        morning_phrases=GOOD_MORNING_PHRASES, night_phrases=GOOD_NIGHT_PHRASES,
+        dinner_phrases=DINNER_PHRASES, sexy_commands=SEXY_TIME_COMMANDS,
+    )
 
 def select_routine_turn_result(phrase, origin) -> RoutineTurnSelection | None:
-    return household_selection_boundaries.select_routine_turn_result(phrase, origin, r=sys.modules[__name__])
+    return routine_turn_orchestration.select_routine_turn_result(
+        phrase, origin, select=select_routine_result, parse_movie=parse_movie_request,
+    )
 
 def preview_routine_result(phrase, origin=None):
-    return household_selection_boundaries.preview_routine_result(phrase, origin, r=sys.modules[__name__])
+    return routine_turn_orchestration.preview_routine_result(
+        phrase, origin, select_turn=select_routine_turn_result,
+    )
 
 def execute_routine_result(selection, action_results, *, approved=False):
-    return household_selection_boundaries.execute_routine_result(selection, action_results, approved=approved, r=sys.modules[__name__])
+    return routine_turn_orchestration.execute_routine_result(
+        selection, action_results, approved=approved,
+        discovery=script_discovery, connect=ha_device_connection,
+    )
 
 def run_custom_routine_result(name, action_results=None, *, approved=False, parameters=None):
     return service_entry_boundaries.run_custom_routine_result(name, action_results=action_results, approved=approved, parameters=parameters, r=sys.modules[__name__])
