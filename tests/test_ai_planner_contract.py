@@ -6,6 +6,8 @@ import tempfile
 from typing import Any
 import unittest
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError, URLError
+from email.message import Message
 
 from ai_budget import monthly_reserved
 from execution_results import Outcome
@@ -51,6 +53,39 @@ class PlannerFixture(unittest.TestCase):
 
 
 class PlannerContractTests(PlannerFixture):
+    def test_planning_timeouts_are_clear_redacted_and_never_retried_or_dispatched(self):
+        errors = [TimeoutError('private provider text'), URLError(TimeoutError('private hostname'))]
+        for status in (408, 504):
+            errors.append(HTTPError('https://private.example', status, 'private error', Message(), io.BytesIO()))
+        for error in errors:
+            with self.subTest(error=type(error).__name__):
+                self.provider.open.reset_mock()
+                self.provider.open.side_effect = error
+                with self.assertLogs('ai_fallback_dispatch', level='WARNING') as logs:
+                    result = self.ask('please sort the lights')
+                self.assertIs(result.result.outcome, Outcome.UNRESOLVED)
+                self.assertIn('took too long to plan', result.result.reply)
+                self.assertIn('No devices were changed', result.result.reply)
+                self.assertNotIn('private', result.result.reply + '\n'.join(logs.output))
+                self.assertEqual(self.provider.open.call_count, 1)
+                self.assertEqual(self.provider.open.call_args.kwargs['timeout'], 6)
+                self.ha.open.assert_not_called()
+        self.assertEqual(self.spent(), 4 * 50_000)
+
+    def test_late_successful_provider_plan_is_closed_and_cannot_execute(self):
+        for clock in ([0, 6], [0, 1, 6]):
+            with self.subTest(clock=clock):
+                response = io.BytesIO(json.dumps(self.payload).encode())
+                self.provider.open.side_effect = lambda *args, **kwargs: response
+                with patch.object(server.openai_planner, 'monotonic', side_effect=clock), \
+                        self.assertLogs('ai_fallback_dispatch', level='WARNING'):
+                    result = self.ask('please sort the lights')
+                self.assertIn('took too long to plan', result.result.reply)
+                self.assertEqual(result.result.actions, ())
+                self.assertTrue(response.closed)
+                self.ha.open.assert_not_called()
+        self.assertEqual(self.spent(), 100_000)
+
     def test_implicit_command_reaches_real_planner_and_verified_dispatch(self):
         result = self.ask("it's too dark in here")
         self.assertIs(result.result.outcome, Outcome.CONFIRMED)

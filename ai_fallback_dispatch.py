@@ -1,11 +1,14 @@
 """Permission-bounded OpenAI fallback dispatch."""
 import re
 import sqlite3
+import logging
 from execution_results import ExecutionResult, Outcome
 from ai_budget import BudgetExhausted, MICRO_USD
-from model_response_results import IncompletePlanningError
+from model_response_results import IncompletePlanningError, PlanningTimeoutError
 from ai_context import ContextSelectionError
 from ha_action_preflight import SensitiveCoverConfirmationRequired
+
+LOGGER = logging.getLogger(__name__)
 
 
 def guarded_openai_fallback_result(message, *, source, exposed_entities=(), settings_reader, intent_gate, connect, inventory_reader, inventory_module, context_selector, planner_module, settings_module, history_module, fallback_runner, dispatcher, pricing, bounded_plan, evidence_factory, response_factory, location_reader=None):
@@ -74,6 +77,11 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
     except SensitiveCoverConfirmationRequired:
         return response_factory(ExecutionResult(
             "AI can't operate garage or gate covers. Use Home Assistant directly. No devices were changed.",
+            Outcome.UNRESOLVED))
+    except PlanningTimeoutError:
+        LOGGER.warning("OpenAI planning timed out; no device actions dispatched")
+        return response_factory(ExecutionResult(
+            "OpenAI took too long to plan. No devices were changed. Local commands still work.",
             Outcome.UNRESOLVED))
     except IncompletePlanningError as error:
         reply = ("OpenAI reached its planning token limit. No devices were changed; please try a shorter request."
