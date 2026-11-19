@@ -706,11 +706,6 @@ class Handler(BaseHTTPRequestHandler):
             last_device=last_device, last_information=last_information,
             r=sys.modules[__name__],
         )
-        routine_reply, outcome = dispatch_result.reply, dispatch_result.outcome
-        routine_status, routine_turn = dispatch_result.routine_status, dispatch_result.routine_turn
-        routine_voice_result = dispatch_result.routine_voice_result
-        lighting_context, information_context = dispatch_result.lighting_context, dispatch_result.information_context
-        status_target, light_result = dispatch_result.status_target, dispatch_result.light_result
         response = turn_response_completion.complete(
             self, body=body, message=message, effective_message=effective_message,
             session_id=session_id, phrase=phrase, source=source, scope=scope,
