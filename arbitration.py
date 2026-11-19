@@ -21,9 +21,12 @@ class CaptureArbiter:
     def claim(self, phrase, origin, capture, speaker=None):
         if not origin or not isinstance(capture, dict):
             return True
-        values = [capture.get(key) for key in ("ended_at", "duration", "rms")]
-        if not all(type(value) in (int, float) and math.isfinite(value) for value in values):
-            return True
+        values: list[int | float] = []
+        for key in ("ended_at", "duration", "rms"):
+            value = capture.get(key)
+            if not isinstance(value, (int, float)) or type(value) not in (int, float) or not math.isfinite(value):
+                return True
+            values.append(value)
         ended_at, duration, rms = values
         if not (0.1 <= duration <= 65 and 0 <= rms <= 1 and abs(time() - ended_at) < self.retention):
             return True

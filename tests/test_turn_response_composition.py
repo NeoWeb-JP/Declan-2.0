@@ -1,4 +1,5 @@
 """Turn response composition contract tests."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 from turn_response_composition import compose_turn_response
@@ -28,6 +29,7 @@ class TurnResponseCompositionTests(unittest.TestCase):
         reply["outcome"] = kwargs["outcome"]
 
     def run_turn(self, **overrides):
+        args: dict[str, Any]
         args = dict(lighting_context=("light.kitchen",), scope="kitchen",
             response_guest_mode="off", outcome="confirmed", routine_turn=None,
             light_result=None, phrase="lights on", action_results=[],

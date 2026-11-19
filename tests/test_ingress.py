@@ -1,6 +1,5 @@
 import io
 from http.client import HTTPConnection
-from http.server import ThreadingHTTPServer
 from threading import Thread
 from unittest import TestCase, mock
 from urllib.parse import urlsplit
@@ -10,7 +9,7 @@ from declan_ingress import proxy
 
 class IngressTests(TestCase):
     def setUp(self):
-        self.server = ThreadingHTTPServer(('127.0.0.1', 0), proxy.ProxyHandler)
+        self.server = proxy.IngressHTTPServer(('127.0.0.1', 0), proxy.ProxyHandler)
         self.server.panel_token = 'panel-secret'
         self.server.ingress_token = 'upstream-secret'
         self.server.target = urlsplit('http://declan.invalid:80')

@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from typing import Any
 
 
 SOURCE = (Path(__file__).resolve().parents[1] / "custom_components"
@@ -59,7 +60,7 @@ def valid_speaker(identity_id, name, confidence):
     ) and isinstance(confidence, float) and 0 <= confidence <= 1
 
 
-namespace = {
+namespace: dict[str, Any] = {
     "asyncio": asyncio,
     "Transcript": Transcript,
     "Error": Error,

@@ -1,4 +1,5 @@
 """Exercise retry learning through the real handler without external services."""
+from typing import cast
 import io
 import json
 import tempfile
@@ -37,13 +38,13 @@ class RetryLearningTests(unittest.TestCase):
         for key, value in {'Content-Type':'application/json', 'Content-Length':str(len(body)),
                            'Authorization':'Bearer test'}.items():
             handler.headers[key] = value
-        handler.server = SimpleNamespace(bad_tokens=SimpleNamespace(check=lambda *args: 0))
+        setattr(handler, "server", SimpleNamespace(bad_tokens=SimpleNamespace(check=lambda *args: 0)))
         handler.client_address = ('127.0.0.1', 1)
-        handler.has_ingress_access = lambda: True
-        handler.send_json = Mock()
-        handler.log_error = Mock()
+        setattr(handler, 'has_ingress_access', lambda: True)
+        setattr(handler, 'send_json', Mock())
+        setattr(handler, 'log_error', Mock())
         handler.handle_post()
-        status, result = handler.send_json.call_args.args
+        status, result = cast(Mock, handler.send_json).call_args.args
         self.assertEqual(status, expected_status, result)
         return result
 

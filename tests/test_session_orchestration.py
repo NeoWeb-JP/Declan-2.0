@@ -1,4 +1,5 @@
 """Regression tests for extracted conversation session orchestration."""
+from typing import Any
 import re
 import unittest
 from collections import OrderedDict
@@ -9,6 +10,7 @@ import session_orchestration
 
 class SessionOrchestrationTests(unittest.TestCase):
     def setUp(self):
+        self.sessions: OrderedDict[str, dict[str, Any]]
         self.sessions = OrderedDict()
         self.kwargs = dict(
             sessions=self.sessions, idle_seconds=300,
@@ -50,6 +52,7 @@ class SessionOrchestrationTests(unittest.TestCase):
         self.assertEqual(result["reply"], "I don't know your name yet.")
 
     def test_invalid_session_ids_receive_new_opaque_ids(self):
+        invalid: object
         for invalid in (None, [], 42, True, "", "x" * 257):
             with self.subTest(value=repr(invalid)):
                 result = session_orchestration.converse("hello", invalid, **self.kwargs)

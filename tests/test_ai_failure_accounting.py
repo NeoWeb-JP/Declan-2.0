@@ -1,4 +1,5 @@
 """Only proven nonbillable failures or known usage release reservations."""
+from email.message import Message
 from contextlib import contextmanager
 import io
 import json
@@ -47,7 +48,7 @@ class FailureAccountingTests(unittest.TestCase):
     def test_provider_rejection_releases_reservation(self):
         for status in (400, 401, 403, 404, 405, 413, 415, 422, 429):
             opener = Mock()
-            opener.open.side_effect = HTTPError('https://api.openai.com', status, 'rejected', {}, io.BytesIO())
+            opener.open.side_effect = HTTPError('https://api.openai.com', status, 'rejected', Message(), io.BytesIO())
             with self.subTest(status=status), self.assertRaises(NonBillablePlanningError):
                 self.run_plan(lambda text, exposed: request_plan(
                     text, exposed, model='gpt-5-mini', api_key='fixture', opener=opener))
@@ -57,7 +58,7 @@ class FailureAccountingTests(unittest.TestCase):
     def test_server_errors_without_usage_retain_uncertain_reservation(self):
         for status in (408, 500, 502, 503, 504):
             opener = Mock()
-            opener.open.side_effect = HTTPError('https://api.openai.com', status, 'unknown outcome', {}, io.BytesIO())
+            opener.open.side_effect = HTTPError('https://api.openai.com', status, 'unknown outcome', Message(), io.BytesIO())
             with self.subTest(status=status), self.assertRaises(ValueError):
                 self.run_plan(lambda text, exposed: request_plan(
                     text, exposed, model='gpt-5-mini', api_key='fixture', opener=opener))

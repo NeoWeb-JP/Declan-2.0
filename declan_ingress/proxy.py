@@ -12,7 +12,7 @@ import json
 import os
 import secrets
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, SplitResult
 
 
 GET_PATHS = {
@@ -35,7 +35,14 @@ def panel_script(token):
             "request.headers.set('X-Declan-Panel-Token',token);}return original.call(this,request);};})();</script>").encode()
 
 
+class IngressHTTPServer(ThreadingHTTPServer):
+    target: SplitResult
+    ingress_token: str
+    panel_token: str
+
+
 class ProxyHandler(BaseHTTPRequestHandler):
+    server: IngressHTTPServer
     timeout = 10
 
     def end_headers(self):
@@ -98,6 +105,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
             headers["Content-Type"] = expected
 
         target = self.server.target
+        if target.hostname is None:
+            self.send_error_json(502, "Could not reach the Declan server.")
+            return
         connection_type = HTTPSConnection if target.scheme == "https" else HTTPConnection
         upstream = connection_type(target.hostname, target.port, timeout=85)
         try:
@@ -154,7 +164,7 @@ def main():
         os.setuid(65534)
     # Home Assistant Supervisor connects through the add-on network namespace.
     # Requests are restricted to SUPERVISOR_ADDRESS in ProxyHandler.forward().
-    with ThreadingHTTPServer(("0.0.0.0", 8099), ProxyHandler) as server:  # nosec B104
+    with IngressHTTPServer(("0.0.0.0", 8099), ProxyHandler) as server:  # nosec B104
         server.target = target
         server.ingress_token = token
         server.panel_token = secrets.token_urlsafe(32)

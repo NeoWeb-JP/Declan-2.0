@@ -1,4 +1,5 @@
 """Typed outcome contract regression tests for provider and follow-on boundaries."""
+from typing import Any
 import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
@@ -68,10 +69,10 @@ class TypedBoundaryTests(unittest.TestCase):
             music_execution_result((None, "confirmed"))
 
     def test_follow_on_result_is_frozen_and_typed(self):
-        result = FollowOnResult("Done", "confirmed", (), ("Routine", "confirmed"))
+        result = FollowOnResult("Done", Outcome.CONFIRMED, (), ("Routine", "confirmed"))
         self.assertIs(result.outcome, Outcome.CONFIRMED)
         with self.assertRaises(FrozenInstanceError):
-            result.outcome = Outcome.FAILED
+            setattr(result, 'outcome', Outcome.FAILED)
 
     def test_music_follow_on_preserves_origin_and_voice_result(self):
         play = Mock(return_value=("Playing", "confirmed"))
@@ -90,6 +91,7 @@ class TypedBoundaryTests(unittest.TestCase):
         self.assertEqual(play.call_args.kwargs["origin"], "satellite")
 
     def test_lighting_follow_on_preserves_action_history(self):
+        steps: list[dict[str, Any]]
         steps = []
         result = execute(
             "turn kitchen lights on", routine_reply="Routine done",

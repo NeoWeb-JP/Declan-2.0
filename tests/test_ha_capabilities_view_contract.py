@@ -30,10 +30,10 @@ class CapabilitiesViewContractTests(unittest.TestCase):
         tree = ast.parse(source)
         setup = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
                      and node.name == "async_setup")
-        self.assertIn("register_view(DeclanCapabilitiesView())", ast.get_source_segment(source, setup))
+        self.assertIn("register_view(DeclanCapabilitiesView())", (ast.get_source_segment(source, setup) or ""))
         entry_setup = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
                            and node.name == "async_setup_entry")
-        self.assertNotIn("register_view", ast.get_source_segment(source, entry_setup))
+        self.assertNotIn("register_view", (ast.get_source_segment(source, entry_setup) or ""))
 
 
 if __name__ == "__main__":

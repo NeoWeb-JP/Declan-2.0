@@ -1,4 +1,6 @@
 """Receipt latency, exactly-once dispatch, and durable background evidence."""
+from typing import Any, Coroutine
+from email.message import Message
 import asyncio
 import json
 from types import SimpleNamespace
@@ -39,8 +41,8 @@ class BackgroundDispatchTests(unittest.TestCase):
 
     def test_timeout_or_rejection_never_retries_or_claims_completion(self):
         for error, expected in ((TimeoutError(), "unverified"),
-                (HTTPError("http://ha", 409, "busy", {}, BytesIO()), "busy"),
-                (HTTPError("http://ha", 404, "missing", {}, BytesIO()), "not_configured")):
+                (HTTPError("http://ha", 409, "busy", Message(), BytesIO()), "busy"),
+                (HTTPError("http://ha", 404, "missing", Message(), BytesIO()), "not_configured")):
             opener = MagicMock()
             opener.open.side_effect = error
             reply, outcome, _ = script_discovery.enqueue(("http://ha", {}, opener), "script.movie_time", {})
@@ -57,8 +59,9 @@ class BackgroundDispatchTests(unittest.TestCase):
         self.assertIn("shutdown", personality_policy.movie_request_reply("end", guest=True, visitor_present=False))
 
 
-class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
+class RoutineJobTests(audit_tests.AuditViewFixture):
     def test_script_reported_results_preserve_exact_provider_interpretation(self):
+        raw: object
         models = audit_tests.job_results
         job = {"job_id": "job", "entity_id": "script.movie_time"}
         expected = {"success": "reported_success", "partial": "partial", "failed": "failed",
@@ -83,6 +86,7 @@ class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
             models.ScriptReportedResult("success")
 
     def test_step_evidence_is_typed_bounded_and_preserves_unknown_wire_statuses(self):
+        raw: object
         models = audit_tests.job_results
         job = {"job_id": "job", "entity_id": "script.movie_time"}
         for status in (*models.RoutineJobStepStatus, "future_status", "", None, ["confirmed"]):
@@ -167,6 +171,7 @@ class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job["steps"], [{"path": "sequence/0", "status": "observed"}])
 
     def test_typed_summary_preserves_protocol_and_filters_evidence(self):
+        raw: object
         job = {"job_id": "job", "entity_id": "script.movie_time"}
         for external, expected in (("success", "reported_success"), ("partial", "partial"),
                 ("failed", "failed"), ("cancelled", "cancelled"), ("busy", "busy"),
@@ -187,6 +192,7 @@ class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
                     summary.outcome = self.jobs_view.RoutineJobOutcome.FAILED
 
     def test_typed_summary_rejects_uncorrelated_or_malformed_success(self):
+        raw: object
         job = {"job_id": "job", "entity_id": "script.movie_time"}
         for raw, fields, reason in (({"outcome": "success"}, {"request_id": {}}, "result_correlation_failed"),
                 ({"outcome": "success", "steps": {}}, {}, "invalid_steps"),
@@ -200,9 +206,11 @@ class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
 
     # Reuse loaded HA interfaces, not their tests.
     def setUp(self):
-        audit_tests.AuditViewTests.setUp(self)
+        super().setUp()
+        self.pending: list[Coroutine[Any, Any, Any]]
         self.pending = []
         self.calls = []
+        self.fields: dict[str, Any]
         self.fields = {"requested_action": {}, "request_id": {}, "routine_id": {}}
         self.entity = SimpleNamespace(unique_id="movie_time", fields=self.fields)
         self.hass.data["script"] = SimpleNamespace(get_entity=lambda entity_id: self.entity)
@@ -217,7 +225,7 @@ class RoutineJobTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         for coro in self.pending:
             coro.close()
-        audit_tests.AuditViewTests.tearDown(self)
+        super().tearDown()
 
     def request(self, number=1, admin=True, entity_id="script.movie_time"):
         class Request(dict):

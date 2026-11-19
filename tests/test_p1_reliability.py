@@ -1,4 +1,5 @@
 """Concurrency, delayed capture and bounded discovery regressions."""
+from email.message import Message
 import io
 import json
 import sqlite3
@@ -61,6 +62,7 @@ class InventoryTests(TestCase):
             self.assertNotIn('attributes=entity.attributes', json.loads(request.data)['template'])
 
     def test_incomplete_duplicate_changed_and_malformed_pages_fail_closed(self):
+        pages: object
         for pages in ([{'total': 2, 'rows': [self.row(0)]}],
                       [{'total': 2, 'rows': [self.row(0), self.row(0)]}],
                       [{'total': 1, 'rows': [{'entity_id': 'light.x', 'state': 'on', 'attributes': None}]}],
@@ -156,12 +158,13 @@ class SharedStateTests(TestCase):
         def search(request, timeout):
             with music.RUNTIME.spotify_token_lock:
                 music.RUNTIME.spotify_token = (('id','secret'), 'new-token', float('inf'))
-            raise HTTPError(request.full_url, 401, 'Expired', {}, None)
+            raise HTTPError(request.full_url, 401, 'Expired', Message(), None)
         opener.open.side_effect = search
         with patch.object(music.RUNTIME, 'spotify_token', (('id','secret'), 'old-token', float('inf'))), patch.object(
                 music, 'spotify_credentials', return_value=(('id','secret'), 'test')):
             with self.assertRaises(HTTPError):
                 music.spotify_search(opener, 'test', '', ('track',))
+            assert music.RUNTIME.spotify_token is not None
             self.assertEqual(music.RUNTIME.spotify_token[1], 'new-token')
 
     def test_simultaneous_spotify_searches_share_one_token_refresh(self):

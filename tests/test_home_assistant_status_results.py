@@ -1,4 +1,6 @@
 """Typed connection health keeps execution outcomes and credentials separate."""
+from http_test_doubles import HTTPResponse
+from email.message import Message
 import io
 import json
 import sqlite3
@@ -13,7 +15,7 @@ import server
 class HomeAssistantStatusResultTests(unittest.TestCase):
     def probe(self, *, status=200, payload=None, error=None):
         opener = Mock()
-        response = io.BytesIO(json.dumps({"message": "API running."} if payload is None else payload).encode())
+        response = HTTPResponse(json.dumps({"message": "API running."} if payload is None else payload).encode())
         response.status = status
         opener.open.return_value = response
         if error is not None:
@@ -45,7 +47,7 @@ class HomeAssistantStatusResultTests(unittest.TestCase):
                 (302, HomeAssistantStatus.DISCONNECTED)):
             with self.subTest(status=status):
                 body = io.BytesIO(b"secret error body")
-                result, _ = self.probe(error=HTTPError("https://ha.local", status, "secret error", {}, body))
+                result, _ = self.probe(error=HTTPError("https://ha.local", status, "secret error", Message(), body))
                 self.assertIs(result.status, expected)
                 self.assertTrue(body.closed)
                 self.assertNotIn("secret", str(result))

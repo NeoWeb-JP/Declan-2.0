@@ -92,7 +92,9 @@ def normalize(raw):
         available = max(0, CAPACITY - len(visible_protected))
         rotating = [uri for uri in discovered if uri not in protected and uri not in excluded][:available]
         active = visible_protected + rotating
-        titles = item.get("titles") if isinstance(item.get("titles"), dict) else {}
+        titles = item.get("titles")
+        if not isinstance(titles, dict):
+            titles = {}
         titles = {uri: name[:160] for uri, name in titles.items()
                   if isinstance(uri, str) and isinstance(name, str)
                   and uri in active + excluded + protected}

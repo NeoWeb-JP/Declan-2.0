@@ -31,10 +31,10 @@ def speaker_match(value):
     name = value.get("name")
     confidence = value.get("confidence")
     interaction_id = value.get("interaction_id")
-    match = {"name": "Unknown"}
+    match: dict[str, str | int | float] = {"name": "Unknown"}
     if isinstance(interaction_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", interaction_id):
         match["interaction_id"] = interaction_id
-    if type(confidence) in (int, float) and math.isfinite(confidence) and 0 <= confidence <= 1:
+    if isinstance(confidence, (int, float)) and type(confidence) in (int, float) and math.isfinite(confidence) and 0 <= confidence <= 1:
         match["confidence"] = confidence
         if isinstance(name, str) and re.fullmatch(r"[^\W\d_][\w '\u2019-]{0,39}", name):
             if name.casefold() not in {"unknown", "unidentified", "none"}:

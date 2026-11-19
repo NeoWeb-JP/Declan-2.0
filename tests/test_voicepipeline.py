@@ -1,4 +1,5 @@
 """VoicePipeline contract fixtures derived from the owner's deployed API and helpers."""
+from email.message import Message
 import io
 import json
 import os
@@ -22,6 +23,7 @@ class PipelineTests(TestCase):
             self.assertTrue(result.blocks_teaching)
             with self.assertRaises(AttributeError):
                 setattr(result, "status", None)
+        value: object
         for value in ("pending", "resolved", "future_status", "DISMISSED", " dismissed", None, [], {}):
             with self.subTest(value=value):
                 result = vp.InteractionReviewResult.parse(value)
@@ -81,6 +83,7 @@ class PipelineTests(TestCase):
 
     def test_no_writes_without_valid_name_confirmation_and_pending_entry(self):
         with patch.object(vp, 'request', side_effect=self.fake):
+            body: object
             for body in (None, {}, self.change(confirm=False), self.change(assigned_to=''),
                          self.change(action='arbitrary'), self.change(assigned_to='Unknown'),
                          self.change(assigned_to='../bad'), self.change(interaction_id='../bad')):
@@ -191,7 +194,7 @@ class TransportTests(TestCase):
     def test_remote_conflicts_errors_and_lost_write_responses_never_retry(self):
         for code, status in ((409, 409), (404, 404), (422, 502), (302, 502), (500, 502)):
             self.opener.open.reset_mock()
-            self.opener.open.side_effect = HTTPError('url', code, 'private message', {}, io.BytesIO(b'secret'))
+            self.opener.open.side_effect = HTTPError('url', code, 'private message', Message(), io.BytesIO(b'secret'))
             with self.assertRaises(vp.PipelineError) as error:
                 vp.request('POST', '/api/v1/test', {})
             self.assertEqual(error.exception.status, status)

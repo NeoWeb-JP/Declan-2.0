@@ -1,4 +1,5 @@
 """Exercise everyday edits through authenticated handlers and actual reply selection."""
+from typing import cast
 import copy
 import io
 import json
@@ -38,10 +39,10 @@ class CommandResponseTests(TestCase):
         handler.headers["Host"] = "declan.internal:52737"
         handler.headers["Authorization"] = "Bearer " + ("x" * 32 if authorised else "wrong")
         handler.client_address = ("192.0.2.10" if remote else "127.0.0.1", 1)
-        handler.server = SimpleNamespace(server_port=52737)
-        handler.has_ingress_access = lambda: False
-        handler.send_json = Mock()
-        handler.log_error = Mock()
+        setattr(handler, "server", SimpleNamespace(server_port=52737))
+        setattr(handler, 'has_ingress_access', lambda: False)
+        setattr(handler, 'send_json', Mock())
+        setattr(handler, 'log_error', Mock())
         if body is not None:
             encoded = json.dumps(body).encode()
             handler.headers["Content-Type"] = "application/json"
@@ -49,7 +50,7 @@ class CommandResponseTests(TestCase):
             handler.rfile = io.BytesIO(encoded)
         with patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN": "x" * 32}):
             (handler.do_GET if method == "GET" else handler.handle_post)()
-        return handler.send_json.call_args.args
+        return cast(Mock, handler.send_json).call_args.args
 
     def test_catalog_stays_editable_without_ha_and_rejects_remote_without_token(self):
         with patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([]), server.script_discovery.DiscoveryError.INSPECTION_UNAVAILABLE)):
@@ -145,10 +146,10 @@ class CommandResponseTests(TestCase):
                                "Content-Length":str(len(encoded))}.items():
                 handler.headers[key] = value
             handler.rfile = io.BytesIO(encoded)
-            handler.server = SimpleNamespace(bad_tokens=SimpleNamespace(check=lambda *args: 0))
+            setattr(handler, "server", SimpleNamespace(bad_tokens=SimpleNamespace(check=lambda *args: 0)))
             handler.client_address = ("127.0.0.1",1)
-            handler.send_json = Mock()
-            handler.log_error = Mock()
+            setattr(handler, 'send_json', Mock())
+            setattr(handler, 'log_error', Mock())
             with patch.dict(server.os.environ, {"DECLAN_ASSIST_TOKEN":"test"}), \
                  patch.object(server, "read_guest_mode", return_value="off"), \
                  patch.object(server, "read_visitors_present", return_value=False), \
@@ -156,7 +157,7 @@ class CommandResponseTests(TestCase):
                  patch.object(server, "handle_light_request_result", return_value=result), \
                  patch.object(server, "search_media", return_value=None):
                 handler.handle_post()
-            status, reply = handler.send_json.call_args.args
+            status, reply = cast(Mock, handler.send_json).call_args.args
             self.assertEqual(status, 200)
             self.assertEqual(reply["outcome"], result[1])
             if result[1] == "confirmed":

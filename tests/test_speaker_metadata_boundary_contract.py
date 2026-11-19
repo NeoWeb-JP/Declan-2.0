@@ -35,7 +35,7 @@ class SpeakerMetadataBoundaryContractTests(unittest.TestCase):
 
     def test_hostile_string_subclasses_are_not_projected_as_speakers(self):
         class HostileText(str):
-            def strip(self):
+            def strip(self, chars: str | None = None) -> str:
                 raise RuntimeError("unexpected strip")
             def __hash__(self):
                 raise RuntimeError("unexpected hash")

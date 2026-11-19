@@ -77,7 +77,10 @@ def confirmed_lighting_entities(steps):
                 entities.append(step.entity_id)
         elif isinstance(step, dict):
             try:
-                status = LightingActionStatus(step.get("status"))
+                raw_status = step.get("status")
+                if not isinstance(raw_status, str):
+                    continue
+                status = LightingActionStatus(raw_status)
             except (ValueError, TypeError):
                 continue
             if status in {LightingActionStatus.CONFIRMED, LightingActionStatus.ALREADY_SET} and isinstance(step.get("entity_id"), str):

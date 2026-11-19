@@ -1,5 +1,8 @@
 """Exercise Home Assistant request and verification paths with an in-memory fake."""
 
+from http_test_doubles import HTTPResponse
+from typing import Any
+from email.message import Message
 import io
 import json
 import os
@@ -40,13 +43,15 @@ class FakeHomeAssistant:
         path = urlsplit(request.full_url).path
         data = json.loads(request.data) if request.data else None
         self.calls.append((path, data))
+        result: object
         if path == self.fail:
-            raise HTTPError(request.full_url, 503, "Unavailable", {}, None)
+            raise HTTPError(request.full_url, 503, "Unavailable", Message(), None)
         if path == "/api/states":
             result = list(self.entities.values())
         elif path.startswith("/api/states/"):
             result = self.entities[path.removeprefix("/api/states/")]
         elif path == "/api/template":
+            assert isinstance(data, dict)
             if 'declan_inventory_page' in data['template']:
                 rows = [dict(row, attributes=row.get('attributes', {})) for row in self.entities.values()
                         if row['entity_id'].partition('.')[0] in server.ha_inventory.DEVICE_DOMAINS]
@@ -56,10 +61,12 @@ class FakeHomeAssistant:
         elif path == "/api/":
             result = {"message": "API running."}
         elif path in {"/api/services/input_text/set_value", "/api/services/input_boolean/turn_off"}:
+            assert isinstance(data, dict)
             if self.apply:
                 self.entities[data["entity_id"]]["state"] = data.get("value", "off")
             result = []
         elif path.startswith("/api/services/light/"):
+            assert isinstance(data, dict)
             if self.apply:
                 entities = data["entity_id"]
                 for entity in entities if isinstance(entities, list) else [entities]:
@@ -69,7 +76,7 @@ class FakeHomeAssistant:
             result = []
         else:
             raise AssertionError(path)
-        response = io.BytesIO(json.dumps(result).encode())
+        response = HTTPResponse(json.dumps(result).encode())
         response.status = 200
         return response
 
@@ -81,6 +88,7 @@ class LightingTests(TestCase):
         self.enterContext(patch.object(server, "build_opener", return_value=self.ha))
 
     def run_light(self, phrase, expected, **kwargs):
+        steps: list[dict[str, Any]]
         steps = []
         reply, outcome = server.handle_light_request(phrase, action_results=steps, **kwargs)
         self.assertEqual(outcome, expected, reply)
@@ -111,6 +119,7 @@ class LightingTests(TestCase):
     def test_room_lights_confirmation_keeps_device_names_in_action_results(self):
         for starting_state in ("on", "off"):
             with self.subTest(starting_state=starting_state):
+                steps: list[dict[str, Any]]
                 steps = []
                 reply, outcome = server.handle_light_request(
                     "turn the lounge and the bedroom lights off", action_results=steps,
@@ -134,6 +143,7 @@ class LightingTests(TestCase):
 
     def test_partial_room_reply_omits_device_list(self):
         self.ha.entities["light.bedroom_lamp"]["state"] = "unavailable"
+        steps: list[dict[str, Any]]
         steps = []
         reply, outcome = server.handle_light_request(
             "turn the office off and the bedroom on", action_results=steps,
@@ -348,7 +358,7 @@ class ServiceTests(TestCase):
             self.assertIsNone(timers.resolve_output(opener, "bad-id", None))
             self.assertIsNone(timers.resolve_output(opener, None, None))
             self.assertIsNone(timers.resolve_output(opener, "assist_satellite.other", None))
-            opener.open.side_effect = HTTPError("http://ha.invalid", 403, "Forbidden", {}, None)
+            opener.open.side_effect = HTTPError("http://ha.invalid", 403, "Forbidden", Message(), None)
             with self.assertRaisesRegex(ValueError, "rejected"):
                 timers.resolve_output(opener, None, "device")
 
@@ -356,6 +366,7 @@ class ServiceTests(TestCase):
 class GuestAssignmentTests(TestCase):
     def setUp(self):
         self.ha = FakeHomeAssistant()
+        self.connection: tuple[Any, ...]
         self.connection = ("http://ha.invalid", {}, self.ha)
         self.mode = self.ha.entities[server.GUEST_MODE_ENTITY]
         self.register = self.ha.entities[server.GUEST_REGISTER_ENTITY]

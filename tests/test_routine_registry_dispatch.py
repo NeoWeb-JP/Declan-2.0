@@ -1,4 +1,5 @@
 """Routine registry dispatch context regression tests."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 from routine_registry_dispatch import dispatch_routine
@@ -10,6 +11,7 @@ class RoutineRegistryDispatchTests(unittest.TestCase):
         self.registry.dispatch.return_value = "handled"
         self.factory = Mock(return_value=self.registry)
         self.context = Mock(return_value="context")
+        self.actions: list[dict[str, Any]]
         self.actions = []
         self.select = Mock()
         self.execute = Mock()

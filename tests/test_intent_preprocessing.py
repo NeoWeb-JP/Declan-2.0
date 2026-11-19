@@ -1,3 +1,4 @@
+from typing import Any, cast
 import unittest
 
 from intent_preprocessing import preprocess_speech
@@ -32,7 +33,7 @@ class SpeechPreprocessingTests(unittest.TestCase):
 
     def test_non_string(self):
         with self.assertRaises(ValueError):
-            preprocess_speech(None)
+            cast(Any, preprocess_speech)(None)
 
 
 if __name__ == "__main__":

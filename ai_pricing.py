@@ -13,7 +13,7 @@ def charge(model, usage):
     if model not in RATES or not isinstance(usage, dict):
         raise ValueError("Model pricing is not configured")
     inputs, outputs = usage.get("input_tokens"), usage.get("output_tokens")
-    if any(type(value) is not int or value < 0 for value in (inputs, outputs)):
+    if type(inputs) is not int or inputs < 0 or type(outputs) is not int or outputs < 0:
         raise ValueError("Missing token usage")
     input_rate, output_rate = RATES[model]
     return (inputs * input_rate + outputs * output_rate + 999999) // 1000000

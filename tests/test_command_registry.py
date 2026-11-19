@@ -1,4 +1,5 @@
 """Priority, overlap, failure ownership, origin routing and real HTTP dispatch."""
+from typing import Any, cast
 import io
 import json
 import tempfile
@@ -37,14 +38,16 @@ class RegistryTests(TestCase):
     def test_registration_order_does_not_change_priority(self):
         calls=[]
         def handler(name,priority):
-            return commands.Handler(name,priority,lambda _:True,
-                lambda *_:(calls.append(name) or commands.HandledCommand(name,ExecutionResult(name,"confirmed"))))
+            def execute(*_):
+                calls.append(name)
+                return commands.HandledCommand(name, ExecutionResult(name, Outcome.CONFIRMED))
+            return commands.Handler(name, priority, lambda _: True, execute)
         registry=commands.HandlerRegistry((handler("later",20),handler("first",10)))
         self.assertEqual(registry.dispatch(self.context).handler,"first")
         self.assertEqual(calls,["first"])
         self.assertEqual([h.priority for h in registry.handlers],[10,20])
         with self.assertRaises(FrozenInstanceError):
-            registry.handlers=()
+            setattr(registry, 'handlers', ())
         with self.assertRaises(ValueError):
             registry.dispatch("not a context")
 
@@ -54,10 +57,10 @@ class RegistryTests(TestCase):
             (good,replace(good)), (good,replace(good,name="second")),
             (good,replace(good,priority=20)), ("not a handler",),
             (replace(good,priority=True),), (replace(good,name=""),),
-            (replace(good,match=None),), (replace(good,execute=None),),
+            (cast(Any, replace)(good,match=None),), (cast(Any, replace)(good,execute=None),),
         ):
             with self.subTest(handlers=handlers), self.assertRaises(ValueError):
-                commands.HandlerRegistry(handlers)
+                cast(Any, commands.HandlerRegistry)(handlers)
         with self.assertRaises(ValueError):
             commands.registry(None)
 
@@ -180,12 +183,12 @@ class HTTPRegistryTests(TestCase):
             handler.headers[key]=value
         handler.rfile=io.BytesIO(raw)
         handler.client_address=("127.0.0.1",1)
-        handler.server=SimpleNamespace(bad_tokens=SimpleNamespace(check=lambda *_:0))
-        handler.send_json=Mock()
-        handler.log_error=Mock()
+        setattr(handler, "server", SimpleNamespace(bad_tokens=SimpleNamespace(check=lambda *_:0)))
+        setattr(handler, 'send_json', Mock())
+        setattr(handler, 'log_error', Mock())
         with patch.dict(server.os.environ,{"DECLAN_ASSIST_TOKEN":"test"}):
             handler.handle_post()
-        status,result=handler.send_json.call_args.args
+        status,result=cast(Mock, handler.send_json).call_args.args
         self.assertEqual(status,200,result)
         return result
 

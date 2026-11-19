@@ -52,6 +52,7 @@ class RetryScopeValidationTests(unittest.TestCase):
                 self.assertFalse(same_origin_scope(stored, requested))
 
     def test_invalid_scopes(self):
+        scope: object
         for scope in (None, "", "  ", "x" * 257, 42, [], {},
                       ("assist", None, None, None), ("assist", "device1"),
                       ("browser_voice", "device1", None, None),

@@ -14,7 +14,10 @@ class RuntimeStateTests(unittest.TestCase):
         store = object()
         calls = []
         def factory(name):
-            return lambda: calls.append(name) or name
+            def create():
+                calls.append(name)
+                return name
+            return create
         result = server_runtime_state.create_runtime(
             logging_module=logging,
             session_module=SimpleNamespace(DEFAULT_SESSION_STORE=store),

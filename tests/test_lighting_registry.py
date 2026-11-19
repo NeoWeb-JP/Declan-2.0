@@ -1,4 +1,5 @@
 """Lighting registry matching and compatibility tests."""
+from typing import Any
 from unittest import TestCase
 from unittest.mock import Mock
 
@@ -9,6 +10,7 @@ from execution_results import Outcome
 
 class LightingRegistryTests(TestCase):
     def setUp(self):
+        self.actions: list[dict[str, Any]]
         self.actions = []
         self.execute = Mock(return_value=("Kitchen lights on.", "confirmed"))
         self.parse = Mock(side_effect=lambda phrase: ("kitchen", "on") if phrase == "turn on kitchen" else None)

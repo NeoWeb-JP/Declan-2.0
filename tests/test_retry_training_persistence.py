@@ -1,4 +1,5 @@
 """Automatic voice retry training persistence regression tests."""
+from typing import Any
 import sqlite3
 import unittest
 from unittest.mock import Mock
@@ -14,6 +15,7 @@ class RetryTrainingPersistenceTests(unittest.TestCase):
 
     def save(self, *, pending=None, succeeded=True, message="turn the kitchen light off",
              effective="turn off kitchen lights"):
+        reply: dict[str, Any]
         reply = {}
         result = save_retry_training(reply,
             pending_retry={"text": "turn kitchen lights off"} if pending is None else pending,
@@ -54,6 +56,7 @@ class RetryTrainingPersistenceTests(unittest.TestCase):
         self.log.assert_called_once()
 
     def test_corrupt_pending_retry_does_not_learn_or_call_similarity(self):
+        pending: object
         for pending in ([], {}, {"text": None}, {"text": 42},
                         {"text": ""}, {"text": " "}, {"text": "x" * 4097}):
             with self.subTest(pending=repr(type(pending))):
@@ -80,6 +83,8 @@ class RetryTrainingPersistenceTests(unittest.TestCase):
                 self.log.assert_called_once()
 
     def test_invalid_corrected_or_effective_phrases_do_not_learn(self):
+        kwargs: dict[str, Any]
+        value: object
         for value in (None, 42, [], "", "  ", "x" * 4097):
             for field in ("message", "effective"):
                 with self.subTest(field=field, value_type=type(value).__name__):
@@ -93,8 +98,9 @@ class RetryTrainingPersistenceTests(unittest.TestCase):
                     self.teach.assert_not_called()
 
     def test_string_subclass_does_not_execute_custom_normalization(self):
+        kwargs: dict[str, Any]
         class HostileText(str):
-            def strip(self):
+            def strip(self, chars: str | None = None) -> str:
                 raise RuntimeError("unexpected string operation")
         for field in ("pending", "message", "effective"):
             with self.subTest(field=field):
@@ -109,6 +115,7 @@ class RetryTrainingPersistenceTests(unittest.TestCase):
                 self.teach.assert_not_called()
 
     def test_missing_pending_retry_does_not_learn(self):
+        reply: dict[str, Any]
         reply = {}
         result = save_retry_training(reply, pending_retry=None, retry_succeeded=True,
             message="hello", effective_message="hello", similar=self.similar,

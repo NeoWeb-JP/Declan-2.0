@@ -1,4 +1,5 @@
 """Final composition and persistence share one typed outcome contract."""
+from typing import Any, cast
 import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
@@ -42,7 +43,7 @@ class TypedFinalTurnResponseTests(unittest.TestCase):
 
     def test_wire_adapter_preserves_plain_strings_extra_fields_and_original_mapping(self):
         original = {"session_id": "session", "reply": "Done", "history_saved": False}
-        result = TurnResponse(original, "confirmed", "Verified")
+        result = cast(Any, TurnResponse)(original, "confirmed", "Verified")
         wire = result.to_wire(turn_finalization.apply_outcome_metadata)
         self.assertIs(type(wire["outcome"]), str)
         self.assertEqual(wire["outcome"], "confirmed")
@@ -50,7 +51,7 @@ class TypedFinalTurnResponseTests(unittest.TestCase):
         self.assertFalse(wire["history_saved"])
         self.assertNotIn("outcome", original)
         with self.assertRaises(FrozenInstanceError):
-            result.outcome = Outcome.FAILED
+            setattr(result, 'outcome', Outcome.FAILED)
 
     def test_unhandled_chat_keeps_no_outcome_and_model_validates_metadata(self):
         result = TurnResponse({"session_id": "session", "reply": "Hello"})
@@ -60,7 +61,7 @@ class TypedFinalTurnResponseTests(unittest.TestCase):
                                 ({"session_id": "session", "reply": None}, None),
                                 ({"session_id": "session", "reply": "Done"}, 42)):
             with self.assertRaises(ValueError):
-                TurnResponse(payload, None, status)
+                cast(Any, TurnResponse)(payload, None, status)
 
     def test_persistence_uses_authoritative_typed_outcome_and_preserves_failure_metadata(self):
         result = TurnResponse({"session_id": "session", "reply": "Done"}, Outcome.CONFIRMED, "Verified")

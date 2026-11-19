@@ -41,6 +41,7 @@ class HouseholdStateFaultTests(unittest.TestCase):
         self.addCleanup(self.credentials.stop)
 
     def test_guest_mode_non_object_payload_returns_unknown(self):
+        payload: object
         for payload in (None, [], "on", 42):
             with self.subTest(payload=payload), patch.object(
                     server.household_entities, "guest_mode",
@@ -64,6 +65,7 @@ class HouseholdStateFaultTests(unittest.TestCase):
                 self.assertEqual(server.read_guest_mode(), state)
 
     def test_visitor_presence_non_object_payload_returns_unknown(self):
+        payload: object
         for payload in (None, [], "on", 42):
             with self.subTest(payload=payload), patch.object(
                     server.configuration, "get",

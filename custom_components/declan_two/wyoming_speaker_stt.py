@@ -53,7 +53,7 @@ async def receive(client):
             identity_id = value.get('interaction_id')
             speaker_unknown = isinstance(name, str) and name.strip().casefold() in ('unknown', 'unidentified', 'none')
             valid = valid_wyoming_speaker(identity_id, name, confidence)
-            if valid:
+            if valid and isinstance(identity_id, str) and isinstance(name, str) and isinstance(confidence, (int, float)):
                 identity = (identity_id, name, confidence)
             _LOGGER.info(
                 "DECLAN_WYOMING_SPEAKER event=received valid=%s unknown=%s",

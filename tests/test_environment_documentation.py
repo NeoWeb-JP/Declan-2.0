@@ -56,10 +56,11 @@ class EnvironmentDocumentationTests(unittest.TestCase):
         entries = []
         incomplete = []
         for line in inventory.splitlines():
-            if not DOCUMENTED.match(line):
+            match = DOCUMENTED.match(line)
+            if match is None:
                 continue
             columns = [column.strip() for column in line.strip().strip("|").split("|")]
-            key = DOCUMENTED.match(line).group(1)
+            key = match.group(1)
             entries.append(key)
             if len(columns) < 3 or not columns[1] or not columns[2]:
                 incomplete.append(key)

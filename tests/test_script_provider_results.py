@@ -16,6 +16,7 @@ class ScriptProviderResultTests(unittest.TestCase):
             with self.subTest(status=status):
                 result = CorrelatedTraceResult.parse({**evidence, "status": status},
                     entity_id="script.tea", context_id="context")
+                assert result is not None
                 self.assertIs(result.status, status if isinstance(status, TraceProviderOutcome) else None)
                 self.assertEqual(result.detail, "HA trace " + "r" * 128 + "; device results not verified.")
                 with self.assertRaises(AttributeError):
@@ -25,6 +26,7 @@ class ScriptProviderResultTests(unittest.TestCase):
             with self.subTest(key=key, value=value):
                 self.assertIsNone(CorrelatedTraceResult.parse({**evidence, key: value},
                     entity_id="script.tea", context_id="context"))
+        payload: object
         for payload in (None, [], "ha_trace", {}):
             self.assertIsNone(CorrelatedTraceResult.parse(payload, entity_id="script.tea", context_id="context"))
 
@@ -38,6 +40,7 @@ class ScriptProviderResultTests(unittest.TestCase):
                                   {ScriptReportedOutcome.UNKNOWN, ScriptReportedOutcome.BUSY} else None)
                     with self.assertRaises(AttributeError):
                         setattr(result, "reason", None)
+            raw: object
             for raw in (reason.value.upper(), " " + reason.value, [], {}, None, "future_reason"):
                 self.assertIsNone(ScriptProviderResult.parse("busy", reason=raw).guard_reason)
         self.assertIsNone(ScriptProviderResult.parse("future_outcome", reason="screen_moving").guard_reason)
@@ -57,6 +60,7 @@ class ScriptProviderResultTests(unittest.TestCase):
     def test_normalization_is_explicit_and_unknown_values_stay_unverified(self):
         self.assertIsNone(ScriptProviderResult.parse("SUCCESS").outcome)
         self.assertIs(ScriptProviderResult.parse("SUCCESS", normalize=True).outcome, ScriptReportedOutcome.SUCCESS)
+        value: object
         for value in (None, [], {}, 1, "new_outcome", " success "):
             for normalize in (False, True):
                 self.assertIsNone(ScriptProviderResult.parse(value, normalize=normalize).outcome)

@@ -36,7 +36,7 @@ class TypedCommandResponseTests(unittest.TestCase):
     def test_response_model_is_frozen_and_validates_result_and_text_fields(self):
         response = CommandResponse(self.result)
         with self.assertRaises(FrozenInstanceError):
-            response.status_target = "light.other"
+            setattr(response, 'status_target', "light.other")
         for arguments in ({"result": ("Done", "confirmed")},
                           {"result": self.result, "routine_status": 1},
                           {"result": self.result, "status_target": []}):

@@ -1,5 +1,6 @@
 """Discovered-script evidence preserves projection and required-step guards."""
-import io
+from http_test_doubles import HTTPResponse
+from typing import Any, cast
 import json
 import unittest
 from dataclasses import FrozenInstanceError
@@ -47,6 +48,7 @@ class TypedScriptActionEvidenceTests(unittest.TestCase):
             evidence = parse_script_actions([{"target": "light", "status": "requested", "required": required}])
             self.assertEqual(evidence.required_steps_completed, completed)
             self.assertEqual("required" in evidence.steps[0].to_wire(), type(required) is bool)
+        value: object
         for value in (None, {}, "steps"):
             evidence = parse_script_actions(value)
             self.assertEqual(evidence.steps, ())
@@ -59,14 +61,15 @@ class TypedScriptActionEvidenceTests(unittest.TestCase):
         for steps, completed in (([], True), (("invalid",), True), ((), 1),
                                   ((RoutineActionEvidence("light", RoutineActionStatus.PLANNED),), True)):
             with self.assertRaises(ValueError):
-                ScriptActionEvidence(steps, completed)
+                cast(Any, ScriptActionEvidence)(steps, completed)
 
     def execute(self, outcome, steps):
         script = {"entity_id": "script.tea", "name": "Tea", "fields": []}
-        response = io.BytesIO(json.dumps({"service_response": {"outcome": outcome, "steps": steps}}).encode())
+        response = HTTPResponse(json.dumps({"service_response": {"outcome": outcome, "steps": steps}}).encode())
         response.status = 200
         opener = Mock()
         opener.open.return_value = response
+        actions: list[dict[str, Any]]
         actions = []
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([script]), None)):
             result, _ = script_discovery.execute_result(("http://ha", {}, opener), script, action_results=actions)

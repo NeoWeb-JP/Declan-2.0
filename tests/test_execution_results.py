@@ -1,4 +1,5 @@
 """Typed result boundaries, legacy compatibility, and real guarded execution."""
+from typing import Any, cast
 import json
 import sqlite3
 import tempfile
@@ -21,27 +22,27 @@ class ResultModelTests(TestCase):
     def test_enum_validation_rejects_unknown_and_unverifiable_dispatch_values(self):
         for value in ("success", "complete", "started", "skipped_dependency", None, True):
             with self.subTest(value=value), self.assertRaises(ValueError):
-                DispatchResult(value)
+                cast(Any, DispatchResult)(value)
         with self.assertRaises(ValueError):
-            DispatchResult(ActionStatus.CONFIRMED, {"secret": "not a detail"})
+            cast(Any, DispatchResult)(ActionStatus.CONFIRMED, {"secret": "not a detail"})
         with self.assertRaises(ValueError):
-            ActionResult(0, "light.a", "turn_on", "success")
+            cast(Any, ActionResult)(0, "light.a", "turn_on", "success")
         with self.assertRaises(ValueError):
-            ActionResult(0, "light.a", "turn_on", "failed", None)
+            cast(Any, ActionResult)(0, "light.a", "turn_on", ActionStatus.FAILED, None)
         for reply, outcome, actions in ((None,"confirmed",()), ("x","success",()),
                                         ("x","confirmed",[]), ("x","confirmed",("bad",))):
             with self.subTest(outcome=outcome), self.assertRaises(ValueError):
-                ExecutionResult(reply, outcome, actions)
+                cast(Any, ExecutionResult)(reply, outcome, actions)
 
     def test_legacy_adapters_return_strings_and_json_preserves_exact_values(self):
-        step = ActionResult(0, "light.a", "turn_on", "confirmed", "Observed on")
-        result = ExecutionResult("Done.", "confirmed", (step,))
+        step = ActionResult(0, "light.a", "turn_on", ActionStatus.CONFIRMED, "Observed on")
+        result = ExecutionResult("Done.", Outcome.CONFIRMED, (step,))
         self.assertIs(result.outcome, Outcome.CONFIRMED)
         self.assertIs(step.status, ActionStatus.CONFIRMED)
         self.assertTrue(step.confirmed)
         self.assertEqual(result.as_legacy_pair(), ("Done.", "confirmed"))
         self.assertIs(type(result.as_legacy_pair()[1]), str)
-        self.assertIs(type(DispatchResult("confirmed", "on").as_legacy_pair()[0]), str)
+        self.assertIs(type(DispatchResult(ActionStatus.CONFIRMED, "on").as_legacy_pair()[0]), str)
         payload = json.loads(json.dumps(result.to_wire()))
         self.assertEqual(payload, {"reply":"Done.", "outcome":"confirmed", "actions":[
             {"index":0,"entity_id":"light.a","service":"turn_on","status":"confirmed","detail":"Observed on"}]})
@@ -52,13 +53,13 @@ class ResultModelTests(TestCase):
         result = ExecutionResult("Not confirmed.", Outcome.UNVERIFIED, (step,))
         for target, field, value in ((step,"status",ActionStatus.CONFIRMED),
                                       (result,"outcome",Outcome.CONFIRMED),
-                                      (DispatchResult("failed"),"detail","changed")):
+                                      (DispatchResult(ActionStatus.FAILED),"detail","changed")):
             with self.assertRaises(FrozenInstanceError):
                 setattr(target, field, value)
         self.assertFalse(step.confirmed)
 
     def test_dispatcher_adapter_rejects_malformed_values(self):
-        expected = DispatchResult("confirmed", "Observed on")
+        expected = DispatchResult(ActionStatus.CONFIRMED, "Observed on")
         self.assertIs(DispatchResult.coerce(expected), expected)
         self.assertEqual(DispatchResult.coerce(("confirmed", "Observed on")), expected)
         self.assertEqual(DispatchResult.coerce(["confirmed", "Observed on"]), expected)
@@ -72,7 +73,7 @@ class ResultModelTests(TestCase):
             (("confirmed","failed","skipped_dependency"), Outcome.PARTIAL),
             (("unverified",), Outcome.UNVERIFIED), (("failed",), Outcome.UNVERIFIED),
         ):
-            actions = tuple(ActionResult(i,"light.a","turn_on",status) for i,status in enumerate(statuses))
+            actions = tuple(ActionResult(i,"light.a","turn_on",ActionStatus(status)) for i,status in enumerate(statuses))
             result = summarise_result(actions)
             self.assertIs(result.outcome, expected)
             self.assertEqual(result.actions, actions)
@@ -89,7 +90,7 @@ class ResultModelTests(TestCase):
         calls=[]
         def dispatch(action):
             calls.append(action.entity_id)
-            return DispatchResult("failed" if action.entity_id == "light.a" else "confirmed")
+            return DispatchResult(ActionStatus.FAILED if action.entity_id == "light.a" else ActionStatus.CONFIRMED)
         actions=execute_verified(plan,dispatch)
         self.assertEqual(calls,["light.a","light.b"])
         self.assertEqual([row.status for row in actions],
@@ -129,7 +130,7 @@ class TypedPipelineTests(TestCase):
         self.assertEqual(result.to_wire()["actions"][0]["status"],"confirmed")
 
     def test_acknowledgement_only_and_clarification_cannot_become_success(self):
-        result=self.pipeline(run_guarded_result,lambda _:DispatchResult("unverified","HTTP 200 only"))
+        result=self.pipeline(run_guarded_result,lambda _:DispatchResult(ActionStatus.UNVERIFIED,"HTTP 200 only"))
         self.assertIs(result.outcome,Outcome.UNVERIFIED)
         self.assertFalse(result.actions[0].confirmed)
         clarified=self.pipeline(run_guarded_result,lambda _:self.fail("Must not dispatch"),plan=())
@@ -140,6 +141,7 @@ class TypedPipelineTests(TestCase):
         directory=self.enterContext(tempfile.TemporaryDirectory())
         self.enterContext(patch.object(history,"DATABASE",Path(directory)/"history.db"))
         settings=dict(server.ai_settings.DEFAULTS,enabled=True)
+        connection: tuple[Any, ...]
         connection=("http://ha.local",{},Opener(["on","on"]))
         with patch.object(server.ai_settings,"read",return_value=settings), \
              patch.object(server,"ha_device_connection",return_value=connection), \

@@ -1,4 +1,5 @@
 """Follow-on and lighting responses retain typed evidence and voice context."""
+from typing import Any
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -67,6 +68,7 @@ class TypedFollowOnResponseTests(unittest.TestCase):
     def test_lighting_response_preserves_identity_context_and_none(self):
         dispatch = Mock(return_value=SimpleNamespace(result=self.original))
         context = Mock(return_value=("light.study",))
+        arguments: dict[str, Any]
         arguments = dict(source="assist", origin_device="study", satellite=None,
                          registry_factory=Mock(), context_factory=Mock(), matches=Mock(),
                          parse_light_command=Mock(), handle_light_request=Mock(),
@@ -95,6 +97,7 @@ class TypedFollowOnResponseTests(unittest.TestCase):
         self.assertIs(render.call_args.args[1], Outcome.REPORTED_SUCCESS)
 
     def test_response_context_rejects_invalid_lighting_and_voice_values(self):
+        fields: object
         for fields in ({"lighting_context": []}, {"lighting_context": (42,)},
                        {"routine_voice_result": ("Done", "confirmed")}):
             with self.subTest(fields=fields), self.assertRaises(ValueError):

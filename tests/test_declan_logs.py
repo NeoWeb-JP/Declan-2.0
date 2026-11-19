@@ -64,6 +64,7 @@ class DeclanLogTests(unittest.TestCase):
     def test_reattaches_handler_after_root_logger_reset(self):
         root = logging.getLogger()
         handler = declan_logs.STATE.handler
+        assert handler is not None
         root.removeHandler(handler)
         try:
             declan_logs.install()

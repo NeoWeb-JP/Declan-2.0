@@ -1,4 +1,5 @@
 """Routine evidence statuses remain distinct from verified action statuses."""
+from typing import Any
 import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import patch
@@ -46,9 +47,9 @@ class TypedRoutineActionEvidenceTests(unittest.TestCase):
             self.assertEqual(server.routine_action_results(invalid), [])
 
     def test_evidence_is_frozen_and_rejects_invalid_fields(self):
-        evidence = RoutineActionEvidence("light", "confirmed")
+        evidence = RoutineActionEvidence("light", RoutineActionStatus.CONFIRMED)
         with self.assertRaises(FrozenInstanceError):
-            evidence.status = RoutineActionStatus.REQUESTED
+            setattr(evidence, 'status', RoutineActionStatus.REQUESTED)
         for arguments in ({"target": "light", "status": "invalid"},
                           {"target": "x" * 241, "status": "confirmed"},
                           {"target": "light", "status": "confirmed", "required": 1},
@@ -59,6 +60,7 @@ class TypedRoutineActionEvidenceTests(unittest.TestCase):
     def test_completion_consumes_typed_evidence_without_legacy_roundtrip(self):
         payload = {"schema_version": 1, "request_id": "request", "routine_id": "script.tea",
                    "outcome": "success", "steps": [{"target": "light", "status": "already_set"}]}
+        steps: list[dict[str, Any]]
         steps = []
         with patch.object(server, "routine_action_results", side_effect=AssertionError("legacy evidence")), \
              patch.object(server, "add_sass", side_effect=lambda reply, *_: reply):

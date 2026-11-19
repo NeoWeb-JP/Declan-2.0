@@ -16,7 +16,7 @@ def chained_outcome_result(routine, lighting):
 
 def approved_area_labels(areas, *, room_key):
     """Expose readable HA area names without replacing them with legacy aliases."""
-    labels = {}
+    labels: dict[str, str] = {}
     # read_ha_areas includes compatibility aliases (e.g. bedroom for
     # Master Bedroom). Prefer the full HA area name over its alias.
     for name in areas:

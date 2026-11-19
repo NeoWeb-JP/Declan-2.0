@@ -1,3 +1,4 @@
+from typing import Any
 import io
 import json
 import os
@@ -29,10 +30,12 @@ def response(plan):
 class OpenAIPlannerTests(unittest.TestCase):
     def test_response_result_is_typed_frozen_and_not_an_execution_result(self):
         result = ModelResponseResult.parse(response({"actions": []}))
+        assert result.text is not None
         self.assertIs(result.status, ModelResponseStatus.COMPLETED)
         self.assertEqual(json.loads(result.text), {"actions": []})
         with self.assertRaises(AttributeError):
             setattr(result, "text", "changed")
+        status: object
         for status in ("incomplete", "failed", "cancelled", "in_progress", "queued", "COMPLETED", None, [], {}):
             with self.subTest(status=status):
                 parsed = ModelResponseResult.parse({"status": status, "output": "ignored"})
@@ -42,14 +45,17 @@ class OpenAIPlannerTests(unittest.TestCase):
     def test_invalid_provider_results_still_account_usage_before_rejection(self):
         valid = response({"actions": []})
         message = valid["output"][0]
+        statuses: tuple[object, ...] = ("incomplete", "future", "COMPLETED", [], None)
+        cases: list[dict[str, Any]]
         cases = [{"status": status, "output": valid["output"]}
-                 for status in ("incomplete", "future", "COMPLETED", [], None)]
+                 for status in statuses]
         cases.extend({"status": "completed", "output": output} for output in
                      ([], [message, message], [None], [{**message, "content": None}],
                       [{**message, "content": [{"type": "output_text", "text": []}]}]))
         for payload in cases:
             with self.subTest(payload=payload):
                 payload["usage"] = {"input_tokens": 10, "output_tokens": 2}
+                usage: list[dict[str, Any]]
                 usage = []
                 with self.assertRaisesRegex(ValueError, "^Invalid model plan$"):
                     request_plan("lights on", ["light.kitchen"], opener=FakeOpener(payload),
@@ -60,6 +66,7 @@ class OpenAIPlannerTests(unittest.TestCase):
         opener = FakeOpener(response({"actions": [{"entity_id": "light.kitchen", "service": "turn_on"}]}))
         plan = request_plan("lights on", ["light.kitchen"], opener=opener, model="gpt-5-mini", api_key="test")
         self.assertEqual(plan[0].entity_id, "light.kitchen")
+        assert opener.request is not None
         body = json.loads(opener.request.data)
         self.assertFalse(body["store"])
         self.assertEqual(body["max_output_tokens"], 600)
@@ -77,6 +84,7 @@ class OpenAIPlannerTests(unittest.TestCase):
         data = response({"actions": []})
         data["usage"] = {"input_tokens": 120, "output_tokens": 35}
         opener = FakeOpener(data)
+        captured: list[dict[str, Any]]
         captured = []
         request_plan("turn on kitchen", ["light.kitchen"], opener=opener,
                      model="gpt-5-mini", api_key="test",
@@ -84,6 +92,7 @@ class OpenAIPlannerTests(unittest.TestCase):
                      inventory=[{"entity_id": "light.kitchen", "state": "off",
                                  "attributes": {"friendly_name": "Kitchen"}}])
         self.assertEqual(captured, [{"input_tokens": 120, "output_tokens": 35}])
+        assert opener.request is not None
         body = json.loads(opener.request.data)
         context = json.loads(body["input"])["current_state"]
         self.assertEqual(context[0]["name"], "Kitchen")
@@ -107,7 +116,9 @@ class OpenAIPlannerTests(unittest.TestCase):
         with patch.dict(os.environ, {"DECLAN_OPENAI_MODEL": "gpt-5-mini",
                                      "OPENAI_API_KEY": "environment-test-key"}):
             self.assertEqual(request_plan("lights on", [], opener=opener), ())
+        assert opener.request is not None
         self.assertEqual(json.loads(opener.request.data)["model"], "gpt-5-mini")
+        assert opener.request is not None
         self.assertEqual(opener.request.get_header("Authorization"), "Bearer environment-test-key")
 
     def test_explicit_model_and_key_override_environment(self):
@@ -116,7 +127,9 @@ class OpenAIPlannerTests(unittest.TestCase):
                                      "OPENAI_API_KEY": ""}):
             self.assertEqual(request_plan("lights on", [], opener=opener,
                                           model="gpt-5-mini", api_key="explicit-key"), ())
+        assert opener.request is not None
         self.assertEqual(json.loads(opener.request.data)["model"], "gpt-5-mini")
+        assert opener.request is not None
         self.assertEqual(opener.request.get_header("Authorization"), "Bearer explicit-key")
 
     def test_unset_environment_configuration_fails_before_network(self):

@@ -15,7 +15,7 @@ def execute_verified(plan, dispatcher):
     if not callable(dispatcher):
         raise ValueError("Trusted dispatcher is required")
     results = []
-    outcomes = {}
+    outcomes: dict[int, bool] = {}
     for decision in execution_order_result(plan, outcomes):
         index, action = decision.index, decision.action
         if decision.status is ActionReadiness.SKIPPED_DEPENDENCY:

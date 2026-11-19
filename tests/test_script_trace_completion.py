@@ -1,4 +1,6 @@
 """Empty script responses use exact invocation evidence without replaying actions."""
+from http_test_doubles import HTTPResponse
+from email.message import Message
 import io
 import json
 import unittest
@@ -19,6 +21,7 @@ class TraceCompletionTests(unittest.TestCase):
                 self.assertEqual(len(calls), 1)
 
     def test_trace_protocol_unknown_or_malformed_status_never_claims_success(self):
+        status: object
         for status in ("skipped", "unverified", "finished", "FINISHED_UNVERIFIED", [], None):
             with self.subTest(status=status):
                 result, calls = self.execute(status=status)
@@ -39,7 +42,7 @@ class TraceCompletionTests(unittest.TestCase):
                     raise error
                 payload = {"entity_id": "script.dinner", "context_id": "context1", "evidence": "ha_trace",
                            "run_id": "run1", "status": status, **(evidence_override or {})}
-            response = io.BytesIO(json.dumps(payload).encode())
+            response = HTTPResponse(json.dumps(payload).encode())
             response.status = 200
             return response
         opener = Mock(open=open_request)
@@ -72,7 +75,7 @@ class TraceCompletionTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
     def test_trace_lookup_failure_never_replays_script(self):
-        for error in (TimeoutError(), HTTPError("http://ha", 404, "missing", {}, io.BytesIO(b""))):
+        for error in (TimeoutError(), HTTPError("http://ha", 404, "missing", Message(), io.BytesIO(b""))):
             result, calls = self.execute(error=error)
             self.assertEqual(result[1], "unverified")
             self.assertEqual([call.get_method() for call in calls], ["POST", "GET"])

@@ -1,4 +1,5 @@
 """Lighting dispatch orchestration regression tests."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 from lighting_result_dispatch import dispatch_lighting_result
@@ -10,6 +11,7 @@ class LightingResultDispatchTests(unittest.TestCase):
         self.dispatched.result.as_legacy_pair.return_value = ("Lights on", "confirmed")
         self.dispatch = Mock(return_value=self.dispatched)
         self.context = Mock(return_value=("light.kitchen",))
+        self.actions: list[dict[str, Any]]
         self.actions = []
         self.args = dict(source="assist", origin_device="kitchen", satellite=None,
                          registry_factory=Mock(), context_factory=Mock(),

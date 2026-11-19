@@ -1,4 +1,5 @@
 """Grouped information/device/lighting dispatch precedence tests."""
+from typing import Any
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -13,6 +14,7 @@ class FallbackDispatchTests(unittest.TestCase):
             'parse_control', 'control_result', 'play_result',
             'dispatch_lighting', 'confirmed_lighting_context',
         )})
+        self.args: tuple[Any, ...]
         self.args = ("test", "assist", None, None, None, None, None, [], None, None, None)
         self.kwargs = dict(
             command_registry=SimpleNamespace(information_registry=None, RequestContext=None, registry=None, Dependencies=None, lighting_registry=None),

@@ -1,7 +1,7 @@
 """Read-only weather and local-time queries."""
 
 from execution_results import ExecutionResult, Outcome
-from information_result import InformationResult
+from information_result import InformationResult, InformationCategory
 import json
 import math
 import os
@@ -77,7 +77,7 @@ def reading(value, unit):
     if type(value) not in (int, float) or not math.isfinite(value):
         return None
     suffix = {"°C": " degrees Celsius", "°F": " degrees Fahrenheit"}.get(
-        unit if isinstance(unit, str) else None, " degrees"
+        unit if isinstance(unit, str) else "", " degrees"
     )
     return f"{round(value, 1):g}{suffix}"
 
@@ -131,7 +131,8 @@ def home_temperatures_result(opener, *, indoors_only=False, outdoors_only=False,
     reply = f"It's {outside} outside." if outside else "The outside temperature is unavailable."
     if outdoors_only:
         return ExecutionResult(reply, Outcome.CONFIRMED if outside else Outcome.UNAVAILABLE)
-    condition = HA_CONDITIONS.get(outside_state.get("state")) if report else None
+    outside_condition = outside_state.get("state")
+    condition = HA_CONDITIONS.get(outside_condition) if report and isinstance(outside_condition, str) else None
     if condition:
         reply = f"Outside, it's {condition} and {outside}." if outside else f"Outside, it's {condition}. {reply}"
     elif report:
@@ -285,7 +286,10 @@ def home_forecast(opener):
         if not isinstance(row, dict):
             continue
         try:
-            stamp = datetime.fromisoformat(row.get("datetime"))
+            raw_stamp = row.get("datetime")
+            if not isinstance(raw_stamp, str):
+                continue
+            stamp = datetime.fromisoformat(raw_stamp)
             day = stamp.astimezone(timezone).date() if stamp.tzinfo else stamp.date()
         except (TypeError, ValueError):
             continue
@@ -326,14 +330,14 @@ def forecast_reply_result(opener, match):
     if place:
         location, error = find_place(opener, place)
         if error:
-            return InformationResult(ExecutionResult(error, Outcome.UNRESOLVED), "weather")
+            return InformationResult(ExecutionResult(error, Outcome.UNRESOLVED), InformationCategory.WEATHER)
         name = place_name(location)
         forecast, today, unit = place_forecast(opener, location)
     else:
         name = "home"
         forecast, today, unit = home_forecast(opener)
     if not today:
-        return InformationResult(ExecutionResult(f"I couldn't verify the forecast for {name}.", Outcome.UNAVAILABLE), "weather")
+        return InformationResult(ExecutionResult(f"I couldn't verify the forecast for {name}.", Outcome.UNAVAILABLE), InformationCategory.WEATHER)
 
     temperature_only = "temperature" in kind
     rain_only = kind == "will it rain"
@@ -361,7 +365,7 @@ def forecast_reply_result(opener, match):
             reports.append(f"I couldn't verify {'the forecast temperature' if temperature_only else 'a forecast'} for {label}.")
     outcome = Outcome.CONFIRMED if available == len(days) else Outcome.PARTIAL if available else Outcome.UNAVAILABLE
     location_intro = "For home" if not place else f"For {name}"
-    return InformationResult(ExecutionResult(location_intro + ". " + " ".join(reports), Outcome(outcome)), "weather")
+    return InformationResult(ExecutionResult(location_intro + ". " + " ".join(reports), Outcome(outcome)), InformationCategory.WEATHER)
 
 
 def forecast_question(phrase):
@@ -440,9 +444,9 @@ def handle_result(phrase, opener):
         home_result = home_temperatures_result(
             opener, indoors_only=phrase in INSIDE, outdoors_only=outdoors_only, report=report
         )
-        return InformationResult(home_result, "weather")
+        return InformationResult(home_result, InformationCategory.WEATHER)
     kind, query = place.group("kind", "place")
-    category = "time" if kind.endswith("time") else "weather"
+    category = InformationCategory.TIME if kind.endswith("time") else InformationCategory.WEATHER
     location, error = find_place(opener, query)
     if location is None:
         return InformationResult(ExecutionResult(error, Outcome.UNRESOLVED), category)

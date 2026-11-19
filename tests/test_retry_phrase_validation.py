@@ -13,9 +13,10 @@ class RetryPhraseValidationTests(unittest.TestCase):
 
     def test_invalid_voice_phrases(self):
         class HostileText(str):
-            def strip(self):
+            def strip(self, chars: str | None = None) -> str:
                 raise RuntimeError("unexpected subclass operation")
 
+        value: object
         for value in (None, 42, [], {}, "", "  ", True,
                       "x" * (MAX_RETRY_PHRASE_LENGTH + 1), HostileText("lights on")):
             with self.subTest(type=type(value).__name__):

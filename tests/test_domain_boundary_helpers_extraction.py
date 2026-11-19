@@ -1,4 +1,5 @@
 """Regression coverage for extracted domain boundary helpers."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 
@@ -14,6 +15,7 @@ class DomainBoundaryHelperTests(unittest.TestCase):
         self.assertIs(server.chained_outcome_result(Outcome.FAILED, Outcome.CONFIRMED), Outcome.PARTIAL)
 
     def test_area_aliases_keep_longest_name(self):
+        areas: dict[str, Any]
         areas = {"bedroom": set(), "master bedroom": set(), "kitchen": set()}
         labels = helpers.approved_area_labels(areas, room_key=lambda name: "bedroom" if "bedroom" in name else name)
         self.assertEqual(labels["bedroom"], "Master Bedroom")

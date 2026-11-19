@@ -42,7 +42,7 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 | Server service locator | Confirmed residual coupling, explicitly retained by #756. Narrow dependencies where a demonstrated consumer/lifecycle requirement warrants it; no wrapper-only extraction campaign. |
 | Source-coupled tests | Confirmed. A scoped scan finds 56 Python files containing read_text/getsource; the supplied larger counts were not reproduced using that same pattern. Replace structural assertions selectively with behavior/fault tests; do not remove safety coverage to reduce counts. |
 | Coverage threshold | Current gate is 75%. The claimed historical reduction and reason have not been audited here. Measure behavior coverage and restore stronger gates with evidence, rather than changing a number without a passing baseline. |
-| Mypy scope | follow_imports=skip and missing-import relaxation are real limitations. Validation also found an unindented multiline-regex terminator that causes config parsing to fail while mypy can report success using defaults. This batch fixes parsing and adds a config-parser regression; first-party import following remains a separate expansion. |
+| Mypy scope | follow_imports=skip and missing-import relaxation remain limitations. An unindented multiline-regex terminator caused config parsing to fail while mypy could report success using defaults. This batch fixes parsing, adds a parser regression and repairs the exposed source/test diagnostics. The intended Linux check now passes locally; first-party import following remains a separate expansion. |
 | Broad exception boundaries | Requires site-by-site review. The supplied exact count is not adopted as evidence. Keep deliberate execution/service/accounting boundaries and preserve privacy-safe diagnostics. |
 | Capture arbitration | First accepted capture is the current #12 VOI-01 requirement, not a newly introduced best-capture regression. Narrow phrase normalization and 4096-cap rejection are present and need duplicate/overload observability tests. Do not silently change the accepted winner policy. |
 | Updater trust | github default is an accepted owner trust model, not signature verification. A stricter default requires an explicit policy change; crash-loop/data rollback concerns still require verification and tests. |
@@ -63,13 +63,23 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 Issue #17 remains open. These findings are not resolved by documentation or by
 the separate, still-unreleased VoicePipeline encryption candidate.
 
-## Validation blocker: previously hidden type errors
+## Previously hidden type errors and CI correction
 
 With mypy 1.18.2, the malformed configuration reports a parsing error but can
 exit successfully using defaults. Indenting the regex terminator restores the
-intended check_untyped_defs setting. The corrected configuration exposes 652
-diagnostics in 164 files in the Windows validation environment (676 checked
-files); platform and dependency differences can change this count. This is not
-a passing typing baseline. No suppressions, exclusions or lower gates were
-added to conceal it. This corrective PR remains a draft pending a clean intended
-Linux CI type check and correction of the existing diagnostics.
+intended check_untyped_defs setting. The first repaired-config commit exposed
+652 diagnostics in Windows and 648 in Linux CI. Those diagnostics have now been
+repaired: validated numeric and optional inputs are narrowed explicitly, mixed
+data collections have declared types, and result producers use their enum
+contracts. Shared test setup is inherited through fixtures; HTTP doubles carry
+real response/header interfaces, and dynamically registered modules are explicit.
+The Spotify pagination fixture now resets the actual runtime token cache.
+
+Intentional invalid-input and legacy-coercion tests still call the real runtime
+validators; casts at those test boundaries permit deliberate violations of the
+static contract. No existing test methods were removed, production type-error
+suppressions added, checked paths excluded, or coverage thresholds reduced.
+Local validation: the intended Linux mypy 1.18.2 command passes across 677
+source files; all 2,397 regressions pass with 86.98% Python line coverage.
+Ruff, Bandit and the source-location guard also pass. Before merge, require
+the final commit's Linux CI checks to pass.

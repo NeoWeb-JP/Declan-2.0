@@ -35,7 +35,7 @@ def discover_movie_entities(connection, room, *, script, remote, needs_remote, i
     room_names = {"lounge": ("lounge", "living room"), "bedroom": ("bedroom", "master bedroom")}
     areas = area_reader(connection) if needs_remote and not remote else {}
     area_members = set().union(*(areas.get(name, set()) for name in room_names[room]))
-    candidates = {"script": set(), "remote": set()}
+    candidates: dict[str, set[str]] = {"script": set(), "remote": set()}
     for row in inventory:
         if not isinstance(row, dict):
             continue

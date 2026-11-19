@@ -200,7 +200,12 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
         return None
     try:
         if creation or duration_first:
-            prefix, duration_text = creation.groups() if creation else (None, duration_first[1])
+            if creation is not None:
+                prefix, duration_text = creation.groups()
+            else:
+                if duration_first is None:
+                    return None
+                prefix, duration_text = None, duration_first[1]
             duration_text, separator, suffix = duration_text.partition(" for ")
             duration = duration_seconds(duration_text)
             if duration is None:
@@ -255,6 +260,8 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
             expired = timer["deadline"] <= now
             named_timer = timer_label(timer["name"])
             if adjustment:
+                if amount is None:
+                    return ExecutionResult("Give me a valid timer adjustment.", Outcome.UNRESOLVED)
                 if expired:
                     return ExecutionResult(f"The {named_timer} in {timer['room']} has already expired.", Outcome.UNRESOLVED)
                 increase = adjustment[1] == "increase"
@@ -268,6 +275,8 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
                 label = f"The {named_timer} in {timer['room']}"
                 return ExecutionResult(f"{label} now has {format_duration(remaining)} left." if remaining
                         else f"{label} is due now.", Outcome.TIMER_ADJUSTED)
+            if removal is None:
+                return None
             if removal[1] == "cancel" and expired:
                 return ExecutionResult(f"{timer['name']} has already expired. Say stop the {named_timer} to silence its alarm.", Outcome.UNRESOLVED)
             if removal[1] != "cancel" and not expired:

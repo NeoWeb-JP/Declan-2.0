@@ -35,6 +35,7 @@ class AISettingsPostTests(TestCase):
         )
 
     def test_invalid_payloads_do_not_mutate(self):
+        body: object
         for body in (None, [], {}, {"api_key": "x", "settings": {}}, {"unknown": 1}):
             with self.subTest(body=body):
                 self.handler.reset_mock()

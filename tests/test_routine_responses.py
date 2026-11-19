@@ -1,4 +1,5 @@
 """User response lists, persistence, selection, and concurrent editing."""
+from typing import Any
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from concurrent.futures import ThreadPoolExecutor
@@ -14,6 +15,7 @@ from execution_results import Outcome, parse_outcome
 
 class RoutineResponsesTests(TestCase):
     def test_response_rendering_never_reads_another_credential_cache(self):
+        live: dict[str, Any]
         live = {**self.item, "name": "Private script name", "fields": ["request_id"]}
         cached = script_discovery.DiscoveryResult((live,))
         cache = script_discovery.ScriptDiscoveryCache()
@@ -31,12 +33,14 @@ class RoutineResponsesTests(TestCase):
     def test_typed_phase_selection_preserves_failure_diagnostics(self):
         for outcome in Outcome:
             with self.subTest(outcome=outcome), patch.object(responses, "select", return_value="Custom line"):
+                selection: tuple[Any, ...]
                 selection = ("auto:" + self.item["entity_id"], {})
                 self.assertEqual(responses.render(selection, outcome, "Diagnostic"),
                                  responses.render(selection, outcome.value, "Diagnostic"))
                 phase = responses.response_phase(outcome)
                 if phase is responses.ResponsePhase.FAILURE:
                     self.assertEqual(responses.render(selection, outcome, "Diagnostic"), "Custom line Diagnostic")
+        unknown: object
         for unknown in ("future_outcome", [], None):
             self.assertIsNone(parse_outcome(unknown))
             self.assertIsNone(responses.response_phase(unknown))

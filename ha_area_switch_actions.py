@@ -32,7 +32,7 @@ def read_ha_areas(connection, origin=None, *, request_factory=Request):
             rows = json.loads(response.read(1024 * 1024))
         if not isinstance(rows, list):
             return {}
-        areas = {}
+        areas: dict[str, set[str]] = {}
         for label, entities in rows:
             if not isinstance(label, str) or not isinstance(entities, list):
                 return {}

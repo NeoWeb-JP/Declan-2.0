@@ -1,4 +1,5 @@
 """Regression tests for extracted household and routine selection boundaries."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 
@@ -32,6 +33,7 @@ class HouseholdSelectionBoundaryTests(unittest.TestCase):
 
     def test_execution_forwards_approval_and_evidence(self):
         r = Mock()
+        evidence: list[dict[str, Any]]
         evidence = []
         boundaries.execute_routine_result("movie", evidence, approved=True, r=r)
         args = r.routine_turn_orchestration.execute_routine_result.call_args

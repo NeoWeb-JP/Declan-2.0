@@ -1,4 +1,5 @@
 """Turn persistence dispatch regression tests."""
+from typing import Any
 import unittest
 from unittest.mock import Mock
 from turn_persistence_orchestration import persist_turn
@@ -7,6 +8,7 @@ from turn_persistence_orchestration import persist_turn
 class TurnPersistenceDispatchTests(unittest.TestCase):
     def setUp(self):
         self.reply = {"session_id": "abc", "reply": "Done"}
+        self.session: dict[str, Any]
         self.session = {"history": []}
         self.sessions = {"abc": self.session}
         self.finalize = Mock(return_value="persisted")

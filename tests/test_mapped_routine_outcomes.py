@@ -1,4 +1,5 @@
 """Typed mapped routine execution preserves evidence and legacy contracts."""
+from email.message import Message
 import io
 import json
 import unittest
@@ -51,7 +52,7 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
 
     def test_rejected_request_is_not_retried_and_lock_is_released(self):
         opener = Mock()
-        opener.open.side_effect = HTTPError("http://ha", 403, "denied", {}, io.BytesIO())
+        opener.open.side_effect = HTTPError("http://ha", 403, "denied", Message(), io.BytesIO())
         mapping = {"morning": {"script": "script.morning", "fields": {}, "sensitive": False}}
         with patch.object(server.routine_registry, "load", return_value=mapping), \
              patch.object(server, "ha_device_connection", return_value=("http://ha", {}, opener)), \

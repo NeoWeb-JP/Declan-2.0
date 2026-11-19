@@ -1,4 +1,5 @@
 """Typed sensitive confirmations retain origin binding, expiry and blocking."""
+from typing import Any, cast
 import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
@@ -58,6 +59,7 @@ class TypedConfirmationResultTests(unittest.TestCase):
     def test_turn_blocks_prompt_and_only_replaces_phrase_on_confirmed_unblocked_decision(self):
         evaluate = Mock()
         response = Mock()
+        arguments: dict[str, Any]
         arguments = dict(source="assist", satellite="kitchen", origin_device=None,
                          speaker=None, evaluate=evaluate, confirmation_response=response,
                          normalize=Mock(), guest_commands={}, confirmations=Mock(),
@@ -90,12 +92,12 @@ class TypedConfirmationResultTests(unittest.TestCase):
     def test_models_reject_invalid_or_unsafe_confirmed_contracts(self):
         for decision, phrase in (("invalid", None), ("confirmed", None), ("confirmed", ""), ("allow", 42)):
             with self.assertRaises(ValueError):
-                ConfirmationEvaluation(decision, phrase)
+                cast(Any, ConfirmationEvaluation)(decision, phrase)
         with self.assertRaises(ValueError):
             ConfirmationTurnResult("session", "approved", {"reply": "blocked"}, True)
         result = ConfirmationEvaluation(ConfirmationDecision.ALLOW)
         with self.assertRaises(FrozenInstanceError):
-            result.decision = ConfirmationDecision.CONFIRMED
+            setattr(result, 'decision', ConfirmationDecision.CONFIRMED)
 
 
 if __name__ == "__main__":

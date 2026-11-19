@@ -1,4 +1,5 @@
 """Fallback diagnostic evidence stays typed without exposing redacted details."""
+from typing import Any
 import json
 import unittest
 from dataclasses import FrozenInstanceError
@@ -53,6 +54,7 @@ class TypedFallbackEvidenceTests(unittest.TestCase):
         evidence = FallbackActionEvidence.from_action(self.action(), include_detail=False)
         execution = ExecutionResult("Cannot verify", Outcome.UNVERIFIED)
         response = FallbackResponse(execution, (evidence,))
+        rows: list[dict[str, Any]]
         rows = []
         dispatch_fallback_result("lights", source="assist", exposed_entities=(),
                                  fallback_handler=lambda *args, **kwargs: response, action_results=rows)

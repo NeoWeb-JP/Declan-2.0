@@ -10,7 +10,7 @@ class ChatRecallStringBoundaryTests(unittest.TestCase):
 
     def test_hostile_subclass_is_not_inspected(self):
         class HostileText(str):
-            def strip(self):
+            def strip(self, chars: str | None = None) -> str:
                 raise RuntimeError("unexpected strip")
         self.assertIsNone(safe_chat_text(HostileText("hello")))
 

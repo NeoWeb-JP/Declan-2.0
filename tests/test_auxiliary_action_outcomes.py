@@ -1,4 +1,5 @@
 """Auxiliary actions keep typed outcomes without retrying uncertain requests."""
+from typing import Any, cast
 import io
 import json
 import unittest
@@ -36,7 +37,7 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
     def test_movie_launch_rejects_invalid_status_and_detail(self):
         for status, detail in (("confirmed", "detail"), ("sent", None)):
             with self.assertRaises(ValueError):
-                MovieLaunchResult(status, detail)
+                cast(Any, MovieLaunchResult)(status, detail)
 
     def test_dinner_quiet_hours_remain_typed_skipped_without_dispatch(self):
         opener = Mock()

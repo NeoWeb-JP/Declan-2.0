@@ -8,6 +8,7 @@ import server
 
 class HomeAssistantPresenceEnvironmentTests(unittest.TestCase):
     def test_guest_mode_missing_or_invalid_connection_does_not_call_network(self):
+        settings: tuple[dict[str, str], ...]
         settings = ({}, {"DECLAN_HA_URL": "https://ha.example"},
                     {"DECLAN_HA_URL": "https://ha.example", "DECLAN_HA_TOKEN": " "},
                     {"DECLAN_HA_URL": "ftp://ha.example", "DECLAN_HA_TOKEN": "token"},
@@ -21,6 +22,7 @@ class HomeAssistantPresenceEnvironmentTests(unittest.TestCase):
                 opener.assert_not_called()
 
     def test_visitor_presence_missing_or_invalid_connection_does_not_call_network(self):
+        settings: tuple[dict[str, str], ...]
         settings = ({}, {"DECLAN_HA_URL": "https://ha.example"},
                     {"DECLAN_HA_URL": "https://ha.example", "DECLAN_HA_TOKEN": " "},
                     {"DECLAN_HA_URL": "file:///tmp/test", "DECLAN_HA_TOKEN": "token"},

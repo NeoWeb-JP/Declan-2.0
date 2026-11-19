@@ -12,6 +12,7 @@ class SessionIdentityTests(unittest.TestCase):
     def test_invalid_identifiers(self):
         class CustomId(str):
             pass
+        value: object
         for value in (None, "", "x" * 257, 1, True, [], {}, CustomId("session")):
             with self.subTest(value=repr(value)):
                 self.assertFalse(valid_session_id(value))

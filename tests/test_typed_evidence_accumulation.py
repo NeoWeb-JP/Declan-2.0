@@ -1,4 +1,5 @@
 """Active request evidence stays typed until explicit wire/history adapters."""
+from typing import Any
 import unittest
 from unittest.mock import Mock, patch
 
@@ -20,6 +21,7 @@ import turn_context_preparation
 
 class TypedEvidenceAccumulationTests(unittest.TestCase):
     def test_completion_gate_preserves_each_provider_vocabulary_and_legacy_rows(self):
+        rows: list[tuple[object, bool]]
         rows = [(LightingActionEvidence("Study", "turn_on", status), status in
                  {LightingActionStatus.CONFIRMED, LightingActionStatus.ALREADY_SET}) for status in LightingActionStatus]
         rows.extend((RoutineActionEvidence("Routine", status), status in
@@ -31,14 +33,15 @@ class TypedEvidenceAccumulationTests(unittest.TestCase):
         for row, completed in rows:
             with self.subTest(row=row), patch.object(type(row), "to_wire", side_effect=AssertionError("early projection")):
                 self.assertIs(evidence_completed(row), completed)
-        for status, completed in (("confirmed", True), ("already_set", True), ("completed", True),
+        for wire_status, completed in (("confirmed", True), ("already_set", True), ("completed", True),
                                   ("sent", False), ("requested", False), ("planned", False),
                                   ("CONFIRMED", False), ("future", False), ([], False), (None, False)):
-            self.assertIs(evidence_completed({"status": status}), completed)
+            self.assertIs(evidence_completed({"status": wire_status}), completed)
         self.assertFalse(evidence_completed(object()))
 
     def test_typed_sink_retains_identity_while_legacy_sink_gets_mappings(self):
-        evidence = LightingActionEvidence("Study", "turn_on", "confirmed", "light.study")
+        evidence = LightingActionEvidence("Study", "turn_on", LightingActionStatus.CONFIRMED, "light.study")
+        legacy: list[dict[str, Any]]
         typed, legacy = ActionEvidenceBuffer(), []
         with patch.object(LightingActionEvidence, "to_wire", side_effect=AssertionError("early projection")):
             append_action_evidence(typed, evidence)
@@ -49,8 +52,9 @@ class TypedEvidenceAccumulationTests(unittest.TestCase):
         self.assertEqual(action_evidence_to_wire(typed), legacy)
 
     def test_mixed_transfer_preserves_legacy_rows_and_typed_identity(self):
-        evidence = RoutineActionEvidence("Music", "requested", action="play", required=False)
+        evidence = RoutineActionEvidence("Music", RoutineActionStatus.REQUESTED, action="play", required=False)
         old = {"status": "legacy", "extra": True}
+        legacy: list[dict[str, Any]]
         typed, legacy = ActionEvidenceBuffer(), []
         extend_action_evidence(typed, [evidence, old])
         extend_action_evidence(legacy, typed)
@@ -71,6 +75,7 @@ class TypedEvidenceAccumulationTests(unittest.TestCase):
         self.assertIs(steps[0].status, LightingActionStatus.PLANNED)
 
     def test_mapped_routine_completion_retains_typed_evidence(self):
+        rows: list[dict[str, str]]
         rows = [{"target": "light", "status": "already_set"}]
         payload = {"schema_version": 1, "request_id": "request", "routine_id": "script.tea", "outcome": "success", "steps": rows}
         steps = ActionEvidenceBuffer()
@@ -82,9 +87,10 @@ class TypedEvidenceAccumulationTests(unittest.TestCase):
         self.assertEqual(action_evidence_to_wire(steps), rows)
 
     def test_context_and_retry_consumers_read_typed_fields_without_projection(self):
-        evidence = LightingActionEvidence("Study", "turn_on", "skipped", detail="unresolved")
+        evidence = LightingActionEvidence("Study", "turn_on", LightingActionStatus.SKIPPED, detail="unresolved")
         steps = ActionEvidenceBuffer([evidence])
         suggest = Mock(return_value=None)
+        session: dict[str, Any]
         session, reply = {}, {"reply": "Unmatched"}
         with patch.object(LightingActionEvidence, "to_wire", side_effect=AssertionError("early projection")):
             actions, _ = turn_context_preparation.prepare_turn_context(None, action_results=steps,
@@ -97,7 +103,7 @@ class TypedEvidenceAccumulationTests(unittest.TestCase):
         self.assertTrue(reply["continue_conversation"])
 
     def test_persona_optional_music_feedback_retains_requested_semantics(self):
-        evidence = RoutineActionEvidence("dinner_music", "requested", action="request_playback", required=False)
+        evidence = RoutineActionEvidence("dinner_music", RoutineActionStatus.REQUESTED, action="request_playback", required=False)
         with patch.object(RoutineActionEvidence, "to_wire", side_effect=AssertionError("early projection")):
             reply = personality_policy.dinner_music_feedback([evidence], guest=True, visitor_present=False)
         self.assertIn("requested", reply)

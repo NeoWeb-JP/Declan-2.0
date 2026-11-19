@@ -63,7 +63,7 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
                 payload = await response.json(content_type="application/json")
                 if not isinstance(payload, dict) or not isinstance(payload.get("categories"), dict):
                     raise ValueError("Invalid Spotify playlist catalogue")
-                categories = {}
+                categories: dict[str, dict[str, list[str] | dict[str, str]]] = {}
                 for name in list(payload["categories"])[:50]:
                     item = payload["categories"].get(name, {})
                     if not isinstance(item, dict):
@@ -73,7 +73,9 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
                                 if isinstance(uri, str) and uri.startswith("spotify://playlist/") and len(uri) == 41]
                         for field in ("playlists", "manual", "favourites", "excluded", "discovered")
                     }
-                    titles = item.get("titles") if isinstance(item.get("titles"), dict) else {}
+                    titles = item.get("titles")
+                    if not isinstance(titles, dict):
+                        titles = {}
                     categories[name]["titles"] = {
                         uri: title[:160] for uri, title in titles.items()
                         if isinstance(uri, str) and uri in categories[name]["playlists"]

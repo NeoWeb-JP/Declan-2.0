@@ -38,7 +38,7 @@ def defaults(item):
     import personality_policy as policy
     import personality
     import script_discovery
-    profile = {phase: {mode: {action: [] for action in ACTIONS} for mode in MODES} for phase in PHASES}
+    profile: dict[str, dict[str, dict[str, list[str]]]] = {phase: {mode: {action: [] for action in ACTIONS} for mode in MODES} for phase in PHASES}
     aliases = script_discovery.phrases(item)
     category = next((name for name, aliases_for in (
         ("morning", {"good morning"}), ("night", {"good night"}),

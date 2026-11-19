@@ -1,5 +1,7 @@
 """Check registry discovery when HA attributes contain native datetime values."""
 
+from email.message import Message
+from typing import Any
 import io
 import json
 from datetime import datetime, timezone
@@ -18,7 +20,7 @@ class MusicInventoryTests(TestCase):
         entity = "media_player.utility_queue"
         satellite = "assist_satellite.utility"
         timestamp = datetime(2026, 11, 11, 8, 30, tzinfo=timezone.utc)
-        states = [
+        states: list[dict[str, Any]] = [
             {"entity_id": entity, "state": "playing", "attributes": {
                 "friendly_name": "Utility Room", "media_title": "Country song",
                 "media_content_id": "spotify:track:0JkIre0YxNmKGMU5V7ZiDx",
@@ -60,11 +62,11 @@ class MusicInventoryTests(TestCase):
 
     def test_unavailable_states_do_not_produce_partial_inventory(self):
         opener = Mock()
-        opener.open.side_effect = HTTPError("http://ha.invalid/api/states", 401, "Unauthorized", {}, None)
+        opener.open.side_effect = HTTPError("http://ha.invalid/api/states", 401, "Unauthorized", Message(), None)
         self.assertEqual(server.read_music_inventory(("http://ha.invalid", {}, opener)), (None, "unavailable"))
         self.assertEqual(opener.open.call_count, 1)
 
     def test_unavailable_registry_does_not_produce_partial_inventory(self):
         opener = Mock()
-        opener.open.side_effect = [HTTPError("http://ha.invalid/api/template", 500, "Error", {}, None)]
+        opener.open.side_effect = [HTTPError("http://ha.invalid/api/template", 500, "Error", Message(), None)]
         self.assertEqual(server.read_music_inventory(("http://ha.invalid", {}, opener)), (None, "unavailable"))

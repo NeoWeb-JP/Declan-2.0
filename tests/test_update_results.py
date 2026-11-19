@@ -1,4 +1,5 @@
 """Updater busy decisions stay typed while public status fields remain lossless."""
+from typing import Any
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from update_results import UpdateJobState, UpdateStatusResult
 
 class UpdateResultTests(unittest.TestCase):
     def test_status_snapshots_are_frozen_isolated_and_lossless(self):
+        fields: dict[str, Any]
         for state in (*UpdateJobState, "future_state", None):
             raw = state.value if isinstance(state, UpdateJobState) else state
             fields = {"state": raw, "version": "1.2.3", "backup": "backup", "extra": {"kept": [1]}}

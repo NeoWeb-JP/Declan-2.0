@@ -45,6 +45,7 @@ class HistoryConcurrencyTests(TestCase):
 
     def test_ordinary_reads_issue_no_ddl_write_transaction_or_delete(self):
         history.initialize()
+        statements: list[str]
         statements = []
         connect = sqlite3.connect
         def traced(*args, **kwargs):

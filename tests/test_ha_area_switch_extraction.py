@@ -1,4 +1,5 @@
 """Regression tests for extracted HA area and switch-as-light boundaries."""
+from typing import Any
 import json
 import unittest
 from unittest.mock import patch
@@ -34,6 +35,7 @@ class Opener:
 class AreaSwitchExtractionTests(unittest.TestCase):
     def test_area_aliases_and_origin_template(self):
         opener = Opener([["Master Bedroom", ["light.bedroom"]], ["Study", ["light.study"]]])
+        connection: tuple[Any, ...]
         connection = ("https://ha.example", {}, opener)
         result = server.read_ha_areas(connection)
         self.assertEqual(result["bedroom"], {"light.bedroom"})
@@ -45,6 +47,7 @@ class AreaSwitchExtractionTests(unittest.TestCase):
         self.assertIn("satellite-1", json.loads(opener.requests[0][0].data)["template"])
 
     def test_area_malformed_rows_are_rejected(self):
+        payload: object
         for payload in (None, {}, [["Bedroom", "invalid"]], [[42, []]]):
             with self.subTest(payload=payload):
                 self.assertEqual(server.read_ha_areas(
@@ -62,11 +65,13 @@ class AreaSwitchExtractionTests(unittest.TestCase):
         inventory = [{"entity_id": "switch.desk", "state": "off",
                       "attributes": {"friendly_name": "Desk", "declan_as_light": True}}]
         opener = Opener()
+        connection: tuple[Any, ...]
         connection = ("https://ha.example", {}, opener)
         preview = server.set_switch_as_light_result("desk", "on", inventory, connection, preview=True)
         self.assertIs(preview.outcome, Outcome.PREVIEW)
         self.assertEqual(opener.requests, [])
         opener = Opener({}, {"state": "on"})
+        evidence: list[dict[str, Any]]
         evidence = []
         result = server.set_switch_as_light_result(
             "desk", "on", inventory, ("https://ha.example", {}, opener),

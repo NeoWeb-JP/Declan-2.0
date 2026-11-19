@@ -23,8 +23,11 @@ def confirmation_turn_result(message, phrase, session_id, *, source, satellite,
         diagnostic_id=diagnostic_id, log_error=log_error,
     )
     confirmed = decision.evaluation.decision is ConfirmationDecision.CONFIRMED and reply is None
+    approved_phrase = decision.evaluation.approved_phrase if confirmed else phrase
+    if not isinstance(approved_phrase, str):
+        raise ValueError("Confirmation requires an approved phrase")
     return ConfirmationTurnResult(decision.session_id,
-                                  decision.evaluation.approved_phrase if confirmed else phrase,
+                                  approved_phrase,
                                   reply, confirmed)
 
 

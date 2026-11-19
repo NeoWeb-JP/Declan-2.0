@@ -25,6 +25,7 @@ class VoicePipelineAccessTests(unittest.TestCase):
                 self.assertFalse(self.denied(body))
 
     def test_remote_destructive_or_malformed_operations_denied(self):
+        body: object
         for body in (
             None, [], {"operation": "delete"},
             {"operation": "resolve", "action": "delete"},

@@ -90,9 +90,10 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
                             }}},
         "store": False,
     }
+    request_data = json.dumps(body).encode("utf-8")
     request = Request(
         "https://api.openai.com/v1/responses",
-        data=json.dumps(body).encode("utf-8"),
+        data=request_data,
         headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
         method="POST",
     )
@@ -100,7 +101,7 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
         if type(max_cost_micro_usd) is not int or max_cost_micro_usd <= 0 or model not in RATES:
             raise NonBillablePlanningError("Invalid request cost ceiling")
         input_rate, output_rate = RATES[model]
-        worst = ((len(request.data) * input_rate
+        worst = ((len(request_data) * input_rate
                   + MAX_OUTPUT_TOKENS * output_rate + 999999) // 1000000)
         if worst > max_cost_micro_usd:
             raise NonBillablePlanningError("AI request context exceeds spending ceiling")

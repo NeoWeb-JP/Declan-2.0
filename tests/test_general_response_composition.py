@@ -7,6 +7,7 @@ from execution_results import Outcome
 
 class GeneralReplyTests(unittest.TestCase):
     def test_typed_and_legacy_outcomes_have_identical_decoration_gates(self):
+        outcome: object
         for outcome in Outcome:
             with self.subTest(outcome=outcome):
                 self.personality.reset_mock()

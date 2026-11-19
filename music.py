@@ -60,7 +60,8 @@ def room_key(name):
 def music_players(inventory, *, origin=None):
     approved = approved_media_players.resolve(inventory)
     if approved is not None:
-        entities = {row.get("entity_id"): row for row in inventory if isinstance(row, dict)}
+        entities = {row["entity_id"]: row for row in inventory
+                    if isinstance(row, dict) and isinstance(row.get("entity_id"), str)}
         return approved, {entity: entities[entity] for entity in approved.values() if entity in entities}
     # Strict by default: registered MA devices are only candidates until the
     # user approves the room mapping in Settings. The opt-in compatibility
@@ -78,7 +79,7 @@ def music_players(inventory, *, origin=None):
                   and (str((row.get("attributes") or {}).get("friendly_name", "")).strip().casefold() == "everywhere"
                        or re.fullmatch(r"media_player\.everywhere(?:_[0-9]+)?", entity))]
         destinations = {"everywhere": groups[0] if len(groups) == 1 else None}
-        rooms = {}
+        rooms: dict[str, list[str]] = {}
         for entity, row in entities.items():
             area = row.get("declan_area")
             if row.get("declan_music_assistant") is True and isinstance(area, str) and area.strip():
@@ -220,9 +221,9 @@ def spotify_credentials():
     try:
         saved = json.loads(SPOTIFY_SETTINGS.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        credentials = tuple(os.environ.get(key, "").strip()
+        environment_credentials = tuple(os.environ.get(key, "").strip()
                             for key in ("DECLAN_SPOTIFY_CLIENT_ID", "DECLAN_SPOTIFY_CLIENT_SECRET"))
-        return credentials, "environment" if all(credentials) else "unconfigured"
+        return environment_credentials, "environment" if all(environment_credentials) else "unconfigured"
     if not isinstance(saved, dict):
         raise ValueError("Invalid Spotify settings")
     credentials = (saved.get("client_id"), saved.get("client_secret"))
@@ -483,12 +484,12 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
             elif room is None:
                 return ExecutionResult("Which room should I control?", Outcome.UNRESOLVED)
         if room is None:
-            active = [name for name, entity in destinations.items()
+            active_rooms = [name for name, entity in destinations.items()
                       if (entity == group or entity not in members)
                       and players.get(entity, {}).get("state") in ACTIVE]
-            if len(active) != 1:
+            if len(active_rooms) != 1:
                 return ExecutionResult("Which room should I control?", Outcome.UNRESOLVED)
-            room = active[0]
+            room = active_rooms[0]
         entity = destinations.get(room)
         if entity is None:
             return ExecutionResult(f"No approved Music Assistant player is configured for {room}, or its registration is missing.", Outcome.UNRESOLVED)
@@ -577,6 +578,8 @@ def saved_spotify_selection(title, artist):
     link = presets.get(phrase)
     if link:
         match = SPOTIFY_REFERENCE.fullmatch(link.strip())
+        if match is None:
+            return None
         return f"https://open.spotify.com/{match[1]}/{match[2]}", match[1], title
     return None
 
@@ -765,12 +768,12 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
                         if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0",
                                       (media_key(selection[0]),)).fetchone():
                             return ExecutionResult("The saved playlist is on your do-not-play list.", Outcome.UNAVAILABLE)
-            except HTTPError as error:
+            except HTTPError as search_error:
                 if provider != "spotify":
                     raise
-                error.close()
-                detail = ("Spotify search is being rate limited." if error.code == 429
-                          else f"Spotify search returned HTTP {error.code}.")
+                search_error.close()
+                detail = ("Spotify search is being rate limited." if search_error.code == 429
+                          else f"Spotify search returned HTTP {search_error.code}.")
                 return ExecutionResult(f"{detail} I haven't changed playback.", Outcome.UNVERIFIED)
             except TimeoutError:
                 return ExecutionResult("The search took too long. I haven't changed playback.", Outcome.UNVERIFIED)

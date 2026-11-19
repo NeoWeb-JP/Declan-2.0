@@ -37,6 +37,7 @@ class HistoryIntentsPostTests(TestCase):
         self.handler.send_json.assert_called_once_with(200, {"saved": True})
 
     def test_rejects_invalid_payloads(self):
+        body: object
         for body in (None, [], {}, {"forget": ""}, {"forget": "x" * 121},
                      {"turn_id": True, "target": "x"}, {"turn_id": 0, "target": "x"},
                      {"turn_id": 2**63, "target": "x"}, {"turn_id": 1, "target": ""}):

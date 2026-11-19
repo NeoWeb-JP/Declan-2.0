@@ -1,4 +1,5 @@
 """Regression coverage for native routine dispatch and guest command routing."""
+from typing import Any
 import unittest
 from unittest.mock import patch
 import server
@@ -6,6 +7,7 @@ import server
 
 class RoutineDispatchTests(unittest.TestCase):
     def test_sexy_aliases_preserve_direction_and_use_background_receipt(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.bedroom_romance", "name": "Declan - Sexy Time Controller",
                   "safe": True, "fields": ["operation", "requested_action"]}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
@@ -22,6 +24,7 @@ class RoutineDispatchTests(unittest.TestCase):
                 self.assertEqual(enqueue.call_args.args[2], {"operation": action, "requested_action": action})
 
     def test_end_sexy_time_does_not_run_a_start_only_script(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.sexy_time", "name": "Sexy Time", "safe": True, "fields": []}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
@@ -29,6 +32,7 @@ class RoutineDispatchTests(unittest.TestCase):
             self.assertIsNotNone(server.select_routine("sexy time", None))
 
     def test_night_aliases_use_live_script_background_execution(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.declan_good_night_shared_local_routine",
                   "name": "Declan - Good Night - Shared Local Routine", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
@@ -43,6 +47,7 @@ class RoutineDispatchTests(unittest.TestCase):
                 self.assertEqual(enqueue.call_args.args[2], {})
 
     def test_morning_aliases_and_native_name_use_background_execution(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.declan_good_morning_shared_local_routine",
                   "name": "Declan - Good Morning - Shared Local Routine", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
@@ -61,6 +66,7 @@ class RoutineDispatchTests(unittest.TestCase):
         self.assertEqual(server.parse_movie_request("stop cinema mode")[0], "end")
 
     def test_movie_requested_action_field_is_supported_for_all_directions(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.movie_time", "name": "Declan - Movie Time - Shared Local Routine",
                   "safe": True, "fields": ["requested_action", "request_id", "routine_id"]}
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, object())), \
@@ -72,6 +78,7 @@ class RoutineDispatchTests(unittest.TestCase):
                 self.assertEqual(selection[1]["requested_action"], action)
 
     def test_house_status_resolves_from_ha_inventory_only(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.house_status", "name": "House Status", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
@@ -85,6 +92,7 @@ class RoutineDispatchTests(unittest.TestCase):
                              (("unconfigured_house_status", {}), None))
 
     def test_no_saved_mapping_can_override_ha_script(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.good_night", "name": "Good Night", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)), \
@@ -97,6 +105,7 @@ class RoutineDispatchTests(unittest.TestCase):
             self.assertIsNone(server.select_routine("what is the status of the projector", None))
 
     def test_end_movie_time_never_selects_start_only_script(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.movie_time", "name": "Movie Time", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \
              patch.object(server.script_discovery, "discover_result", return_value=server.script_discovery.DiscoveryResult(tuple([script]), None)):
@@ -107,6 +116,7 @@ class RoutineDispatchTests(unittest.TestCase):
                                                            "movie_room": "lounge", "_declan_background": True}))
 
     def test_house_status_requests_script_response(self):
+        script: dict[str, Any]
         script = {"entity_id": "script.declan_home_health_summary",
                   "name": "Declan - Home Health Summary", "safe": True}
         with patch.object(server, "ha_device_connection", return_value=("url", {}, object())), \

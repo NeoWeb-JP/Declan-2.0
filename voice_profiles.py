@@ -138,6 +138,8 @@ def manage(body):
                 raise ValueError('Voice storage consent was revoked. Grant consent before saving samples.')
             if db.execute('SELECT count(*) FROM samples WHERE profile = ?', (profile[0],)).fetchone()[0] >= 20:
                 raise ValueError('Review or remove samples before adding more (20 per person).')
+            if not isinstance(audio, bytes):
+                raise ValueError('A validated recording is required.')
             digest = hashlib.sha256(audio).hexdigest()
             if db.execute('SELECT 1 FROM samples WHERE profile = ? AND digest = ?', (profile[0], digest)).fetchone():
                 raise ValueError('This recording has already been saved.')

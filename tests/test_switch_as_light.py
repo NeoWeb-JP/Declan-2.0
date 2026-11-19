@@ -1,4 +1,5 @@
 """Explicit switch-as-light is never inferred from arbitrary sockets."""
+from typing import Any
 import io
 import json
 import unittest
@@ -16,6 +17,7 @@ class SwitchAsLightTests(unittest.TestCase):
                 if request.full_url.endswith("switch.garden"):
                     return io.BytesIO(json.dumps({"state": "on"}).encode())
                 return io.BytesIO(b"[]")
+        steps: list[dict[str, Any]]
         steps = []
         reply, outcome = server.set_switch_as_light("garden light", "on", [row], ("http://ha", {}, Opener()), action_results=steps)
         self.assertEqual(outcome, "confirmed")

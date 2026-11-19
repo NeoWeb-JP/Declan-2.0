@@ -1,5 +1,7 @@
 """Verify the request contract and reported routine outcomes."""
 
+from typing import Any
+from email.message import Message
 import io
 import json
 from unittest import TestCase
@@ -59,6 +61,7 @@ class RoutineTests(TestCase):
 
     def test_morning_dispatches_once_and_rejects_duplicate(self):
         self.respond(self.confirmed)
+        steps: list[dict[str, Any]]
         steps = []
         self.assertEqual(server.run_routine("morning", action_results=steps)[1], "reported_success")
         self.assertIn("/script/declan_good_morning_shared_local_routine?", self.calls[0].full_url)
@@ -108,6 +111,7 @@ class RoutineTests(TestCase):
 
     def test_unverified_movie_response_never_launches_app(self):
         self.respond(lambda _: {"outcome": "success"})
+        steps: list[dict[str, Any]]
         steps = []
         _, outcome, _ = server.run_routine("movie", movie_action="start",
                                           movie_app=server.MOVIE_APPS["netflix"], action_results=steps)
@@ -117,6 +121,7 @@ class RoutineTests(TestCase):
 
     def test_movie_accepts_a_matching_result_wrapped_by_script_entity(self):
         self.respond(lambda data: {"script.movie": self.confirmed(data, resolved_action="start")})
+        steps: list[dict[str, Any]]
         steps = []
         _, outcome, _ = server.run_routine(
             "movie", movie_action="start", movie_app=server.MOVIE_APPS["netflix"], action_results=steps,
@@ -153,7 +158,7 @@ class RoutineTests(TestCase):
         self.assertIsNone(server.parse_movie_request("launch an unsupported app in the lounge"))
 
     def test_rejection_is_distinct_from_an_uncertain_timeout(self):
-        self.opener.open.side_effect = HTTPError("http://ha.invalid", 403, "Forbidden", {}, None)
+        self.opener.open.side_effect = HTTPError("http://ha.invalid", 403, "Forbidden", Message(), None)
         self.assertEqual(server.run_routine("morning")[1], "rejected")
         server.ROUTINE_COOLDOWN = server.routine_cooldown.RoutineCooldown()
         self.opener.open.side_effect = TimeoutError()

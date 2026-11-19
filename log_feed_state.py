@@ -2,6 +2,7 @@
 
 from collections import deque
 from threading import RLock
+from typing import Any
 
 
 class LogFeedState:
@@ -9,7 +10,7 @@ class LogFeedState:
 
     def __init__(self, *, capacity=500):
         self.lock = RLock()
-        self.entries = deque(maxlen=capacity)
+        self.entries: deque[dict[str, Any]] = deque(maxlen=capacity)
         self.handler = None
 
     def append(self, item):
