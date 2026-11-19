@@ -16,6 +16,7 @@ from pathlib import Path
 from random import choices
 from tempfile import NamedTemporaryFile
 import music_runtime_state
+from threading import Thread
 from time import monotonic, sleep
 from urllib.error import HTTPError
 from urllib.parse import urlencode
@@ -340,7 +341,75 @@ def parse(phrase):
     return room_key(room) if room else None, title, provider or "spotify"
 
 
+def reply_first_enabled():
+    """Opt in to answering once Home Assistant accepts a play request.
+
+    Playback is then verified in the background and a failure is announced on
+    the originating satellite. Off by default: the reply is only spoken after
+    verification, which is slower but never claims more than was observed.
+    """
+    return os.environ.get("DECLAN_MUSIC_REPLY_FIRST", "").strip() == "1"
+
+
+def _satellite_for(inventory, origin):
+    """Return the single Assist satellite entity for an origin, else None."""
+    if not isinstance(origin, str) or not origin:
+        return None
+    matches = [row.get("entity_id") for row in inventory
+               if isinstance(row, dict) and isinstance(row.get("entity_id"), str)
+               and re.fullmatch(r"assist_satellite\.[a-z0-9_]{1,100}", row["entity_id"])
+               and origin in (row["entity_id"], row.get("declan_device"))]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _verify_in_background(connection, destination, verify, *, attempts, location,
+                          satellite, observed, on_playing):
+    """Check playback after the reply was sent; speak up only if nothing started.
+
+    Runs in a fresh thread context so it never mutates the request's live trace;
+    its result is added to the saved trace afterwards. Any later music command
+    supersedes the check, so a quick "Stop" is never contradicted by a stale
+    failure announcement.
+    """
+    generation = RUNTIME.begin_operation()
+    trace = diagnostics.ACTIVE.get()
+
+    def work():
+        started = monotonic()
+        try:
+            verified = wait_for(connection, destination, verify, attempts=attempts)
+        except (OSError, ValueError, TimeoutError):
+            verified = False
+        outcome = (Outcome.CONFIRMED if verified
+                   else Outcome.PARTIAL if observed() else Outcome.UNVERIFIED)
+        entry = {"stage": "music_verification", "player_entity_id": destination,
+                 "duration_ms": round((monotonic() - started) * 1000)}
+        diagnostics.set_outcome(entry, outcome)
+        if trace is not None:
+            # The request's own trace is saved when its reply is sent.
+            deadline = monotonic() + 5
+            while "_saved" not in trace and monotonic() < deadline:
+                sleep(0.05)
+            diagnostics.amend(trace, entry)
+        if verified or observed():
+            on_playing()
+        if outcome is not Outcome.UNVERIFIED or not satellite or not RUNTIME.is_current(generation):
+            return
+        try:
+            request(connection, "/api/services/assist_satellite/announce",
+                    {"entity_id": satellite, "preannounce": False,
+                     "message": f"Sorry, I couldn't confirm the music started {location}."},
+                    timeout=7)
+        except (OSError, ValueError, TimeoutError):
+            pass
+
+    Thread(target=work, daemon=True, name="music-verify").start()
+
+
 def request(connection, path, data=None, *, timeout=None):
+    if data is not None and path.startswith("/api/services/"):
+        # Any state-changing music call supersedes a pending background check.
+        RUNTIME.begin_operation()
     label = ('stop_dispatch' if path.endswith('/media_stop') else
              'play_dispatch' if path.endswith('/play_media') else 'ha_media_request')
     with diagnostics.stage(label) as entry:
@@ -823,15 +892,30 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             return not saved and kind == "track" and matches_track(player, selected_name, artist)
 
         playback_source = "Spotify" if provider == "spotify" else "Radio"
+
+        def record_playlist_play():
+            if not move and kind == "playlist" and provider == "spotify":
+                with preference_db() as db:
+                    db.execute("INSERT INTO playlist_play_counts(uri, plays) VALUES (?, 1) ON CONFLICT(uri) DO UPDATE SET plays = plays + 1", (media_key(uri),))
+                    db.execute("INSERT INTO recent_playlists(category, uri) VALUES (?, ?)", (title, media_key(uri)))
+                    db.execute("DELETE FROM recent_playlists WHERE id <= "
+                               "(SELECT max(id) - 500 FROM recent_playlists)")
+
+        if reply_first_enabled() and not timed_out:
+            # Home Assistant accepted the request. Answer now and verify later;
+            # the outcome is "requested", never "confirmed", until observed.
+            _verify_in_background(
+                connection, destination, verify, attempts=10, location=location,
+                satellite=_satellite_for(inventory, origin),
+                observed=lambda: observed_playback, on_playing=record_playlist_play)
+            subject = playback_source if move else selected_name
+            prefix = "I stopped the previous Spotify stream. " if stopped else ""
+            return ExecutionResult(f"{prefix}Starting {subject} {location}.", Outcome.REQUESTED)
         # Music Assistant may still be retrying Spotify or expanding a playlist
         # after the playback POST times out. Only poll state, never resend it.
         verified = wait_for(connection, destination, verify, attempts=12 if timed_out else 4)
-        if not move and kind == "playlist" and provider == "spotify" and (verified or observed_playback):
-            with preference_db() as db:
-                db.execute("INSERT INTO playlist_play_counts(uri, plays) VALUES (?, 1) ON CONFLICT(uri) DO UPDATE SET plays = plays + 1", (media_key(uri),))
-                db.execute("INSERT INTO recent_playlists(category, uri) VALUES (?, ?)", (title, media_key(uri)))
-                db.execute("DELETE FROM recent_playlists WHERE id <= "
-                           "(SELECT max(id) - 500 FROM recent_playlists)")
+        if verified or observed_playback:
+            record_playlist_play()
         if verified:
             if not move and kind == "artist":
                 prefix = "I stopped the previous Spotify stream. " if stopped else ""
