@@ -52,7 +52,7 @@ def guarded_openai_fallback(message, *, source, exposed_entities=(), r):
     return response.as_legacy_triple() if response is not None else None
 
 
-def preview_routine(phrase, origin=None, r):
+def preview_routine(phrase, origin=None, *, r):
     """Compatibility API for read-only preview reply/outcome pairs."""
     return r.preview_routine_result(phrase, origin).as_legacy_pair()
 
