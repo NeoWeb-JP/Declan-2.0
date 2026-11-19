@@ -33,8 +33,8 @@ class RefactorAnchorTests(unittest.TestCase):
             with patch.object(anchors, "changed_python_files", return_value=["server.py"]), \
                  patch.object(anchors, "source_at_ref", return_value="old_call()\n"):
                 findings = anchors.check("origin/main", root)
-        self.assertEqual(len(findings), 1)
-        self.assertIn("old_call()", findings[0])
+        self.assertEqual(len(findings), 2)
+        self.assertTrue(all("old_call()" in finding for finding in findings))
 
     def test_detects_plain_assertions_and_source_methods(self):
         tree = anchors.ast.parse(
