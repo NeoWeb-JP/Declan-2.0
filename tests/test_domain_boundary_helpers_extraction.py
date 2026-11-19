@@ -9,7 +9,7 @@ from execution_results import Outcome
 
 class DomainBoundaryHelperTests(unittest.TestCase):
     def test_outcome_contract_preserves_legacy_strings(self):
-        self.assertEqual(server.chained_outcome("started", "confirmed"), "started")
+        self.assertEqual(server.chained_outcome(Outcome.STARTED.value, Outcome.CONFIRMED.value), Outcome.STARTED.value)
         self.assertIs(server.chained_outcome_result(Outcome.UNVERIFIED, Outcome.UNVERIFIED), Outcome.UNVERIFIED)
         self.assertIs(server.chained_outcome_result(Outcome.FAILED, Outcome.CONFIRMED), Outcome.PARTIAL)
 
