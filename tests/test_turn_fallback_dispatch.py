@@ -27,7 +27,7 @@ class FallbackDispatchTests(unittest.TestCase):
         )
 
     def test_information_preempts_device_and_lighting(self):
-        info = SimpleNamespace(result=SimpleNamespace(reply="answer", outcome="ok"), information_context="context")
+        info = SimpleNamespace(result=SimpleNamespace(reply="answer", outcome="confirmed"), information_context="context")
         with patch.object(stage.information_command_dispatch, "dispatch_information", return_value=object()), patch.object(
             stage.information_result_response, "information_response", return_value=info
         ), patch.object(stage.device_command_dispatch, "dispatch_device") as device, patch.object(
@@ -39,7 +39,7 @@ class FallbackDispatchTests(unittest.TestCase):
         lights.assert_not_called()
 
     def test_device_preempts_lighting(self):
-        device_response = SimpleNamespace(result=SimpleNamespace(reply="device", outcome="ok"), status_target="speaker")
+        device_response = SimpleNamespace(result=SimpleNamespace(reply="device", outcome="confirmed"), status_target="speaker")
         with patch.object(stage.information_command_dispatch, "dispatch_information", return_value=None), patch.object(
             stage.device_command_dispatch, "dispatch_device", return_value=object()
         ), patch.object(stage.device_result_response, "device_response", return_value=device_response), patch.object(

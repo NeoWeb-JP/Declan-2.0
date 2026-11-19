@@ -1,5 +1,6 @@
 """Resolve guarded fallback and response persona before session finalization."""
 from dataclasses import dataclass
+from execution_results import Outcome
 
 import fallback_orchestration
 import response_persona_context
@@ -8,11 +9,15 @@ import response_persona_context
 @dataclass(frozen=True)
 class PreparedResponse:
     reply: object
-    outcome: object
+    outcome: Outcome | None
     guest_mode: object
     visitor_present: object
     response_guest_mode: object
     information_context: object
+
+    def __post_init__(self):
+        if self.outcome is not None:
+            object.__setattr__(self, "outcome", Outcome(self.outcome))
 
 
 def prepare(effective_message, *, routine_reply, outcome, light_result,

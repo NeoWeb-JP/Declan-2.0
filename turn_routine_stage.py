@@ -1,5 +1,6 @@
 """Select a routine and execute its chained follow-on actions."""
 from dataclasses import dataclass
+from execution_results import Outcome
 
 import routine_follow_on_dispatch
 import routine_registry_dispatch
@@ -8,11 +9,15 @@ import routine_registry_dispatch
 @dataclass(frozen=True)
 class RoutineStageResult:
     reply: str | None
-    outcome: object
-    routine_status: object
+    outcome: Outcome | None
+    routine_status: str | None
     routine_turn: object
     lighting_context: object
     routine_voice_result: object
+
+    def __post_init__(self):
+        if self.outcome is not None:
+            object.__setattr__(self, "outcome", Outcome(self.outcome))
 
 
 def dispatch(phrase, *, source, origin_device, satellite, action_results,

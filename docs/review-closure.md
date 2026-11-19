@@ -170,3 +170,20 @@ typed-contract finding or remove the live server dependency facade.
 `tests/test_turn_dispatch_outcome_contract.py` covers all known enum members,
 unknown/malformed outcomes, unmatched turns and display-status separation.
 Extraction tests use real enum values instead of the invalid mock status `ok`.
+
+## Internal stage outcomes
+
+Direct, routine, local-fallback and response-preparation result dataclasses also
+normalize known outcome values to `Outcome`, preserve `None`, and reject unknown
+or malformed outcomes at construction. This keeps the execution discriminator
+typed across the whole stage chain rather than only at the final dispatch
+boundary. The contract matrix exercises every enum member for all four stages,
+rejection of arbitrary success-like strings and frozen outcome identity.
+
+This does not interpret routine display text as execution state, validate all
+context payloads, or replace external provider parsing. Invalid results are
+rejected after their producing stage has run, not before its actions. Existing
+wire adapters continue to emit strings. The original typed-outcome finding still
+requires final inventory/disposition of provider and compatibility boundaries;
+remaining `object` context annotations alone are not evidence of string-based
+execution decisions.

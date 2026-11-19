@@ -1,5 +1,6 @@
 """Dispatch stop commands before roast and guest commands."""
 from dataclasses import dataclass
+from execution_results import Outcome
 
 import roast_guest_dispatch
 import stop_command_dispatch
@@ -9,8 +10,12 @@ import stop_result_response
 @dataclass(frozen=True)
 class DirectDispatchResult:
     reply: str | None
-    outcome: object
-    routine_status: object = None
+    outcome: Outcome | None
+    routine_status: str | None = None
+
+    def __post_init__(self):
+        if self.outcome is not None:
+            object.__setattr__(self, "outcome", Outcome(self.outcome))
 
 
 def dispatch(phrase, *, source, origin_device, satellite,
