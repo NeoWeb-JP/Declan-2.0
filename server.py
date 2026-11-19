@@ -9,16 +9,16 @@ from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
 import ha_inventory
 import ha_area_switch_actions
-import household_routine_dispatch
-import ha_speech_transport
+import household_routine_dispatch as household_routine_dispatch
+import ha_speech_transport as ha_speech_transport
 import music_stop_dispatch
 import movie_ha_helpers
-import bedroom_routine_dispatch
+import bedroom_routine_dispatch as bedroom_routine_dispatch
 import media_title_search
-import ai_fallback_dispatch
+import ai_fallback_dispatch as ai_fallback_dispatch
 import routine_request_selection as routine_request_selection
-import routine_execution_dispatch
-import lighting_execution_dispatch
+import routine_execution_dispatch as routine_execution_dispatch
+import lighting_execution_dispatch as lighting_execution_dispatch
 import ha_household_status as ha_household_status
 import server_lifecycle
 import routine_turn_orchestration as routine_turn_orchestration
@@ -75,7 +75,7 @@ import timer_command_dispatch as timer_command_dispatch
 import lighting_command_dispatch as lighting_command_dispatch
 import lighting_context_finalization as lighting_context_finalization
 import fallback_entity_authorization as fallback_entity_authorization
-import guarded_fallback_dispatch
+import guarded_fallback_dispatch as guarded_fallback_dispatch
 import turn_context_preparation as turn_context_preparation
 import turn_session_entry as turn_session_entry
 import turn_preflight_entry as turn_preflight_entry
@@ -111,20 +111,20 @@ import web_stt
 import openai_planner
 import ai_settings
 import ai_credentials
-import ai_pricing
+import ai_pricing as ai_pricing
 import ai_budget as ai_budget
-import ai_context
-import ai_intent_gate
-import guarded_fallback
-import ha_dispatcher
+import ai_context as ai_context
+import ai_intent_gate as ai_intent_gate
+import guarded_fallback as guarded_fallback
+import ha_dispatcher as ha_dispatcher
 import routine_registry
 from routine_action_evidence import parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence
-from movie_action_evidence import MovieActionEvidence
+from movie_action_evidence import MovieActionEvidence as MovieActionEvidence
 from action_evidence_buffer import ActionEvidenceBuffer as ActionEvidenceBuffer, append_action_evidence, extend_action_evidence
-from fallback_action_evidence import FallbackActionEvidence
+from fallback_action_evidence import FallbackActionEvidence as FallbackActionEvidence
 import script_discovery as script_discovery
 from intent_preprocessing import preprocess_speech as preprocess_speech
 from personality import add_sass, choose_line
@@ -140,9 +140,9 @@ import active_routine_registry
 import routine_execution_gates
 import routine_cancellation
 import session_turn_state as session_turn_state
-import lighting_intents
+import lighting_intents as lighting_intents
 import roast as roast
-import personality_policy
+import personality_policy as personality_policy
 
 DECLAN_EVENT_LOG = logging.getLogger("declan.server")
 DECLAN_EVENT_LOG.setLevel(logging.INFO)
