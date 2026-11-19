@@ -1,5 +1,5 @@
 """Select preview and timer results before command dispatch."""
-import preview_timer_orchestration
+from declan.timers import preview_timer_orchestration
 
 
 def resolve(phrase, *, source, origin_device, satellite, opener,

@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
-import timers
+from declan.timers import timers
 from execution_results import ExecutionResult, Outcome
 
 

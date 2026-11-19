@@ -18,7 +18,7 @@ from arbitration import CaptureArbiter
 from declan_ingress.http_server import BoundedHTTPServer
 import ha_inventory
 import music
-import timers
+from declan.timers import timers
 
 
 class CaptureTests(TestCase):

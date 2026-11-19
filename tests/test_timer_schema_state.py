@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from timer_schema_state import TimerSchemaState
+from declan.timers.timer_schema_state import TimerSchemaState
 
 
 class TimerSchemaStateTests(unittest.TestCase):

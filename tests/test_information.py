@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import conditions
 import history
-import timers
+from declan.timers import timers
 
 
 class FixedClock(datetime):

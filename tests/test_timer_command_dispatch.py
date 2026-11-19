@@ -1,7 +1,7 @@
 """Timer command dispatch and preview precedence tests."""
 import unittest
 from unittest.mock import Mock
-from timer_command_dispatch import dispatch_timer
+from declan.timers.timer_command_dispatch import dispatch_timer
 
 
 class TimerCommandDispatchTests(unittest.TestCase):

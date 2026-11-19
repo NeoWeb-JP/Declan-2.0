@@ -8,7 +8,7 @@ import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
 from time import time
-import timer_schema_state
+from declan.timers import timer_schema_state
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request
@@ -16,7 +16,7 @@ from urllib.request import Request
 from execution_results import ExecutionResult, Outcome
 
 
-DATABASE = Path(__file__).resolve().parent / ".data" / "timers.sqlite3"
+DATABASE = Path(__file__).resolve().parents[2] / ".data" / "timers.sqlite3"
 ALARM_INTERVAL = 30
 MAX_SECONDS = 24 * 60 * 60
 SMALL_NUMBERS = dict(zip(

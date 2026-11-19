@@ -12,7 +12,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import server
-import timers
+from declan.timers import timers
 
 
 HA_ENV = {"DECLAN_HA_URL": "http://ha.invalid", "DECLAN_HA_TOKEN": "test-only"}
@@ -344,7 +344,7 @@ class ServiceTests(TestCase):
 
     def test_timer_output_requires_one_available_satellite(self):
         with patch.dict(os.environ, HA_ENV | {"DECLAN_BROWSER_TIMER_SATELLITE": "assist_satellite.kitchen"}), patch(
-            "timers.ha_json", wraps=timers.ha_json
+            "declan.timers.timers.ha_json", wraps=timers.ha_json
         ) as request:
             opener = self.enterContext(patch("server.build_opener")).return_value
             opener.open.side_effect = lambda *args, **kwargs: io.BytesIO(

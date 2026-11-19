@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 import conditions
 import device_status
 import server
-import timers
+from declan.timers import timers
 from execution_results import ExecutionResult, Outcome
 
 

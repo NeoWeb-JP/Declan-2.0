@@ -76,7 +76,7 @@ import routine_preview_detection as routine_preview_detection
 import routine_preview_dispatch as routine_preview_dispatch
 import guest_assignment_command as guest_assignment_command
 import roast_command_dispatch as roast_command_dispatch
-import timer_command_dispatch as timer_command_dispatch
+from declan.timers import timer_command_dispatch as timer_command_dispatch
 import lighting_command_dispatch as lighting_command_dispatch
 import lighting_context_finalization as lighting_context_finalization
 import fallback_entity_authorization as fallback_entity_authorization
@@ -97,7 +97,7 @@ import music as music
 import approved_media_players as approved_media_players
 import spotify_playlists as spotify_playlists
 import music_playlists_post as music_playlists_post
-import timers as timers
+from declan.timers import timers as timers
 from declan.updates import updates as updates
 import post_operational_routing as post_operational_routing
 import media_settings_routes as media_settings_routes

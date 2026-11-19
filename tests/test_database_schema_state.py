@@ -8,9 +8,9 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import history
-import timers
+from declan.timers import timers
 from database_schema_state import DatabaseSchemaState
-from timer_schema_state import TimerSchemaState
+from declan.timers.timer_schema_state import TimerSchemaState
 
 
 class DatabaseSchemaStateTests(unittest.TestCase):

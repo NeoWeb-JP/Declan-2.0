@@ -1,7 +1,7 @@
 """Resolve early command results while preserving preview priority."""
 
 
-from preview_timer_orchestration import select_early_result as select_early_result  # Public compatibility export.
+from declan.timers.preview_timer_orchestration import select_early_result as select_early_result  # Public compatibility export.
 
 
 def early_command_result(routine_preview, timer_result):

@@ -4,7 +4,7 @@ from execution_results import Outcome
 import unittest
 from unittest.mock import Mock
 
-from preview_timer_orchestration import preview_and_timer, select_early_result
+from declan.timers.preview_timer_orchestration import preview_and_timer, select_early_result
 from execution_results import ExecutionResult
 
 

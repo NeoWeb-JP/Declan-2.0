@@ -2,7 +2,7 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
-import timers
+from declan.timers import timers
 from command_registry import RequestContext, timer_registry
 from execution_results import Outcome
 
