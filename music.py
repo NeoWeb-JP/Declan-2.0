@@ -721,11 +721,18 @@ def matches_track(player, title, artist):
             and (not artist or str(attributes.get("media_artist") or "").casefold() == artist.casefold()))
 
 
+POLL_INTERVAL = 0.25
+
+
 @diagnostics.timed("playback_verification")
 def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
-    for attempt in range(attempts):
+    """Poll until predicate passes. `attempts` keeps its meaning as one-second
+    steps (the wait window is attempts - 1 seconds); polling is just finer so a
+    player that is ready after 200 ms is noticed then, not a second later."""
+    polls = (attempts - 1) * round(1 / POLL_INTERVAL) + 1
+    for attempt in range(polls):
         if attempt:
-            delay = 1 if deadline is None else min(1, deadline - monotonic())
+            delay = POLL_INTERVAL if deadline is None else min(POLL_INTERVAL, deadline - monotonic())
             if delay <= 0:
                 return False
             sleep(delay)
