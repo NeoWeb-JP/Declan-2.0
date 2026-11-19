@@ -19,9 +19,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
+      - name: Check refactor source-location assertions
+        if: github.event_name == 'pull_request'
+        run: python scripts/check_refactor_test_anchors.py --base-ref origin/main
       - name: Check Python syntax
         run: python -m compileall -q .
       - name: Install coverage tool
