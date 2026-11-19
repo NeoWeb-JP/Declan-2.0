@@ -28,11 +28,8 @@ from declan.turn import turn_dispatch_orchestration as turn_dispatch_orchestrati
 from declan.turn import turn_session_preflight as turn_session_preflight
 from declan.turn import turn_response_completion as turn_response_completion
 from declan.turn import command_vocabulary
-from declan.http import http_handler_adapters
 from declan.turn import turn_http_entry
 from declan.core import domain_boundary_helpers
-from declan.core import compatibility_facade
-import server_bootstrap
 import server_runtime_state
 import sys
 from pathlib import Path as Path
@@ -154,10 +151,13 @@ from declan.turn import personality_policy as personality_policy
 )
 
 def track_routine(name, script):
-    return compatibility_facade.track_routine(name, script, r=sys.modules[__name__])
+    return ACTIVE_ROUTINE_REGISTRY.track(name, script)
 
 def stop_pending_routines_result():
-    return compatibility_facade.stop_pending_routines_result(r=sys.modules[__name__])
+    return routine_cancellation.stop_pending_routines_result(
+        connection_factory=ha_device_connection,
+        active_registry=ACTIVE_ROUTINE_REGISTRY,
+    )
 
 (IDLE_SECONDS, ASSIST_PORT, RELEASE_VERSION, SEXY_TIME_COMMANDS, DINNER_PHRASES,
  GUEST_MODE_ENTITY, GUEST_REGISTER_ENTITY, VISITORS_PRESENT_ENTITY, GUEST_COMMANDS,
@@ -197,7 +197,7 @@ def read_visitors_present():
     )
 
 def routine_action_results_typed(steps):
-    return compatibility_facade.routine_action_results_typed(steps, r=sys.modules[__name__])
+    return parse_routine_actions(steps)
 
 MOVIE_APPS = {
     "netflix": ("Netflix", "netflix"),
@@ -392,7 +392,11 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
 def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None):
     """Compatibility API for callers expecting plain reply/outcome strings."""
-    return server_bootstrap.set_lights(name, desired_state, brightness=brightness, preview=preview, require_all=require_all, relative_step=relative_step, action_results=action_results, origin_device=origin_device, r=sys.modules[__name__])
+    return set_lights_result(
+        name, desired_state, brightness=brightness, preview=preview,
+        require_all=require_all, relative_step=relative_step,
+        action_results=action_results, origin_device=origin_device,
+    ).as_legacy_pair()
 
 
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
@@ -446,28 +450,59 @@ class Handler(BaseHTTPRequestHandler):
     timeout = 5
 
     def end_headers(self):
-        return server_bootstrap.end_headers(self, r=sys.modules[__name__])
+        http_ingress_security.send_security_headers(self)
+        return BaseHTTPRequestHandler.end_headers(self)
 
     def send_body(self, status, data, content_type, filename=None):
-        return http_handler_adapters.send_body(self, status, data, content_type, filename=filename, r=sys.modules[__name__])
+        return http_response_transport.send_body(
+            self, status, data, content_type, filename=filename, logger=DECLAN_EVENT_LOG,
+        )
 
     def send_json(self, status, data):
-        return http_handler_adapters.send_json(self, status, data, r=sys.modules[__name__])
+        return http_response_transport.send_json(
+            self, status, data, logger=DECLAN_EVENT_LOG,
+        )
 
     def spotify_settings(self, body=None):
-        return http_handler_adapters.spotify_settings(self, body, r=sys.modules[__name__])
+        return media_settings_routes.spotify_settings(self, body, music=music)
 
     def has_ingress_access(self):
-        return http_handler_adapters.has_ingress_access(self, r=sys.modules[__name__])
+        return http_ingress_security.has_ingress_access(self)
 
     def approved_player_settings(self, body=None):
-        return http_handler_adapters.approved_player_settings(self, body, r=sys.modules[__name__])
+        return media_settings_routes.approved_player_settings(
+            self, body, ha_device_connection=ha_device_connection,
+            ha_inventory=ha_inventory,
+            read_music_inventory_result=read_music_inventory_result,
+            read_ha_areas=read_ha_areas, approved_area_labels=approved_area_labels,
+            approved_media_players=approved_media_players,
+        )
 
     def do_GET(self):
-        return http_handler_adapters.do_GET(self, r=sys.modules[__name__])
+        return get_request_dispatch.dispatch(
+            self, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
+            ingress=self.has_ingress_access(),
+            logo_path=Path(__file__).with_name("logo.png"),
+            health_readiness=health_readiness,
+            ha_status=home_assistant_status_result,
+            release_version=RELEASE_VERSION, music=music,
+            configuration=configuration, script_discovery=script_discovery,
+            ha_connection=ha_device_connection, command_responses=command_responses,
+            history=history, logs=declan_logs, diagnostics=diagnostics,
+            updates=updates, voicepipeline=voicepipeline,
+            voice_profiles=voice_profiles, ai_budget=ai_budget,
+            ai_settings=ai_settings, ai_credentials=ai_credentials,
+            spotify_playlists=spotify_playlists,
+        )
 
     def transcribe_browser_audio(self):
-        return http_handler_adapters.transcribe_browser_audio(self, r=sys.modules[__name__])
+        return speech_http_routes.transcribe_browser_audio(
+            self, web_stt=web_stt, connection_factory=ha_device_connection,
+            transcribe=traced_transcribe_result,
+            token=os.environ.get("DECLAN_HA_TOKEN", "").strip(),
+            pipeline=configuration.get("DECLAN_WEB_ASSIST_PIPELINE", "").strip(),
+            logger=DECLAN_EVENT_LOG,
+        )
 
     def do_POST(self):
         return post_request_entry.dispatch(self, handle_post=self.handle_post)
@@ -476,11 +511,22 @@ class Handler(BaseHTTPRequestHandler):
         return turn_http_entry.handle_post(self, r=sys.modules[__name__])
 
 def main():
-    return server_bootstrap.main(r=sys.modules[__name__])
+    return server_lifecycle.main(
+        description=__doc__, argv=None, environ=os.environ,
+        history_store=history, timer_store=timers,
+        server_factory=ThreadingHTTPServer, handler=Handler,
+        thread_factory=Thread, clock=monotonic,
+        opener_factory=build_opener, proxy_factory=ProxyHandler,
+        logger=DECLAN_EVENT_LOG, updates_module=updates, music_module=music,
+        ha_connect=ha_device_connection, music_inventory=read_music_inventory_result,
+        ip_address=ipaddress.ip_address, assist_port=ASSIST_PORT,
+        run_background=server_lifecycle.single_flight_runner(Thread),
+    )
 
 
 if __name__ == "__main__":
-    server_bootstrap.run(r=sys.modules[__name__])
+    declan_logs.install()
+    main()
 
 
 
