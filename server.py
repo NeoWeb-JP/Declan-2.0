@@ -36,7 +36,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 from execution_results import ExecutionResult as ExecutionResult, Outcome
 from arbitration import CaptureArbiter
 
-import conditions
+import conditions as conditions
 import sensitive_confirmations
 import diagnostics
 import declan_logs
@@ -46,7 +46,7 @@ import household_entities
 import health_readiness
 import voice_profiles
 import voicepipeline
-import device_status
+import device_status as device_status
 import retry_learning
 import retry_training_persistence
 import conversation_persistence
@@ -59,22 +59,22 @@ import retry_cancellation
 import sensitive_confirmation_response
 import sensitive_confirmation_decision
 import sensitive_confirmation_turn
-import routine_preview_detection
-import routine_preview_dispatch
-import guest_assignment_command
-import roast_command_dispatch
-import timer_command_dispatch
-import lighting_command_dispatch
-import lighting_context_finalization
+import routine_preview_detection as routine_preview_detection
+import routine_preview_dispatch as routine_preview_dispatch
+import guest_assignment_command as guest_assignment_command
+import roast_command_dispatch as roast_command_dispatch
+import timer_command_dispatch as timer_command_dispatch
+import lighting_command_dispatch as lighting_command_dispatch
+import lighting_context_finalization as lighting_context_finalization
 import fallback_entity_authorization
 import guarded_fallback_dispatch
 import turn_context_preparation
 import turn_session_entry
 import turn_preflight_entry
-import turn_preview_stage
-import turn_direct_dispatch
-import turn_routine_stage
-import turn_fallback_dispatch
+import turn_preview_stage as turn_preview_stage
+import turn_direct_dispatch as turn_direct_dispatch
+import turn_routine_stage as turn_routine_stage
+import turn_fallback_dispatch as turn_fallback_dispatch
 import turn_response_preparation
 import turn_atomic_finalization
 import turn_response_composition
@@ -121,10 +121,10 @@ import script_discovery
 from intent_preprocessing import preprocess_speech
 from personality import add_sass, choose_line
 import routine_responses
-import routine_follow_on
+import routine_follow_on as routine_follow_on
 import response_composition
 import command_responses
-import command_registry
+import command_registry as command_registry
 import session_orchestration
 import session_store
 import routine_cooldown
@@ -133,7 +133,7 @@ import routine_execution_gates
 import routine_cancellation
 import session_turn_state
 import lighting_intents
-import roast
+import roast as roast
 import personality_policy
 
 DECLAN_EVENT_LOG = logging.getLogger("declan.server")
