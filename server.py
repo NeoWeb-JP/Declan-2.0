@@ -12,9 +12,9 @@ import ha_area_switch_actions as ha_area_switch_actions
 import household_routine_dispatch as household_routine_dispatch
 import ha_speech_transport as ha_speech_transport
 import music_stop_dispatch as music_stop_dispatch
-import movie_ha_helpers
+import movie_ha_helpers as movie_ha_helpers
 import bedroom_routine_dispatch as bedroom_routine_dispatch
-import media_title_search
+import media_title_search as media_title_search
 import ai_fallback_dispatch as ai_fallback_dispatch
 import routine_request_selection as routine_request_selection
 import routine_execution_dispatch as routine_execution_dispatch
@@ -136,7 +136,7 @@ import routine_follow_on as routine_follow_on
 import response_composition as response_composition
 import command_responses as command_responses
 import command_registry as command_registry
-import session_orchestration
+import session_orchestration as session_orchestration
 import session_store
 import routine_cooldown
 import active_routine_registry
