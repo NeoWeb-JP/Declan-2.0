@@ -72,10 +72,11 @@ class SensitiveConfirmationTests(unittest.TestCase):
         turn = Path(__file__).resolve().parents[1].joinpath(
             "sensitive_confirmation_turn.py").read_text()
         preflight = Path(__file__).resolve().parents[1].joinpath("turn_preflight.py").read_text()
-        self.assertIn("turn_preflight_entry.resolve(", server)
+        session_preflight = Path(__file__).resolve().parents[1].joinpath("turn_session_preflight.py").read_text()
+        self.assertIn("turn_preflight_entry.resolve(", session_preflight)
         self.assertIn("turn_preflight.resolve(", (Path(__file__).resolve().parents[1] / "turn_preflight_entry.py").read_text())
         self.assertIn("sensitive_confirmation_resolution.resolve_confirmation(", preflight)
-        self.assertIn("confirm=sensitive_confirmation_turn.confirmation_turn_result", server)
+        self.assertIn("confirm=sensitive_confirmation_turn.confirmation_turn_result", session_preflight)
         ingress = Path(__file__).resolve().parents[1].joinpath("sensitive_confirmation_resolution.py").read_text()
         self.assertIn("confirmation = confirm(", ingress)
         self.assertIn("return resolve(confirmation, phrase, effective_message)", ingress)
