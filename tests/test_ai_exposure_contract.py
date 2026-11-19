@@ -12,6 +12,7 @@ AI_FALLBACK = (ROOT / "ai_fallback_dispatch.py").read_text()
 AUTHORIZATION = (ROOT / "fallback_entity_authorization.py").read_text()
 FALLBACK = (ROOT / "fallback_orchestration.py").read_text()
 PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
+COMPLETION = (ROOT / "turn_response_completion.py").read_text()
 
 
 class AIExposureContractTests(unittest.TestCase):
@@ -25,9 +26,9 @@ class AIExposureContractTests(unittest.TestCase):
         self.assertIn('"ai_exposed_entities": exposed_for_declan(hass)', CHAT)
 
     def test_backend_rejects_untrusted_exposure(self):
-        self.assertIn('turn_response_preparation.prepare(', SERVER)
+        self.assertIn('turn_response_preparation.prepare(', COMPLETION)
         self.assertIn('fallback_orchestration.resolve_fallback_result(', PREPARATION)
-        self.assertIn('exposed_entities=fallback_entity_authorization.exposed_entities', SERVER)
+        self.assertIn('exposed_entities=fallback_entity_authorization.exposed_entities', COMPLETION)
         self.assertIn('exposed = exposed_entities(body, authorization, bridge_token)', FALLBACK)
         self.assertIn('if authenticated_ha else ()', AUTHORIZATION)
         self.assertIn('if not permitted or len(permitted)', AI_FALLBACK)

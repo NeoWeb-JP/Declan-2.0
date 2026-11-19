@@ -9,6 +9,7 @@ STAGE = (ROOT / "turn_fallback_dispatch.py").read_text()
 DISPATCH = (ROOT / "turn_dispatch_orchestration.py").read_text()
 PREPARATION = (ROOT / "turn_response_preparation.py").read_text()
 FINALIZATION = (ROOT / "turn_atomic_finalization.py").read_text()
+COMPLETION = (ROOT / "turn_response_completion.py").read_text()
 
 
 class DirectFinalDispatchTests(unittest.TestCase):
@@ -17,10 +18,10 @@ class DirectFinalDispatchTests(unittest.TestCase):
         ast.parse(STAGE)
         self.assertIn("lighting_result_dispatch.dispatch_lighting_response(", STAGE)
         self.assertIn("turn_fallback_dispatch.dispatch(", DISPATCH)
-        self.assertIn("turn_response_preparation.prepare(", SERVER)
+        self.assertIn("turn_response_preparation.prepare(", COMPLETION)
         self.assertIn("fallback_orchestration.resolve_fallback_result(", PREPARATION)
         self.assertIn("response_persona_context.resolve_response_persona(", PREPARATION)
-        self.assertIn("turn_atomic_finalization.finalize(", SERVER)
+        self.assertIn("turn_atomic_finalization.finalize(", COMPLETION)
         ast.parse(FINALIZATION)
         for call in (
             "turn_context_preparation.prepare_turn_context(",
@@ -36,17 +37,17 @@ class DirectFinalDispatchTests(unittest.TestCase):
         compose = FINALIZATION.index("turn_response_composition.compose_turn_result(", context)
         persist = FINALIZATION.index("turn_persistence_orchestration.persist_turn_result(", compose)
         send = SERVER.index("self.send_json(200, response.to_wire())")
-        self.assertLess(SERVER.index("turn_atomic_finalization.finalize("), send)
+        self.assertLess(COMPLETION.index("turn_atomic_finalization.finalize("), send)
         self.assertLess(lock, context)
         self.assertLess(context, compose)
         self.assertLess(compose, persist)
         self.assertIn("return response", FINALIZATION)
-        self.assertIn("response = turn_atomic_finalization.finalize(", SERVER)
+        self.assertIn("response = turn_atomic_finalization.finalize(", COMPLETION)
 
     def test_fallback_exposure_and_action_evidence_still_passed(self):
-        self.assertIn("exposed_entities=fallback_entity_authorization.exposed_entities", SERVER)
-        self.assertIn("dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback_result", SERVER)
-        self.assertIn("action_results=action_results", SERVER)
+        self.assertIn("exposed_entities=fallback_entity_authorization.exposed_entities", COMPLETION)
+        self.assertIn("dispatch_fallback=guarded_fallback_dispatch.dispatch_fallback_result", COMPLETION)
+        self.assertIn("action_results=action_results", COMPLETION)
 
 
 if __name__ == "__main__":
