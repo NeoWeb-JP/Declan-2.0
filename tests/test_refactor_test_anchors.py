@@ -36,6 +36,28 @@ class RefactorAnchorTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertIn("old_call()", findings[0])
 
+    def test_detects_plain_assertions_and_source_methods(self):
+        tree = anchors.ast.parse(
+            'assert "old_call()" in SERVER\n'
+            'SERVER.index("old_call()")\n'
+            'SERVER.find("old_call()")\n'
+            'SERVER.count("old_call()")\n'
+            'SERVER.startswith("old_call()")\n'
+            'self.assertIn("old_call()", SERVER)\n'
+        )
+        references = list(anchors.anchor_references(tree))
+        self.assertEqual(len(references), 6)
+        self.assertTrue(all(variable == "SERVER" and literal == "old_call()"
+                            for _, variable, literal in references))
+
+    def test_ignores_unrelated_comparisons(self):
+        tree = anchors.ast.parse(
+            'assert value in mapping\n'
+            'assert "hello" not in SERVER\n'
+            'assert SERVER.find(variable) >= 0\n'
+        )
+        self.assertEqual(list(anchors.anchor_references(tree)), [])
+
     def test_unchanged_anchor_is_not_reported(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
