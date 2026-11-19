@@ -1,6 +1,6 @@
 """Local Declan 2.0 chat prototype. Run with python server.py."""
 import argparse as argparse
-import ipaddress
+import ipaddress as ipaddress
 import logging
 import os
 import secrets as secrets
@@ -92,7 +92,7 @@ import turn_atomic_finalization as turn_atomic_finalization
 import turn_response_composition as turn_response_composition
 import history as history
 import post_body_routing as post_body_routing
-import music
+import music as music
 import approved_media_players as approved_media_players
 import spotify_playlists as spotify_playlists
 import music_playlists_post as music_playlists_post
