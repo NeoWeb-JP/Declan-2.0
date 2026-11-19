@@ -9,7 +9,6 @@ import secrets
 import sqlite3
 from http.server import BaseHTTPRequestHandler
 from declan_ingress.http_server import BoundedHTTPServer as ThreadingHTTPServer
-from declan_ingress.security import response_headers
 import ha_inventory
 from pathlib import Path
 from threading import Thread
@@ -90,6 +89,7 @@ import post_route_gate_http
 import post_request_preflight
 import post_content_type_http
 import http_response_transport
+import http_ingress_security
 import post_validation_errors_http
 import sensitive_confirmation_resolution
 import web_stt
@@ -1869,9 +1869,7 @@ class Handler(BaseHTTPRequestHandler):
     timeout = 5
 
     def end_headers(self):
-        for name, value in response_headers(ingress=hasattr(self, 'headers') and self.has_ingress_access(),
-                                            nonce=getattr(self, '_page_nonce', None)).items():
-            self.send_header(name, value)
+        http_ingress_security.send_security_headers(self)
         super().end_headers()
 
     def send_body(self, status, data, content_type, filename=None):
@@ -1888,10 +1886,7 @@ class Handler(BaseHTTPRequestHandler):
         return media_settings_routes.spotify_settings(self, body, music=music)
 
     def has_ingress_access(self):
-        token = os.environ.get("DECLAN_INGRESS_TOKEN", "")
-        supplied = self.headers.get("X-Declan-Ingress-Token", "")
-        return (len(token) >= 32 and token != os.environ.get("DECLAN_ASSIST_TOKEN", "")
-                and secrets.compare_digest(supplied.encode(), token.encode()))
+        return http_ingress_security.has_ingress_access(self)
 
     def approved_player_settings(self, body=None):
         return media_settings_routes.approved_player_settings(
