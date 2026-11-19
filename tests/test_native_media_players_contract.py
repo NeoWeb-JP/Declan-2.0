@@ -34,7 +34,7 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn("r.post_entry_gates.enforce(", POST_INGRESS)
         self.assertIn("post_request_entry.enforce_preflight(", (ROOT / "post_entry_gates.py").read_text())
         self.assertIn("post_request_preflight.enforce(", (ROOT / "post_request_entry.py").read_text())
-        self.assertIn("post_origin_auth_http.enforce_access,", post)
+        self.assertIn("r.post_origin_auth_http.enforce_access,", POST_INGRESS)
 
     def test_admin_proxy_and_payload_validation(self):
         ast.parse(VIEW)
