@@ -98,6 +98,16 @@ def normalize_phrase(text):
     return " ".join(text.casefold().strip(" .?!").split())
 
 
+def validated_training_phrase(value, error):
+    """Validate raw training input before normalisation can hide control chars."""
+    if not isinstance(value, str) or any(ord(char) < 32 for char in value):
+        raise ValueError(error)
+    normalized = normalize_phrase(value)
+    if not 0 < len(normalized) <= 120:
+        raise ValueError(error)
+    return normalized
+
+
 def learned_intents():
     with database() as connection:
         _intent_table(connection)
@@ -117,17 +127,9 @@ def teach_intent(turn_id, target, unmatched_reply):
             "SELECT message FROM turns WHERE id = ? AND created_at >= ?",
             (turn_id, time() - retention_seconds()),
         ).fetchone()
-        raw_phrase = turn[0] if turn else ""
-        if not isinstance(raw_phrase, str) or any(ord(char) < 32 for char in raw_phrase):
-            raise ValueError("Choose a command from history (up to 120 characters).")
-        phrase = normalize_phrase(raw_phrase)
-        if not 0 < len(phrase) <= 120:
-            raise ValueError("Choose a command from history (up to 120 characters).")
-        if not isinstance(target, str) or any(ord(char) < 32 for char in target):
-            raise ValueError("Enter the command you meant, up to 120 characters.")
-        target = normalize_phrase(target)
-        if not 0 < len(target) <= 120:
-            raise ValueError("Enter the command you meant, up to 120 characters.")
+        phrase = validated_training_phrase(
+            turn[0] if turn else "", "Choose a command from history (up to 120 characters).")
+        target = validated_training_phrase(target, "Enter the command you meant, up to 120 characters.")
         if target == phrase:
             raise ValueError("Enter a different command from the missed transcript.")
         _intent_table(connection)
@@ -147,10 +149,9 @@ def teach_phrase(phrase, target, *, automatic=False):
     """Save an explicit correction, or add a retry without overwriting user training."""
     if not isinstance(phrase, str) or not isinstance(target, str):
         raise ValueError("Enter a phrase and the command you meant.")
-    if any(ord(c) < 32 for value in (phrase, target) for c in value):
-        raise ValueError("Enter a different command, up to 120 characters.")
-    phrase, target = normalize_phrase(phrase), normalize_phrase(target)
-    if not all(0 < len(value) <= 120 for value in (phrase, target)) or phrase == target:
+    phrase = validated_training_phrase(phrase, "Enter a different command, up to 120 characters.")
+    target = validated_training_phrase(target, "Enter a different command, up to 120 characters.")
+    if phrase == target:
         raise ValueError("Enter a different command, up to 120 characters.")
     with database() as connection:
         if automatic:
@@ -256,15 +257,9 @@ def edit_intent(phrase, target, previous):
     """Edit an existing correction; a stale tab must not overwrite a newer edit."""
     if not all(isinstance(value, str) for value in (phrase, target, previous)):
         raise ValueError("Enter a valid phrase and command.")
-    if any(ord(char) < 32 for char in phrase):
-        raise ValueError("Enter a valid phrase, up to 120 characters.")
-    if any(ord(char) < 32 for char in target):
-        raise ValueError("Enter a different command, up to 120 characters.")
-    phrase = normalize_phrase(phrase)
-    target = normalize_phrase(target)
-    if not 0 < len(phrase) <= 120:
-        raise ValueError("Enter a valid phrase, up to 120 characters.")
-    if not 0 < len(target) <= 120 or any(ord(char) < 32 for char in target) or target == phrase:
+    phrase = validated_training_phrase(phrase, "Enter a valid phrase, up to 120 characters.")
+    target = validated_training_phrase(target, "Enter a different command, up to 120 characters.")
+    if target == phrase:
         raise ValueError("Enter a different command, up to 120 characters.")
     with database() as connection:
         _intent_table(connection)
