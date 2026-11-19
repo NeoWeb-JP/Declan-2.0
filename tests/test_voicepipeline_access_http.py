@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock
 
-from voicepipeline_access_http import enforce_access, requires_local_access
+from declan.voice.voicepipeline_access_http import enforce_access, requires_local_access
 
 
 class VoicePipelineAccessTests(unittest.TestCase):

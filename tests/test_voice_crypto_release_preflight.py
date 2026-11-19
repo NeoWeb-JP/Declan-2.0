@@ -19,7 +19,7 @@ class VoiceCryptoReleasePreflightTests(unittest.TestCase):
         readiness_text = '\\n'.join(lines[readiness.lineno - 1:readiness.end_lineno])
         self.assertIn('check_voice_encryption', readiness_text)
         self.assertIn('voice_db.is_symlink()', readiness_text)
-        self.assertIn('voice_audio_crypto import _aesgcm', readiness_text)
+        self.assertIn('declan.voice.voice_audio_crypto import _aesgcm', readiness_text)
         self.assertLess(guard.lineno, readiness.lineno)
         self.assertLess(readiness.lineno, next(i for i, line in enumerate(lines, 1)
                                            if 'state_backup.snapshot(APP / ".data")' in line))

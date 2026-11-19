@@ -1,7 +1,7 @@
 """Initialize a voice turn with capture arbitration and scoped session context."""
 from dataclasses import dataclass
 
-import assist_capture_http
+from declan.voice import assist_capture_http
 import request_origin
 import session_context_access
 

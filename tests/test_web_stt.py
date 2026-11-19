@@ -3,8 +3,8 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 from types import SimpleNamespace
 
-from web_stt import AssistSpeechError, TranscriptionResult, TranscriptionStatus, run_stt, run_stt_result
-import web_stt
+from declan.voice.web_stt import AssistSpeechError, TranscriptionResult, TranscriptionStatus, run_stt, run_stt_result
+from declan.voice import web_stt
 
 
 class WebSpeechTests(TestCase):

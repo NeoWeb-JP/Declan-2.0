@@ -1,0 +1,1 @@
+"""Declan voice domain."""

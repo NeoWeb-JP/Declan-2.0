@@ -24,7 +24,7 @@ class MediaPlayersContractTests(unittest.TestCase):
         self.assertIn('not players_auth', (ROOT / 'get_access_gate_http.py').read_text())
         self.assertIn('r.post_body_routing.dispatch(', POST_INGRESS)
         self.assertIn('settings_voice_post.handles(handler.path)', (ROOT / 'post_body_routing.py').read_text())
-        self.assertIn('media_settings_post.handles(path)', (ROOT / 'settings_voice_post.py').read_text())
+        self.assertIn('media_settings_post.handles(path)', (ROOT / 'declan' / 'voice' / 'settings_voice_post.py').read_text())
         media_post = (ROOT / "declan" / "music" / "media_settings_post.py").read_text()
         self.assertIn('"/api/settings/media-players"', media_post)
         self.assertIn('handler.approved_player_settings(body)', media_post)

@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from check_voice_encryption import inspect, main
-from voice_audio_crypto import encrypt
+from declan.voice.voice_audio_crypto import encrypt
 
 
 class VoiceReadinessTests(unittest.TestCase):

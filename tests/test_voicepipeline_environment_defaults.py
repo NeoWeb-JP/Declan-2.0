@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-import voicepipeline
+from declan.voice import voicepipeline
 
 
 class VoicePipelineEnvironmentDefaultsTests(unittest.TestCase):

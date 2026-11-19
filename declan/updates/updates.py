@@ -250,7 +250,7 @@ def install(root, version, expected_ref):
                 cwd=staged, timeout=180)
         # An encrypted voice release cannot be activated without its crypto runtime.
         # Do this before selecting the release or touching persistent data.
-        if (staged / "voice_audio_crypto.py").is_file():
+        if (staged / "declan" / "voice" / "voice_audio_crypto.py").is_file() or (staged / "voice_audio_crypto.py").is_file():
             run(python, "-c",
                 "from cryptography.hazmat.primitives.ciphers.aead import AESGCM; "
                 "assert AESGCM.generate_key(bit_length=256)",
@@ -263,7 +263,7 @@ def install(root, version, expected_ref):
                 run(python, "-m", "check_voice_encryption", "--database", str(voice_db),
                     cwd=staged, timeout=30)
             else:
-                run(python, "-c", "from voice_audio_crypto import _aesgcm; _aesgcm()",
+                run(python, "-c", "from declan.voice.voice_audio_crypto import _aesgcm; _aesgcm()",
                     cwd=staged, timeout=30)
         run(python, "server.py", "--help", cwd=staged)
         (staged / ".data").symlink_to((APP / ".data").resolve(), target_is_directory=True)

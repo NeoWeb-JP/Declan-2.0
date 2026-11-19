@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock
 
-from assist_auth_http import authenticate_assist
+from declan.voice.assist_auth_http import authenticate_assist
 
 
 class AssistAuthHttpTests(unittest.TestCase):
