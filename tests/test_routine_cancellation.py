@@ -48,8 +48,8 @@ class RoutineCancellationTests(unittest.TestCase):
         )
         self.assertEqual(result.outcome, Outcome.UNVERIFIED)
         self.assertIsNone(context)
-        self.assertIn("Cancellation requested for: Movie Time.", result.message)
-        self.assertIn("Already completed actions were not rolled back.", result.message)
+        self.assertIn("Cancellation requested for: Movie Time.", result.reply)
+        self.assertIn("Already completed actions were not rolled back.", result.reply)
         request = opener.open.call_args.args[0]
         self.assertEqual(request.full_url, "http://ha/api/services/script/turn_off")
         self.assertEqual(request.get_method(), "POST")
@@ -63,7 +63,7 @@ class RoutineCancellationTests(unittest.TestCase):
             active_registry=SimpleNamespace(snapshot=lambda: {"Good Night": "script.good_night"}),
         )
         self.assertEqual(result.outcome, Outcome.UNVERIFIED)
-        self.assertIn("Could not confirm cancellation request for: Good Night.", result.message)
+        self.assertIn("Could not confirm cancellation request for: Good Night.", result.reply)
 
 
 if __name__ == "__main__":
