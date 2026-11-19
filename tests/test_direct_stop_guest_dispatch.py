@@ -18,7 +18,7 @@ class DirectCommandDispatchTests(unittest.TestCase):
         self.assertIn("routine_reply, outcome = direct_result.reply, direct_result.outcome", DISPATCH)
 
     def test_guest_dispatch_preserves_confirmation_and_order(self):
-        confirmation = SERVER.index("turn_preflight_entry.resolve(")
+        confirmation = (ROOT / "turn_session_preflight.py").read_text().index("turn_preflight_entry.resolve(")
         self.assertIn("turn_preflight.resolve(", (ROOT / "turn_preflight_entry.py").read_text())
         preflight_source = (ROOT / "turn_preflight.py").read_text()
         self.assertIn("sensitive_confirmation_resolution.resolve_confirmation(", preflight_source)
