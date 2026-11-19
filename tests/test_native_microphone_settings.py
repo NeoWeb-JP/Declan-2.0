@@ -23,7 +23,7 @@ class NativeMicrophoneSettingsTests(unittest.TestCase):
         for expected in ("not user.is_admin", "application/json", "640000",
                          "len(audio) % 2", "allow_redirects=False", "Bearer {entry.data['token']}"):
             self.assertIn(expected, source)
-        self.assertIn('post_entry_gates.enforce(', SERVER)
+        self.assertIn('r.post_entry_gates.enforce(', POST_INGRESS)
         self.assertIn('handler.path == "/api/stt"', (ROOT / 'post_entry_gates.py').read_text())
         ingress = (ROOT / "http_ingress_security.py").read_text()
         ast.parse(ingress)
