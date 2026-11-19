@@ -15,7 +15,7 @@ class PostPayloadValidationTests(unittest.TestCase):
         body = {"message": "hello"}
         with patch.object(post_payload_validation.post_payload_http, "read_json_body", return_value=body) as read, \
              patch.object(post_payload_validation.voicepipeline_access_http, "enforce_access", return_value=True) as gate:
-            self.assertIs(post_payload_validation.read_authorized_body(self.handler, ingress=True), body)
+            self.assertEqual(post_payload_validation.read_authorized_body(self.handler, ingress=True), (True, body))
         read.assert_called_once_with(self.handler)
         gate.assert_called_once_with(self.handler, body, ingress=True)
 
@@ -23,7 +23,7 @@ class PostPayloadValidationTests(unittest.TestCase):
         body = {"action": "delete"}
         with patch.object(post_payload_validation.post_payload_http, "read_json_body", return_value=body), \
              patch.object(post_payload_validation.voicepipeline_access_http, "enforce_access", return_value=False):
-            self.assertIsNone(post_payload_validation.read_authorized_body(self.handler, ingress=False))
+            self.assertEqual(post_payload_validation.read_authorized_body(self.handler, ingress=False), (False, None))
 
     def test_parsing_error_does_not_bypass_authorization(self):
         with patch.object(post_payload_validation.post_payload_http, "read_json_body", side_effect=ValueError("invalid")), \
