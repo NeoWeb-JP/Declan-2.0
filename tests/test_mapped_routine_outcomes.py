@@ -94,7 +94,6 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
 
     def test_chained_outcomes_validate_inputs_and_preserve_legacy_type(self):
         self.assertIs(server.chained_outcome_result("execution_completed", "confirmed"), Outcome.EXECUTION_COMPLETED)
-        self.assertIs(type(server.chained_outcome("execution_completed", "confirmed")), str)
         with self.assertRaises(ValueError):
             server.chained_outcome_result("invalid", "confirmed")
 

@@ -306,16 +306,16 @@ class ServiceTests(TestCase):
                 io.BytesIO(b'{"entity_id":"conversation.declan_local","state":"unknown"}'),
                 io.BytesIO(json.dumps({"service_response": {"response": reply}}).encode()),
             ]
-            self.assertEqual(server.search_media("where can i watch dune"), ("It's on Netflix.", "search_result"))
+            self.assertEqual(server.search_media_result("where can i watch dune").as_legacy_pair(), ("It's on Netflix.", "search_result"))
             request = opener.open.call_args.args[0]
             self.assertEqual(json.loads(request.data)["agent_id"], "conversation.declan_local")
-            self.assertEqual(server.search_media("where can i watch dune and turn on the lights")[1], "unresolved")
+            self.assertEqual(server.search_media_result("where can i watch dune and turn on the lights").outcome.value, "unresolved")
             opener.open.side_effect = TimeoutError()
-            self.assertEqual(server.search_media("where can i watch dune")[1], "unavailable")
+            self.assertEqual(server.search_media_result("where can i watch dune").outcome.value, "unavailable")
             with patch.dict(os.environ, {"DECLAN_MEDIA_SEARCH_AGENT": ""}):
                 opener.open.side_effect = None
                 opener.open.return_value = io.BytesIO(b'{"legacy":[],"self":[]}')
-                self.assertEqual(server.search_media("where can i watch dune")[1], "not_configured")
+                self.assertEqual(server.search_media_result("where can i watch dune").outcome.value, "not_configured")
 
     def test_media_search_discovers_only_an_unambiguous_local_agent(self):
         environment = HA_ENV | {"DECLAN_MEDIA_SEARCH_AGENT": ""}
@@ -327,7 +327,7 @@ class ServiceTests(TestCase):
                 io.BytesIO(json.dumps({"legacy": agents, "self": []}).encode()),
                 io.BytesIO(json.dumps(reply).encode()),
             ]
-            self.assertEqual(server.search_media("where can i watch friends"), ("Test result.", "search_result"))
+            self.assertEqual(server.search_media_result("where can i watch friends").as_legacy_pair(), ("Test result.", "search_result"))
             discovery = opener.open.call_args_list[0].args[0]
             self.assertEqual(urlsplit(discovery.full_url).path, "/api/template")
             self.assertIn("integration_entities('declan_local')", json.loads(discovery.data)["template"])
@@ -339,7 +339,7 @@ class ServiceTests(TestCase):
             opener.reset_mock()
             opener.open.side_effect = [
                 io.BytesIO(json.dumps({"legacy": agents, "self": []}).encode())]
-            self.assertEqual(server.search_media("where can i watch friends")[1], "not_configured")
+            self.assertEqual(server.search_media_result("where can i watch friends").outcome.value, "not_configured")
             self.assertEqual(opener.open.call_count, 1)
 
     def test_timer_output_requires_one_available_satellite(self):
@@ -372,30 +372,32 @@ class GuestAssignmentTests(TestCase):
         self.register = self.ha.entities[server.GUEST_REGISTER_ENTITY]
 
     def test_check_is_read_only_and_uses_personality_only_when_inactive(self):
-        reply, outcome = server.guest_assignment("check", self.connection)
+        result = server.guest_assignment_result("check", self.connection)
+        reply, outcome = result.reply, result.outcome.value
         self.assertEqual(outcome, "confirmed")
         self.assertIn("Guest Mode is off.", reply)
         self.assertIn("the cat", reply)
         self.mode["state"] = "on"
         self.register["state"] = "Mike and Kathy"
-        self.assertEqual(server.guest_assignment("check", self.connection),
+        result = server.guest_assignment_result("check", self.connection)
+        self.assertEqual((result.reply, result.outcome.value),
                          ("Currently in charge: Mike and Kathy. Guest Mode is on.", "confirmed"))
         self.register["state"] = "unavailable"
-        self.assertEqual(server.guest_assignment("check", self.connection)[1], "unavailable")
+        self.assertEqual(server.guest_assignment_result("check", self.connection).outcome.value, "unavailable")
         self.assertTrue(all(data is None for _, data in self.ha.calls))
 
     def test_clear_verifies_register_before_turning_off_guest_mode(self):
         self.mode["state"] = "on"
         self.register["state"] = "Mike and Kathy"
         self.ha.apply = False
-        self.assertEqual(server.guest_assignment("clear", self.connection)[1], "unverified")
+        self.assertEqual(server.guest_assignment_result("clear", self.connection).outcome.value, "unverified")
         self.assertNotIn("/api/services/input_boolean/turn_off", [path for path, _ in self.ha.calls])
 
         self.ha.apply = True
         self.ha.fail = "/api/services/input_boolean/turn_off"
-        self.assertEqual(server.guest_assignment("clear", self.connection)[1], "partial")
+        self.assertEqual(server.guest_assignment_result("clear", self.connection).outcome.value, "partial")
         self.assertEqual((self.register["state"], self.mode["state"]), ("", "on"))
 
         self.ha.fail = None
-        self.assertEqual(server.guest_assignment("clear", self.connection)[1], "confirmed")
+        self.assertEqual(server.guest_assignment_result("clear", self.connection).outcome.value, "confirmed")
         self.assertEqual((self.register["state"], self.mode["state"]), ("", "off"))

@@ -1,12 +1,9 @@
 """Regression coverage for extracted legacy response conversion boundaries."""
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from declan.core import legacy_response_adapters as adapters
-import server
-
-
 class LegacyResponseAdapterTests(unittest.TestCase):
     def test_routine_triple_uses_live_result_callback(self):
         r = Mock()
@@ -29,12 +26,6 @@ class LegacyResponseAdapterTests(unittest.TestCase):
         r.set_switch_as_light_result.return_value = None
         self.assertIsNone(adapters.set_switch_as_light("fan", "on", {}, None, r=r))
 
-    def test_public_server_wrapper_uses_patched_callback(self):
-        typed = Mock()
-        typed.as_legacy_pair.return_value = ("done", "confirmed")
-        with patch.object(server, "guest_assignment_result", return_value=typed) as result:
-            self.assertEqual(server.guest_assignment("set", None), ("done", "confirmed"))
-            result.assert_called_once_with("set", None)
 
 
 if __name__ == "__main__":

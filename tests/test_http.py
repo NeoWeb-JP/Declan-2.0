@@ -154,7 +154,7 @@ class APITests(TestCase):
                     reply = self.ask('good morning and turn on the study light')
                     self.assertIn('My custom morning response.', reply['reply'])
                     self.assertIn('The study light failed.', reply['reply'])
-                    self.assertEqual(reply['outcome'], server.chained_outcome('started', 'failed'))
+                    self.assertEqual(reply['outcome'], server.chained_outcome_result('started', 'failed').value)
             body['profile']['requested']['sass']['default'] = ['Stale overwrite']
             code, payload = self.request('/api/native/routine-responses', body=body, headers=headers)
             self.assertEqual(code, 400)
