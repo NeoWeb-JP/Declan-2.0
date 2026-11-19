@@ -27,7 +27,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from execution_results import ExecutionResult, Outcome, MovieLaunchStatus
+from execution_results import ExecutionResult, Outcome
 from arbitration import CaptureArbiter
 
 import conditions
@@ -104,7 +104,7 @@ import ai_intent_gate
 import guarded_fallback
 import ha_dispatcher
 import routine_registry
-from routine_action_evidence import RoutineActionStatus, parse_routine_actions
+from routine_action_evidence import parse_routine_actions
 from script_provider_results import ScriptProviderResult, ScriptReportedOutcome
 from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
