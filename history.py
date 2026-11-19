@@ -250,9 +250,11 @@ def edit_intent(phrase, target, previous):
     """Edit an existing correction; a stale tab must not overwrite a newer edit."""
     if not all(isinstance(value, str) for value in (phrase, target, previous)):
         raise ValueError("Enter a valid phrase and command.")
+    if any(ord(char) < 32 for char in phrase):
+        raise ValueError("Enter a valid phrase, up to 120 characters.")
     phrase = normalize_phrase(phrase)
     target = normalize_phrase(target)
-    if not 0 < len(phrase) <= 120 or any(ord(char) < 32 for char in phrase):
+    if not 0 < len(phrase) <= 120:
         raise ValueError("Enter a valid phrase, up to 120 characters.")
     if not 0 < len(target) <= 120 or any(ord(char) < 32 for char in target) or target == phrase:
         raise ValueError("Enter a different command, up to 120 characters.")
