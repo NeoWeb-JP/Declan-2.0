@@ -110,7 +110,7 @@ def spotify_settings(handler, body=None, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return media_settings_routes.spotify_settings(self, body, music=music)
+        return media_settings_routes.spotify_settings(handler, body, music=music)
 
 def has_ingress_access(handler, *, r):
     http_response_transport = r.http_response_transport
@@ -146,7 +146,7 @@ def has_ingress_access(handler, *, r):
     web_stt = r.web_stt
     traced_transcribe_result = r.traced_transcribe_result
 
-        return http_ingress_security.has_ingress_access(self)
+        return http_ingress_security.has_ingress_access(handler)
 
 def approved_player_settings(handler, body=None, *, r):
     http_response_transport = r.http_response_transport
