@@ -29,6 +29,13 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_MEDIA_SEARCH_AGENT` | Home Assistant conversation agent for media search | `conversation.example` |
 | `DECLAN_WEB_ASSIST_PIPELINE` | Home Assistant Assist pipeline identifier for browser voice | Set to your configured pipeline ID |
 | `DECLAN_VISITORS_ENTITY` | Home Assistant visitor-presence input boolean | `input_boolean.example_visitors` |
+| `DECLAN_GUEST_MODE_ENTITY` | Guest authority helper, with saved-setting precedence | `input_boolean.guest_mode` |
+| `DECLAN_GUEST_REGISTER_ENTITY` | Guest names helper, with saved-setting precedence | `input_text.guests_in_charge` |
+| `DECLAN_PROJECTOR_POWER_ENTITY` | Projector power helper, with saved-setting precedence | `switch.projector_power_socket` |
+| `DECLAN_RESIDENT_ONE_NAME` | Optional first resident display name | Leave empty for generic wording |
+| `DECLAN_RESIDENT_TWO_NAME` | Optional second resident display name | Leave empty for generic wording |
+| `DECLAN_DOG_NAME` | Optional dog display name | Leave empty for generic wording |
+| `DECLAN_CAT_NAME` | Optional cat display name | Leave empty for generic wording |
 | `DECLAN_TRUSTED_RELEASES` | Path to updater allow-list for pinned release mode | `/etc/declan/trusted-releases.json` |
 | `DECLAN_UPDATE_SOURCE` | Release trust source; `github` (default) or `pinned` | `github` |
 | `DECLAN_UPDATE_ROOT` | Optional updater installation root override | Leave unset |
@@ -51,7 +58,7 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 
 The environment inventory has automated regression coverage for runtime reads in production Python modules, including indexed `os.environ` access and `get`, `setdefault`, and `pop` calls. The checks detect newly introduced names and require documented purposes/examples, but **inventory completeness does not prove every default, precedence rule, or invalid-value behaviour has been exercised**. Do not mark the repo-wide defaults audit complete based on inventory coverage alone.
 
-Verified runtime behaviour has dedicated tests for history retention, persisted configuration fallback, media-player and Spotify catalogue paths, OpenAI planner model/key selection, updater source/root/supervision, and sensitive routine/trusted speaker settings. Other entries still require a source-level defaults/override audit, with tests where the behaviour is safety-critical. Distinguish process environment from Home Assistant config-entry options and values persisted in Declan's configuration store. Never place real tokens or personal credentials in documentation fixtures.
+As of main after #750, every operator inventory entry is mapped below to default/override guidance and existing regression files. The coverage guard also includes every key in `configuration.FIELDS`, whose environment fallback is indirect. Test-file existence alone is not behavior verification; country fallback, helper validation, safe display names and saved-setting precedence were separately exercised during this audit. Distinguish process environment from Home Assistant config-entry options and values persisted in Declan's configuration store. Never place real tokens or personal credentials in documentation fixtures.
 
 When closing the remaining [P2 documentation task](https://github.com/NeoWeb-JP/Declan-2.0/issues/17), record which runtime settings were checked, their unset/empty/invalid handling, and whether tests enforce the documented defaults. Update this table and `.env.example` together when a setting changes.
 
@@ -64,6 +71,13 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 
 | Setting | Unset or empty | Override and invalid handling | Test |
 | --- | --- | --- | --- |
+| DECLAN_GUEST_MODE_ENTITY, DECLAN_GUEST_REGISTER_ENTITY, DECLAN_PROJECTOR_POWER_ENTITY | Missing uses the corresponding legacy helper default; explicitly blank is invalid | Saved nonempty values override environment; correct entity domain and lowercase ID required before dispatch | `tests/test_household_entities.py`, `tests/test_settings_precedence.py` |
+| DECLAN_RESIDENT_ONE_NAME, DECLAN_RESIDENT_TWO_NAME, DECLAN_DOG_NAME, DECLAN_CAT_NAME | Missing, blank or invalid names render generic wording | Saved nonempty values override environment; safe names are trimmed at rendering and substituted only where referenced | `tests/test_household_language.py`, `tests/test_settings_precedence.py` |
+| DECLAN_APPROVED_MEDIA_PLAYERS_FILE, DECLAN_SPOTIFY_PLAYLISTS_FILE | Missing or blank uses the corresponding module-local `.data` JSON file | Nonempty paths override the default without trimming or absolute-path validation; protect the deployment environment | `tests/test_environment_file_path_defaults.py` |
+| DECLAN_ASSIST_TOKEN | Missing or short token prevents Assist LAN startup | Requires at least 32 characters at startup; request authorization uses the exact token. Ingress must use a different token | `tests/test_bind_address_environment_defaults.py`, `tests/test_http.py` |
+| DECLAN_DEFAULT_COUNTRY | Missing defaults to `GB`; blank supplies no country preference | Uppercases without trimming. Unique matching country is used only without usable HA coordinates; ambiguous matches stay unresolved | `tests/test_country_environment_defaults.py` |
+| DECLAN_HISTORY_RETENTION_DAYS | Missing defaults to 30 days; blank is invalid | Accepts integer days 1–30; malformed, padded and out-of-range values raise an error rather than silently weakening retention | `tests/test_history_retention_environment.py` |
+| DECLAN_OPENAI_MODEL, OPENAI_API_KEY | Missing or blank planner configuration fails before network access | Explicit arguments override environment; model must pass supported-name validation and key must contain non-whitespace text | `tests/test_openai_planner.py` |
 | DECLAN_WEATHER_ENTITY  | Uses `weather.forecast_home` when unset | Trims valid weather entity IDs; malformed IDs are rejected before a request | `tests/test_conditions_environment_defaults.py` |
 | DECLAN_INDOOR_TEMPERATURE_ENTITY  | Uses the configured climate default when unset | Valid entity overrides are accepted; malformed entities are rejected | `tests/test_conditions_environment_defaults.py` |
 | DECLAN_SPOTIFY_PRESETS  | Built-in presets remain available | Valid JSON object entries override presets; malformed JSON and invalid references are ignored | `tests/test_spotify_presets_environment_defaults.py` |

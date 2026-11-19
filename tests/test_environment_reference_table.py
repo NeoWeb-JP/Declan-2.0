@@ -2,12 +2,36 @@
 from pathlib import Path
 import re
 import unittest
+import configuration
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class EnvironmentReferenceTests(unittest.TestCase):
+    def test_every_inventory_variable_has_behavior_and_existing_test_evidence(self):
+        content = (ROOT / "docs/environment.md").read_text(encoding="utf-8")
+        inventory = content.split("## Verification scope", 1)[0]
+        names = set(re.findall(r"^\| `([A-Z][A-Z0-9_]*)` \|", inventory, re.MULTILINE))
+        self.assertEqual(set(configuration.FIELDS) - names, set(),
+                         "Document indirect environment fallbacks for saved settings")
+        behavior = content.split("## Verified runtime defaults and precedence", 1)[1].split(
+            "### Persisted setting precedence", 1)[0]
+        covered = set()
+        for row in behavior.splitlines():
+            if not row.startswith("| DECLAN_") and not row.startswith("| OPENAI_"):
+                continue
+            columns = row.split("|")[1:-1]
+            self.assertEqual(len(columns), 4)
+            covered.update(re.findall(r"DECLAN_[A-Z0-9_]+|OPENAI_API_KEY", columns[0]))
+            self.assertTrue(columns[1].strip())
+            self.assertTrue(columns[2].strip())
+            tests = re.findall(r"`(tests/[^`]+\.py)`", columns[3])
+            self.assertTrue(tests, row)
+            for test in tests:
+                self.assertTrue((ROOT / test).is_file(), test)
+        self.assertEqual(names, covered)
+
     def test_environment_variables_remain_in_one_table(self):
         content = (ROOT / "docs" / "environment.md").read_text(encoding="utf-8")
         section = content.split("## Variables documented for operators", 1)[1].split(
