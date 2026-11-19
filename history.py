@@ -177,10 +177,11 @@ def clear():
 
 
 def has_recent_assist():
+    now = time()
     with database() as connection:
         return connection.execute(
             "SELECT 1 FROM turns WHERE source = ? AND created_at BETWEEN ? AND ? LIMIT 1",
-            ("assist", time() - min(300, retention_seconds()), time()),
+            ("assist", now - min(300, retention_seconds()), now),
         ).fetchone() is not None
 
 
