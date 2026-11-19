@@ -81,8 +81,7 @@ import voicepipeline_access_http
 import post_payload_http
 import post_origin_auth_http
 import post_route_gate_http
-import post_request_preflight
-import post_content_type_http
+import post_request_entry
 import http_response_transport
 import http_ingress_security
 import post_validation_errors_http
@@ -1919,13 +1918,10 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def do_POST(self):
-        if self.path not in {"/api/chat", "/api/assist", "/api/stt", "/api/tts", "/api/assist/history"}:
-            return self.handle_post()
-        with diagnostics.request(self.path):
-            return self.handle_post()
+        return post_request_entry.dispatch(self, handle_post=self.handle_post)
 
     def handle_post(self):
-        if not post_request_preflight.enforce(
+        if not post_request_entry.enforce_preflight(
             self, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
             ingress=self.has_ingress_access(),
             authenticate_assist=assist_auth_http.authenticate_assist,
@@ -1936,7 +1932,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/stt":
             self.transcribe_browser_audio()
             return
-        if not post_content_type_http.enforce_json_content_type(self):
+        if not post_request_entry.enforce_content_type(self):
             return
         try:
             body = post_payload_http.read_json_body(self)
