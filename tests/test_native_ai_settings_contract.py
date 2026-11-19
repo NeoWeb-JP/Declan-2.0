@@ -5,6 +5,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = (ROOT / "server.py").read_text()
+AI_FALLBACK = (ROOT / "ai_fallback_dispatch.py").read_text()
 AI_POST = (ROOT / "ai_settings_post.py").read_text()
 DISPATCH = (ROOT / "settings_voice_post.py").read_text()
 AUTHORIZATION = (ROOT / "fallback_entity_authorization.py").read_text()
@@ -63,7 +64,7 @@ class NativeAISettingsContractTests(unittest.TestCase):
         self.assertIn('if (showProposals && Array.isArray(turn.action_results)', JS)
         self.assertIn('step.ai_generated === true', JS)
         self.assertIn('"action_results": [{', HISTORY)
-        self.assertIn('FallbackActionEvidence.from_action(action, include_detail=settings["diagnostics"])', BACKEND)
+        self.assertIn('evidence_factory.from_action(action, include_detail=settings["diagnostics"])', AI_FALLBACK)
 
     def test_fallback_local_first_and_allowlist(self):
         self.assertIn("if routine_reply is not None or light_result is not None:", FALLBACK)
@@ -73,9 +74,9 @@ class NativeAISettingsContractTests(unittest.TestCase):
         self.assertIn('exposed = exposed_entities(body, authorization, bridge_token)', FALLBACK)
         self.assertIn('ai_exposed_entities', AUTHORIZATION)
         self.assertIn('authenticated_ha', AUTHORIZATION)
-        self.assertIn('ai_pricing.charge(settings["model"]', BACKEND)
+        self.assertIn('pricing(settings["model"]', AI_FALLBACK)
         self.assertNotIn("DECLAN_OPENAI_FALLBACK_ENABLED", BACKEND)
-        self.assertIn('if not settings["enabled"] or not ai_intent_gate.is_action_request(message):', BACKEND)
+        self.assertIn('if not settings["enabled"] or not intent_gate(message):', AI_FALLBACK)
 
 
 if __name__ == "__main__":
