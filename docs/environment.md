@@ -45,6 +45,7 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_SPOTIFY_PLAYLISTS_FILE` | Optional path for Spotify playlist catalogue; defaults to `.data/spotify-playlists.json` beside `spotify_playlists.py` | Leave unset |
 | `DECLAN_OPENAI_MODEL` | Optional OpenAI planner model override; defaults to an empty string when unset | Leave unset unless configuring the planner |
 | `OPENAI_API_KEY` | Optional OpenAI API credential used by the planner when a key is not passed directly; defaults to an empty string when unset | Keep secret; leave unset when the planner is disabled |
+| `DECLAN_VOICE_AUDIO_KEY` | Base64url-encoded 32-byte AES-GCM key for local voice samples and release readiness; no generated default | Provision securely outside `.data`; see the local voice encryption deployment guide |
 
 ## Verification scope and remaining checks
 
@@ -74,6 +75,7 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_TIMER_ALARM_MEDIA_ID | Unset or blank uses a spoken timer announcement | Trims media-source IDs; unsupported schemes or rejected media playback fall back to speech | `tests/test_timer_alarm_media_environment.py` |
 | DECLAN_VOICEPIPELINE_URL | Missing or blank URL fails before network access | Trims trailing slash and whitespace; malformed or unsafe URLs fail before network access | `tests/test_voicepipeline_environment_defaults.py` |
 | DECLAN_VOICEPIPELINE_TOKEN | Unset or blank omits the Authorization header | Trims nonempty tokens and sends them as bearer credentials | `tests/test_voicepipeline_environment_defaults.py` |
+| DECLAN_VOICE_AUDIO_KEY | No default; missing or blank fails key validation and release readiness | Requires valid base64url encoding of exactly 32 bytes; no whitespace trimming, auto-generation or automatic key rotation. Wrong keys fail sample authentication. Local samples only, not shared VoicePipeline storage | `tests/test_voice_audio_encryption.py`, `tests/test_voice_encryption_readiness.py` |
 | DECLAN_BIND_ADDRESS | Normal mode binds to `127.0.0.1` and ignores this override; Assist LAN mode defaults to `0.0.0.0` | In Assist LAN mode accepts IPv4 addresses only, rejecting invalid addresses before binding; requires an Assist token of at least 32 characters | `tests/test_bind_address_environment_defaults.py` |
 | DECLAN_UPDATE_SOURCE | Defaults to `github` when unset | Accepts `github` or `pinned` after trimming whitespace; rejects blank, unknown and differently cased values | `tests/test_release_source_environment_defaults.py` |
 | DECLAN_UPDATE_ROOT | Missing or blank disables the updater | Requires an absolute POSIX root with writable directories, a releases directory and a current symlink pointing to the running app | `tests/test_update_root_environment_defaults.py` |
@@ -117,5 +119,3 @@ that every listed key is a direct environment override.
 Do not commit populated `.env` files, live access tokens, Spotify credentials or OpenAI keys. The Home Assistant Assist bridge token and the Ingress token serve different purposes and must not be reused.
 
 For deployment instructions, see [installation](installation.md) and [Proxmox updates](../PROXMOX-UPDATES.md).
-
-| `DECLAN_VOICE_AUDIO_KEY` | Base64url-encoded 32-byte AES-GCM key for local voice sample encryption; provision securely outside `.data` and never commit it. | `DECLAN_VOICE_AUDIO_KEY=<secure-base64url-32-byte-key>` |
