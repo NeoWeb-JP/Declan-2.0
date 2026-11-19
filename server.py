@@ -35,6 +35,7 @@ import household_selection_boundaries
 import legacy_response_adapters
 import runtime_dispatch_boundaries
 import inventory_stop_boundaries
+import compatibility_facade
 import sys
 from pathlib import Path as Path
 from threading import Thread
@@ -119,7 +120,7 @@ import ai_intent_gate as ai_intent_gate
 import guarded_fallback as guarded_fallback
 import ha_dispatcher as ha_dispatcher
 import routine_registry
-from routine_action_evidence import parse_routine_actions
+from routine_action_evidence import parse_routine_actions as parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence as LightingActionEvidence
@@ -139,7 +140,7 @@ import session_store
 import routine_cooldown
 import active_routine_registry
 import routine_execution_gates
-import routine_cancellation
+import routine_cancellation as routine_cancellation
 import session_turn_state as session_turn_state
 import lighting_intents as lighting_intents
 import roast as roast
@@ -156,19 +157,13 @@ ROUTINE_COOLDOWN = routine_cooldown.RoutineCooldown()
 ACTIVE_ROUTINE_REGISTRY = active_routine_registry.ActiveRoutineRegistry()
 
 def track_routine(name, script):
-    """Compatibility context manager for mapped routine execution."""
-    return ACTIVE_ROUTINE_REGISTRY.track(name, script)
+    return compatibility_facade.track_routine(name, script, r=sys.modules[__name__])
 
 def stop_pending_routines():
-    """Compatibility API for mapped routine cancellation."""
-    return _routine_legacy_triple(*stop_pending_routines_result())
-
+    return compatibility_facade.stop_pending_routines(r=sys.modules[__name__])
 
 def stop_pending_routines_result():
-    return routine_cancellation.stop_pending_routines_result(
-        connection_factory=ha_device_connection,
-        active_registry=ACTIVE_ROUTINE_REGISTRY,
-    )
+    return compatibility_facade.stop_pending_routines_result(r=sys.modules[__name__])
 
 IDLE_SECONDS = 300
 ASSIST_PORT = 52737
@@ -193,9 +188,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def home_assistant_status():
-    """Compatibility API returning the original connection status string."""
-    return home_assistant_status_result().status.value
-
+    return compatibility_facade.home_assistant_status(r=sys.modules[__name__])
 
 def home_assistant_status_result() -> HomeAssistantStatusResult:
     return household_selection_boundaries.home_assistant_status_result(r=sys.modules[__name__])
@@ -210,14 +203,10 @@ def read_visitors_present():
     return household_selection_boundaries.read_visitors_present(r=sys.modules[__name__])
 
 def routine_action_results(steps):
-    """Compatibility API retaining bounded plain-string evidence mappings."""
-    return [step.to_wire() for step in routine_action_results_typed(steps)]
-
+    return compatibility_facade.routine_action_results(steps, r=sys.modules[__name__])
 
 def routine_action_results_typed(steps):
-    """Read validated typed evidence from the mapped routine provider."""
-    return parse_routine_actions(steps)
-
+    return compatibility_facade.routine_action_results_typed(steps, r=sys.modules[__name__])
 
 MOVIE_APPS = {
     "netflix": ("Netflix", "netflix"),
@@ -237,17 +226,13 @@ def select_routine_result(phrase, origin) -> RoutineSelection | None:
     return household_selection_boundaries.select_routine_result(phrase, origin, r=sys.modules[__name__])
 
 def select_routine(phrase, origin):
-    result = select_routine_result(phrase, origin)
-    return RoutineSelection.coerce(result).as_legacy_pair() if result is not None else None
-
+    return compatibility_facade.select_routine(phrase, origin, r=sys.modules[__name__])
 
 def select_routine_turn_result(phrase, origin) -> RoutineTurnSelection | None:
     return household_selection_boundaries.select_routine_turn_result(phrase, origin, r=sys.modules[__name__])
 
 def select_routine_turn(phrase, origin):
-    result = select_routine_turn_result(phrase, origin)
-    return RoutineTurnSelection.coerce(result).as_legacy_pair() if result is not None else None
-
+    return compatibility_facade.select_routine_turn(phrase, origin, r=sys.modules[__name__])
 
 def preview_routine_result(phrase, origin=None):
     return household_selection_boundaries.preview_routine_result(phrase, origin, r=sys.modules[__name__])
@@ -256,13 +241,10 @@ def execute_routine_result(selection, action_results, *, approved=False):
     return household_selection_boundaries.execute_routine_result(selection, action_results, approved=approved, r=sys.modules[__name__])
 
 def _routine_legacy_triple(result, status):
-    """Preserve legacy routine callers while validating discovered script outcomes."""
-    return result.reply, result.outcome.value, status
-
+    return compatibility_facade._routine_legacy_triple(result, status, r=sys.modules[__name__])
 
 def execute_routine(selection, action_results, *, approved=False):
-    return _routine_legacy_triple(*execute_routine_result(selection, action_results, approved=approved))
-
+    return compatibility_facade.execute_routine(selection, action_results, approved=approved, r=sys.modules[__name__])
 
 def run_custom_routine_result(name, action_results=None, *, approved=False, parameters=None):
     return routine_execution_dispatch.run_custom_routine_result(
@@ -274,18 +256,13 @@ def run_custom_routine_result(name, action_results=None, *, approved=False, para
 
 
 def chained_outcome(routine, lighting):
-    """Compatibility API for plain outcome strings."""
-    return chained_outcome_result(routine, lighting).value
-
+    return compatibility_facade.chained_outcome(routine, lighting, r=sys.modules[__name__])
 
 def chained_outcome_result(routine, lighting):
     return domain_boundary_helpers.chained_outcome_result(routine, lighting)
 
 def search_media(phrase):
-    """Compatibility API retaining plain reply/outcome pairs."""
-    result = search_media_result(phrase)
-    return result.as_legacy_pair() if result is not None else None
-
+    return compatibility_facade.search_media(phrase, r=sys.modules[__name__])
 
 def search_media_result(phrase):
     return media_title_search.search_media_result(
@@ -430,8 +407,7 @@ def traced_transcribe_result(*args, **kwargs):
 
 
 def traced_transcribe(*args, **kwargs):
-    """Compatibility API retaining the transcript string and timing stage."""
-    return traced_transcribe_result(*args, **kwargs).text
+    return compatibility_facade.traced_transcribe(*args, **kwargs, r=sys.modules[__name__])
 
 class Handler(BaseHTTPRequestHandler):
     timeout = 5
