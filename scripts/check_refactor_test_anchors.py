@@ -8,7 +8,7 @@ import argparse
 import shutil
 import ast
 from pathlib import Path
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 
