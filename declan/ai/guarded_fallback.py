@@ -4,13 +4,13 @@ The caller supplies the trusted inventory, a configured planner, an authorised
 dispatcher, and a persistent budget database. The live fallback route supplies
 these dependencies after its owner controls and exposure checks.
 """
-from action_executor import execute_verified, summarise_result
+from declan.ai.action_executor import execute_verified, summarise_result
 from execution_results import ExecutionResult, Outcome
-from action_plan import validate_plan
-from ai_budget import reserve, settle
+from declan.ai.action_plan import validate_plan
+from declan.ai.ai_budget import reserve, settle
 from declan.ha.ha_action_preflight import preflight
 import logging
-from model_response_results import NonBillablePlanningError
+from declan.ai.model_response_results import NonBillablePlanningError
 
 LOGGER = logging.getLogger(__name__)
 

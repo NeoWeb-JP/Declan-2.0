@@ -5,11 +5,11 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
-from action_evidence_buffer import ActionEvidenceBuffer, evidence_value
-from action_evidence_wire import action_evidence_to_wire
+from declan.ai.action_evidence_buffer import ActionEvidenceBuffer, evidence_value
+from declan.ai.action_evidence_wire import action_evidence_to_wire
 from execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
-from fallback_action_evidence import FallbackActionEvidence
-from guarded_fallback_dispatch import FallbackResponse, dispatch_fallback_result
+from declan.ai.fallback_action_evidence import FallbackActionEvidence
+from declan.ai.guarded_fallback_dispatch import FallbackResponse, dispatch_fallback_result
 
 
 class TypedFallbackEvidenceTests(unittest.TestCase):

@@ -3,13 +3,13 @@ from typing import Any
 import unittest
 from unittest.mock import Mock, patch
 
-from action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence, evidence_value
-from action_evidence_wire import action_evidence_to_wire
+from declan.ai.action_evidence_buffer import ActionEvidenceBuffer, append_action_evidence, extend_action_evidence, evidence_value
+from declan.ai.action_evidence_wire import action_evidence_to_wire
 from execution_results import Outcome
 from execution_results import ActionResult, ActionStatus, MovieLaunchStatus
-from fallback_action_evidence import FallbackActionEvidence
+from declan.ai.fallback_action_evidence import FallbackActionEvidence
 from declan.ha.movie_action_evidence import MovieActionEvidence
-from action_evidence_buffer import evidence_completed
+from declan.ai.action_evidence_buffer import evidence_completed
 from declan.ha.lighting_action_evidence import LightingActionEvidence, LightingActionStatus
 from routine_action_evidence import RoutineActionEvidence, RoutineActionStatus
 import personality_policy

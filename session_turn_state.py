@@ -1,7 +1,7 @@
 """Bounded conversational retry state, independent of HTTP transport."""
 import re
 from execution_results import Outcome, parse_outcome
-from action_evidence_buffer import evidence_lighting_reason
+from declan.ai.action_evidence_buffer import evidence_lighting_reason
 from declan.ha.lighting_action_evidence import LightingActionReason
 from context_numeric_validation import finite_number
 from retry_phrase_validation import valid_retry_phrase

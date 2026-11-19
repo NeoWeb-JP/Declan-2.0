@@ -1,5 +1,5 @@
 import unittest
-from ai_intent_gate import is_action_request
+from declan.ai.ai_intent_gate import is_action_request
 
 
 class IntentGateTests(unittest.TestCase):

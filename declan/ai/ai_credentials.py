@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from sensitive_write_state import DEFAULT_SENSITIVE_WRITE_STATE
 
-PATH = Path(__file__).resolve().parent / ".data" / "openai-api-key"
+PATH = Path(__file__).resolve().parents[2] / ".data" / "openai-api-key"
 
 
 def configured():

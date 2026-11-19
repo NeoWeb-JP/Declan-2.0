@@ -9,11 +9,11 @@ from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 from email.message import Message
 
-from ai_budget import monthly_reserved
+from declan.ai.ai_budget import monthly_reserved
 from execution_results import Outcome
 import history
-from model_response_results import IncompletePlanningError, NonBillablePlanningError
-from openai_planner import request_plan
+from declan.ai.model_response_results import IncompletePlanningError, NonBillablePlanningError
+from declan.ai.openai_planner import request_plan
 import server
 
 
@@ -105,7 +105,7 @@ class PlannerContractTests(PlannerFixture):
             with self.subTest(error=type(error).__name__):
                 self.provider.open.reset_mock()
                 self.provider.open.side_effect = error
-                with self.assertLogs('ai_fallback_dispatch', level='WARNING') as logs:
+                with self.assertLogs('declan.ai.ai_fallback_dispatch', level='WARNING') as logs:
                     result = self.ask('please sort the lights')
                 self.assertIs(result.result.outcome, Outcome.UNRESOLVED)
                 self.assertIn('took too long to plan', result.result.reply)
@@ -122,7 +122,7 @@ class PlannerContractTests(PlannerFixture):
                 response = io.BytesIO(json.dumps(self.payload).encode())
                 self.provider.open.side_effect = lambda *args, **kwargs: response
                 with patch.object(server.openai_planner, 'monotonic', side_effect=clock), \
-                        self.assertLogs('ai_fallback_dispatch', level='WARNING'):
+                        self.assertLogs('declan.ai.ai_fallback_dispatch', level='WARNING'):
                     result = self.ask('please sort the lights')
                 self.assertIn('took too long to plan', result.result.reply)
                 self.assertEqual(result.result.actions, ())
@@ -238,7 +238,7 @@ class PlannerContractTests(PlannerFixture):
     def test_incomplete_status_is_explained_and_settles_known_usage(self):
         self.payload = {'status': 'incomplete', 'incomplete_details': {'reason': 'max_output_tokens'},
                         'usage': {'input_tokens': 100, 'output_tokens': 20}, 'output': []}
-        with self.assertLogs('openai_planner', level='WARNING') as logs:
+        with self.assertLogs('declan.ai.openai_planner', level='WARNING') as logs:
             result = self.ask("it's too dark in here")
         self.assertIn('planning token limit', result.result.reply)
         self.assertIn('No devices were changed', result.result.reply)
@@ -248,7 +248,7 @@ class PlannerContractTests(PlannerFixture):
 
     def test_incomplete_unknown_reason_and_usage_stay_redacted_and_conservative(self):
         self.payload = {'status': 'incomplete', 'incomplete_details': {'reason': 'private-provider-secret'}, 'output': []}
-        with self.assertLogs('openai_planner', level='WARNING') as logs:
+        with self.assertLogs('declan.ai.openai_planner', level='WARNING') as logs:
             result = self.ask("it's too dark in here")
         self.assertIn("couldn't finish planning", result.result.reply)
         self.assertNotIn('private-provider-secret', result.result.reply + '\n'.join(logs.output))

@@ -1,5 +1,5 @@
 """Prepare action and lighting follow-up context before response composition."""
-from action_evidence_buffer import evidence_has_field, evidence_value
+from declan.ai.action_evidence_buffer import evidence_has_field, evidence_value
 
 
 def prepare_turn_context(previous, *, action_results, light_result, outcome,

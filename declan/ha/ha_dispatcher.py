@@ -4,7 +4,7 @@ from time import monotonic, sleep
 from urllib.error import HTTPError
 from urllib.request import Request
 
-from action_plan import CandidateAction, SERVICES
+from declan.ai.action_plan import CandidateAction, SERVICES
 from execution_results import ActionStatus, DispatchResult
 
 EXPECTED = {

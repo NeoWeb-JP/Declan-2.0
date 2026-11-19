@@ -4,7 +4,7 @@ from execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result
 from command_response import CommandResponse
 from declan.ha.lighting_action_evidence import confirmed_lighting_entities
-from action_evidence_buffer import ActionEvidenceBuffer, extend_action_evidence
+from declan.ai.action_evidence_buffer import ActionEvidenceBuffer, extend_action_evidence
 
 
 @dataclass(frozen=True)

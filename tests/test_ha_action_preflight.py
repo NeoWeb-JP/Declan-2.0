@@ -1,6 +1,6 @@
 import unittest
 
-from action_plan import validate_plan, CandidateAction
+from declan.ai.action_plan import validate_plan, CandidateAction
 from declan.ha.ha_action_preflight import preflight
 
 

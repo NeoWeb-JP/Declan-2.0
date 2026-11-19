@@ -11,7 +11,7 @@ from dataclasses import FrozenInstanceError
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from action_evidence_wire import action_evidence_to_wire
+from declan.ai.action_evidence_wire import action_evidence_to_wire
 from execution_results import ActionResult, ActionStatus, ExecutionResult, MovieLaunchResult, MovieLaunchStatus, Outcome
 from declan.ha.lighting_action_evidence import LightingActionEvidence
 from declan.ha.movie_action_evidence import MovieActionEvidence

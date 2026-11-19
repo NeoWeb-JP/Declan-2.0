@@ -3,7 +3,7 @@ import os
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-import ai_credentials
+from declan.ai import ai_credentials
 
 
 class CredentialsTests(unittest.TestCase):

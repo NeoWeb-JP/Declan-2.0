@@ -3,9 +3,9 @@ from typing import Any
 import unittest
 from unittest.mock import Mock
 
-from fallback_orchestration import resolve_fallback
-from fallback_entity_authorization import exposed_entities
-from guarded_fallback_dispatch import dispatch_fallback
+from declan.ai.fallback_orchestration import resolve_fallback
+from declan.ai.fallback_entity_authorization import exposed_entities
+from declan.ai.guarded_fallback_dispatch import dispatch_fallback
 
 
 class FallbackOrchestrationTests(unittest.TestCase):

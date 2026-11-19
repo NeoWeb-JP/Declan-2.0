@@ -12,9 +12,9 @@ from typing import Any
 from urllib.request import Request, build_opener, ProxyHandler
 from urllib.error import HTTPError, URLError
 
-from action_plan import validate_plan, ENTITY, SERVICES, MAX_ACTIONS
-from ai_pricing import model_profile, rate_pair, require_available
-from model_response_results import ModelResponseResult, ModelResponseStatus, NonBillablePlanningError, IncompletePlanningError, PlanningTimeoutError
+from declan.ai.action_plan import validate_plan, ENTITY, SERVICES, MAX_ACTIONS
+from declan.ai.ai_pricing import model_profile, rate_pair, require_available
+from declan.ai.model_response_results import ModelResponseResult, ModelResponseStatus, NonBillablePlanningError, IncompletePlanningError, PlanningTimeoutError
 
 MODEL_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$")
 MAX_CONTEXT = 100

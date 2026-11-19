@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import server
 from declan.music import media_title_search
-import ai_fallback_dispatch
+from declan.ai import ai_fallback_dispatch
 from execution_results import Outcome
 
 

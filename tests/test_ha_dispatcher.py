@@ -1,7 +1,7 @@
 import io
 import json
 import unittest
-from action_plan import CandidateAction
+from declan.ai.action_plan import CandidateAction
 from declan.ha.ha_dispatcher import dispatch_verified
 
 

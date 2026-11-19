@@ -1,5 +1,5 @@
 import unittest
-from ai_pricing import charge, model_profile, rate_pair, require_available, RetiredModelError
+from declan.ai.ai_pricing import charge, model_profile, rate_pair, require_available, RetiredModelError
 from datetime import datetime, timezone, timedelta
 
 

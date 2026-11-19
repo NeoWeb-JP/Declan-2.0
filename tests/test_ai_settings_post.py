@@ -4,7 +4,7 @@ import sqlite3
 from unittest import TestCase
 from unittest.mock import Mock
 
-import ai_settings_post
+from declan.ai import ai_settings_post
 
 
 class AISettingsPostTests(TestCase):

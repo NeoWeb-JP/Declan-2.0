@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock
 
 from execution_results import ExecutionResult, Outcome
-from fallback_orchestration import resolve_fallback_result
+from declan.ai.fallback_orchestration import resolve_fallback_result
 
 
 class TypedFallbackGateTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 """Settings, media and voice management POST dispatch."""
 import operational_post_routes
-import ai_settings_post
+from declan.ai import ai_settings_post
 from declan.music import media_settings_post
 import voice_post_routes
 import settings_import_post

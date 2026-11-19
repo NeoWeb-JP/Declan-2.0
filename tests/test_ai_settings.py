@@ -2,10 +2,10 @@ import unittest
 import sqlite3
 from contextlib import contextmanager
 from unittest.mock import patch
-import ai_settings
-import ai_budget
-from ai_settings import DEFAULTS, validate
-from ai_pricing import model_profile
+from declan.ai import ai_settings
+from declan.ai import ai_budget
+from declan.ai.ai_settings import DEFAULTS, validate
+from declan.ai.ai_pricing import model_profile
 
 
 class AISettingsTests(unittest.TestCase):
