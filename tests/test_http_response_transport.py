@@ -5,6 +5,7 @@ import json
 import logging
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import http_response_transport
 
@@ -34,7 +35,7 @@ class ResponseTransportTests(unittest.TestCase):
 
     def test_json_response_keeps_wire_contract(self):
         handler = FakeHandler()
-        with patch.object(http_response_transport.diagnostics.ACTIVE, "get", return_value=None):
+        with patch.object(http_response_transport.diagnostics, "ACTIVE", SimpleNamespace(get=lambda: None)):
             http_response_transport.send_json(handler, 200, {"reply": "hello"}, logger=self.logger)
         self.assertEqual(handler.status, 200)
         self.assertEqual(json.loads(handler.wfile.getvalue()), {"reply": "hello"})
