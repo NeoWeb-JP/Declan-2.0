@@ -30,6 +30,7 @@ import turn_response_completion as turn_response_completion
 import command_vocabulary
 import http_handler_adapters
 import turn_http_entry
+import domain_boundary_helpers
 import sys
 from pathlib import Path as Path
 from threading import Thread
@@ -37,7 +38,7 @@ from time import monotonic, sleep
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from execution_results import ExecutionResult as ExecutionResult, Outcome
+from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
 from arbitration import CaptureArbiter
 
 import conditions as conditions
@@ -313,15 +314,7 @@ def chained_outcome(routine, lighting):
 
 
 def chained_outcome_result(routine, lighting):
-    routine, lighting = Outcome(routine), Outcome(lighting)
-    if routine in {Outcome.STARTED, Outcome.EXECUTION_COMPLETED, Outcome.REPORTED_SUCCESS} and lighting is Outcome.CONFIRMED:
-        return routine
-    if routine in {Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED, Outcome.PARTIAL} or lighting in {Outcome.CONFIRMED, Outcome.PARTIAL}:
-        return Outcome.PARTIAL
-    if Outcome.UNVERIFIED in (routine, lighting):
-        return Outcome.UNVERIFIED
-    return routine if routine is lighting else Outcome.FAILED
-
+    return domain_boundary_helpers.chained_outcome_result(routine, lighting)
 
 def search_media(phrase):
     """Compatibility API retaining plain reply/outcome pairs."""
@@ -440,17 +433,7 @@ def render_web_voice(message):
 
 
 def approved_area_labels(areas):
-    """Expose readable HA area names without replacing them with legacy aliases."""
-    labels = {}
-    # read_ha_areas includes compatibility aliases (e.g. bedroom for
-    # Master Bedroom). Prefer the full HA area name over its alias.
-    for name in areas:
-        key = music.room_key(name)
-        if len(name) > len(labels.get(key, "")):
-            labels[key] = name.title()
-    labels["everywhere"] = "Everywhere"
-    return labels
-
+    return domain_boundary_helpers.approved_area_labels(areas, room_key=music.room_key)
 
 def read_ha_inventory(connection):
     return read_ha_inventory_result(connection).as_legacy_pair()
@@ -542,12 +525,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
 
 
 def _bounded_ai_plan(message, exposed, settings, usage_sink=None, inventory=None):
-    plan = openai_planner.request_plan(message, exposed, model=settings["model"], api_key=ai_credentials.get_key(), usage_sink=usage_sink, inventory=inventory,
-        max_cost_micro_usd=ai_settings._money(settings["request_ceiling_usd"], allow_zero=False))
-    if len(plan) > settings["max_actions"]:
-        raise ValueError("Too many proposed actions")
-    return plan
-
+    return domain_boundary_helpers.bounded_ai_plan(message, exposed, settings, usage_sink=usage_sink, inventory=inventory, planner=openai_planner, credentials=ai_credentials, money=ai_settings._money)
 
 def guarded_openai_fallback_result(message, *, source, exposed_entities=()):
     return ai_fallback_dispatch.guarded_openai_fallback_result(
