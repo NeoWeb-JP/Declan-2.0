@@ -14,7 +14,8 @@ class NativeHistoryContractTests(unittest.TestCase):
         source = BACKEND[BACKEND.index("    def do_GET(self):"):BACKEND.index("    def do_POST(self):")]
         gate = (ROOT / "get_access_gate_http.py").read_text()
         dispatcher = (ROOT / "get_request_dispatch.py").read_text()
-        self.assertIn("get_request_dispatch.dispatch(", source)
+        self.assertIn("http_handler_adapters.do_GET(", source)
+        self.assertIn("get_request_dispatch.dispatch(", (__import__("pathlib").Path(__file__).resolve().parents[1] / "http_handler_adapters.py").read_text())
         self.assertIn("get_access_gate_http.enforce_access(", dispatcher)
         self.assertIn('urlsplit(handler.path).path == "/api/history"', gate)
         self.assertIn('len(token) >= 32', gate)

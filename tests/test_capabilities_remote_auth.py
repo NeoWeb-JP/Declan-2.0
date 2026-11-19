@@ -13,7 +13,8 @@ class RemoteCapabilitiesAuthTests(unittest.TestCase):
         end = SOURCE.index("    def do_POST(self):", start)
         block = SOURCE[start:end]
         dispatcher = (ROOT / "get_request_dispatch.py").read_text()
-        self.assertIn("get_request_dispatch.dispatch(", block)
+        self.assertIn("http_handler_adapters.do_GET(", block)
+        self.assertIn("get_request_dispatch.dispatch(", (__import__("pathlib").Path(__file__).resolve().parents[1] / "http_handler_adapters.py").read_text())
         self.assertIn("get_access_gate_http.enforce_access(", dispatcher)
         self.assertIn('handler.path == "/api/capabilities" and len(token) >= 32', GATE)
         self.assertIn('secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())', GATE)

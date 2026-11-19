@@ -19,7 +19,7 @@ class RetirementTests(unittest.TestCase):
 
     def test_backend_endpoints_and_native_panel_preserved(self):
         source = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
-        self.assertIn('get_request_dispatch.dispatch(', source)
+        self.assertIn('get_request_dispatch.dispatch(', Path(__file__).resolve().parents[1].joinpath('http_handler_adapters.py').read_text())
         self.assertIn('system_read_routes.handles(handler.path)', (Path(__file__).resolve().parents[1] / 'get_request_dispatch.py').read_text())
         self.assertIn('path == "/health"', Path(__file__).resolve().parents[1].joinpath("system_read_routes.py").read_text())
         # Request-origin routing now lives in the extracted request_origin module.

@@ -28,8 +28,9 @@ import turn_dispatch_orchestration
 import turn_session_preflight
 import turn_response_completion
 import command_vocabulary
+import http_handler_adapters
 import sys
-from pathlib import Path
+from pathlib import Path as Path
 from threading import Thread
 from time import monotonic, sleep
 from urllib.parse import urlsplit
@@ -45,9 +46,9 @@ import declan_logs
 import configuration
 import media_search_agents
 import household_entities
-import health_readiness
-import voice_profiles
-import voicepipeline
+import health_readiness as health_readiness
+import voice_profiles as voice_profiles
+import voicepipeline as voicepipeline
 import device_status as device_status
 import retry_learning as retry_learning
 import retry_training_persistence as retry_training_persistence
@@ -83,22 +84,22 @@ import turn_response_composition as turn_response_composition
 import history
 import post_body_routing as post_body_routing
 import music
-import approved_media_players
-import spotify_playlists
+import approved_media_players as approved_media_players
+import spotify_playlists as spotify_playlists
 import music_playlists_post as music_playlists_post
 import timers
 import updates
 import post_operational_routing as post_operational_routing
-import media_settings_routes
-import get_request_dispatch
-import speech_http_routes
+import media_settings_routes as media_settings_routes
+import get_request_dispatch as get_request_dispatch
+import speech_http_routes as speech_http_routes
 import assist_auth_http as assist_auth_http
 import post_payload_validation as post_payload_validation
 import post_origin_auth_http as post_origin_auth_http
 import post_route_gate_http as post_route_gate_http
 import post_request_entry
 import post_entry_gates as post_entry_gates
-import http_response_transport
+import http_response_transport as http_response_transport
 import http_ingress_security
 import sensitive_confirmation_resolution as sensitive_confirmation_resolution
 import web_stt
@@ -106,7 +107,7 @@ import openai_planner
 import ai_settings
 import ai_credentials
 import ai_pricing
-import ai_budget
+import ai_budget as ai_budget
 import ai_context
 import ai_intent_gate
 import guarded_fallback
@@ -125,7 +126,7 @@ from personality import add_sass, choose_line
 import routine_responses as routine_responses
 import routine_follow_on as routine_follow_on
 import response_composition as response_composition
-import command_responses
+import command_responses as command_responses
 import command_registry as command_registry
 import session_orchestration
 import session_store
@@ -589,55 +590,25 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def send_body(self, status, data, content_type, filename=None):
-        return http_response_transport.send_body(
-            self, status, data, content_type, filename=filename, logger=DECLAN_EVENT_LOG,
-        )
+        return http_handler_adapters.send_body(self, status, data, content_type, filename=filename, r=sys.modules[__name__])
 
     def send_json(self, status, data):
-        return http_response_transport.send_json(
-            self, status, data, logger=DECLAN_EVENT_LOG,
-        )
+        return http_handler_adapters.send_json(self, status, data, r=sys.modules[__name__])
 
     def spotify_settings(self, body=None):
-        return media_settings_routes.spotify_settings(self, body, music=music)
+        return http_handler_adapters.spotify_settings(self, body, r=sys.modules[__name__])
 
     def has_ingress_access(self):
-        return http_ingress_security.has_ingress_access(self)
+        return http_handler_adapters.has_ingress_access(self, r=sys.modules[__name__])
 
     def approved_player_settings(self, body=None):
-        return media_settings_routes.approved_player_settings(
-            self, body, ha_device_connection=ha_device_connection,
-            ha_inventory=ha_inventory,
-            read_music_inventory_result=read_music_inventory_result,
-            read_ha_areas=read_ha_areas, approved_area_labels=approved_area_labels,
-            approved_media_players=approved_media_players,
-        )
+        return http_handler_adapters.approved_player_settings(self, body, r=sys.modules[__name__])
 
     def do_GET(self):
-        return get_request_dispatch.dispatch(
-            self, assist_token=os.environ.get("DECLAN_ASSIST_TOKEN", ""),
-            ingress=self.has_ingress_access(),
-            logo_path=Path(__file__).with_name("logo.png"),
-            health_readiness=health_readiness,
-            ha_status=home_assistant_status_result,
-            release_version=RELEASE_VERSION, music=music,
-            configuration=configuration, script_discovery=script_discovery,
-            ha_connection=ha_device_connection, command_responses=command_responses,
-            history=history, logs=declan_logs, diagnostics=diagnostics,
-            updates=updates, voicepipeline=voicepipeline,
-            voice_profiles=voice_profiles, ai_budget=ai_budget,
-            ai_settings=ai_settings, ai_credentials=ai_credentials,
-            spotify_playlists=spotify_playlists,
-        )
+        return http_handler_adapters.do_GET(self, r=sys.modules[__name__])
 
     def transcribe_browser_audio(self):
-        return speech_http_routes.transcribe_browser_audio(
-            self, web_stt=web_stt, connection_factory=ha_device_connection,
-            transcribe=traced_transcribe_result,
-            token=os.environ.get("DECLAN_HA_TOKEN", "").strip(),
-            pipeline=configuration.get("DECLAN_WEB_ASSIST_PIPELINE", "").strip(),
-            logger=DECLAN_EVENT_LOG,
-        )
+        return http_handler_adapters.transcribe_browser_audio(self, r=sys.modules[__name__])
 
     def do_POST(self):
         return post_request_entry.dispatch(self, handle_post=self.handle_post)

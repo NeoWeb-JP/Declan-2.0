@@ -31,7 +31,7 @@ class NativeAISettingsContractTests(unittest.TestCase):
         self.assertIn('replace_key(body["api_key"])', AI_POST)
         ingress = (ROOT / "http_ingress_security.py").read_text()
         ast.parse(ingress)
-        self.assertIn("http_ingress_security.has_ingress_access(self)", BACKEND)
+        self.assertIn("http_ingress_security.has_ingress_access(handler)", (ROOT / "http_handler_adapters.py").read_text())
         self.assertIn("secrets.compare_digest(", ingress)
 
     def test_ha_admin_proxy(self):
