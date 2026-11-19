@@ -87,7 +87,9 @@ class SensitiveConfirmationTests(unittest.TestCase):
         orchestration = Path(__file__).resolve().parents[1].joinpath("routine_turn_orchestration.py").read_text()
         self.assertIn("discovery.execute_result(", orchestration)
         self.assertIn("discovery.enqueue_result(", orchestration)
-        self.assertIn("discovery=script_discovery", server)
+        self.assertIn("household_selection_boundaries.execute_routine_result(", server)
+        boundary = (Path(__file__).resolve().parents[1] / "household_selection_boundaries.py").read_text()
+        self.assertIn("discovery=r.script_discovery", boundary)
 
 
 if __name__=="__main__":
