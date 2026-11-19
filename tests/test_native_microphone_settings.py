@@ -4,6 +4,7 @@ import ast
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+POST_INGRESS = (ROOT / "post_ingress_orchestration.py").read_text()
 COMPONENT = ROOT / "custom_components" / "declan_two"
 SERVER = (ROOT / "server.py").read_text()
 NATIVE_READ = (ROOT / "native_read_routes.py").read_text()
