@@ -51,9 +51,9 @@ import conditions as conditions
 import sensitive_confirmations
 import diagnostics
 import declan_logs
-import configuration
-import media_search_agents
-import household_entities
+import configuration as configuration
+import media_search_agents as media_search_agents
+import household_entities as household_entities
 import health_readiness as health_readiness
 import voice_profiles as voice_profiles
 import voicepipeline as voicepipeline
@@ -120,7 +120,7 @@ import ai_context as ai_context
 import ai_intent_gate as ai_intent_gate
 import guarded_fallback as guarded_fallback
 import ha_dispatcher as ha_dispatcher
-import routine_registry
+import routine_registry as routine_registry
 from routine_action_evidence import parse_routine_actions as parse_routine_actions
 from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineTurnSelection
