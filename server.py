@@ -107,7 +107,7 @@ import guarded_fallback
 import ha_dispatcher
 import routine_registry
 from routine_action_evidence import parse_routine_actions
-from home_assistant_results import HomeAssistantStatus, HomeAssistantStatusResult
+from home_assistant_results import HomeAssistantStatus as HomeAssistantStatus, HomeAssistantStatusResult
 from routine_selection_results import RoutineSelection, RoutineSelectionKind, RoutineTurnSelection
 from lighting_action_evidence import LightingActionEvidence
 from movie_action_evidence import MovieActionEvidence
