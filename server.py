@@ -53,7 +53,7 @@ import lighting_context_finalization
 import fallback_entity_authorization
 import guarded_fallback_dispatch
 import turn_context_preparation
-import turn_initialization
+import turn_session_entry
 import turn_preflight
 import turn_preview_stage
 import turn_direct_dispatch
@@ -1952,11 +1952,11 @@ class Handler(BaseHTTPRequestHandler):
             action_results=routine_action_results_typed,
         ):
             return
-        turn = turn_initialization.prepare(
+        turn = turn_session_entry.prepare(
             self, body, message=message, session_id=session_id,
             arbiter=CAPTURE_ARBITER, normalize=history.normalize_phrase,
-            new_session_id=secrets.token_urlsafe, sessions=SESSION_STORE.sessions,
-            lock=SESSION_STORE.lock, now=monotonic(), idle_seconds=IDLE_SECONDS,
+            new_session_id=secrets.token_urlsafe, session_store=SESSION_STORE,
+            now=monotonic(), idle_seconds=IDLE_SECONDS,
             retrieve=session_context_retrieval.recent_context,
         )
         if turn is None:

@@ -26,7 +26,8 @@ class RetirementTests(unittest.TestCase):
         origin_source = Path(__file__).resolve().parents[1].joinpath(
             "request_origin.py").read_text()
         self.assertIn('path == "/api/assist"', origin_source)
-        self.assertIn("turn_initialization.prepare(", source)
+        self.assertIn("turn_session_entry.prepare(", source)
+        self.assertIn("turn_initialization.prepare(", (Path(__file__).resolve().parents[1] / "turn_session_entry.py").read_text())
         turn_source = Path(__file__).resolve().parents[1].joinpath("turn_initialization.py").read_text()
         self.assertIn("request_origin.request_context(", turn_source)
         self.assertNotIn("webbrowser.open(", source)
