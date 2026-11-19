@@ -5,7 +5,6 @@ from execution_results import ExecutionResult, Outcome
 
 
 def stop_everywhere_result(connection, *, inventory_reader, inventory_module, music_provider):
-    from execution_results import ExecutionResult, Outcome
     """Stop all active approved Music Assistant destinations, including Everywhere."""
     if connection is None:
         return ExecutionResult("", Outcome.NOT_CONFIGURED), "Home Assistant is not configured."
@@ -43,7 +42,6 @@ def stop_everywhere_result(connection, *, inventory_reader, inventory_module, mu
 
 def stop_origin_result(connection, satellite, device, *, inventory_reader, inventory_module, music_provider, timer_provider):
     """Typed stop result for playback on the originating device."""
-    from execution_results import ExecutionResult, Outcome
     if connection is None or not (satellite or device):
         return ExecutionResult("", Outcome.UNRESOLVED), "Stop needs an identifiable Assist satellite or device."
     inventory_result = inventory_module.InventoryResult.coerce(inventory_reader(connection))
