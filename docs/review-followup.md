@@ -33,7 +33,7 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 | Free-string JSON schema | #760 follow-up uses request-specific entity and service enums paired per domain, plus the owner's action-count limit. Local validation still independently rejects exposure/service/count/dependency violations. Empty permitted context makes no provider call or reservation. |
 | Toggle/preflight mismatch | #760 follow-up shares the verified-service vocabulary across validator, preflight and dispatcher. Toggle and unverifiable cover-stop are excluded. Script/media remain outside live AI allowed domains; no permissions are widened. |
 | Lexical context selection | The next #760 batch reads HA's configured area/floor names and aliases through an authenticated, admin-only, read-only endpoint for over-limit inventories. It selects complete matching groups intersected with existing exposure/domain permissions, carries aliases/floors into model context and rejects ambiguity, stale metadata, unsupported exclusions, oversized context or broad groups exceeding owner action limits before AI spending. Older integrations retain canonical-name/exact-ID fallback; configured aliases require the updated HA integration. No automatic household synonym guesses or multi-request execution are added. |
-| Sensitive garage/gate actions | Generic guarded path defaults to unconfirmed. Do not set confirmation true automatically. Verify and explain the policy, or add a correctly origin-bound confirmation flow. |
+| Sensitive garage/gate actions | Generic AI fallback deliberately does not operate garage/gate covers, including closing them. HA device-class metadata determines this policy, not names or model claims. A typed preflight refusal now explains the restriction and directs the user to Home Assistant; the whole plan is refused before any device dispatch, even if it also contains ordinary actions. A follow-up yes does not create confirmation authority. The native Settings policy is explicit. Existing local mapped-routine confirmation and the lower-level trusted confirmation API remain separate; no new AI confirmation flow is implemented. |
 | General chat/questions | Current action planner is not a general chat service. This needs an explicit product scope decision, budget/privacy controls and separate acceptance criteria. |
 | Synchronous timeout/retries | The 12-second request timeout is present. Review voice latency and acknowledgement semantics; retries must reserve/charge conservatively and never duplicate actions. |
 | Pricing/model table | Two hardcoded rate entries remain. Verified 19 November 2026 against official model pages: gpt-6-luna exists and its standard text rates match the current table. gpt-5-mini's published rates also match, but its model page is marked deprecated. Configurable pricing and model lifecycle handling remain open; this batch does not change the owner's chosen model. |
@@ -54,7 +54,7 @@ safe automatic refund. The guarded-fallback docstring is corrected.
 
 ## Priority after this batch
 
-1. Live model completion/latency evidence and sensitive-action policy clarity,
+1. Live model completion/latency evidence,
    preserving exposure and confirmation controls. Planner/schema/preflight,
    implicit-input eligibility and bounded area/alias selection are implemented
    in the #760 batches.

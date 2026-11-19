@@ -5,10 +5,11 @@ from execution_results import ExecutionResult, Outcome
 from ai_budget import BudgetExhausted, MICRO_USD
 from model_response_results import IncompletePlanningError
 from ai_context import ContextSelectionError
+from ha_action_preflight import SensitiveCoverConfirmationRequired
 
 
 def guarded_openai_fallback_result(message, *, source, exposed_entities=(), settings_reader, intent_gate, connect, inventory_reader, inventory_module, context_selector, planner_module, settings_module, history_module, fallback_runner, dispatcher, pricing, bounded_plan, evidence_factory, response_factory, location_reader=None):
-    """Opt-in fallback after local handlers. Sensitive targets excluded."""
+    """Opt-in fallback after local handlers; sensitive cover plans are refused."""
     try:
         settings = settings_reader()
     except (OSError, ValueError, sqlite3.Error):
@@ -70,6 +71,10 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
         ))
     except ContextSelectionError as error:
         return response_factory(ExecutionResult(str(error), Outcome.UNRESOLVED))
+    except SensitiveCoverConfirmationRequired:
+        return response_factory(ExecutionResult(
+            "AI can't operate garage or gate covers. Use Home Assistant directly. No devices were changed.",
+            Outcome.UNRESOLVED))
     except IncompletePlanningError as error:
         reply = ("OpenAI reached its planning token limit. No devices were changed; please try a shorter request."
                  if error.reason == "max_output_tokens" else

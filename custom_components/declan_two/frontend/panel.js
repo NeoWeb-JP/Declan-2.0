@@ -346,7 +346,7 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <label><input type="checkbox" name="domain_fan"> Fans</label>
                   <label><input type="checkbox" name="domain_cover"> Covers</label>
                 </div></fieldset>
-                <p class="muted">Sensitive mapped routines use Declan’s existing confirmation flow. AI cannot directly run scripts or garage/gate controls. Ambiguous requests trigger clarification.</p>
+                <p class="muted">Sensitive mapped routines use Declan’s existing confirmation flow. AI cannot directly run scripts or garage/gate controls. Use Home Assistant directly for these covers; saying yes to AI does not authorise them. Ambiguous requests trigger clarification.</p>
                 <div class="ai-options"><label><input type="checkbox" name="diagnostics"> Record diagnostics</label>
                 <label><input type="checkbox" name="show_proposals"> Show AI proposals in History</label></div>
                 <button class="ai-save" type="submit">Save AI settings</button>
