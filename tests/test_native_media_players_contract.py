@@ -18,7 +18,8 @@ class MediaPlayersContractTests(unittest.TestCase):
         post = BACKEND[BACKEND.index("    def handle_post(self):"):]
         self.assertIn('settings_read_routes.handles(self.path)', get)
         self.assertIn('"/api/settings/media-players"', (ROOT / "settings_read_routes.py").read_text())
-        self.assertIn('get_access_gate_http.enforce_access(', get)
+        self.assertIn('get_request_dispatch.dispatch(', get)
+        self.assertIn('get_access_gate_http.enforce_access(', (ROOT / 'get_request_dispatch.py').read_text())
         self.assertIn('not players_auth', (ROOT / 'get_access_gate_http.py').read_text())
         self.assertIn('settings_voice_post.handles(self.path)', post)
         self.assertIn('media_settings_post.handles(path)', (ROOT / 'settings_voice_post.py').read_text())
