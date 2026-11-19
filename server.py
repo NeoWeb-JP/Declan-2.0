@@ -89,6 +89,7 @@ import post_origin_auth_http
 import post_route_gate_http
 import post_request_preflight
 import post_content_type_http
+import http_response_transport
 import post_validation_errors_http
 import sensitive_confirmation_resolution
 import web_stt
@@ -1874,42 +1875,14 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def send_body(self, status, data, content_type, filename=None):
-        self._page_nonce = None
-        if content_type.startswith('text/html'):
-            data, self._page_nonce = secure_page(data)
-        trace = diagnostics.ACTIVE.get()
-        if trace is not None:
-            if diagnostics.outcome_result(trace).status is diagnostics.DiagnosticOutcome.UNKNOWN:
-                diagnostics.set_outcome(trace, diagnostics.DiagnosticOutcome.FAILED if status >= 400 else diagnostics.DiagnosticOutcome.COMPLETED)
-            diagnostics.persist(trace)
-        # Record useful request outcomes without logging request bodies,
-        # tokens, query strings or routine transcripts.
-        route = urlsplit(self.path).path
-        if status >= 400:
-            DECLAN_EVENT_LOG.warning("HTTP %d %s %s", status, self.command, route)
-        elif self.command == "POST" and route in {
-            "/api/assist", "/api/chat", "/api/settings/music-playlists",
-            "/api/settings/media-players", "/api/updates/install"
-        }:
-            DECLAN_EVENT_LOG.info("HTTP %d POST %s", status, route)
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        if self.path == "/health":
-            self.send_header("X-Declan-Pid", str(os.getpid()))
-        if filename:
-            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
-        self.end_headers()
-        self.wfile.write(data)
+        return http_response_transport.send_body(
+            self, status, data, content_type, filename=filename, logger=DECLAN_EVENT_LOG,
+        )
 
     def send_json(self, status, data):
-        trace = diagnostics.ACTIVE.get()
-        if trace is not None:
-            diagnostics.set_outcome(trace, data.get('outcome') or (
-                diagnostics.DiagnosticOutcome.FAILED if status >= 400 else diagnostics.DiagnosticOutcome.COMPLETED))
-            data = {**data, 'diagnostic_id': trace['id']}
-        self.send_body(status, json.dumps(data).encode(), "application/json")
+        return http_response_transport.send_json(
+            self, status, data, logger=DECLAN_EVENT_LOG,
+        )
 
     def spotify_settings(self, body=None):
         return media_settings_routes.spotify_settings(self, body, music=music)
