@@ -1,5 +1,6 @@
 """Dependency readiness checks preserve the existing lightweight health contract."""
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import server
