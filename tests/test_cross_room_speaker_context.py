@@ -14,7 +14,8 @@ class SatelliteContextTests(unittest.TestCase):
         ast.parse(capture_source)
         turn_source = Path(__file__).resolve().parents[1].joinpath("turn_initialization.py").read_text()
         ast.parse(turn_source)
-        self.assertIn("turn_session_entry.prepare(", source)
+        preflight_source = Path(__file__).resolve().parents[1].joinpath("turn_session_preflight.py").read_text()
+        self.assertIn("turn_session_entry.prepare(", preflight_source)
         self.assertIn("turn_initialization.prepare(", (Path(__file__).resolve().parents[1] / "turn_session_entry.py").read_text())
         self.assertIn("assist_capture_http.suppress_duplicate(", turn_source)
         self.assertIn('speaker["confidence"] >= 0.85', capture_source)
@@ -28,7 +29,7 @@ class SatelliteContextTests(unittest.TestCase):
             "session_context_access.py").read_text()
         ast.parse(access_source)
         self.assertIn("session_context_access.load_recent_context(", turn_source)
-        self.assertIn("retrieve=session_context_retrieval.recent_context", source)
+        self.assertIn("retrieve=session_context_retrieval.recent_context", preflight_source)
         self.assertIn("with lock:", access_source)
         self.assertIn('IDLE_SECONDS = 300', source)
 
