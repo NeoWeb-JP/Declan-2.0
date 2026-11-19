@@ -88,7 +88,7 @@ def check(base_ref, root):
             continue  # Newly added files have no base content.
         after = (root / path).read_text()
         if before != after:
-            removed[Path(path).name] = before, after
+            removed[path] = before, after
     findings = []
     for test in sorted((root / "tests").rglob("test_*.py")):
         try:
@@ -99,13 +99,24 @@ def check(base_ref, root):
         # Check both unittest assertions and plain source-text assertions.
         for line, variable, literal in anchor_references(tree):
             filename = sources.get(variable)
-            if filename in removed:
-                old, new = removed[filename]
-                if literal and literal in old and literal not in new:
-                    findings.append(
-                        f"{test.relative_to(root)}:{line}: "
-                        f"{filename} no longer contains {literal!r}"
-                    )
+            if filename is None:
+                continue
+            # Source contracts commonly use only a basename, but different
+            # packages can contain modules with identical filenames. Never
+            # overwrite one changed module with another.
+            matches = [
+                path for path in removed
+                if path == filename or path.endswith("/" + filename)
+            ]
+            if len(matches) != 1:
+                continue  # Ambiguous filename: do not report a false positive.
+            source_path = matches[0]
+            old, new = removed[source_path]
+            if literal and literal in old and literal not in new:
+                findings.append(
+                    f"{test.relative_to(root)}:{line}: "
+                    f"{source_path} no longer contains {literal!r}"
+                )
     return findings
 
 
