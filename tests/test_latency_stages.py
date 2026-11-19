@@ -12,7 +12,7 @@ from execution_results import Outcome
 
 class RecordHelperTests(unittest.TestCase):
     def test_record_appends_completed_stage_with_fields_and_duration(self):
-        trace = {"stages": []}
+        trace: dict = {"stages": []}
         token = diagnostics.ACTIVE.set(trace)
         self.addCleanup(diagnostics.ACTIVE.reset, token)
         with patch.object(diagnostics, "monotonic", return_value=12.5):
@@ -27,7 +27,7 @@ class RecordHelperTests(unittest.TestCase):
 
 class InventoryStageTests(unittest.TestCase):
     def run_read(self, result, **kwargs):
-        trace = {"stages": []}
+        trace: dict = {"stages": []}
         token = diagnostics.ACTIVE.set(trace)
         self.addCleanup(diagnostics.ACTIVE.reset, token)
         with patch.object(ha_inventory, "_read_result", return_value=result):
@@ -52,7 +52,7 @@ class LightStageTests(unittest.TestCase):
         self.enterContext(patch.object(server, "build_opener", return_value=self.ha))
 
     def test_light_turn_records_dispatch_and_verify_stages(self):
-        trace = {"stages": []}
+        trace: dict = {"stages": []}
         token = diagnostics.ACTIVE.set(trace)
         self.addCleanup(diagnostics.ACTIVE.reset, token)
         reply, outcome = server.handle_light_request("turn on the study light and turn off the fairy lights")
