@@ -1,7 +1,7 @@
 """Local Declan 2.0 chat prototype. Run with python server.py."""
 import argparse as argparse
 import ipaddress as ipaddress
-import logging
+import logging as logging
 import os as os
 import secrets as secrets
 import sqlite3 as sqlite3
@@ -47,10 +47,10 @@ from urllib.parse import urlsplit as urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler as ProxyHandler, Request as Request, build_opener as build_opener
 
 from execution_results import ExecutionResult as ExecutionResult, Outcome as Outcome
-from arbitration import CaptureArbiter
+from arbitration import CaptureArbiter as CaptureArbiter
 
 import conditions as conditions
-import sensitive_confirmations
+import sensitive_confirmations as sensitive_confirmations
 import diagnostics
 import declan_logs as declan_logs
 import configuration as configuration
@@ -139,10 +139,10 @@ import response_composition as response_composition
 import command_responses as command_responses
 import command_registry as command_registry
 import session_orchestration as session_orchestration
-import session_store
-import routine_cooldown
-import active_routine_registry
-import routine_execution_gates
+import session_store as session_store
+import routine_cooldown as routine_cooldown
+import active_routine_registry as active_routine_registry
+import routine_execution_gates as routine_execution_gates
 import routine_cancellation as routine_cancellation
 import session_turn_state as session_turn_state
 import lighting_intents as lighting_intents
