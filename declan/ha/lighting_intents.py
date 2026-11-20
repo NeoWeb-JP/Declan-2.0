@@ -4,6 +4,43 @@ import re
 from declan.core.execution_results import ExecutionResult, Outcome
 
 
+_LIGHT_WORDS = r"(?:lights?|lamps?|spots?|spotlights?|bulbs?|pendants?|lighting)"
+_PERCENT = r"(?P<level>\d{1,3})\s*(?:percent|per cent|%)"
+_BRIGHTNESS_VARIANTS = (
+    # "turn the kitchen lights to 40%", "put the lamp at 30 percent"
+    re.compile(r"(?:turn|put|make) (?:the )?(?P<name>.*?\b" + _LIGHT_WORDS + r"\b.*?) (?:to|at) " + _PERCENT
+               + r"(?P<here> in here)?"),
+    # "kitchen lights 50 percent", "the lamp to 20%"
+    re.compile(r"(?:the )?(?P<name>.*?\b" + _LIGHT_WORDS + r"\b.*?) (?:to |at )?" + _PERCENT
+               + r"(?P<here> in here)?"),
+    # "brightness to 40 percent in the kitchen", "set the brightness in the office to 70%"
+    re.compile(r"(?:set |change |put )?(?:the )?brightness(?: in (?:the )?(?P<room_first>.+?))? (?:to |at )?"
+               + _PERCENT + r"(?: in (?:the )?(?P<room>.+))?"),
+)
+
+
+def canonical_brightness(phrase):
+    """Rewrite loose percentage wording to "set the <x> to <n> percent"; else unchanged."""
+    if not isinstance(phrase, str) or not re.search(r"\d\s*(?:percent|per cent|%)", phrase):
+        return phrase
+    if (re.match(r"(?:set|dim|brighten) ", phrase) and "brightness" not in phrase) or re.search(r" by \d", phrase):
+        return phrase  # Already canonical, or a relative "by N percent" change.
+    for pattern in _BRIGHTNESS_VARIANTS:
+        match = pattern.fullmatch(phrase)
+        if not match:
+            continue
+        groups = match.groupdict()
+        name = groups.get("name")
+        if name is None:
+            room = groups.get("room_first") or groups.get("room")
+            name = f"lights in the {room}" if room and room != "here" else "lights"
+            suffix = " in here" if room == "here" else ""
+            return f"set the {name} to {match['level']} percent{suffix}"
+        here = " in here" if groups.get("here") or name.endswith(" in here") else ""
+        return f"set the {name.removesuffix(' in here')} to {match['level']} percent{here}"
+    return phrase
+
+
 def _lighting_result(value):
     """Validate a lighting execution result at the provider boundary."""
     return value if isinstance(value, ExecutionResult) else ExecutionResult(*value)
@@ -26,6 +63,7 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
     preview = re.match(r"^(?:preview|dry[ -]run)\b[ ,:]*", phrase)
     if preview:
         phrase = phrase[preview.end():]
+    phrase = canonical_brightness(phrase)
     room_adjustment = re.fullmatch(r"make it (darker|lighter|brighter|very bright) in (.+)", phrase)
     turn_adjustment = re.fullmatch(r"turn (down|up) ((?:the )?(?:all )?lights(?: in .+)?)", phrase)
     if room_adjustment:
@@ -35,6 +73,18 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
         phrase = f"make {turn_adjustment[2]} {direction}"
     if phrase.endswith(" in here"):
         contextual = phrase.removesuffix(" in here")
+        level = re.fullmatch(r"(?:set|dim) (?:the )?(?:(?:all )?(?:the )?" + _LIGHT_WORDS + r")? ?to (\d{1,3}) percent",
+                             contextual)
+        if level:
+            level_pct = int(level[1])
+            if not 0 <= level_pct <= 100:
+                return ExecutionResult("Please choose a brightness from 0 to 100 percent.", Outcome.UNRESOLVED)
+            if origin_device is None:
+                return ExecutionResult("Which room do you mean? I can't identify a room for this request.",
+                                       Outcome.UNRESOLVED)
+            return _lighting_result(set_lights("lights", "on" if level_pct else "off", brightness=level_pct or None,
+                                               preview=bool(preview), action_results=action_results,
+                                               origin_device=origin_device))
         if re.fullmatch(r"make it (?:darker|lighter|brighter|very bright)", contextual):
             contextual = contextual.replace("make it ", "make the lights ", 1)
         command = parse_light_command(contextual)
@@ -119,7 +169,9 @@ def matches(phrase, parse_light_command):
                   "what lights are still on", "which lights are still on"}:
         return True
     preview = re.match(r"^(?:preview|dry[ -]run)\b[ ,:]*", phrase)
-    candidate = phrase[preview.end():] if preview else phrase
+    candidate = canonical_brightness(phrase[preview.end():] if preview else phrase)
+    if re.fullmatch(r"(?:set|dim) (?:the )?volume\b.*", candidate):
+        return False  # "set the volume to 30 percent" is music.
     if re.fullmatch(r"make it (?:darker|lighter|brighter|very bright) in .+", candidate):
         return True
     if re.fullmatch(r"turn (?:down|up) (?:the )?(?:all )?lights(?: in .+)?", candidate):

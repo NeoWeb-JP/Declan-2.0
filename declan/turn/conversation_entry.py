@@ -10,7 +10,7 @@ from declan.ai.fallback_action_evidence import FallbackActionEvidence
 from declan.ai.fallback_entity_authorization import exposed_entities
 from declan.core import diagnostics, history
 from declan.core.execution_results import Outcome
-from declan.ha import ha_dispatcher, ha_inventory, script_discovery
+from declan.ha import ha_dispatcher, ha_inventory, lighting_intents, script_discovery
 from declan.ha.ha_action_preflight import preflight
 from declan.music import approved_media_players, music
 from declan.timers import timers
@@ -66,7 +66,7 @@ def run(handler, body, *, message, session_id, source, scope, origin_device, sat
         origin_device=origin_device or satellite, read_areas=services.read_ha_areas,
         music_rooms=music_rooms, scripts=scripts, phrases=script_discovery.phrases, allowed_domains=allowed)
     checks = (
-        lambda phrase: services.parse_light_command(phrase) is not None,
+        lambda phrase: lighting_intents.matches(phrase, services.parse_light_command),
         lambda phrase: music.parse(phrase) is not None,
         lambda phrase: music.parse_control(phrase) is not None,
         timers.matches,
