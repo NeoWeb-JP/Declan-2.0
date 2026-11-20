@@ -42,8 +42,16 @@ CHAT_COMMANDS = {
     "forget this conversation": "forget_chat", "forget our conversation": "forget_chat",
     "what time is it": "time", "what is the time": "time", "tell me the time": "time",
     "what's the time": "time", "what’s the time": "time",
+    "what time is it now": "time", "what's the time now": "time", "what is the time now": "time",
+    "what time is it right now": "time", "what's the time right now": "time",
+    "what was the time": "time", "do you know what time it is": "time",
+    "do you know the time": "time", "can you tell me the time": "time",
+    "could you tell me the time": "time", "have you got the time": "time",
+    "what time have you got": "time", "what's the time please": "time",
     "hello": "greeting", "hi": "greeting", "hey": "greeting", "hello declan": "greeting",
 }
+for _phrase, _kind in list(CHAT_COMMANDS.items()):
+    CHAT_COMMANDS.setdefault(_phrase.replace("'", "\u2019"), _kind)
 GOOD_MORNING_SCRIPT = "script.declan_good_morning_shared_local_routine"
 GOOD_MORNING_PHRASES = {
     "good morning", "morning", "start the morning routine", "declan test good morning",

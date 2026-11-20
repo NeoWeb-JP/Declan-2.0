@@ -96,6 +96,19 @@ def needs_agent(dispatch_result):
     return dispatch_result.reply is None or dispatch_result.outcome is Outcome.UNRESOLVED
 
 
+CONVERSATION_OFF_REPLY = ("I can only answer questions like that with Conversation switched on. "
+                          "Turn on 'Let Declan understand everyday speech' in Declan's settings.")
+
+
+def needs_conversation(message, chat_commands):
+    """A general question no local command answers, so only the agent could."""
+    from declan.ai import conversation_agent
+    key = str(message or "").casefold().strip(" .?!")
+    if key in chat_commands:
+        return False
+    return conversation_agent.is_general_question(message)
+
+
 def _routine_names(scripts, phrases):
     names = set()
     for item in scripts:

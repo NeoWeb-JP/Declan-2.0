@@ -3,7 +3,7 @@ import unittest
 
 from service_doubles import patch_module_collaborators
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from declan.turn import turn_http_entry
 
@@ -44,6 +44,17 @@ class TurnHTTPEntryTests(unittest.TestCase):
         self.assertIs(completion.kwargs["dispatch_result"], self.r.turn_dispatch_orchestration.dispatch.return_value)
         self.assertIs(completion.kwargs["action_results"], dispatch.kwargs["action_results"])
         self.handler.send_json.assert_called_once_with(200, {"reply": "hello"})
+
+    def test_general_question_with_conversation_off_skips_the_device_planner(self):
+        self.r.local_help.match.return_value = None
+        self.r.conversation_turn.needs_agent.return_value = True
+        self.r.conversation_turn.needs_conversation.return_value = True
+        self.r.conversation_turn.CONVERSATION_OFF_REPLY = "Switch Conversation on."
+        with patch("declan.ai.general_chat.enabled", return_value=False):
+            turn_http_entry.handle_post(self.handler, services=self.r)
+        result = self.r.turn_response_completion.complete.call_args.kwargs["dispatch_result"]
+        self.assertEqual(result.reply, "Switch Conversation on.")
+        self.r.conversation_turn.needs_conversation.assert_called_once_with("hello", self.r.CHAT_COMMANDS)
 
 
 if __name__ == "__main__":

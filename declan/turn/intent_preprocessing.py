@@ -16,6 +16,20 @@ _CORRECTION = re.compile(
 )
 _FILLER = re.compile(r"\b(?:um+|uh+|erm+)\b", re.IGNORECASE)
 _SPACE = re.compile(r"\s+")
+# Speech-to-text (OpenAI in particular) keeps how people address Declan:
+# "Declan, turn on the lights", "Okay Declan, play jazz", "Good night, Declan",
+# "Pause the music, please". The address and courtesy words are not part of the
+# command, so they are dropped before matching. "my bru" is kept: the command
+# style setting relies on it.
+_ADDRESS_LEAD = re.compile(
+    r"^(?:(?:hey|hi|hello|ok|okay|howzit|yo)(?:\s*[,!.:]+\s*|\s+(?=declan\b)))?"
+    r"(?:declan\b\s*[,!.:]*\s*)?",
+    re.IGNORECASE,
+)
+_ADDRESS_TAIL = re.compile(
+    r"(?:\s*,?\s*\b(?:declan|please|thanks|thank you)\b\s*[.!?]*)+$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -39,9 +53,21 @@ def preprocess_speech(text: str, *, max_length: int = 2048) -> ParsedSpeech:
     if matches:
         text = text[matches[-1].end():]
     text = _SPACE.sub(" ", _FILLER.sub(" ", text)).strip(" ,.;:")
+    text = _without_address(text)
     if not text:
         raise ValueError("Speech contains no usable command")
     return ParsedSpeech((text,), corrected)
+
+
+def _without_address(text: str) -> str:
+    """Drop "Declan," / "Hey," and a trailing ", Declan" or "please".
+
+    The original is kept when fewer than two words would remain, so greetings
+    ("hello Declan"), "good night Declan" style phrases that are matched as a
+    whole elsewhere, and one-word replies ("yes please") keep their meaning.
+    """
+    stripped = _ADDRESS_TAIL.sub("", _ADDRESS_LEAD.sub("", text, count=1)).strip(" ,.;:!")
+    return stripped if len(stripped.split()) >= 2 else text
 
 
 # Polite request wrappers around an ordinary command ("can you turn on the office

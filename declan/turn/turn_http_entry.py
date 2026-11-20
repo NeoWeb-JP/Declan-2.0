@@ -53,6 +53,14 @@ def handle_post(handler, *, services):
         dispatch_result = None  # "play something": let the agent choose, not Spotify's literal search.
     else:
         dispatch_result = dispatch(phrase)
+    if (help_request is None and not agent_on and conversation_turn.needs_agent(dispatch_result)
+            and conversation_turn.needs_conversation(effective_message, services.CHAT_COMMANDS)):
+        # The device planner cannot answer "where is Peru?"; say how to turn answers on
+        # instead of spending money on a plan that is bound to be refused.
+        from declan.core.execution_results import Outcome
+        from declan.turn import conversation_entry
+        dispatch_result = conversation_entry._result_factory(
+            conversation_turn.CONVERSATION_OFF_REPLY, Outcome.UNRESOLVED)
     agent_turn = None
     if help_request is None and agent_on and conversation_turn.needs_agent(dispatch_result):
         from declan.turn import conversation_entry
