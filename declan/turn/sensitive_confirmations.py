@@ -1,5 +1,6 @@
 """One-shot, origin-bound voice confirmation for sensitive household routines."""
 import os
+import re
 import sqlite3
 from threading import Lock
 from time import monotonic
@@ -7,13 +8,18 @@ from declan.turn.confirmation_results import ConfirmationDecision, ConfirmationE
 
 YES = {"yes", "yes confirm", "confirm", "go ahead", "do it"}
 NO = {"no", "cancel", "never mind", "don't", "stop"}
-DEFAULT_GROUPS = {"night", "guest"}
+# Owner decision 20 Nov: Good Night does not need a spoken yes. Only routines
+# for the homelab, cameras and security do (plus guest assignment, unchanged).
+DEFAULT_GROUPS = {"guest", "security"}
+_SECURITY = re.compile(
+    r"\b(?:home ?lab|servers?|proxmox|nas|cameras?|cctv|security|alarm|arm|disarm|surveillance)\b")
+_LIGHTING = re.compile(r"\b(?:lights?|lamps?|bulbs?|spots?)\b")
 DEFAULT_TRUSTED: set[str] = set()
 TTL_SECONDS = 30
 
 
 def groups():
-    raw = os.environ.get("DECLAN_SENSITIVE_ROUTINES", "night,guest")
+    raw = os.environ.get("DECLAN_SENSITIVE_ROUTINES", "guest,security")
     return {x.strip().casefold() for x in raw.split(",") if x.strip()}
 
 
@@ -64,6 +70,10 @@ def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_
         if group in {"night", "morning", "movie", "movie_bedroom"} and item:
             return None
         return group
+    if isinstance(phrase, str) and _SECURITY.search(phrase) and not _LIGHTING.search(phrase):
+        # "run homelab shutdown", "arm the alarm", "turn off the cameras".
+        # A security *light* is just a light.
+        return "security"
     if phrase.startswith(("good night", "goodnight", "time for bed", "shut the house down")):
         try:
             from declan.turn import routine_registry

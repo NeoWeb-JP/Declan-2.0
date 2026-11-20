@@ -45,7 +45,7 @@ Declan's standalone backend reads its runtime configuration from its deployment 
 | `DECLAN_UPDATE_SOURCE` | Release trust source; `github` (default) or `pinned` | `github` |
 | `DECLAN_UPDATE_ROOT` | Optional updater installation root override | Leave unset |
 | `DECLAN_UPDATE_SUPERVISED` | Set to `1` only for the supervised updater process | Leave unset |
-| `DECLAN_SENSITIVE_ROUTINES` | Legacy sensitive routine categories; current configured confirmation policy takes precedence | `night,guest` |
+| `DECLAN_SENSITIVE_ROUTINES` | Sensitive routine categories that need a spoken yes; a saved routine policy takes precedence. `security` covers homelab, server, camera, CCTV and alarm routines | `guest,security` |
 | `DECLAN_TRUSTED_SPEAKERS` | Comma-separated trusted speaker labels used by legacy confirmation checks; voice identity is not authentication | Leave empty |
 | `DECLAN_HISTORY_RETENTION_DAYS` | Voice and transcript history retention in days; accepts 1–30 | `30` |
 | `DECLAN_BROWSER_TIMER_SATELLITE` | Optional satellite identifier for browser timer announcements | Leave empty |
@@ -109,7 +109,7 @@ describe runtime behaviour, not merely the presence of an inventory entry.
 | DECLAN_UPDATE_ROOT | Missing or blank disables the updater | Requires an absolute POSIX root with writable directories, a releases directory and a current symlink pointing to the running app | `tests/test_update_root_environment_defaults.py` |
 | DECLAN_UPDATE_SUPERVISED | Missing or blank blocks installation | Only exact `1` passes the supervisor gate; other values fail before release selection or staging | `tests/test_update_supervised_environment_gate.py` |
 | DECLAN_RELEASE_VERSION | Optional configured fallback when no valid installed release marker exists | A valid installed `.declan-release` marker takes precedence; missing, invalid or unreadable markers preserve the fallback | `tests/test_installed_release_version_defaults.py` |
-| DECLAN_SENSITIVE_ROUTINES | Defaults to `night,guest`; explicitly empty disables legacy group defaults | Comma-separated values are trimmed, case-folded and deduplicated; explicitly saved routine policies take precedence | `tests/test_sensitive_environment_boundaries.py` |
+| DECLAN_SENSITIVE_ROUTINES | Defaults to `guest,security` (Good Night needs no confirmation); explicitly empty disables group defaults | Comma-separated values are trimmed, case-folded and deduplicated; explicitly saved routine policies take precedence | `tests/test_sensitive_environment_boundaries.py` |
 | DECLAN_TRUSTED_SPEAKERS | Missing or empty means no speaker is trusted by the legacy confirmation gate | Names are trimmed and case-folded; membership also requires numeric confidence from 0.85 through 1.0, excluding booleans | `tests/test_sensitive_environment_boundaries.py` |
 | DECLAN_TRUSTED_RELEASES | Defaults to `/etc/declan/trusted-releases.json` | Requires an absolute POSIX path and a root-owned, non-group/world-writable, non-symlink file and parent chain; malformed allow-list content fails closed | `tests/test_trusted_releases_environment.py` |
 | DECLAN_HA_URL, DECLAN_HA_TOKEN | Missing or blank credentials yield an unconfigured status, or a recent-Assist fallback; guest and visitor state are unknown | URL is trimmed and must use HTTP(S) without embedded credentials, query or fragment; invalid settings fail before network access | `tests/test_ha_status_environment_defaults.py`, `tests/test_ha_presence_environment_defaults.py` |

@@ -17,7 +17,7 @@ The Spotify client ID and secret are not exported or imported. A release must no
 
 - Voice requests for bedtime and guest-register changes require a one-use confirmation unless a speaker is explicitly allowlisted and recognised with confidence of at least 0.85.
 - Set `DECLAN_TRUSTED_SPEAKERS` to comma-separated VoicePipeline speaker names to permit direct execution. An empty list trusts nobody.
-- `DECLAN_SENSITIVE_ROUTINES` defaults to `night,guest`; optionally include `morning,movie,dinner,sexy`.
+- `DECLAN_SENSITIVE_ROUTINES` defaults to `guest,security` (homelab, cameras/CCTV, alarm); optionally include `night,morning,movie,dinner,sexy`.
 - The confirmation is tied to Assist conversation ID and physical satellite/device, expires after 30 seconds, and is consumed once. Browser management commands retain their existing access control.
 - Test actual HA follow-up behavior: some pipelines may require saying the wake word again for the confirmation. Automatic continued listening has **not** been verified.
 - Voice recognition confidence is not a biometric guarantee; the HA integration's authentication and existing permissions remain essential.

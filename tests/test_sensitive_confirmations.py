@@ -10,11 +10,11 @@ class SensitiveConfirmationTests(unittest.TestCase):
         self.now = [10.0]
         self.gate = sc.ConfirmationGate(clock=lambda: self.now[0])
         self.unknown = {"name":"Jaco","confidence":0.6}
-    def check(self, session="s1", origin="assist_satellite.kitchen", phrase="good night", group="night", speaker=None):
+    def check(self, session="s1", origin="assist_satellite.kitchen", phrase="run homelab shutdown", group="security", speaker=None):
         return self.gate.evaluate(session=session, origin=origin, phrase=phrase, group=group, speaker=speaker)
     def test_default_requires_confirmation(self):
         self.assertEqual(self.check()[0], "prompt")
-        self.assertEqual(self.check(phrase="confirm"), ("confirmed","good night"))
+        self.assertEqual(self.check(phrase="confirm"), ("confirmed","run homelab shutdown"))
         self.assertEqual(self.check(phrase="confirm")[0], "allow")
     def test_origin_and_session_isolation(self):
         self.check()
@@ -37,6 +37,21 @@ class SensitiveConfirmationTests(unittest.TestCase):
             self.assertEqual(self.check(speaker={"name":"Jaco","confidence":"0.99"})[0], "prompt")
             self.assertEqual(self.check(speaker={"name":"Jaco","confidence":float("nan")})[0], "prompt")
             self.assertEqual(self.check(speaker={"name":"Unknown","confidence":0.99})[0], "prompt")
+    def test_owner_policy_good_night_free_security_confirmed(self):
+        with patch.dict(os.environ, {}, clear=True), \
+                patch("declan.turn.routine_registry.load", return_value={}):
+            self.assertEqual(sc.groups(), {"guest", "security"})
+            self.assertEqual(sc.sensitive_group("good night", None, {}), "night")
+            self.assertEqual(self.gate.evaluate(session="s", origin="o", phrase="good night", group="night",
+                                                speaker=None)[0], "allow")
+            for phrase in ("run homelab shutdown", "turn off the cameras", "arm the alarm", "disarm the alarm",
+                           "restart the proxmox server", "run security check", "turn off cctv"):
+                with self.subTest(phrase=phrase):
+                    self.assertEqual(sc.sensitive_group(phrase, None, {}), "security")
+            for phrase in ("turn on the security light", "turn off the camera lamp", "good morning", "movie time"):
+                with self.subTest(phrase=phrase):
+                    self.assertNotEqual(sc.sensitive_group(phrase, None, {}), "security")
+
     def test_configurable_groups_and_chained_routines(self):
         with patch.dict(os.environ, {"DECLAN_SENSITIVE_ROUTINES":"night,guest,sexy,dinner,movie"}):
             self.assertEqual(sc.sensitive_group("good night and turn off the light",(("night",{}),"turn off the light"),{}),"night")

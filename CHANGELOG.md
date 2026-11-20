@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- Confirmations: **Good Night no longer asks for a spoken yes.** By default only homelab, server, camera/CCTV, security and alarm routines (and guest assignment) need confirming; a security *light* is just a light. Change it with `DECLAN_SENSITIVE_ROUTINES` (default `guest,security`); a routine's saved confirmation setting still wins.
 - **Conversation (new):** Settings → AI Intelligence → **Conversation** lets Declan understand everyday speech from people who don't know the commands or device names. When a request isn't an exact command ("it's dark in here", "put some music on", "switch the lamp on", "play something", "what can you do?"), Declan uses the room you're in, your Assist-exposed devices, music rooms, routines and the last few lines of the conversation to **act**, **ask** a short question (the mic stays open, so "the spots" is understood), or **answer**.
   - Lights, switches, fans, blinds and TVs change only through the verified executor, on exposed entities.
   - Music, routines and timers become normal Declan commands, re-checked by the local parsers. Sensitive routines still need a spoken yes, and garage/gate covers stay blocked.

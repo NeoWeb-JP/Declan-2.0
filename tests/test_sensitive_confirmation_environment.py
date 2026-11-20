@@ -9,7 +9,7 @@ from declan.turn.sensitive_confirmations import groups, trusted_speaker
 class SensitiveConfirmationEnvironmentTests(unittest.TestCase):
     def test_unset_groups_default_to_night_and_guest(self):
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(groups(), {"night", "guest"})
+            self.assertEqual(groups(), {"guest", "security"})
 
     def test_empty_and_normalized_group_overrides(self):
         with patch.dict(os.environ, {"DECLAN_SENSITIVE_ROUTINES": ""}):
