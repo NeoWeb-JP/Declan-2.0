@@ -50,6 +50,7 @@ class UpdaterRuntimeState:
             selection = self.tags[version]
             if selection.get("include_prereleases", False) != include_prereleases:
                 raise ValueError("The release channel changed. Check for updates again.")
+            self.job.pop("failed_step", None)
             self.job.update(state=UpdateJobState.INSTALLING.value, version=version)
             return dict(selection)
 

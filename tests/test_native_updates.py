@@ -35,6 +35,11 @@ class NativeUpdaterTests(unittest.TestCase):
             self.assertIn(phrase, PANEL)
         self.assertNotIn('Use the existing Declan updater for now.', PANEL)
 
+    def test_panel_names_the_failed_install_step_without_raw_errors(self):
+        for phrase in ("data.failed_step", "'install-dependencies': 'installing dependencies'",
+                       "state === 'failed' && typeof data.failed_step === 'string'"):
+            self.assertIn(phrase, PANEL)
+
     def test_backend_update_routes_require_valid_bearer_or_existing_local_access(self):
         self.assertIn('handler.path == "/api/updates/status"', (ROOT / "declan/http/get_access_gate_http.py").read_text())
         self.assertIn('not updates_auth and handler.client_address', (ROOT / "declan/http/get_access_gate_http.py").read_text())
