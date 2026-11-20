@@ -135,8 +135,52 @@ def interactions(history=False):
     return rows('/api/v1/interactions/' + ('history' if history else 'pending'), fields)
 
 
+MATCH_RATE_MINIMUM = 5
+_NOT_REVIEWED = frozenset({'', 'pending', 'dismissed', 'rejected', 'discarded'})
+
+
+def match_rates(rows):
+    """HIS-11: per-speaker share of reviewed attributions the owner kept.
+
+    Denominator: reviewed recordings (confirmed, assigned, enrolled or
+    corrected; not pending, dismissed, rejected or discarded) that
+    VoicePipeline attributed to a speaker and that now have an assigned
+    speaker. Kept: the assigned speaker is the one VoicePipeline matched.
+    Fewer than MATCH_RATE_MINIMUM reviews gives a rate of None ("n/a").
+    """
+    counts: dict[str, list[int]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        matched = row.get('matched_speaker')
+        assigned = row.get('current_assigned_to')
+        status = row.get('status')
+        if (not isinstance(matched, str) or not matched.strip() or not isinstance(assigned, str)
+                or not assigned.strip() or not isinstance(status, str)
+                or status.strip().casefold() in _NOT_REVIEWED):
+            continue
+        entry = counts.setdefault(matched.strip(), [0, 0])
+        entry[0] += 1
+        entry[1] += assigned.strip().casefold() == matched.strip().casefold()
+
+    def rate(reviewed, kept):
+        return round(kept / reviewed, 4) if reviewed >= MATCH_RATE_MINIMUM else None
+    speakers_ = {name: {'reviewed': reviewed, 'kept': kept, 'rate': rate(reviewed, kept)}
+                 for name, (reviewed, kept) in sorted(counts.items())}
+    reviewed = sum(value['reviewed'] for value in speakers_.values())
+    kept = sum(value['kept'] for value in speakers_.values())
+    return {'speakers': speakers_, 'overall': {'reviewed': reviewed, 'kept': kept, 'rate': rate(reviewed, kept)},
+            'minimum_reviews': MATCH_RATE_MINIMUM}
+
+
 def listing():
-    return {'profiles': speakers(), 'interactions': interactions(), 'recogniser_connected': True,
+    profiles, pending = speakers(), interactions()
+    try:
+        rates = match_rates(interactions(history=True))
+    except PipelineError:
+        rates = None  # Profiles and pending reviews stay available.
+    return {'profiles': profiles, 'interactions': pending, 'match_rates': rates,
+            'recogniser_connected': True,
             'notice': 'Profiles and reference recordings are managed by VoicePipeline. '
                       'Use a satellite, then refresh to review its recording. This connection does not verify live recognition.'}
 
