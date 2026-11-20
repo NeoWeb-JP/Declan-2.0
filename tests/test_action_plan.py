@@ -1,7 +1,7 @@
 from typing import Any, cast
 import unittest
 
-from declan.ai.action_plan import validate_plan, execution_order
+from declan.ai.action_plan import validate_plan
 from declan.ai.action_plan import execution_order_result, ActionReadiness
 from declan.ai.action_plan import OrderedActionResult
 
@@ -22,8 +22,7 @@ class PlanValidationTests(unittest.TestCase):
         for status in ActionReadiness:
             result = OrderedActionResult(0, action, status)
             self.assertIs(result.status, status)
-            self.assertEqual(result.as_legacy_tuple(), (0, action, status.value))
-            self.assertIs(type(result.as_legacy_tuple()[2]), str)
+            self.assertEqual((result.index, result.action, result.status), (0, action, status))
 
     def test_typed_dependency_decisions_observe_live_verified_outcomes(self):
         actions = validate_plan({"actions": [
@@ -42,9 +41,6 @@ class PlanValidationTests(unittest.TestCase):
                 setattr(first, "status", expected)
             outcomes[0] = value
             self.assertIs(next(decisions).status, expected)
-            legacy = list(execution_order(actions, outcomes))
-            self.assertEqual(legacy[1], (1, actions[1], expected.value))
-            self.assertIs(type(legacy[1][2]), str)
 
     def test_exposed_action(self):
         self.assertEqual(validate_plan({"actions": [{"entity_id": "light.kitchen", "service": "turn_on"}]}, {"light.kitchen"})[0].entity_id, "light.kitchen")
@@ -71,7 +67,8 @@ class PlanValidationTests(unittest.TestCase):
             {"entity_id": "light.study", "service": "turn_on"},
             {"entity_id": "light.study", "service": "turn_off", "depends_on": [0]},
         ]}, {"light.kitchen", "light.study"})
-        self.assertEqual([status for _, _, status in execution_order(actions, {0: False})], ["pending", "pending", "skipped_dependency"])
+        self.assertEqual([result.status.value for result in execution_order_result(actions, {0: False})],
+                         ["pending", "pending", "skipped_dependency"])
 
     def test_bool_is_not_dependency_index(self):
         with self.assertRaises(ValueError):

@@ -77,8 +77,3 @@ def dispatch_result(action, connection, *, authorised, clock=monotonic, wait=sle
             return DispatchResult(ActionStatus.UNVERIFIED, f"Expected {expected}; state not confirmed")
         wait(min(0.25, remaining))
 
-
-def dispatch_verified(action, connection, *, authorised, clock=monotonic, wait=sleep):
-    """Compatibility API: keep the legacy (status-string, detail) tuple."""
-    return dispatch_result(action, connection, authorised=authorised,
-                           clock=clock, wait=wait).as_legacy_pair()

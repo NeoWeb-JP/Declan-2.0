@@ -141,10 +141,6 @@ class ExecutionResult:
     def as_legacy_pair(self):
         return self.reply, self.outcome.value
 
-    def as_legacy_mapping(self):
-        # Existing Python callers consume ActionResult objects in this field.
-        return {"reply": self.reply, "outcome": self.outcome.value, "actions": self.actions}
-
     def to_wire(self):
         return {"reply": self.reply, "outcome": self.outcome.value,
                 "actions": [action.to_wire() for action in self.actions]}

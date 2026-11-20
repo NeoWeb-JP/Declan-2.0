@@ -2,7 +2,8 @@ import sqlite3
 import unittest
 from declan.ai.action_plan import validate_plan
 from declan.ai.ai_budget import monthly_reserved
-from declan.ai.guarded_fallback import run_guarded_fallback
+from declan.ai.guarded_fallback import run_guarded_result
+from declan.core.execution_results import Outcome
 
 
 class GuardedFallbackTests(unittest.TestCase):
@@ -15,7 +16,7 @@ class GuardedFallbackTests(unittest.TestCase):
         self.db.close()
 
     def run_pipeline(self, **kwargs):
-        return run_guarded_fallback(
+        return run_guarded_result(
             "turn on kitchen", self.inventory, budget_db=self.db,
             monthly_limit_micro_usd=100, request_ceiling_micro_usd=30,
             **kwargs,
@@ -32,7 +33,7 @@ class GuardedFallbackTests(unittest.TestCase):
             charge_micro_usd=lambda: 10,
         )
         self.assertEqual(calls, ["light.kitchen"])
-        self.assertEqual(result["outcome"], "confirmed")
+        self.assertIs(result.outcome, Outcome.CONFIRMED)
 
     def test_budget_denies_before_planner_or_dispatch(self):
         for _ in range(3):
@@ -57,7 +58,7 @@ class GuardedFallbackTests(unittest.TestCase):
     def test_empty_plan_no_dispatch(self):
         calls = []
         result = self.run_pipeline(planner=lambda *_: (), dispatcher=lambda *_: calls.append("sent"))
-        self.assertEqual(result["outcome"], "unresolved")
+        self.assertIs(result.outcome, Outcome.UNRESOLVED)
         self.assertEqual(calls, [])
 
 

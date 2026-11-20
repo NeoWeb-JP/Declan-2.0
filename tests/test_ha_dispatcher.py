@@ -2,7 +2,7 @@ import io
 import json
 import unittest
 from declan.ai.action_plan import CandidateAction
-from declan.ha.ha_dispatcher import dispatch_verified
+from declan.ha.ha_dispatcher import dispatch_result
 
 
 class Opener:
@@ -19,32 +19,32 @@ class Opener:
 class DispatcherTests(unittest.TestCase):
     def test_light_confirmed_after_readback(self):
         opener = Opener(["off", "on"])
-        result = dispatch_verified(CandidateAction("light.kitchen", "turn_on"),
-                                   ("http://ha.local", {}, opener), authorised=lambda _: True,
+        result = dispatch_result(CandidateAction("light.kitchen", "turn_on"),
+                                 ("http://ha.local", {}, opener), authorised=lambda _: True,
                                    clock=lambda: 0, wait=lambda _: None)
-        self.assertEqual(result[0], "confirmed")
+        self.assertEqual(result.status.value, "confirmed")
         self.assertEqual(len(opener.calls), 3)
 
     def test_denied_never_dispatches(self):
         opener = Opener([])
-        result = dispatch_verified(CandidateAction("light.kitchen", "turn_on"),
-                                   ("http://ha.local", {}, opener), authorised=lambda _: False)
-        self.assertEqual(result[0], "failed")
+        result = dispatch_result(CandidateAction("light.kitchen", "turn_on"),
+                                 ("http://ha.local", {}, opener), authorised=lambda _: False)
+        self.assertEqual(result.status.value, "failed")
         self.assertEqual(opener.calls, [])
 
     def test_script_acknowledgement_not_completion(self):
         opener = Opener([])
-        result = dispatch_verified(CandidateAction("script.goodnight", "turn_on"),
-                                   ("http://ha.local", {}, opener), authorised=lambda _: True)
-        self.assertEqual(result[0], "unverified")
+        result = dispatch_result(CandidateAction("script.goodnight", "turn_on"),
+                                 ("http://ha.local", {}, opener), authorised=lambda _: True)
+        self.assertEqual(result.status.value, "unverified")
 
     def test_no_readback_not_confirmed(self):
         opener = Opener(["off"])
         ticks = iter([0, 4])
-        result = dispatch_verified(CandidateAction("light.kitchen", "turn_on"),
-                                   ("http://ha.local", {}, opener), authorised=lambda _: True,
+        result = dispatch_result(CandidateAction("light.kitchen", "turn_on"),
+                                 ("http://ha.local", {}, opener), authorised=lambda _: True,
                                    clock=lambda: next(ticks), wait=lambda _: None)
-        self.assertEqual(result[0], "unverified")
+        self.assertEqual(result.status.value, "unverified")
 
 
 if __name__ == "__main__":

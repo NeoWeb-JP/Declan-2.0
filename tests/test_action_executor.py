@@ -1,6 +1,7 @@
 import unittest
 from declan.ai.action_plan import validate_plan
-from declan.ai.action_executor import execute_verified, summarise
+from declan.ai.action_executor import execute_verified, summarise_result
+from declan.core.execution_results import Outcome
 
 
 class ExecutorTests(unittest.TestCase):
@@ -19,11 +20,11 @@ class ExecutorTests(unittest.TestCase):
         result = execute_verified(self.plan, dispatch)
         self.assertEqual(calls, ["light.a", "light.b"])
         self.assertEqual([x.status for x in result], ["failed", "confirmed", "skipped_dependency"])
-        self.assertEqual(summarise(result)[1], "partial")
+        self.assertIs(summarise_result(result).outcome, Outcome.PARTIAL)
 
     def test_unverified_is_not_success(self):
         result = execute_verified(self.plan[:1], lambda _: ("unverified", "HTTP 200 only"))
-        self.assertEqual(summarise(result)[1], "unverified")
+        self.assertIs(summarise_result(result).outcome, Outcome.UNVERIFIED)
 
     def test_dispatch_exception_does_not_abort_independent(self):
         def dispatch(action):
