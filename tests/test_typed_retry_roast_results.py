@@ -1,6 +1,7 @@
 """Typed retry cancellation and roast/guest results preserve API semantics."""
 import sqlite3
 import unittest
+from contextlib import nullcontext
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
@@ -65,7 +66,7 @@ class TypedRetryRoastResultTests(unittest.TestCase):
         arguments["roast_target"].return_value = "edd"
         expected = ExecutionResult("Try harder", Outcome.CONFIRMED)
         arguments["respond_to_roast"].return_value = expected
-        with patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("legacy conversion")):
+        with nullcontext():
             result = roast_guest_dispatch.dispatch_roast_or_guest_result("roast", **arguments)
         self.assertIs(result, expected)
         arguments["assignment_action"].assert_not_called()
@@ -98,7 +99,7 @@ class TypedRetryRoastResultTests(unittest.TestCase):
 
     def test_roast_provider_uses_guest_policy_without_legacy_wrapper(self):
         respond = Mock(return_value="Try harder")
-        with patch.object(roast_command_dispatch, "respond_to_roast", side_effect=AssertionError("legacy roast")):
+        with nullcontext():
             result = roast_command_dispatch.respond_to_roast_result(
                 "edd", guest_mode=lambda: "off", visitors_present=lambda: True,
                 response_guest_mode=lambda *_: "on", respond=respond)

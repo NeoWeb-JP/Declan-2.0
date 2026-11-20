@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from declan.music import music
+from result_pairs import pair_of
 
 
 class StopEverywhereTests(unittest.TestCase):
@@ -27,7 +28,7 @@ class StopEverywhereTests(unittest.TestCase):
         with patch.object(music, "music_players", return_value=(destinations, players)), \
              patch.object(music, "request", side_effect=stop), \
              patch.object(music, "wait_for", side_effect=lambda conn, entity, predicate, **kw: predicate(players[entity])):
-            reply, outcome = music.control(
+            reply, outcome = pair_of(music.control_result)(
                 ("media_stop", None), ("http://ha", {}, None),
                 lambda conn: ([], None), origin="assist_satellite.kitchen",
                 assist=True, read_areas=lambda conn, origin: {"kitchen": []}
@@ -54,7 +55,7 @@ class StopEverywhereTests(unittest.TestCase):
         with patch.object(music, "music_players", return_value=(destinations, players)), \
              patch.object(music, "request", side_effect=stop), \
              patch.object(music, "wait_for", side_effect=lambda conn, entity, predicate, **kw: predicate(players[entity])):
-            reply, outcome = music.control(
+            reply, outcome = pair_of(music.control_result)(
                 ("media_stop", None), ("http://ha", {}, None), lambda conn: ([], None)
             )
         self.assertEqual(outcome, "confirmed", reply)
@@ -78,7 +79,7 @@ class StopEverywhereTests(unittest.TestCase):
              patch.object(music, "request", side_effect=stop), \
              patch.object(music, "wait_for",
                           side_effect=lambda conn, entity, predicate, **kw: predicate(players[entity])):
-            reply, outcome = music.control(
+            reply, outcome = pair_of(music.control_result)(
                 ("media_stop", None), ("http://ha", {}, None), lambda conn: ([], None)
             )
         self.assertEqual(outcome, "confirmed", reply)
@@ -92,7 +93,7 @@ class StopEverywhereTests(unittest.TestCase):
                           return_value=({"kitchen": entity}, players)), \
              patch.object(music, "request"), \
              patch.object(music, "wait_for", return_value=False):
-            reply, outcome = music.control(
+            reply, outcome = pair_of(music.control_result)(
                 ("media_stop", None), ("http://ha", {}, None), lambda conn: ([], None)
             )
         self.assertEqual(outcome, "partial", reply)
@@ -113,7 +114,7 @@ class StopEverywhereTests(unittest.TestCase):
         with patch.object(music, "music_players", return_value=(destinations, players)), \
              patch.object(music, "request", side_effect=stop), \
              patch.object(music, "wait_for", side_effect=lambda conn, entity, predicate, **kw: predicate(players[entity])):
-            reply, outcome = music.control(
+            reply, outcome = pair_of(music.control_result)(
                 ("media_stop", "kitchen"), ("http://ha", {}, None), lambda conn: ([], None)
             )
         self.assertEqual(outcome, "confirmed", reply)

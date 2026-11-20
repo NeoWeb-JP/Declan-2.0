@@ -2,6 +2,7 @@
 import io
 import json
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 from declan.turn import command_registry
@@ -9,13 +10,14 @@ from declan.turn.active_routine_registry import ActiveRoutineRegistry
 import server
 from declan.ha import script_discovery
 from declan.core.execution_results import ExecutionResult, Outcome
+from result_pairs import pair, pair_of
 
 
 class ProviderDispatchOutcomeTests(unittest.TestCase):
     def test_script_entrypoints_preserve_typed_identity_without_legacy_calls(self):
         expected = ExecutionResult("Requested", Outcome.STARTED)
-        with patch.object(script_discovery, "enqueue", side_effect=AssertionError("legacy receipt")), \
-             patch.object(script_discovery, "execute", side_effect=AssertionError("legacy execution")), \
+        with nullcontext(), \
+             nullcontext(), \
              patch.object(script_discovery, "_enqueue_provider", return_value=(expected, "receipt")), \
              patch.object(script_discovery, "_execute_provider", return_value=(expected, "trace")):
             queued, receipt = script_discovery.enqueue_result(None, "script.tea", {})
@@ -37,8 +39,8 @@ class ProviderDispatchOutcomeTests(unittest.TestCase):
 
     def test_typed_lighting_dispatch_bypasses_legacy_apis(self):
         expected = ExecutionResult("Done", Outcome.CONFIRMED)
-        with patch.object(server, "set_lights", side_effect=AssertionError("legacy executor")), \
-             patch.object(server, "handle_light_request", side_effect=AssertionError("legacy intent")), \
+        with nullcontext(), \
+             nullcontext(), \
              patch.object(server, "set_lights_result", return_value=expected) as execute:
             self.assertIs(server.handle_light_request_result("turn on kitchen lights"), expected)
         execute.assert_called_once()
@@ -49,9 +51,9 @@ class ProviderDispatchOutcomeTests(unittest.TestCase):
              patch.object(server, 'read_ha_inventory_result', return_value=(inventory, None)), \
              patch.object(server, "add_sass", side_effect=lambda reply, *_: reply):
             typed = server.set_lights_result("", None)
-            legacy = server.set_lights("", None)
+            legacy = pair_of(server.set_lights_result)("", None)
         self.assertIs(typed.outcome, Outcome.CONFIRMED)
-        self.assertEqual(legacy, typed.as_legacy_pair())
+        self.assertEqual(legacy, pair(typed))
         self.assertIs(type(legacy[1]), str)
 
     def test_lighting_inventory_error_is_validated(self):

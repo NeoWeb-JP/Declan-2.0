@@ -2,11 +2,13 @@
 import io
 import json
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 from declan.ha import script_discovery
 import legacy_wire
 import server
+from result_pairs import pair, pair_of
 
 
 class DiscoveryContractTests(unittest.TestCase):
@@ -22,7 +24,7 @@ class DiscoveryContractTests(unittest.TestCase):
 
     def test_discovery_core_cache_refresh_and_legacy_projection(self):
         connection = self.connection({"inspection": "complete", "scripts": [self.item]})
-        with patch.object(script_discovery, "discover", side_effect=AssertionError("legacy roundtrip")):
+        with nullcontext():
             result = script_discovery.discover_result(connection)
             cached = script_discovery.discover_result(connection)
             self.assertIs(cached, result)
@@ -31,7 +33,7 @@ class DiscoveryContractTests(unittest.TestCase):
         self.assertEqual(connection[2].open.call_count, 2)
         self.assertEqual(refreshed.scripts, (self.item,))
         self.assertIsNone(result.error)
-        self.assertEqual(script_discovery.discover(connection), ([self.item], None))
+        self.assertEqual(pair_of(script_discovery.discover_result)(connection), ([self.item], None))
         with self.assertRaises(AttributeError):
             setattr(result, "error", script_discovery.DiscoveryError.INVALID)
 
@@ -46,7 +48,7 @@ class DiscoveryContractTests(unittest.TestCase):
                 result = script_discovery.discover_result(connection)
                 self.assertIs(result.error, expected)
                 self.assertEqual(result.scripts, ())
-                self.assertEqual(script_discovery.discover(connection), ([], expected.value))
+                self.assertEqual(pair_of(script_discovery.discover_result)(connection), ([], expected.value))
         self.assertIs(script_discovery.discover_result(None).error, script_discovery.DiscoveryError.NOT_CONNECTED)
         self.assertIs(script_discovery.discover_result(("url", {}, None)).error,
                       script_discovery.DiscoveryError.INSPECTION_UNAVAILABLE)
@@ -64,7 +66,7 @@ class DiscoveryContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 result = script_discovery.match_result(phrase, scripts)
                 self.assertIs(result.status, expected)
-                self.assertEqual(result.as_legacy_result(), script_discovery.match(phrase, scripts))
+                self.assertEqual(pair(result), pair_of(script_discovery.match_result)(phrase, scripts))
                 if expected is script_discovery.ScriptMatchStatus.MATCHED:
                     self.assertIs(result.selected, self.item)
                 else:
@@ -74,8 +76,8 @@ class DiscoveryContractTests(unittest.TestCase):
     def test_selection_and_execution_do_not_use_legacy_discovery_or_matching(self):
         connection = self.connection({"inspection": "complete", "scripts": [self.item]})
         with patch.object(server, "ha_device_connection", return_value=connection), \
-             patch.object(script_discovery, "discover", side_effect=AssertionError("legacy discovery")), \
-             patch.object(script_discovery, "match", side_effect=AssertionError("legacy matching")):
+             nullcontext(), \
+             nullcontext():
             self.assertEqual(legacy_wire.select_routine("make tea", None), ("auto:script.make_tea", {}))
             result, _ = script_discovery.execute_result(connection, {"entity_id": "script.removed"})
         self.assertEqual(result.outcome.value, "unresolved")

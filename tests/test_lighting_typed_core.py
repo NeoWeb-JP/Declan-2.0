@@ -19,8 +19,6 @@ class LightingTypedCoreTests(unittest.TestCase):
         parser = Mock(return_value=None)
         self.assertIsNone(lighting_intents.handle_light_request_result(
             "tell me a joke", parse_light_command=parser, set_lights=Mock()))
-        self.assertIsNone(lighting_intents.handle_light_request(
-            "tell me a joke", parse_light_command=parser, set_lights=Mock()))
 
     def test_missing_origin_is_typed_unresolved(self):
         parser = Mock(return_value=("kitchen lights", "on"))
@@ -48,10 +46,10 @@ class LightingTypedCoreTests(unittest.TestCase):
     def test_legacy_api_preserves_pair(self):
         set_lights = Mock(return_value=ExecutionResult("Lights off", Outcome.CONFIRMED))
         parser = Mock(return_value=("kitchen lights", "off"))
-        result = lighting_intents.handle_light_request(
+        result = lighting_intents.handle_light_request_result(
             "turn kitchen lights off", parse_light_command=parser,
             set_lights=set_lights)
-        self.assertEqual(result, ("Lights off", "confirmed"))
+        self.assertEqual((result.reply, result.outcome), ("Lights off", Outcome.CONFIRMED))
 
     def test_invalid_action_outcome_rejected(self):
         parser = Mock(return_value=("kitchen lights", "on"))

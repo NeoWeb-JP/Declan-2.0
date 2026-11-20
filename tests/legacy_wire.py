@@ -5,6 +5,7 @@ tests can keep asserting the (reply, outcome[, status]) shapes without the app
 carrying compatibility twins.
 """
 import server
+from result_pairs import pair
 
 
 def _triple(result, status):
@@ -13,12 +14,12 @@ def _triple(result, status):
 
 def select_routine(phrase, origin):
     result = server.select_routine_result(phrase, origin)
-    return server.RoutineSelection.coerce(result).as_legacy_pair() if result is not None else None
+    return pair(server.RoutineSelection.coerce(result)) if result is not None else None
 
 
 def select_routine_turn(phrase, origin):
     result = server.select_routine_turn_result(phrase, origin)
-    return server.RoutineTurnSelection.coerce(result).as_legacy_pair() if result is not None else None
+    return pair(server.RoutineTurnSelection.coerce(result)) if result is not None else None
 
 
 def execute_routine(selection, action_results, *, approved=False):
@@ -42,19 +43,19 @@ def format_routine_result(result, request_id, routine_id, period, movie_action, 
 def set_switch_as_light(name, desired_state, inventory, connection, *, preview=False, action_results=None):
     result = server.set_switch_as_light_result(name, desired_state, inventory, connection,
                                                preview=preview, action_results=action_results)
-    return result.as_legacy_pair() if result is not None else None
+    return pair(result) if result is not None else None
 
 
 def preview_routine(phrase, origin=None):
-    return server.preview_routine_result(phrase, origin).as_legacy_pair()
+    return pair(server.preview_routine_result(phrase, origin))
 
 
 def read_ha_inventory(connection):
-    return server.read_ha_inventory_result(connection).as_legacy_pair()
+    return pair(server.read_ha_inventory_result(connection))
 
 
 def read_music_inventory(connection):
-    return server.read_music_inventory_result(connection).as_legacy_pair()
+    return pair(server.read_music_inventory_result(connection))
 
 
 def stop_everywhere_output(connection):

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 from io import BytesIO
 import unittest
+from result_pairs import pair_of
 
 from declan.ha import script_discovery
 from declan.turn import personality_policy
@@ -36,7 +37,7 @@ class BackgroundDispatchTests(unittest.TestCase):
             response.__enter__.return_value = response
             return response
         opener.open.side_effect = receipt
-        result = script_discovery.enqueue(("http://ha", {}, opener), "script.movie_time", {})
+        result = pair_of(script_discovery.enqueue_result)(("http://ha", {}, opener), "script.movie_time", {})
         self.assertEqual(result[1], "started")
         opener.open.assert_called_once()
 
@@ -46,7 +47,7 @@ class BackgroundDispatchTests(unittest.TestCase):
                 (HTTPError("http://ha", 404, "missing", Message(), BytesIO()), "not_configured")):
             opener = MagicMock()
             opener.open.side_effect = error
-            reply, outcome, _ = script_discovery.enqueue(("http://ha", {}, opener), "script.movie_time", {})
+            reply, outcome, _ = pair_of(script_discovery.enqueue_result)(("http://ha", {}, opener), "script.movie_time", {})
             self.assertEqual(outcome, expected)
             opener.open.assert_called_once()
             self.assertNotIn("completed", reply)

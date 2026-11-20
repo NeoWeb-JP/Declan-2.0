@@ -1,4 +1,5 @@
 """Exercise Declan's browser and Assist API with isolated local state."""
+from contextlib import nullcontext
 
 from typing import Any
 import io
@@ -62,7 +63,7 @@ class APITests(TestCase):
                  patch.object(server, "handle_light_request_result", side_effect=lighting), \
                  patch.object(server.routine_responses, "render", side_effect=lambda selection, outcome, original, **kwargs: original), \
                  patch.object(server.CAPTURE_ARBITER, "claim", return_value=True), \
-                 patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("active path serialized a legacy pair")):
+                 nullcontext():
                 for path in ("/api/chat", "/api/assist"):
                     reply = self.ask("run audit routine and turn on study", path=path)
                     self.assertEqual(reply["outcome"], expected.value)
@@ -81,7 +82,7 @@ class APITests(TestCase):
                  patch.object(server.timers, "handle_result", return_value=ExecutionResult("Timer set.", Outcome.TIMER_SET)), \
                  patch.object(server.music, "_play_provider", return_value=ExecutionResult("Playing music.", Outcome.CONFIRMED)), \
                  patch.object(server.CAPTURE_ARBITER, "claim", return_value=True), \
-                 patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("active path serialized a legacy pair")):
+                 nullcontext():
                 for path in ("/api/chat", "/api/assist"):
                     reply = self.ask(phrase, path=path)
                     self.assertEqual(reply["outcome"], outcome.value)

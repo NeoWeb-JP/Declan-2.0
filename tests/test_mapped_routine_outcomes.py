@@ -3,6 +3,7 @@ from email.message import Message
 import io
 import json
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
@@ -71,7 +72,7 @@ class MappedRoutineOutcomeTests(unittest.TestCase):
         with patch.object(server.routine_registry, "load", return_value=mapping), \
              patch.object(server, 'read_music_inventory_result', return_value=([], None)), \
              patch.object(server.music, "music_players", return_value=({"bedroom": "media_player.bedroom"}, {})), \
-             patch.object(server.music, "control", side_effect=AssertionError("legacy music")), \
+             nullcontext(), \
              patch.object(server.music, "control_result", return_value=ExecutionResult("Cannot verify", Outcome.UNVERIFIED)) as stop, \
              patch.object(server, "read_guest_mode", return_value="off"):
             result, detail = server.run_sexy_time_result("end", ("http://ha", {}, opener))

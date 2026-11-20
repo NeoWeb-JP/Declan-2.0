@@ -3,6 +3,7 @@ from typing import Any, cast
 import io
 import json
 import unittest
+from result_pairs import pair
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
@@ -20,7 +21,7 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
         self.assertIs(result.status, MovieLaunchStatus.SENT)
         self.assertEqual(opener.open.call_count, 2)
         self.assertEqual(json.loads(opener.open.call_args.args[0].data)["delay_secs"], 2)
-        self.assertIs(type(result.as_legacy_pair()[0]), str)
+        self.assertIs(type(pair(result)[0]), str)
         with self.assertRaises(FrozenInstanceError):
             result.detail = "changed"
 
@@ -59,13 +60,12 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
 
     def test_guest_dispatch_accepts_typed_result_and_preserves_plain_strings(self):
         provider = Mock(return_value=ExecutionResult("Updated", Outcome.CONFIRMED))
-        result = roast_guest_dispatch.dispatch_roast_or_guest(
+        result = roast_guest_dispatch.dispatch_roast_or_guest_result(
             "guests", roast_target=lambda _: None, respond_to_roast=Mock(),
             guest_mode=Mock(), visitors_present=Mock(), response_guest_mode=Mock(),
             roast_respond=Mock(), assignment_action=lambda *_: "check", guest_commands={},
             guest_assignment=provider, connection=lambda: "ha")
-        self.assertEqual(result, ("Updated", "confirmed"))
-        self.assertIs(type(result[1]), str)
+        self.assertEqual((result.reply, result.outcome), ("Updated", Outcome.CONFIRMED))
         provider.assert_called_once_with("check", "ha")
 
     def test_switch_fallback_core_and_legacy_unmatched_preview_contracts(self):
@@ -73,7 +73,7 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
             "declan_as_light": True, "friendly_name": "Garden light"}}
         typed = server.set_switch_as_light_result("garden light", "on", [row], None, preview=True)
         self.assertIs(typed.outcome, Outcome.PREVIEW)
-        self.assertEqual(legacy_wire.set_switch_as_light("garden light", "on", [row], None, preview=True), typed.as_legacy_pair())
+        self.assertEqual(legacy_wire.set_switch_as_light("garden light", "on", [row], None, preview=True), pair(typed))
         self.assertIsNone(server.set_switch_as_light_result("missing", "on", [row], None))
         self.assertIsNone(legacy_wire.set_switch_as_light("missing", "on", [row], None))
 

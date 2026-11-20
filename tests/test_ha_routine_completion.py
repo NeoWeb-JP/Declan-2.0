@@ -3,6 +3,7 @@ from typing import Any
 from email.message import Message
 import json
 import unittest
+from result_pairs import pair_of
 
 import legacy_wire
 from io import BytesIO
@@ -34,7 +35,7 @@ class RoutineResultTests(unittest.TestCase):
         opener = Mock()
         opener.open.side_effect = open_request
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
-            return script_discovery.execute(("http://ha", {}, opener), item, action_results=recorded)
+            return pair_of(script_discovery.execute_result)(("http://ha", {}, opener), item, action_results=recorded)
 
     def test_personality_only_after_verified_completion(self):
         from pathlib import Path
@@ -73,7 +74,7 @@ class RoutineResultTests(unittest.TestCase):
         opener = Mock()
         opener.open.side_effect = open_request
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
-            reply, outcome, _ = script_discovery.execute(("http://ha", {}, opener), item)
+            reply, outcome, _ = pair_of(script_discovery.execute_result)(("http://ha", {}, opener), item)
         self.assertEqual(len(calls), 2)
         self.assertEqual(outcome, "unverified")
         self.assertIn("does not support returning", reply)
@@ -87,7 +88,7 @@ class RoutineResultTests(unittest.TestCase):
             "http://ha", 400, "Bad Request", Message(),
             BytesIO(b'{"message":"extra keys not allowed @ data"}'))
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
-            reply, outcome, _ = script_discovery.execute(("http://ha", {}, opener), item)
+            reply, outcome, _ = pair_of(script_discovery.execute_result)(("http://ha", {}, opener), item)
         self.assertEqual(opener.open.call_count, 1)
         self.assertEqual(outcome, "failed")
         self.assertIn("extra keys not allowed", reply)

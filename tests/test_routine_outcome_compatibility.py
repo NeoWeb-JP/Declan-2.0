@@ -1,5 +1,6 @@
 """Preserve existing Home Assistant routine outcome semantics at typed boundaries."""
 import unittest
+from result_pairs import pair
 
 from declan.core.execution_results import ExecutionResult, Outcome
 from declan.core.local_outcome_contracts import routine_execution_result
@@ -18,7 +19,7 @@ class RoutineOutcomeCompatibilityTests(unittest.TestCase):
             with self.subTest(outcome=legacy):
                 result, status = routine_execution_result(("Routine response", legacy, None))
                 self.assertIs(result.outcome, expected)
-                self.assertEqual(result.as_legacy_pair(), ("Routine response", legacy))
+                self.assertEqual(pair(result), ("Routine response", legacy))
                 self.assertIsNone(status)
 
     def test_status_message_is_preserved(self):

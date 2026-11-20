@@ -11,6 +11,7 @@ from unittest.mock import patch
 from declan.core import conditions
 from declan.core import history
 from declan.timers import timers
+from result_pairs import pair_of
 
 
 class FixedClock(datetime):
@@ -67,7 +68,7 @@ class WeatherTests(TestCase):
         return {"current": self.current}
 
     def check(self, phrase, outcome, *parts):
-        reply, actual, _ = conditions.handle(phrase, None)
+        reply, actual, _ = pair_of(conditions.handle_result)(phrase, None)
         self.assertEqual(actual, outcome, reply)
         for part in parts:
             self.assertIn(part, reply)
@@ -78,7 +79,7 @@ class WeatherTests(TestCase):
         reply = self.check("what's the temperature outside", "confirmed", "8 degrees")
         self.assertNotIn("inside", reply)
         self.check("what's the temperature inside", "confirmed", "19 degrees")
-        self.assertIsNone(conditions.handle("what's the temp outside", None))
+        self.assertIsNone(pair_of(conditions.handle_result)("what's the temp outside", None))
 
     def test_home_forecast_and_missing_day(self):
         self.check("what's the forecast tomorrow", "confirmed", "Saturday", "raining", "12", "7", "60")
@@ -111,18 +112,18 @@ class TimerAndHistoryTests(TestCase):
         ))
 
     def test_cross_room_timer_lifecycle(self):
-        self.assertEqual(timers.handle("set a pasta timer for five minutes in the kitchen", None)[1], "timer_set")
+        self.assertEqual(pair_of(timers.handle_result)("set a pasta timer for five minutes in the kitchen", None)[1], "timer_set")
         self.assertEqual(self.output.call_args.kwargs["room"], "kitchen")
-        self.assertEqual(timers.handle("set a pasta timer for five minutes in the kitchen", None)[1], "unresolved")
-        reply, outcome = timers.handle("how much time is left on my pasta timer", None)
+        self.assertEqual(pair_of(timers.handle_result)("set a pasta timer for five minutes in the kitchen", None)[1], "unresolved")
+        reply, outcome = pair_of(timers.handle_result)("how much time is left on my pasta timer", None)
         self.assertEqual(outcome, "timer_status")
         self.assertIn("Kitchen", reply)
-        self.assertEqual(timers.handle("stop my pasta timer", None)[1], "unresolved")
-        self.assertEqual(timers.handle("cancel my pasta timer", None)[1], "timer_cancelled")
-        self.assertEqual(timers.handle("list timers", None)[1], "no_timer")
+        self.assertEqual(pair_of(timers.handle_result)("stop my pasta timer", None)[1], "unresolved")
+        self.assertEqual(pair_of(timers.handle_result)("cancel my pasta timer", None)[1], "timer_cancelled")
+        self.assertEqual(pair_of(timers.handle_result)("list timers", None)[1], "no_timer")
 
     def test_timer_alarm_repeats_until_acknowledged(self):
-        timers.handle("set a timer for five seconds", None)
+        pair_of(timers.handle_result)("set a timer for five seconds", None)
         self.now += 5
         with patch.object(timers, "ha_json", return_value=[]) as announce:
             timers.ring_due(None)
@@ -134,29 +135,29 @@ class TimerAndHistoryTests(TestCase):
             self.assertEqual(announce.call_args.kwargs["data"]["entity_id"], "assist_satellite.kitchen")
             self.assertTrue(announce.call_args.kwargs["data"]["preannounce"])
             self.assertIn("timer is up", announce.call_args.kwargs["data"]["message"])
-            self.assertEqual(timers.handle("stop my timer", None)[1], "timer_stopped")
+            self.assertEqual(pair_of(timers.handle_result)("stop my timer", None)[1], "timer_stopped")
             self.now += timers.ALARM_INTERVAL
             timers.ring_due(None)
             self.assertEqual(announce.call_count, 2)
 
     def test_timer_adjustment_uses_remaining_time_and_reschedules_alarm(self):
         self.output.return_value = ("assist_satellite.bedroom", "Master Bedroom")
-        timers.handle("set a five minute timer", None)
+        pair_of(timers.handle_result)("set a five minute timer", None)
         self.now += 60
-        reply, outcome = timers.handle("decrease the time on the master bedroom timer by two minutes", None)
+        reply, outcome = pair_of(timers.handle_result)("decrease the time on the master bedroom timer by two minutes", None)
         self.assertEqual(outcome, "timer_adjusted")
         self.assertIn("2 minutes left", reply)
-        reply, outcome = timers.handle("increase my five minute timer in the master bedroom by one minute", None)
+        reply, outcome = pair_of(timers.handle_result)("increase my five minute timer in the master bedroom by one minute", None)
         self.assertEqual(outcome, "timer_adjusted")
         self.assertIn("3 minutes left", reply)
         with patch.object(timers, "ha_json", return_value=[]) as announce:
             self.now += 120
             timers.ring_due(None)
             announce.assert_not_called()
-            self.assertEqual(timers.handle("decrease my timer by two minutes", None)[1], "timer_adjusted")
+            self.assertEqual(pair_of(timers.handle_result)("decrease my timer by two minutes", None)[1], "timer_adjusted")
             timers.ring_due(None)
             announce.assert_called_once()
-            self.assertEqual(timers.handle("increase my timer by one minute", None)[1], "unresolved")
+            self.assertEqual(pair_of(timers.handle_result)("increase my timer by one minute", None)[1], "unresolved")
 
     def test_history_shows_confident_assist_matches_and_keeps_uncertain_matches_unknown(self):
         for source, confidence in (("assist", 0.9), ("assist", 0.4), ("browser_voice", 0.99)):

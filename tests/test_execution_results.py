@@ -1,4 +1,5 @@
 """Typed result boundaries, legacy compatibility, and real guarded execution."""
+from result_pairs import pair
 from typing import Any, cast
 import json
 import sqlite3
@@ -40,9 +41,9 @@ class ResultModelTests(TestCase):
         self.assertIs(result.outcome, Outcome.CONFIRMED)
         self.assertIs(step.status, ActionStatus.CONFIRMED)
         self.assertTrue(step.confirmed)
-        self.assertEqual(result.as_legacy_pair(), ("Done.", "confirmed"))
-        self.assertIs(type(result.as_legacy_pair()[1]), str)
-        self.assertIs(type(DispatchResult(ActionStatus.CONFIRMED, "on").as_legacy_pair()[0]), str)
+        self.assertEqual(pair(result), ("Done.", "confirmed"))
+        self.assertIs(type(pair(result)[1]), str)
+        self.assertIs(type(pair(DispatchResult(ActionStatus.CONFIRMED, "on"))[0]), str)
         payload = json.loads(json.dumps(result.to_wire()))
         self.assertEqual(payload, {"reply":"Done.", "outcome":"confirmed", "actions":[
             {"index":0,"entity_id":"light.a","service":"turn_on","status":"confirmed","detail":"Observed on"}]})
@@ -143,8 +144,8 @@ class TypedPipelineTests(TestCase):
              patch.object(server.ai_pricing,"charge",return_value=10):
             for diagnostics in (True,False):
                 settings["diagnostics"]=diagnostics
-                reply,outcome,steps=server.guarded_openai_fallback_result(
-                    "turn on kitchen",source="assist",exposed_entities=["light.kitchen"]).as_legacy_triple()
+                reply,outcome,steps=pair(server.guarded_openai_fallback_result(
+                    "turn on kitchen",source="assist",exposed_entities=["light.kitchen"]))
                 self.assertEqual(reply,"All requested actions were confirmed.")
                 self.assertEqual(outcome,"confirmed")
                 self.assertIs(type(outcome),str)

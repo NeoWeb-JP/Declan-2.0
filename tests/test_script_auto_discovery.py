@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 from declan.ha import script_discovery
+from result_pairs import pair_of
 
 VIEW = Path(__file__).resolve().parents[1] / "custom_components/declan_two/script_discovery_view.py"
 tree = ast.parse(VIEW.read_text(encoding="utf-8"))
@@ -41,23 +42,23 @@ class ScriptSafetyTests(unittest.TestCase):
 
     def test_natural_alias_and_ambiguity(self):
         safe = {"entity_id": "script.house_status", "name": "House Status", "safe": True}
-        self.assertEqual(script_discovery.match("what is the status of the house", [safe]), ("matched", safe))
-        self.assertEqual(script_discovery.match("run house status", [safe]), ("matched", safe))
-        self.assertEqual(script_discovery.match("house status", [safe, dict(safe, entity_id="script.other")])[0], "ambiguous")
-        self.assertIsNone(script_discovery.match("unlock the front door", [safe]))
+        self.assertEqual(pair_of(script_discovery.match_result)("what is the status of the house", [safe]), ("matched", safe))
+        self.assertEqual(pair_of(script_discovery.match_result)("run house status", [safe]), ("matched", safe))
+        self.assertEqual(pair_of(script_discovery.match_result)("house status", [safe, dict(safe, entity_id="script.other")])[0], "ambiguous")
+        self.assertIsNone(pair_of(script_discovery.match_result)("unlock the front door", [safe]))
 
     def test_declan_prefixed_ha_script_does_not_need_mapping(self):
         script = {"entity_id": "script.declan_good_night",
                   "name": "Declan - Good Night", "safe": False}
-        self.assertEqual(script_discovery.match("good night", [script]), ("matched", script))
-        self.assertEqual(script_discovery.match("run good night", [script]), ("matched", script))
+        self.assertEqual(pair_of(script_discovery.match_result)("good night", [script]), ("matched", script))
+        self.assertEqual(pair_of(script_discovery.match_result)("run good night", [script]), ("matched", script))
 
     def test_all_discovered_scripts_can_be_selected(self):
         protected = {"entity_id": "script.garage", "name": "Garage", "safe": False}
-        self.assertEqual(script_discovery.match("garage", [protected]), ("matched", protected))
+        self.assertEqual(pair_of(script_discovery.match_result)("garage", [protected]), ("matched", protected))
 
     def test_missing_ha_opener_fails_closed(self):
-        scripts, error = script_discovery.discover(("http://localhost", {}, None))
+        scripts, error = pair_of(script_discovery.discover_result)(("http://localhost", {}, None))
         self.assertEqual(scripts, [])
         self.assertEqual(error, "inspection_unavailable")
 
@@ -69,7 +70,7 @@ class ScriptSafetyTests(unittest.TestCase):
         script = {"entity_id": "script.declan_movie_time", "name": "Declan - Movie Time",
                   "safe": True, "fields": ["operation", "room"]}
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([script]), None)):
-            result = script_discovery.execute(
+            result = pair_of(script_discovery.execute_result)(
                 ("http://ha", {}, opener), script,
                 parameters={"operation": "end", "room": "bedroom", "secret": "never"})
         self.assertEqual(result[1], "unverified")
@@ -80,7 +81,7 @@ class ScriptSafetyTests(unittest.TestCase):
 
     def test_execution_rejects_script_removed_from_ha(self):
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([]), None)):
-            result = script_discovery.execute(("url", {}, object()), {"entity_id": "script.house_status"})
+            result = pair_of(script_discovery.execute_result)(("url", {}, object()), {"entity_id": "script.house_status"})
         self.assertEqual(result[1], "unresolved")
 
     def test_non_light_script_can_execute_when_present(self):
@@ -89,7 +90,7 @@ class ScriptSafetyTests(unittest.TestCase):
         response = opener.open.return_value.__enter__.return_value
         response.status = 200
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([{"entity_id": "script.house_status", "name": "House Status", "safe": False}]), None)):
-            result = script_discovery.execute(("http://ha", {}, opener), {"entity_id": "script.house_status"})
+            result = pair_of(script_discovery.execute_result)(("http://ha", {}, opener), {"entity_id": "script.house_status"})
         self.assertEqual(result[1], "unverified")
         self.assertIn("did not return a valid script result", result[0])
         self.assertEqual(opener.open.call_count, 1)

@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import test_music as music_fixture
 from declan.music import music
+from result_pairs import pair_of
 
 
 class MusicAssistantSearchTests(music_fixture.MusicFixture):
@@ -18,7 +19,7 @@ class MusicAssistantSearchTests(music_fixture.MusicFixture):
         return super().open(request, timeout)
 
     def play_from(self, phrase, origin):
-        return music.play(music.parse(phrase), ("http://ha", {}, self),
+        return pair_of(music.play_result)(music.parse(phrase), ("http://ha", {}, self),
                           lambda _: (list(self.players.values()), None), origin=origin)
 
     def play_media_calls(self):

@@ -142,11 +142,6 @@ def playback_sources(destinations, players):
             if player.get("state") in ACTIVE and (entity == group or entity not in members)}
 
 
-def feedback(command, connection, read_inventory):
-    """Legacy reply/outcome API backed by a validated typed provider result."""
-    return music_execution_result(_feedback_provider(command, connection, read_inventory)).as_legacy_pair()
-
-
 def _feedback_provider(command, connection, read_inventory):
     phrase, room = command
     if connection is None or not RUNTIME.handoff.acquire(blocking=False):
@@ -637,12 +632,6 @@ def _volume_result(connection, entity, player, action, location):
     return ExecutionResult(f"I sent the volume change {location}, but couldn't verify it.", Outcome.UNVERIFIED)
 
 
-@diagnostics.timed("music_control")
-def control(command, connection, read_inventory, *, origin=None, read_areas=None, assist=False):
-    """Legacy reply/outcome API backed by a validated typed provider result."""
-    return music_execution_result(_control_provider(command, connection, read_inventory, origin=origin, read_areas=read_areas, assist=assist)).as_legacy_pair()
-
-
 def _control_provider(command, connection, read_inventory, *, origin=None, read_areas=None, assist=False):
     action, room = command
     if connection is None:
@@ -935,12 +924,6 @@ def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
     return False
 
 
-@diagnostics.timed("music_playback")
-def play(command, connection, read_inventory, *, origin=None):
-    """Legacy reply/outcome API backed by a validated typed provider result."""
-    return music_execution_result(_play_provider(command, connection, read_inventory, origin=origin)).as_legacy_pair()
-
-
 def _play_provider(command, connection, read_inventory, *, origin=None):
     room, title, provider = command
     if connection is None:
@@ -1160,12 +1143,12 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         RUNTIME.handoff.release()
 
 
-
 def feedback_result(command, connection, read_inventory):
-    """Typed music preference result; legacy feedback() remains supported."""
+    """Typed music preference result."""
     return music_execution_result(_feedback_provider(command, connection, read_inventory))
 
 
+@diagnostics.timed("music_control")
 def control_result(command, connection, read_inventory, *, origin=None,
                    read_areas=None, assist=False):
     """Typed Music Assistant control result with existing locking semantics."""
@@ -1175,8 +1158,9 @@ def control_result(command, connection, read_inventory, *, origin=None,
     ))
 
 
+@diagnostics.timed("music_playback")
 def play_result(command, connection, read_inventory, *, origin=None):
-    """Typed Music Assistant playback result; preserve legacy call behaviour."""
+    """Typed Music Assistant playback result."""
     return music_execution_result(_play_provider(
         command, connection, read_inventory, origin=origin,
     ))

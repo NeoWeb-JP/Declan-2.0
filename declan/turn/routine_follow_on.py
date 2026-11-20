@@ -1,21 +1,9 @@
 """Chained routine follow-on actions, independent of HTTP request handling."""
-from dataclasses import dataclass
 from declan.core.execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result
 from declan.turn.command_response import CommandResponse
 from declan.ha.lighting_action_evidence import confirmed_lighting_entities
 from declan.ai.action_evidence_buffer import ActionEvidenceBuffer, extend_action_evidence
-
-
-@dataclass(frozen=True)
-class FollowOnResult:
-    reply: str
-    outcome: Outcome
-    lighting_context: tuple[str, ...]
-    routine_voice_result: tuple[str, str]
-
-    def __post_init__(self):
-        object.__setattr__(self, "outcome", Outcome(self.outcome))
 
 
 def execute_result(follow_on, *, routine_result, routine_status,
@@ -60,20 +48,3 @@ def execute_result(follow_on, *, routine_result, routine_status,
                         routine_result.actions + follow_result.actions),
         lighting_context=lighting_context, routine_voice_result=routine_result,
     )
-
-
-def execute(follow_on, *, routine_reply, routine_outcome, routine_status,
-            parse_music, play_music, connection, music_inventory,
-            handle_lighting, last_lights, origin, music_origin,
-            action_results, scope, chained_outcome):
-    """Compatibility API for the existing follow-on result attributes."""
-    response = execute_result(
-        follow_on, routine_result=ExecutionResult(routine_reply, routine_outcome),
-        routine_status=routine_status, parse_music=parse_music, play_music=play_music,
-        connection=connection, music_inventory=music_inventory,
-        handle_lighting=handle_lighting, last_lights=last_lights, origin=origin,
-        music_origin=music_origin, action_results=action_results, scope=scope,
-        chained_outcome=chained_outcome,
-    )
-    return FollowOnResult(response.result.reply, response.result.outcome,
-                          response.lighting_context, response.routine_voice_result.as_legacy_pair())

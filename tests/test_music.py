@@ -13,6 +13,7 @@ from typing import Any
 
 from declan.music import music
 import server
+from result_pairs import pair_of
 
 
 class MusicFixture(unittest.TestCase):
@@ -111,10 +112,10 @@ class MusicFixture(unittest.TestCase):
         return io.BytesIO(b"[]")
 
     def play(self, phrase):
-        return music.play(music.parse(phrase), ("http://ha", {}, self), lambda _: (list(self.players.values()), None))
+        return pair_of(music.play_result)(music.parse(phrase), ("http://ha", {}, self), lambda _: (list(self.players.values()), None))
 
     def control(self, phrase, **kwargs):
-        return music.control(music.parse_control(phrase), ("http://ha", {}, self),
+        return pair_of(music.control_result)(music.parse_control(phrase), ("http://ha", {}, self),
                              lambda _: (list(self.players.values()), None), **kwargs)
 
     def bedroom_players(self):
@@ -155,7 +156,7 @@ class MusicTests(MusicFixture):
         self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
         for origin in (satellite, "utility-device"):
             with self.subTest(origin=origin):
-                reply, outcome = music.play(music.parse("play country music"), ("http://ha", {}, self),
+                reply, outcome = pair_of(music.play_result)(music.parse("play country music"), ("http://ha", {}, self),
                                             lambda _: (list(self.players.values()), None), origin=origin)
                 self.assertEqual(outcome, "confirmed", reply)
                 self.assertEqual(self.calls[-1][1]["entity_id"], utility)
@@ -172,7 +173,7 @@ class MusicTests(MusicFixture):
     def test_bedroom_wrapper_is_preferred_over_two_available_tvs(self):
         target, native, satellite = self.bedroom_players()
         self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
-        reply, outcome = music.play(music.parse("play country music"), ("http://ha", {}, self),
+        reply, outcome = pair_of(music.play_result)(music.parse("play country music"), ("http://ha", {}, self),
                                     lambda _: (list(self.players.values()), None), origin=satellite)
         self.assertEqual(outcome, "confirmed", reply)
         self.assertEqual(self.calls[-1][1]["entity_id"], target)
@@ -191,7 +192,7 @@ class MusicTests(MusicFixture):
         self.assertEqual(music.music_players(rows, origin=satellite)[0]["bedroom"], target)
         self.players[self.kitchen].update(declan_music_assistant=True, declan_area="Kitchen")
         self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
-        reply, outcome = music.play(music.parse("play country music in the kitchen"), ("http://ha", {}, self),
+        reply, outcome = pair_of(music.play_result)(music.parse("play country music in the kitchen"), ("http://ha", {}, self),
                                     lambda _: (list(self.players.values()), None), origin=satellite)
         self.assertEqual(outcome, "confirmed", reply)
         self.assertEqual(self.calls[-1][1]["entity_id"], self.kitchen)
@@ -303,7 +304,7 @@ class MusicTests(MusicFixture):
         self.players[self.group].update(state="playing", attributes={**self.track, "group_members": [self.bedroom]})
         with patch.object(music, "music_players", wraps=music.music_players) as resolve:
             responses = iter([(None, "unavailable"), (list(self.players.values()), None)])
-            reply, outcome = music.control(music.parse_control("next song"), ("http://ha", {}, self),
+            reply, outcome = pair_of(music.control_result)(music.parse_control("next song"), ("http://ha", {}, self),
                                            lambda _: next(responses), assist=True, origin="satellite",
                                            read_areas=lambda *_: {"bedroom": set()})
             self.assertEqual(outcome, "confirmed", reply)
@@ -324,7 +325,7 @@ class MusicTests(MusicFixture):
             return list(self.players.values()), None
 
         for phrase in ("we like this song", "never play this song again"):
-            self.assertEqual(music.feedback(music.parse_feedback(phrase), connection, inventory)[1], "music_feedback")
+            self.assertEqual(pair_of(music.feedback_result)(music.parse_feedback(phrase), connection, inventory)[1], "music_feedback")
             if phrase == "we like this song":
                 self.assertEqual(music.search_media(connection, self.bedroom, "my favourites", "", "spotify")[1], "track")
         self.assertIsNone(music.search_media(connection, self.bedroom, "my favourites", "", "spotify"))
@@ -341,7 +342,7 @@ class MusicTests(MusicFixture):
                     self.calls.clear()
                     self.players[self.kitchen].update(state="idle", attributes={})
                     self.players[self.bedroom].update(state="playing", attributes=self.track)
-                    music.play((room, title, "spotify"), ("http://ha", {}, self), lambda _: (list(self.players.values()), None))
+                    pair_of(music.play_result)((room, title, "spotify"), ("http://ha", {}, self), lambda _: (list(self.players.values()), None))
                     self.assertEqual([action for action, _ in self.calls], ["media_stop", "play_media"])
                     self.assertEqual(self.calls[-1][1]["media_id"], "https://open.spotify.com/playlist/" + playlist_id)
                     self.assertEqual(self.calls[-1][1]["entity_id"], music.PLAYERS[room])
@@ -621,7 +622,7 @@ class MusicTests(MusicFixture):
         self.assertEqual(music.parse("play music in the garage"), ("garage", None, "spotify"))
         self.assertEqual(self.play("play music in the garage")[1], "unresolved")
         with patch.object(server, "ha_device_connection", return_value=None):
-            self.assertEqual(music.play(("kitchen", "track", "spotify"), server.ha_device_connection(), None)[1],
+            self.assertEqual(pair_of(music.play_result)(("kitchen", "track", "spotify"), server.ha_device_connection(), None)[1],
                              "not_configured")
 
     def test_spotify_default_never_falls_back_to_radio(self):

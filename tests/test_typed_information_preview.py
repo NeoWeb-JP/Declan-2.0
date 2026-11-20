@@ -10,6 +10,7 @@ import legacy_wire
 import server
 from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
 from declan.turn.information_result import InformationResult, InformationCategory
+from result_pairs import pair, pair_of
 
 
 class TypedInformationPreviewTests(unittest.TestCase):
@@ -43,9 +44,9 @@ class TypedInformationPreviewTests(unittest.TestCase):
 
     def test_information_model_validates_outcome_and_category_and_preserves_legacy_strings(self):
         result = InformationResult(ExecutionResult("Warm", Outcome.PARTIAL), InformationCategory.WEATHER)
-        self.assertEqual(result.as_legacy_triple(), ("Warm", "partial", "weather"))
-        self.assertIs(type(result.as_legacy_triple()[1]), str)
-        self.assertIs(type(result.as_legacy_triple()[2]), str)
+        self.assertEqual(pair(result), ("Warm", "partial", "weather"))
+        self.assertIs(type(pair(result)[1]), str)
+        self.assertIs(type(pair(result)[2]), str)
         with self.assertRaises(FrozenInstanceError):
             setattr(result, 'category', InformationCategory.TIME)
         for value in (("Warm", "invalid", "weather"), ("Warm", "confirmed", "invalid"), ("Warm",)):
@@ -61,7 +62,7 @@ class TypedInformationPreviewTests(unittest.TestCase):
         self.assertIn("Nothing has been run", result.reply)
         self.assertIn("mode=quiet", result.reply)
         with patch.object(server, "preview_routine_result", return_value=result):
-            self.assertEqual(legacy_wire.preview_routine("preview tea"), result.as_legacy_pair())
+            self.assertEqual(legacy_wire.preview_routine("preview tea"), pair(result))
 
     def test_preview_dispatch_preserves_typed_identity_origin_and_unmatched(self):
         expected = ExecutionResult("Preview", Outcome.PREVIEW)
@@ -81,9 +82,9 @@ class TypedInformationPreviewTests(unittest.TestCase):
     def test_legacy_information_handle_retains_triple_and_none(self):
         expected = InformationResult(ExecutionResult("Warm", Outcome.CONFIRMED), InformationCategory.WEATHER)
         with patch.object(conditions, "handle_result", return_value=expected):
-            self.assertEqual(conditions.handle("weather", None), ("Warm", "confirmed", "weather"))
+            self.assertEqual(pair_of(conditions.handle_result)("weather", None), ("Warm", "confirmed", "weather"))
         with patch.object(conditions, "handle_result", return_value=None):
-            self.assertIsNone(conditions.handle("hello", None))
+            self.assertIsNone(pair_of(conditions.handle_result)("hello", None))
 
 
 if __name__ == "__main__":

@@ -237,11 +237,13 @@ def routine_registry(*, select, execute, action_results, origin):
     """Select and execute a HA routine, leaving chained follow-on work to the caller."""
     def run(context, selection):
         if isinstance(selection, RoutineTurnSelection):
-            routine, follow_on = selection.routine, selection.follow_on
-            metadata = selection.as_legacy_pair()
+            routine, follow_on, metadata = selection.routine, selection.follow_on, selection
         else:
             routine, follow_on = selection
-            metadata = selection
+            try:
+                metadata = RoutineTurnSelection.coerce(selection)
+            except (TypeError, ValueError):
+                metadata = None
         typed, status = routine_execution_result(execute(routine, action_results))
         return HandledCommand("routine", typed,
                               routine_status=status, routine_follow_on=follow_on,

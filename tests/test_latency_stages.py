@@ -8,6 +8,7 @@ from declan.ha import ha_inventory
 import server
 import test_home_assistant as fixtures
 from declan.core.execution_results import Outcome
+from result_pairs import pair_of
 
 
 class RecordHelperTests(unittest.TestCase):
@@ -55,7 +56,7 @@ class LightStageTests(unittest.TestCase):
         trace: dict = {"stages": []}
         token = diagnostics.ACTIVE.set(trace)
         self.addCleanup(diagnostics.ACTIVE.reset, token)
-        reply, outcome = server.handle_light_request("turn on the study light and turn off the fairy lights")
+        reply, outcome = pair_of(server.handle_light_request_result)("turn on the study light and turn off the fairy lights")
         self.assertEqual(outcome, "confirmed", reply)
         stages = {entry["stage"]: entry for entry in trace["stages"]}
         self.assertEqual(stages["lights_dispatch"]["lights"], 2)

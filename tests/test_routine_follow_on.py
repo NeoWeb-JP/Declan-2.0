@@ -1,7 +1,7 @@
 """Chained routine action and response regression tests."""
 import unittest
 from unittest.mock import Mock
-from declan.turn import routine_follow_on
+from result_pairs import execute_follow_on
 
 
 class RoutineFollowOnTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class RoutineFollowOnTests(unittest.TestCase):
         self.combine = Mock(side_effect=lambda a, b: "confirmed" if a == b == "confirmed" else "partial")
 
     def run_follow_on(self, phrase, *, scope="kitchen", status="Routine finished.", music_origin="bedroom"):
-        return routine_follow_on.execute(
+        return execute_follow_on(
             phrase, routine_reply="Routine started.", routine_outcome="confirmed",
             routine_status=status, parse_music=self.parse, play_music=self.play,
             connection=self.connection, music_inventory=self.inventory,

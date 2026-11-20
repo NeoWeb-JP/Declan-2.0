@@ -1,4 +1,5 @@
 """Stop command dispatch and failure ownership regression tests."""
+from result_pairs import pair
 from unittest import TestCase
 from unittest.mock import Mock
 
@@ -29,7 +30,7 @@ class StopRegistryTests(TestCase):
     def test_plain_stop_uses_home_assistant(self):
         result = self.dispatch("stop")
         self.assertEqual(result.handler, "stop_everywhere")
-        self.assertEqual(result.result.as_legacy_pair(), ("Stopped.", "confirmed"))
+        self.assertEqual(pair(result.result), ("Stopped.", "confirmed"))
         self.stop_everywhere.assert_called_once_with("HA")
         self.stop_routines.assert_not_called()
 

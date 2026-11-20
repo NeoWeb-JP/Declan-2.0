@@ -19,6 +19,7 @@ from declan_ingress.http_server import BoundedHTTPServer
 from declan.ha import ha_inventory
 from declan.music import music
 from declan.timers import timers
+from result_pairs import pair_of
 
 
 class CaptureTests(TestCase):
@@ -44,7 +45,7 @@ class InventoryTests(TestCase):
     def read(self, payloads):
         opener = Mock()
         opener.open.side_effect = [io.BytesIO(json.dumps(p).encode()) for p in payloads]
-        return ha_inventory.read(('http://ha', {}, opener)), opener
+        return pair_of(ha_inventory.read_result)(('http://ha', {}, opener)), opener
 
     @staticmethod
     def row(i):
@@ -75,9 +76,9 @@ class InventoryTests(TestCase):
     def test_oversized_and_slow_pages_are_rejected(self):
         opener = Mock()
         opener.open.return_value = io.BytesIO(b'x' * (ha_inventory.MAX_PAGE_BYTES + 1))
-        self.assertEqual(ha_inventory.read(('http://ha', {}, opener)), (None, 'unavailable'))
+        self.assertEqual(pair_of(ha_inventory.read_result)(('http://ha', {}, opener)), (None, 'unavailable'))
         with patch.object(ha_inventory, 'monotonic', side_effect=[0, 11]):
-            self.assertEqual(ha_inventory.read(('http://ha', {}, opener)), (None, 'unavailable'))
+            self.assertEqual(pair_of(ha_inventory.read_result)(('http://ha', {}, opener)), (None, 'unavailable'))
 
     def test_template_renders_native_datetime_without_serializing_it(self):
         from datetime import datetime
@@ -96,7 +97,7 @@ class InventoryTests(TestCase):
                                                     device_attr=lambda *_: [('music_assistant', 'media_player.source')])
             return io.BytesIO(value.encode())
         opener.open.side_effect = render
-        rows, error = ha_inventory.read(('http://ha', {}, opener), music=True)
+        rows, error = pair_of(ha_inventory.read_result)(('http://ha', {}, opener), music=True)
         self.assertIsNone(error)
         self.assertEqual(rows[0]['attributes'], {'friendly_name': 'Test', 'group_members': ['media_player.test']})
         self.assertTrue(rows[0]['declan_music_assistant'])

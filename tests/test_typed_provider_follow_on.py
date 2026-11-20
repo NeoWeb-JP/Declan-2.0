@@ -1,12 +1,10 @@
 """Typed outcome contract regression tests for provider and follow-on boundaries."""
 from typing import Any
 import unittest
-from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
 from declan.core.execution_results import ExecutionResult, Outcome
 from declan.music.music_provider_result import music_execution_result
-from declan.turn.routine_follow_on import FollowOnResult, execute
 from declan.turn.routine_follow_on import execute_result
 from declan.turn import routine_follow_on
 
@@ -46,10 +44,10 @@ class TypedBoundaryTests(unittest.TestCase):
                 else:
                     lighting.assert_called_once()
 
-    def test_music_legacy_pair_is_typed(self):
+    def test_music_provider_pair_becomes_typed(self):
         result = music_execution_result(("Playing", "confirmed"))
         self.assertIs(result.outcome, Outcome.CONFIRMED)
-        self.assertEqual(result.as_legacy_pair(), ("Playing", "confirmed"))
+        self.assertEqual(result.reply, "Playing")
 
     def test_music_provider_existing_typed_result_is_preserved(self):
         result = ExecutionResult("Playing", Outcome.CONFIRMED)
@@ -68,17 +66,11 @@ class TypedBoundaryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             music_execution_result((None, "confirmed"))
 
-    def test_follow_on_result_is_frozen_and_typed(self):
-        result = FollowOnResult("Done", Outcome.CONFIRMED, (), ("Routine", "confirmed"))
-        self.assertIs(result.outcome, Outcome.CONFIRMED)
-        with self.assertRaises(FrozenInstanceError):
-            setattr(result, 'outcome', Outcome.FAILED)
-
     def test_music_follow_on_preserves_origin_and_voice_result(self):
         play = Mock(return_value=("Playing", "confirmed"))
-        result = execute(
-            "play country", routine_reply="Routine done",
-            routine_outcome="confirmed", routine_status=None,
+        routine = ExecutionResult("Routine done", Outcome.CONFIRMED)
+        result = execute_result(
+            "play country", routine_result=routine, routine_status=None,
             parse_music=lambda _: ("country",), play_music=play,
             connection=lambda: "ha", music_inventory=Mock(),
             handle_lighting=Mock(), last_lights=None,
@@ -86,16 +78,16 @@ class TypedBoundaryTests(unittest.TestCase):
             action_results=[], scope="kitchen",
             chained_outcome=lambda _, follow: follow,
         )
-        self.assertIs(result.outcome, Outcome.CONFIRMED)
-        self.assertEqual(result.routine_voice_result, ("Routine done", "confirmed"))
+        self.assertIs(result.result.outcome, Outcome.CONFIRMED)
+        self.assertIs(result.routine_voice_result, routine)
         self.assertEqual(play.call_args.kwargs["origin"], "satellite")
 
     def test_lighting_follow_on_preserves_action_history(self):
         steps: list[dict[str, Any]]
         steps = []
-        result = execute(
-            "turn kitchen lights on", routine_reply="Routine done",
-            routine_outcome="confirmed", routine_status=None,
+        result = execute_result(
+            "turn kitchen lights on", routine_result=ExecutionResult("Routine done", Outcome.CONFIRMED),
+            routine_status=None,
             parse_music=Mock(), play_music=Mock(),
             connection=Mock(), music_inventory=Mock(),
             handle_lighting=lambda _, **kw: (
@@ -106,14 +98,14 @@ class TypedBoundaryTests(unittest.TestCase):
             action_results=steps, scope="kitchen",
             chained_outcome=lambda _, follow: follow,
         )
-        self.assertIs(result.outcome, Outcome.CONFIRMED)
+        self.assertIs(result.result.outcome, Outcome.CONFIRMED)
         self.assertEqual(result.lighting_context, ("light.kitchen",))
         self.assertEqual(steps[0]["entity_id"], "light.kitchen")
 
     def test_invalid_music_follow_on_outcome_rejected(self):
         with self.assertRaises(ValueError):
-            execute(
-                "play country", routine_reply="Routine", routine_outcome="confirmed",
+            execute_result(
+                "play country", routine_result=ExecutionResult("Routine", Outcome.CONFIRMED),
                 routine_status=None, parse_music=lambda _: ("country",),
                 play_music=lambda *_args, **_kw: ("Playing", "unknown_result"),
                 connection=lambda: "ha", music_inventory=Mock(),

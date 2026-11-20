@@ -2,6 +2,7 @@
 import unittest
 from pathlib import Path
 from declan.ha import script_discovery
+from result_pairs import pair_of
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -14,7 +15,7 @@ class RegisteredScriptTests(unittest.TestCase):
     def test_good_morning_matches_actual_shared_local_script(self):
         item = {"entity_id": "script.declan_good_morning_shared_local_routine",
                 "name": "Declan - Good Morning - Shared Local Routine"}
-        self.assertEqual(script_discovery.match("good morning", [item]), ("matched", item))
+        self.assertEqual(pair_of(script_discovery.match_result)("good morning", [item]), ("matched", item))
 
     def test_good_morning_prefers_unique_response_capable_script(self):
         legacy = {"entity_id": "script.declan_good_morning",
@@ -22,7 +23,7 @@ class RegisteredScriptTests(unittest.TestCase):
         current = {"entity_id": "script.declan_good_morning_shared_local_routine",
                    "name": "Declan - Good Morning - Shared Local Routine",
                    "fields": ["request_id", "routine_id"]}
-        self.assertEqual(script_discovery.match("good morning", [legacy, current]),
+        self.assertEqual(pair_of(script_discovery.match_result)("good morning", [legacy, current]),
                          ("matched", current))
 
     def test_two_response_capable_scripts_stay_ambiguous(self):
@@ -33,7 +34,7 @@ class RegisteredScriptTests(unittest.TestCase):
              "name": "Declan - Good Morning - Shared Local Routine",
              "fields": ["request_id", "routine_id"]},
         ]
-        self.assertEqual(script_discovery.match("good morning", items)[0], "ambiguous")
+        self.assertEqual(pair_of(script_discovery.match_result)("good morning", items)[0], "ambiguous")
 
     def test_ambiguous_scripts_are_never_selected_automatically(self):
         items = [
@@ -42,7 +43,7 @@ class RegisteredScriptTests(unittest.TestCase):
             {"entity_id": "script.declan_good_morning",
              "name": "Declan - Good Morning"},
         ]
-        result = script_discovery.match("good morning", items)
+        result = pair_of(script_discovery.match_result)("good morning", items)
         self.assertEqual(result[0], "ambiguous")
 
 

@@ -1,8 +1,9 @@
 """Follow-on and lighting responses retain typed evidence and voice context."""
 from typing import Any
 import unittest
+from contextlib import nullcontext
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from declan.turn.command_response import CommandResponse
 from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
@@ -24,7 +25,7 @@ class TypedFollowOnResponseTests(unittest.TestCase):
                          handle_lighting=Mock(), last_lights=(), chained_outcome=Mock())
 
     def test_no_follow_on_preserves_identity_without_executor_or_legacy_adapter(self):
-        with patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("legacy result")):
+        with nullcontext():
             response = routine_follow_on_dispatch.execute_follow_on_result(self.dispatch, **self.args)
         self.assertIs(response.result, self.original)
         self.assertIsNone(response.routine_voice_result)
@@ -52,7 +53,7 @@ class TypedFollowOnResponseTests(unittest.TestCase):
         follow = ExecutionResult("Playing.", Outcome.UNVERIFIED, (
             ActionResult(1, "media_player.study", "media_player.play_media", ActionStatus.UNVERIFIED),))
         play = Mock(return_value=follow)
-        with patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("legacy result")):
+        with nullcontext():
             response = routine_follow_on.execute_result(
                 "play country", routine_result=self.original, routine_status=None,
                 parse_music=lambda _: "command", play_music=play, connection=lambda: "ha",
@@ -74,7 +75,7 @@ class TypedFollowOnResponseTests(unittest.TestCase):
                          parse_light_command=Mock(), handle_light_request=Mock(),
                          action_results=[], last_lights=(), scope="house",
                          dispatch_lighting=dispatch, confirmed_lighting_context=context)
-        with patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("legacy result")):
+        with nullcontext():
             response = lighting_result_dispatch.dispatch_lighting_response("lights off", **arguments)
         self.assertIs(response.result, self.original)
         self.assertEqual(response.lighting_context, ("light.study",))

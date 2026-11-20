@@ -10,6 +10,7 @@ from declan.core import diagnostics
 from declan.music import music
 from declan.music.music_runtime_state import MusicRuntimeState
 from test_music import MusicFixture
+from result_pairs import pair_of
 
 
 class ReplyFirstTests(MusicFixture):
@@ -26,7 +27,7 @@ class ReplyFirstTests(MusicFixture):
         self.search_results = {"playlists": [{"name": "Country Music", "id": "A" * 22}]}
 
     def play_from_utility(self, origin="utility-device"):
-        return music.play(music.parse("play country music"), ("http://ha", {}, self),
+        return pair_of(music.play_result)(music.parse("play country music"), ("http://ha", {}, self),
                           lambda _: (list(self.players.values()), None), origin=origin)
 
     def finish_background(self):

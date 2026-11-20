@@ -304,11 +304,6 @@ def parse_light_command(phrase):
 
 
 @diagnostics.timed("lighting")
-def handle_light_request(phrase, *, action_results=None, last_lights=(), origin_device=None):
-    return lighting_intents.handle_light_request(
-        phrase, parse_light_command=parse_light_command, set_lights=set_lights,
-        action_results=action_results, last_lights=last_lights, origin_device=origin_device)
-
 def handle_light_request_result(phrase, *, action_results=None, last_lights=(), origin_device=None):
     return lighting_intents.handle_light_request_result(
         phrase, parse_light_command=parse_light_command, set_lights=set_lights_result,
@@ -388,15 +383,6 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
         request_factory=Request, append_evidence=append_action_evidence,
         evidence_factory=LightingActionEvidence,
     )
-
-def set_lights(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
-               action_results=None, origin_device=None):
-    """Compatibility API for callers expecting plain reply/outcome strings."""
-    return set_lights_result(
-        name, desired_state, brightness=brightness, preview=preview,
-        require_all=require_all, relative_step=relative_step,
-        action_results=action_results, origin_device=origin_device,
-    ).as_legacy_pair()
 
 
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
@@ -569,6 +555,3 @@ def main():
 if __name__ == "__main__":
     declan_logs.install()
     main()
-
-
-

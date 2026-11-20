@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from declan.music import approved_media_players as approved
 from declan.music import music
+from result_pairs import pair_of
 
 
 class ApprovedMediaPlayerTests(unittest.TestCase):
@@ -83,7 +84,7 @@ class ApprovedMediaPlayerTests(unittest.TestCase):
              "declan_music_assistant": True, "attributes": {}},
         ]
         with patch.object(music, "request") as request:
-            _, outcome = music.control(("media_next_track", "kitchen"), object(),
+            _, outcome = pair_of(music.control_result)(("media_next_track", "kitchen"), object(),
                                        lambda connection: (inventory, None))
         self.assertEqual(outcome, "unavailable")
         request.assert_not_called()

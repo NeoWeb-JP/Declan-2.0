@@ -15,6 +15,7 @@ import legacy_wire
 import server
 from declan.timers import timers
 from declan.core.execution_results import ExecutionResult, Outcome
+from result_pairs import pair_of
 
 
 class CoreTests(TestCase):
@@ -55,21 +56,21 @@ class CoreTests(TestCase):
         inventory: list[dict[str, Any]]
         inventory = [{"entity_id": "light.fairy_lights", "state": "unavailable",
                       "attributes": {"friendly_name": "Fairy Lights"}}]
-        _, outcome, entity = device_status.describe("fairy lights", "on", inventory)
+        _, outcome, entity = pair_of(device_status.describe_result)("fairy lights", "on", inventory)
         self.assertEqual((outcome, entity), ("unavailable", "light.fairy_lights"))
 
     def test_screen_position_and_duplicate_names(self):
         inventory: list[dict[str, Any]]
         inventory = [{"entity_id": device_status.SCREEN, "state": "open",
                       "attributes": {"current_position": 83}}]
-        reply, outcome, entity = device_status.describe("projector screen", "down", inventory)
+        reply, outcome, entity = pair_of(device_status.describe_result)("projector screen", "down", inventory)
         self.assertEqual((reply, outcome, entity), ("Projector screen is down.", "confirmed", device_status.SCREEN))
         inventory[0]["attributes"]["current_position"] = 30
-        self.assertIn("partway down", device_status.describe(entity, "down", inventory)[0])
-        self.assertEqual(device_status.describe("projector", "on", inventory)[1], "unresolved")
+        self.assertIn("partway down", pair_of(device_status.describe_result)(entity, "down", inventory)[0])
+        self.assertEqual(pair_of(device_status.describe_result)("projector", "on", inventory)[1], "unresolved")
         inventory.extend({"entity_id": entity, "state": "on", "attributes": {"friendly_name": "Lamp"}}
                          for entity in ("light.bedroom", "light.lounge"))
-        reply, outcome, _ = device_status.describe("lamp", "on", inventory)
+        reply, outcome, _ = pair_of(device_status.describe_result)("lamp", "on", inventory)
         self.assertEqual(outcome, "unresolved")
         self.assertIn("Which room?", reply)
         self.assertNotIn("light.", reply)
@@ -83,9 +84,9 @@ class CoreTests(TestCase):
             {"entity_id": "switch.queen_lamp", "state": "off",
              "attributes": {"friendly_name": "Queen Lamp"}},
         ]
-        self.assertEqual(device_status.describe("queen lamp", "on", inventory),
+        self.assertEqual(pair_of(device_status.describe_result)("queen lamp", "on", inventory),
                          ("Queen Lamp is on.", "confirmed", "light.master_bedroom_queen_lamp"))
-        self.assertEqual(device_status.describe("switch.queen_lamp", "on", inventory),
+        self.assertEqual(pair_of(device_status.describe_result)("switch.queen_lamp", "on", inventory),
                          ("Queen Lamp is off.", "confirmed", "switch.queen_lamp"))
 
     def test_mixed_light_commands_do_not_become_a_routine(self):

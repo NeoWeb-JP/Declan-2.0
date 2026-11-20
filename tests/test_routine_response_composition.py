@@ -1,5 +1,6 @@
 """Custom routine reply composition regression tests."""
 import unittest
+from result_pairs import pair
 from unittest.mock import Mock
 from declan.turn.response_composition import routine_reply
 
@@ -21,8 +22,10 @@ class RoutineReplyTests(unittest.TestCase):
 
     def test_custom_response_selected(self):
         self.assertEqual(self.decorate(), "Custom sass.")
-        self.render.assert_called_once_with(self.selection[0], "confirmed",
-                                            "Routine started.", guest=False)
+        self.render.assert_called_once()
+        self.assertEqual(pair(self.render.call_args.args[0]), self.selection[0])
+        self.assertEqual(self.render.call_args.args[1:], ("confirmed", "Routine started."))
+        self.assertEqual(self.render.call_args.kwargs, {"guest": False})
 
     def test_chained_command_preserves_follow_on(self):
         selection = (self.selection[0], "turn off kitchen")

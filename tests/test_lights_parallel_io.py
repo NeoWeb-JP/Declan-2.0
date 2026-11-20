@@ -7,6 +7,7 @@ from unittest.mock import patch
 import server
 import test_home_assistant as fixtures
 from declan.ha.lighting_execution_dispatch import concurrently
+from result_pairs import pair_of
 
 
 class ConcurrentlyTests(unittest.TestCase):
@@ -47,7 +48,7 @@ class LightsParallelTests(unittest.TestCase):
     def run_with(self, ha, phrase):
         self.enterContext(patch.dict(os.environ, fixtures.HA_ENV))
         self.enterContext(patch.object(server, "build_opener", return_value=ha))
-        return server.handle_light_request(phrase, action_results=[])
+        return pair_of(server.handle_light_request_result)(phrase, action_results=[])
 
     def test_mixed_directions_are_sent_together(self):
         ha = GatedHomeAssistant("/services/light/turn_", 2)

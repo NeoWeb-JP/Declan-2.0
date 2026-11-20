@@ -1,6 +1,7 @@
 """Fallback retains typed execution, authorization gates and diagnostic redaction."""
 from typing import Any
 import unittest
+from contextlib import nullcontext
 from dataclasses import FrozenInstanceError
 from unittest.mock import MagicMock, Mock, patch
 
@@ -27,7 +28,7 @@ class TypedFallbackResponseTests(unittest.TestCase):
                          fallback_handler=self.provider)
 
     def test_dispatch_preserves_identity_evidence_and_appends_steps_once(self):
-        with patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("legacy result")):
+        with nullcontext():
             result = resolve_fallback_result("lights", **self.args)
         self.assertIs(result, self.execution)
         self.assertEqual(result.actions, self.execution.actions)

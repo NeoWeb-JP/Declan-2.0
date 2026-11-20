@@ -1,4 +1,5 @@
 """Typed routine command registry tests."""
+from result_pairs import pair
 from typing import Any
 from unittest import TestCase
 from unittest.mock import Mock
@@ -28,11 +29,11 @@ class RoutineDispatchTests(TestCase):
         self.select.return_value = (selection, None)
         result = self.dispatch("good morning")
         self.execute.assert_called_once_with(selection, self.actions)
-        self.assertEqual(result.result.as_legacy_pair(), ("Routine started.", "confirmed"))
+        self.assertEqual(pair(result.result), ("Routine started.", "confirmed"))
         self.assertIs(result.result.outcome, Outcome.CONFIRMED)
         self.assertEqual(result.routine_status, "Done")
         self.assertIsNone(result.routine_follow_on)
-        self.assertEqual(result.routine_selection, (selection, None))
+        self.assertEqual(pair(result.routine_selection), (selection, None))
 
     def test_chained_follow_on_preserved(self):
         selection: tuple[Any, ...]
@@ -40,7 +41,7 @@ class RoutineDispatchTests(TestCase):
         self.select.return_value = (selection, "turn off kitchen")
         result = self.dispatch("movie time and turn off kitchen")
         self.assertEqual(result.routine_follow_on, "turn off kitchen")
-        self.assertEqual(result.routine_selection, (selection, "turn off kitchen"))
+        self.assertEqual(pair(result.routine_selection), (selection, "turn off kitchen"))
         self.execute.assert_called_once_with(selection, self.actions)
 
     def test_unconfigured_script_keeps_failure(self):

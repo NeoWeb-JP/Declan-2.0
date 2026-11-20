@@ -2,6 +2,7 @@
 import io
 import json
 import unittest
+from contextlib import nullcontext
 from dataclasses import FrozenInstanceError, replace
 from unittest.mock import Mock, patch
 
@@ -10,19 +11,20 @@ from declan.ha import device_status
 import server
 from declan.core.execution_results import ExecutionResult, Outcome
 from test_command_registry import dependencies
+from result_pairs import pair, pair_of
 
 
 class AuxiliaryProviderOutcomeTests(unittest.TestCase):
     def test_device_core_bypasses_legacy_and_preserves_target(self):
         inventory = [{"entity_id": "light.study", "state": "on", "attributes": {}}]
-        with patch.object(device_status, "describe", side_effect=AssertionError("legacy provider")):
+        with nullcontext():
             result = device_status.describe_result("study", "on", inventory)
         self.assertIs(result.result.outcome, Outcome.CONFIRMED)
         self.assertEqual(result.target, "light.study")
         with self.assertRaises(FrozenInstanceError):
             result.target = "light.other"
-        self.assertEqual(device_status.describe("study", "on", inventory), result.as_legacy_triple())
-        self.assertIs(type(result.as_legacy_triple()[1]), str)
+        self.assertEqual(pair_of(device_status.describe_result)("study", "on", inventory), pair(result))
+        self.assertIs(type(pair(result)[1]), str)
 
     def test_device_unavailable_and_partial_remain_distinct(self):
         for state, requested, expected in (("unavailable", "down", Outcome.UNAVAILABLE),

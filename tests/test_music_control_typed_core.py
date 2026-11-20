@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 from declan.music import music
 from declan.core.execution_results import ExecutionResult, Outcome
+from result_pairs import pair, pair_of
 
 
 class ControlCoreTypedTests(unittest.TestCase):
@@ -11,8 +12,8 @@ class ControlCoreTypedTests(unittest.TestCase):
         result = music._control_provider(("media_pause", "kitchen"), None, Mock())
         self.assertIsInstance(result, ExecutionResult)
         self.assertIs(result.outcome, Outcome.NOT_CONFIGURED)
-        self.assertEqual(music.control(("media_pause", "kitchen"), None, Mock()),
-                         result.as_legacy_pair())
+        self.assertEqual(pair_of(music.control_result)(("media_pause", "kitchen"), None, Mock()),
+                         pair(result))
 
     def test_busy_lock_returns_typed_busy(self):
         with patch.object(music.RUNTIME, "handoff") as lock:
@@ -51,7 +52,7 @@ class ControlCoreTypedTests(unittest.TestCase):
     def test_public_control_api_accepts_typed_core(self):
         with patch.object(music, "_control_provider",
                           return_value=ExecutionResult("Paused", Outcome.CONFIRMED)):
-            self.assertEqual(music.control(("media_pause", "kitchen"), "ha", Mock()),
+            self.assertEqual(pair_of(music.control_result)(("media_pause", "kitchen"), "ha", Mock()),
                              ("Paused", "confirmed"))
 
     def test_typed_entrypoint_accepts_typed_core(self):

@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 from declan.music import music
 from declan.core.execution_results import ExecutionResult, Outcome
+from result_pairs import pair, pair_of
 
 
 class PlaybackCoreTypedTests(unittest.TestCase):
@@ -11,8 +12,8 @@ class PlaybackCoreTypedTests(unittest.TestCase):
         result = music._play_provider(("kitchen", "country", "spotify"), None, Mock())
         self.assertIsInstance(result, ExecutionResult)
         self.assertIs(result.outcome, Outcome.NOT_CONFIGURED)
-        self.assertEqual(music.play(("kitchen", "country", "spotify"), None, Mock()),
-                         result.as_legacy_pair())
+        self.assertEqual(pair_of(music.play_result)(("kitchen", "country", "spotify"), None, Mock()),
+                         pair(result))
 
     def test_busy_lock_returns_typed_busy(self):
         with patch.object(music.RUNTIME, "handoff") as lock:
@@ -49,7 +50,7 @@ class PlaybackCoreTypedTests(unittest.TestCase):
     def test_public_play_api_accepts_typed_core(self):
         with patch.object(music, "_play_provider",
                           return_value=ExecutionResult("Playing", Outcome.CONFIRMED)):
-            self.assertEqual(music.play(("kitchen", "country", "spotify"), "ha", Mock()),
+            self.assertEqual(pair_of(music.play_result)(("kitchen", "country", "spotify"), "ha", Mock()),
                              ("Playing", "confirmed"))
 
     def test_typed_entrypoint_accepts_typed_core(self):

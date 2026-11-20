@@ -36,9 +36,6 @@ class DiscoveryResult:
         if self.error is not None and not isinstance(self.error, DiscoveryError):
             raise TypeError("error must be a DiscoveryError or None")
 
-    def as_legacy_pair(self):
-        return list(self.scripts), self.error.value if self.error is not None else None
-
 
 class ScriptMatchStatus(StrEnum):
     MATCHED = "matched"
@@ -66,11 +63,6 @@ class ScriptMatchResult:
         if self.status is not ScriptMatchStatus.MATCHED:
             raise ValueError("only an unambiguous match has a selected script")
         return self.candidates[0]
-
-    def as_legacy_result(self):
-        if self.status is ScriptMatchStatus.NO_MATCH:
-            return None
-        return self.status.value, self.selected if self.status is ScriptMatchStatus.MATCHED else list(self.candidates)
 
 
 def normalise(value):
@@ -149,10 +141,6 @@ def discover_result(connection, *, fresh=False) -> DiscoveryResult:
         return DiscoveryResult(error=DiscoveryError.INSPECTION_UNAVAILABLE)
 
 
-def discover(connection, *, fresh=False):
-    return discover_result(connection, fresh=fresh).as_legacy_pair()
-
-
 def match_result(phrase, scripts) -> ScriptMatchResult:
     phrase = normalise(phrase)
     phrase = re.sub(r"^(?:please |run |start |execute |activate )", "", phrase)
@@ -174,10 +162,6 @@ def match_result(phrase, scripts) -> ScriptMatchResult:
         return ScriptMatchResult(ScriptMatchStatus.AMBIGUOUS, tuple(matches))
     item = matches[0]
     return ScriptMatchResult(ScriptMatchStatus.MATCHED, (item,))
-
-
-def match(phrase, scripts):
-    return match_result(phrase, scripts).as_legacy_result()
 
 
 def completion_from_trace_result(connection, current, result):
@@ -382,27 +366,3 @@ def _execute_provider(connection, item, *, parameters=None, expect_response=Fals
         return observed
     return ExecutionResult("Home Assistant returned no completion status or spoken summary.", Outcome.UNVERIFIED), None
 
-
-def _legacy_routine_result(value):
-    if value is None:
-        return None
-    result, detail = value
-    return result.reply, result.outcome.value, detail
-
-
-def completion_from_trace(connection, current, result):
-    """Compatibility API for correlated trace evidence."""
-    return _legacy_routine_result(completion_from_trace_result(connection, current, result))
-
-
-def enqueue(connection, entity_id, parameters):
-    """Compatibility API for background routine receipts."""
-    return _legacy_routine_result(enqueue_result(connection, entity_id, parameters))
-
-
-def execute(connection, item, *, parameters=None, expect_response=False, action_results=None):
-    """Compatibility API for foreground script execution."""
-    return _legacy_routine_result(execute_result(
-        connection, item, parameters=parameters, expect_response=expect_response,
-        action_results=action_results,
-    ))

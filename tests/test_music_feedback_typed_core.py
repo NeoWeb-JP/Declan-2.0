@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 from declan.music import music
 from declan.core.execution_results import ExecutionResult, Outcome
+from result_pairs import pair, pair_of
 
 
 class FeedbackCoreTypedTests(unittest.TestCase):
@@ -11,8 +12,8 @@ class FeedbackCoreTypedTests(unittest.TestCase):
         core = music._feedback_provider(("i love this song", None), None, Mock())
         self.assertIsInstance(core, ExecutionResult)
         self.assertIs(core.outcome, Outcome.UNAVAILABLE)
-        self.assertEqual(music.feedback(("i love this song", None), None, Mock()),
-                         core.as_legacy_pair())
+        self.assertEqual(pair_of(music.feedback_result)(("i love this song", None), None, Mock()),
+                         pair(core))
 
     def test_inventory_error_is_typed(self):
         with patch.object(music.RUNTIME, "handoff") as lock:
@@ -38,7 +39,7 @@ class FeedbackCoreTypedTests(unittest.TestCase):
     def test_legacy_feedback_adapter_accepts_typed_core(self):
         with patch.object(music, "_feedback_provider",
                           return_value=ExecutionResult("Saved", Outcome.MUSIC_FEEDBACK)):
-            self.assertEqual(music.feedback(("i love this song", None), "connection", Mock()),
+            self.assertEqual(pair_of(music.feedback_result)(("i love this song", None), "connection", Mock()),
                              ("Saved", "music_feedback"))
 
     def test_feedback_result_entrypoint_accepts_typed_core(self):
