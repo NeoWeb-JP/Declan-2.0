@@ -1,4 +1,10 @@
-"""Declan's ElevenLabs-backed speech entity for Assist."""
+"""Declan's ElevenLabs-backed speech entity for Assist.
+
+REL-01 order: persistent cache, then the primary provider (ElevenLabs), then a
+cached equivalent reply, then the optional local TTS entity (for example
+tts.piper). Local audio is cached under its own identity, so it never replaces
+or masquerades as primary-voice audio.
+"""
 import logging
 import random
 from pathlib import Path
@@ -19,6 +25,17 @@ from .voice_text import spoken_text
 from .quiet_speech import quiet_hours, attenuate_wav
 
 _LOGGER = logging.getLogger(__name__)
+_WRAPPERS = ("tts.jarvis_voice_manager", "tts.declan_voice_manager", "tts.declan_2_0_voice_manager")
+
+
+def local_provider(config, primary, own_entity_id=None):
+    """The configured local fallback entity, or None when unset or unusable."""
+    value = config.get("local_tts", "")
+    value = value.strip() if isinstance(value, str) else ""
+    if (not value or not value.startswith("tts.") or value == primary
+            or value == own_entity_id or value.startswith(_WRAPPERS)):
+        return None
+    return value
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -77,9 +94,7 @@ class DeclanVoiceManager(TextToSpeechEntity):
     async def async_get_tts_audio(self, message, language, options):
         config = self._entry.options
         provider = config.get("primary_tts", DEFAULT_PROVIDER)
-        if provider == self.entity_id or provider.startswith(
-            ("tts.jarvis_voice_manager", "tts.declan_voice_manager", "tts.declan_2_0_voice_manager")
-        ):
+        if provider == self.entity_id or provider.startswith(_WRAPPERS):
             raise HomeAssistantError("Select a speech provider such as ElevenLabs")
         voice = config.get("elevenlabs_voice", "")
         provider_options = dict(options or {})
@@ -124,7 +139,45 @@ class DeclanVoiceManager(TextToSpeechEntity):
                 alternate = await self._cached_alternative(message, identity)
                 if alternate is not None:
                     return await self._night_speech(alternate)
+            local = await self._local_fallback(message, language, config, provider, cache_enabled)
+            if local is not None:
+                return await self._night_speech(local)
             raise HomeAssistantError("Declan 2.0 could not generate speech") from None
+
+    async def _local_fallback(self, message, language, config, primary, cache_enabled):
+        """REL-01: speak with the local TTS entity when everything else failed."""
+        provider = local_provider(config, primary, getattr(self, "entity_id", None))
+        if provider is None:
+            return None
+        identity = {
+            "provider": provider,
+            "voice_id": f"{config.get('cache_revision', 'v1')}:local",
+            "model": provider,
+            "language": language or "en",
+            "settings": {},
+        }
+
+        async def generate():
+            text = spoken_text(message)
+            await self._budget.reserve(text, "fallback")
+            return await generate_from_existing_tts(
+                self.hass, provider_entity_id=provider, text=text,
+                language=language, options={},
+            )
+
+        try:
+            if not cache_enabled:
+                result = await generate()
+            else:
+                extension, audio, _ = await self._cache.get_or_generate_audio(
+                    text=message, **identity, generate=generate,
+                )
+                result = (extension, audio)
+        except (HomeAssistantError, ValueError, OSError, TimeoutError) as err:
+            _LOGGER.warning("Declan 2.0 local TTS fallback failed: %s", type(err).__name__)
+            return None
+        _LOGGER.info("Declan 2.0 spoke with the local TTS fallback")
+        return result
 
     async def _cached_alternative(self, message, identity):
         try:

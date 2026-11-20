@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- Speech (REL-01): optional **local TTS fallback**. Set *Local TTS fallback entity* (for example `tts.piper`) in the Declan 2.0 integration options. When ElevenLabs fails or the daily character limit is reached, and no saved equivalent reply exists, Declan speaks with the local voice instead of going silent. Local audio is cached separately, so it never replaces ElevenLabs audio. Leave the option blank to keep ElevenLabs only.
 - Settings → Voice & learning: each speaker now shows a **match rate** (HIS-11): of the recordings VoicePipeline attributed to that speaker and you then reviewed, the share where you kept that speaker. Pending, dismissed, rejected and discarded recordings don't count. It shows "n/a" until there are 5 reviews.
 - Settings → Voice & learning: **Learned commands** is back. A refactor had left its code in place but removed it from the page. It lists every learned phrase, however old, with a search box, and shows when and how each was last trained (History, a recording, a successful retry, edited here or imported). Phrases learned before this release show "Learned before training dates were recorded" (#98).
 - History: new **Understanding** card (VOI-12). It shows how many spoken or typed requests got the "say it another way" reply in the last 7 days and the three weeks before, the most-missed phrases (marked when since learned), and this week's speaker-ID confidence against the recognised-speaker threshold.
