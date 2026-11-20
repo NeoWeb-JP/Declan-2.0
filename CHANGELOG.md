@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Better hearing (opt-in):** a new integration option, *Use my Home Assistant names as vocabulary*, gives OpenAI speech-to-text your room names and the names of devices shared with Assist (plus "Howzit Declan" and "my bru"), so names are misheard less. It's capped at 40 names, refreshed every 10 minutes, and off by default because these names are sent to OpenAI. The extra-words vocabulary field now has a proper label.
 - **Free local help:** "what can you do?", "which lights are in here?" / "what lights are in the kitchen?", "what routines are there?", "what rooms do you know?" and "where can you play music?" are answered from Home Assistant data, with no AI and with Conversation on or off.
 - New household guide, **[Talking to Declan](docs/talking-to-declan.md)**, linked from the README and from Settings → AI Intelligence → Conversation.
 - Conversation: **follow-ups work after Declan acts**. After "it's dark in here" turns the lights on, "turn them off" or "make them brighter" is understood locally and instantly.

@@ -484,6 +484,58 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertIn(("prompt", provider.PROMPT + " Vocabulary: Study, Braai."),
                       [call.args for call in self.form.return_value.add_field.call_args_list])
 
+    async def test_automatic_vocabulary_is_opt_in_and_uses_exposed_names(self):
+        provider = import_module("custom_components.declan_two.stt")
+        self.entry.options = {"openai_stt_api_key": "test-key", "openai_stt_enabled": True}
+        entities = Mock()
+        await provider.async_setup_entry(None, self.entry, entities)
+        entity = entities.call_args.args[0][0]
+        self.response.json.return_value = {"text": "lights on"}
+
+        async def audio():
+            yield b"\x00\x01\x02\x03"
+        with patch.object(entity, "_automatic_vocabulary", return_value=["Declan", "Kitchen"]) as automatic:
+            await entity.async_process_audio_stream(None, audio())
+            automatic.assert_not_called()  # off by default: no household names leave HA
+            self.entry.options = {**self.entry.options, "openai_stt_auto_vocabulary": True}
+            await entity.async_process_audio_stream(None, audio())
+        prompts = [call.args[1] for call in self.form.return_value.add_field.call_args_list if call.args[0] == "prompt"]
+        self.assertEqual(prompts[0], provider.PROMPT)
+        self.assertEqual(prompts[-1], provider.PROMPT + " Names: Declan, Kitchen.")
+
+    def test_automatic_vocabulary_reads_areas_and_exposed_entities_with_cache(self):
+        provider = import_module("custom_components.declan_two.stt")
+        entity = provider.DeclanOpenAISTT.__new__(provider.DeclanOpenAISTT)
+        states = [SimpleNamespace(entity_id="light.kitchen_spots", name="Kitchen Spots"),
+                  SimpleNamespace(entity_id="light.secret", name="Secret Lamp")]
+        entity.hass = SimpleNamespace(states=SimpleNamespace(async_all=Mock(return_value=states)))
+        areas = SimpleNamespace(async_list_areas=lambda: [SimpleNamespace(name="Kitchen")])
+        registry = SimpleNamespace(async_get=lambda hass: areas)
+        exposed = SimpleNamespace(async_should_expose=lambda hass, assistant, entity_id: entity_id != "light.secret")
+        with patch.dict("sys.modules", {"homeassistant.helpers.area_registry": registry,
+                                        "homeassistant.components.homeassistant": SimpleNamespace(),
+                                        "homeassistant.components.homeassistant.exposed_entities": exposed}), \
+                patch("homeassistant.helpers.area_registry", registry, create=True):
+            first = entity._automatic_vocabulary()
+            second = entity._automatic_vocabulary()
+        self.assertIn("Kitchen Spots", first)
+        self.assertIn("Kitchen", first)
+        self.assertNotIn("Secret Lamp", first)
+        self.assertIs(first, second)
+        entity.hass.states.async_all.assert_called_once()
+
+    async def test_automatic_vocabulary_option_persists(self):
+        flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
+        flow.config_entry = SimpleNamespace(options={})
+        flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
+        flow.async_create_entry = Mock(side_effect=lambda **kwargs: kwargs["data"])
+        settings = {"openai_stt_enabled": False, "openai_stt_model": "gpt-transcribe"}
+        self.assertFalse((await flow.async_step_init(settings))["openai_stt_auto_vocabulary"])
+        saved = await flow.async_step_init({**settings, "openai_stt_auto_vocabulary": True})
+        self.assertTrue(saved["openai_stt_auto_vocabulary"])
+        flow.config_entry.options = saved
+        self.assertTrue((await flow.async_step_init(settings))["openai_stt_auto_vocabulary"])
+
     async def test_options_reject_unsafe_vocabulary_and_preserve_existing(self):
         flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
         flow.config_entry = SimpleNamespace(options={"openai_stt_vocabulary": "Kitchen"})

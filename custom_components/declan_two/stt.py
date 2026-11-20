@@ -4,9 +4,10 @@ from __future__ import annotations
 import io
 import asyncio
 import logging
+import time
 import wave
 
-from .stt_vocabulary import DEFAULT_PROMPT, prompt
+from .stt_vocabulary import DEFAULT_PROMPT, automatic_terms, prompt
 from .capture_level import CaptureLevel
 from .speaker_models import SpeakerMetadata, metadata_from_transcript, transcript_for_ha
 
@@ -18,6 +19,8 @@ _LOGGER = logging.getLogger(__name__)
 ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
 MAX_AUDIO_BYTES = 16_000 * 2 * 60  # one minute of 16 kHz, 16-bit mono PCM
 PROMPT = DEFAULT_PROMPT
+VOCABULARY_SECONDS = 600
+VOCABULARY_DOMAINS = ("light", "switch", "fan", "cover", "media_player", "script", "scene")
 
 
 def pcm_to_wav(raw: bytes, *, sample_rate: int = 16000) -> bytes:
@@ -100,7 +103,8 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
                            filename="utterance.wav", content_type="audio/wav")
             form.add_field("model", options.get("openai_stt_model", "gpt-4o-mini-transcribe"))
             form.add_field("language", "en")
-            form.add_field("prompt", prompt(options.get("openai_stt_vocabulary", "")))
+            automatic = self._automatic_vocabulary() if options.get("openai_stt_auto_vocabulary") else ()
+            form.add_field("prompt", prompt(options.get("openai_stt_vocabulary", ""), automatic))
             form.add_field("response_format", "json")
             headers = {"Authorization": "Bearer " + options["openai_stt_api_key"]}
             timeout = aiohttp.ClientTimeout(total=8, sock_connect=3)
@@ -120,6 +124,29 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
             if raw and len(raw) <= MAX_AUDIO_BYTES and level.snapshot() is not None:
                 return await self._fallback(metadata, bytes(raw), level.snapshot())
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
+
+    def _automatic_vocabulary(self):
+        """Rooms and Assist-exposed device names, cached for ten minutes."""
+        now = time.monotonic()
+        cached = getattr(self, "_vocabulary_cache", None)
+        if cached is not None and now - cached[0] < VOCABULARY_SECONDS:
+            return cached[1]
+        names: list[str] = []
+        try:
+            from homeassistant.helpers import area_registry
+            names.extend(area.name for area in area_registry.async_get(self.hass).async_list_areas())
+        except (ImportError, AttributeError, KeyError, TypeError):
+            pass
+        try:
+            from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+            for state in self.hass.states.async_all(VOCABULARY_DOMAINS):
+                if async_should_expose(self.hass, "conversation", state.entity_id):
+                    names.append(state.name)
+        except (ImportError, AttributeError, KeyError, TypeError):
+            pass
+        terms = automatic_terms(names)
+        self._vocabulary_cache = (now, terms)
+        return terms
 
     async def _fallback(self, metadata, raw, capture):
         """Replay bounded PCM once to the configured local provider."""

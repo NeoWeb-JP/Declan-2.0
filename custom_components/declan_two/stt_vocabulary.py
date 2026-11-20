@@ -25,10 +25,39 @@ def validate_vocabulary(value):
     return ", ".join(terms)
 
 
-def prompt(vocabulary):
-    """No household-specific names are sent unless explicitly configured."""
+FIXED_NAMES = ("Declan", "Howzit Declan", "my bru")
+MAX_AUTO_TERMS = 40
+MAX_AUTO_LENGTH = 500
+
+
+def automatic_terms(names):
+    """Bounded, cleaned household names (rooms, exposed devices). Opt-in only."""
+    terms: list[str] = []
+    seen: set[str] = set()
+    length = 0
+    for name in (*FIXED_NAMES, *names):
+        if not isinstance(name, str):
+            continue
+        term = " ".join(re.sub(r"[^A-Za-z0-9 ._'\-]", " ", name).split())[:40]
+        key = term.casefold()
+        if not term or key in seen or not TERM.fullmatch(term) or re.search(
+                r"\b(?:ignore|instructions|override|execute|prompt)\b", term, re.IGNORECASE):
+            continue
+        if len(terms) >= MAX_AUTO_TERMS or length + len(term) + 2 > MAX_AUTO_LENGTH:
+            break
+        terms.append(term)
+        seen.add(key)
+        length += len(term) + 2
+    return terms
+
+
+def prompt(vocabulary, automatic=()):
+    """No household-specific names are sent unless explicitly configured or opted in."""
     try:
         words = validate_vocabulary(vocabulary)
     except ValueError:
         words = ""
-    return DEFAULT_PROMPT + (" Vocabulary: " + words + "." if words else "")
+    text = DEFAULT_PROMPT + (" Vocabulary: " + words + "." if words else "")
+    manual = {term.strip().casefold() for term in words.split(",") if term.strip()}
+    names = [term for term in automatic if term.casefold() not in manual]
+    return text + (" Names: " + ", ".join(names) + "." if names else "")
