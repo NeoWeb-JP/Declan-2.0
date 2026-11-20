@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import time
 
 from declan.core import history
 
@@ -117,6 +118,11 @@ def apply(document, expected):
         if 'learned_intents' in document:
             db.execute('DELETE FROM learned_intents')
             db.executemany('INSERT INTO learned_intents VALUES (?, ?)', document['learned_intents'].items())
+            db.execute('CREATE TABLE IF NOT EXISTS learned_intent_provenance '
+                       '(phrase TEXT PRIMARY KEY, trained_at REAL NOT NULL, source TEXT NOT NULL)')
+            db.execute('DELETE FROM learned_intent_provenance')
+            db.executemany("INSERT INTO learned_intent_provenance VALUES (?, ?, 'imported')",
+                           [(phrase, time.time()) for phrase in document['learned_intents']])
 
 
 def recovery(include_learning=False):

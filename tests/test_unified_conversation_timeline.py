@@ -58,7 +58,9 @@ class UnifiedTimelineTests(unittest.TestCase):
     def test_settings_does_not_duplicate_review(self):
         settings = JS.split('id="panel-settings"', 1)[1].split('id="panel-updates"', 1)[0]
         self.assertNotIn("Reviewed recordings</h3>", settings)
-        self.assertNotIn("Refresh learned commands", settings)
+        # The all-time learned-commands manager (#98) is not a review duplicate:
+        # recordings are taught on the timeline, every learned phrase is managed here.
+        self.assertIn("Refresh learned commands", settings.split("settings-section--music", 1)[0])
         self.assertNotIn("Conversation archive</h3>", settings)
         self.assertIn('class="page-navigation" aria-label="Declan pages" hidden', JS)
 

@@ -112,6 +112,11 @@ class DeclanTwoNativePanel extends HTMLElement {
         .chat-controls { display:flex; gap:8px; margin:8px 0 14px; }
         .chat-controls input { flex:1; min-width:0; padding:12px; border-radius:9px; border:1px solid #315568; background:#102635; color:#e7f7ff; font:inherit; }
         .intents-list { display:grid; gap:12px; margin:12px 0 18px; }
+        .intents-search { display:grid; gap:7px; color:#c7e6f3; font-weight:600; max-width:420px; }
+        .intents-search input { min-height:40px; }
+        .intent-row { display:grid; gap:6px; min-width:0; }
+        .intent-row strong, .intent-row .intent-provenance { overflow-wrap:anywhere; }
+        .intent-row .intent-provenance { margin:0; font-size:.85rem; }
         .intent-row { display:grid; gap:8px; padding:12px; border:1px solid #315568; border-radius:9px; }
         .intent-row input { width:100%; min-width:0; padding:12px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; }
         .settings-spotify { margin-top:18px; padding:14px 16px; border:1px solid #1d3d51; border-radius:12px; background:#0e202d; }
@@ -416,6 +421,12 @@ class DeclanTwoNativePanel extends HTMLElement {
                     <p class="speaker-settings-status muted" role="status" aria-live="polite"></p>
                   </form>
                 </div>
+                <div class="settings-subsection"><h3>Learned commands</h3><p class="muted">Every phrase Declan has learned, however old, with when and how it was last trained. Edit the command or forget the phrase.</p>
+                  <label class="intents-search">Search learned phrases<input type="search" class="intents-filter" maxlength="120" autocomplete="off"></label>
+                  <button class="intents-refresh" type="button">Refresh learned commands</button>
+                  <p class="intents-status muted" role="status" aria-live="polite"></p>
+                  <div class="intents-list" aria-label="Learned commands"></div>
+                </div>
               </div>
             </details>
             <details class="settings-section settings-section--music">
@@ -554,6 +565,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       });
       this.bindPanelEvent('.timeline-refresh', 'click', () => { void this.loadTimeline(); void this.loadUnderstanding(); });
       this.bindPanelEvent('.voices-refresh', 'click', () => this.loadVoices());
+      this.bindPanelEvent('.intents-refresh', 'click', () => this.loadLearnedIntents());
+      this.bindPanelEvent('.intents-filter', 'input', () => this.filterLearnedIntents());
 
       this.bindPanelEvent('.settings-section--playlists', 'toggle', event => {
         if (event.target.open) void this.loadPlaylists();
@@ -672,7 +685,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'audit') void this.loadHAAudit();
     if (name === 'responses' && !this._responseRoutinesLoaded) void this.loadResponseRoutines();
-    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); if (!this._voicesLoaded) void this.loadVoices(); }
+    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); void this.loadLearnedIntents(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
@@ -2781,12 +2794,23 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const data = await this._hass.callApi('GET', 'declan_two/management/intents');
       if (!data?.intents || typeof data.intents !== 'object') throw new Error('Invalid list');
+      const details = data.details && typeof data.details === 'object' ? data.details : {};
+      const sources = {history:'taught from History', recording:'taught from a recording', retry:'learned from a successful retry',
+                       edited:'edited here', imported:'imported from a settings file'};
       list.replaceChildren();
       for (const [phrase, target] of Object.entries(data.intents).sort(([a], [b]) => a.localeCompare(b))) {
         const row = document.createElement('div');
         row.className = 'intent-row';
+        row.dataset.search = (phrase + ' ' + target).toLocaleLowerCase();
         const name = document.createElement('strong');
         name.textContent = phrase;
+        const provenance = document.createElement('p');
+        provenance.className = 'intent-provenance muted';
+        const info = details[phrase] || {};
+        const when = typeof info.trained_at === 'string' ? new Date(info.trained_at) : null;
+        provenance.textContent = when && !Number.isNaN(when.getTime())
+          ? 'Last trained ' + when.toLocaleString() + (sources[info.source] ? ', ' + sources[info.source] : '') + '.'
+          : 'Learned before training dates were recorded.';
         const field = document.createElement('input');
         field.type = 'text';
         field.maxLength = 120;
@@ -2807,14 +2831,29 @@ class DeclanTwoNativePanel extends HTMLElement {
           if (!window.confirm('Forget the learned command for "' + phrase + '"?')) return;
           await this.changeLearnedIntent({forget:phrase, previous:target});
         });
-        row.append(name, field, save, forget);
+        row.append(name, provenance, field, save, forget);
         list.append(row);
       }
       this._intentsLoaded = true;
-      status.textContent = list.children.length ? 'Learned commands loaded.' : 'No learned commands yet.';
+      this.filterLearnedIntents();
     } catch {
       status.textContent = 'Unable to load learned commands.';
     }
+  }
+
+  filterLearnedIntents() {
+    const list = this.shadowRoot.querySelector('.intents-list');
+    const status = this.shadowRoot.querySelector('.intents-status');
+    if (!this._intentsLoaded) return;
+    const query = this.shadowRoot.querySelector('.intents-filter').value.trim().toLocaleLowerCase();
+    let shown = 0;
+    for (const row of list.children) {
+      row.hidden = Boolean(query) && !row.dataset.search.includes(query);
+      if (!row.hidden) shown += 1;
+    }
+    const total = list.children.length;
+    status.textContent = !total ? 'No learned commands yet.'
+      : query ? 'Showing ' + shown + ' of ' + total + ' learned commands.' : total + ' learned commands.';
   }
 
   async changeLearnedIntent(body) {
@@ -2822,8 +2861,8 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const result = await this._hass.callApi('POST', 'declan_two/management/intents', body);
       if (result.saved !== true) throw new Error('Not saved');
-      status.textContent = 'Command updated.';
       await this.loadLearnedIntents();
+      status.textContent = 'Command updated. ' + status.textContent;
     } catch {
       status.textContent = 'Change rejected. Refresh the list and try again.';
     }

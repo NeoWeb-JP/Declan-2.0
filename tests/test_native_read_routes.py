@@ -20,7 +20,8 @@ class NativeReadTests(unittest.TestCase):
         self.config = SimpleNamespace(export=lambda: {"export": 1},
                                       recovery=lambda: {"recovery": 2})
         self.music = SimpleNamespace(spotify_credentials=lambda: (None, "saved"))
-        self.history = SimpleNamespace(learned_intents=lambda: ["hello"])
+        self.history = SimpleNamespace(learned_intent_records=lambda: [
+            {"phrase": "hi", "target": "hello", "trained_at": None, "source": None}])
         self.logs = SimpleNamespace(recent=lambda: ["log"])
         self.diagnostics = SimpleNamespace(recent=lambda: ["trace"])
 
@@ -60,8 +61,9 @@ class NativeReadTests(unittest.TestCase):
         self.assertIn("routine_error", self.run_route("/api/native/routine-responses")[1])
         self.assertEqual(self.run_route("/api/native/routines")[0], 410)
         self.assertEqual(self.run_route("/api/native/intents"),
-                         (200, {"intents": ["hello"]}))
-        self.history.learned_intents = lambda: (_ for _ in ()).throw(OSError())
+                         (200, {"intents": {"hi": "hello"},
+                                "details": {"hi": {"trained_at": None, "source": None}}}))
+        self.history.learned_intent_records = lambda: (_ for _ in ()).throw(OSError())
         self.assertEqual(self.run_route("/api/native/intents")[0], 503)
 
     def test_logs_diagnostics_and_failures(self):

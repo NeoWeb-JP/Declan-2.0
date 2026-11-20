@@ -69,7 +69,21 @@ class DeclanManagementView(HomeAssistantView):
                         if not isinstance(phrase, str) or not isinstance(target, str) or len(phrase) > 120 or len(target) > 120:
                             raise ValueError("Invalid intention")
                         safe[phrase] = target
-                    return web.json_response({"intents": safe}, headers={"Cache-Control": "no-store"})
+                    # Provenance is optional (older backends omit it) and display-only.
+                    raw_details = payload.get("details")
+                    details = {}
+                    if isinstance(raw_details, dict):
+                        for phrase in safe:
+                            item = raw_details.get(phrase)
+                            if not isinstance(item, dict):
+                                continue
+                            trained_at = item.get("trained_at")
+                            source = item.get("source")
+                            details[phrase] = {
+                                "trained_at": trained_at[:40] if isinstance(trained_at, str) else None,
+                                "source": source if source in {"history", "recording", "retry", "edited", "imported"} else None,
+                            }
+                    return web.json_response({"intents": safe, "details": details}, headers={"Cache-Control": "no-store"})
                 if operation == "import":
                     if body.get("confirm") is True:
                         return web.json_response({"saved": payload.get("saved") is True},
