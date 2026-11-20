@@ -316,11 +316,12 @@ def spotify_search(opener, title, artist, types):
 
 
 def parse(phrase):
-    phrase = re.sub(r" on (spotify|radio|tunein)( in (?:the )?(?:bedroom|master bedroom|kitchen|everywhere))$",
+    phrase = re.sub(r" on (spotify|radio|tunein)( in (?:the )?(?:bedroom|master bedroom|kitchen|everywhere)|"
+                    r" (?:everywhere|upstairs|downstairs))$",
                     r"\2 on \1", phrase)
     match = re.fullmatch(
         r"(?:(?:move|transfer) (?:the )?music(?: to (?:the )?| )|"
-        r"play (?:(.+) in (?:the )?|(.+?) (?=everywhere\b)))"
+        r"play (?:(.+) in (?:the )?|(.+?) (?=(?:everywhere|upstairs|downstairs)\b)))"
         r"(.+?)(?: on (spotify|radio|tunein))?",
         phrase,
     )
@@ -353,6 +354,27 @@ def reply_first_enabled():
     """
     value = os.environ.get("DECLAN_MUSIC_REPLY_FIRST", "").strip().lower()
     return value not in {"0", "false", "no", "off"}
+
+
+def music_assistant_search_enabled():
+    """Let Music Assistant search for Spotify requests instead of Declan (opt-in).
+
+    With DECLAN_MUSIC_ASSISTANT_SEARCH=1, "play X" sends X (and "by" artist) to
+    Music Assistant's play_media on the resolved player, and Declan's own Spotify
+    search, search cache, curated playlists, saved links and disliked-list checks
+    are bypassed. Room and speaker resolution, queue moves and playback
+    verification are unchanged. Off by default; the Declan search code is kept.
+    """
+    return os.environ.get("DECLAN_MUSIC_ASSISTANT_SEARCH", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def music_assistant_media_type(title, artist):
+    """Best type hint for a Music Assistant name search, or None to let it decide."""
+    if artist:
+        return "track"
+    if title.endswith(" music") or title.endswith(" playlist"):
+        return "playlist"
+    return None
 
 
 def _satellite_for(inventory, origin):
@@ -844,7 +866,8 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         artist = ""
         if title and provider == "spotify" and " by " in title:
             title, _, artist = title.rpartition(" by ")
-        saved = saved_spotify_selection(title, artist) if title and provider == "spotify" else None
+        ma_search = provider == "spotify" and bool(title) and music_assistant_search_enabled()
+        saved = saved_spotify_selection(title, artist) if title and provider == "spotify" and not ma_search else None
         if saved and PREFERENCES.exists():
             with preference_db() as db:
                 if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0",
@@ -870,7 +893,12 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
                 data = {"entity_id": destination, "source_player": source, "auto_play": True}
         else:
             try:
-                selection = saved or search_media(connection, destination, title, artist, provider)
+                selection: tuple[str | None, str | None, str] | None
+                if ma_search:
+                    # Music Assistant resolves the name itself; Declan sends no Spotify URL.
+                    selection = (None, music_assistant_media_type(title, artist), title)
+                else:
+                    selection = saved or search_media(connection, destination, title, artist, provider)
             except SpotifyNotConfigured:
                 selection = SPOTIFY_PLAYLIST_FALLBACKS.get(title) if not artist else None
                 if selection is None:
@@ -893,7 +921,7 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
                 source_name = {"spotify": "Spotify", "radio": "radio", "tunein": "TuneIn"}[provider]
                 return ExecutionResult(f"I couldn't find {title} on {source_name}.", Outcome.UNAVAILABLE)
             uri, kind, selected_name = selection
-            if provider == "spotify" and PREFERENCES.exists():
+            if provider == "spotify" and uri and PREFERENCES.exists():
                 with preference_db() as db:
                     if db.execute("SELECT 1 FROM preferences WHERE uri = ? AND weight = 0", (media_key(uri),)).fetchone():
                         return ExecutionResult("That Spotify item is on your disliked list. I won't play it.", Outcome.UNAVAILABLE)
@@ -904,7 +932,14 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
                 stopped = True
                 if source == destination:
                     previous_state = "idle"
-            data = {"entity_id": destination, "media_id": uri, "media_type": kind, "enqueue": "play"}
+            if ma_search:
+                data = {"entity_id": destination, "media_id": title, "enqueue": "play"}
+                if kind:
+                    data["media_type"] = kind
+                if artist:
+                    data["artist"] = artist
+            else:
+                data = {"entity_id": destination, "media_id": uri, "media_type": kind, "enqueue": "play"}
             path = "/api/services/music_assistant/play_media"
         timed_out = False
         try:
@@ -918,13 +953,18 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         def verify(player):
             nonlocal observed_playback
             attributes = player.get("attributes") or {}
-            track = spotify_id(player) if provider == "spotify" else attributes.get("media_content_id")
+            # Music Assistant may pick a non-Spotify source, so follow any content ID.
+            track = (spotify_id(player) if provider == "spotify" and not ma_search
+                     else attributes.get("media_content_id"))
             if player.get("state") != "playing" or not track:
                 return False
             if provider != "spotify" and spotify_id(player):
                 return False
             if previous_state != "playing" or track != previous_track:
                 observed_playback = True
+            if ma_search and not move:
+                # Music Assistant chose the item: new playback is the evidence available.
+                return observed_playback
             if move:
                 return media_key(track) == media_key(spotify_id(streams[source]))
             if media_key(track) == media_key(uri):
@@ -934,10 +974,11 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
                 return observed_playback and reported_artist.casefold() == selected_name.casefold()
             return not saved and kind == "track" and matches_track(player, selected_name, artist)
 
-        playback_source = "Spotify" if provider == "spotify" else "Radio"
+        playback_source = ("Music Assistant" if ma_search and not move
+                           else "Spotify" if provider == "spotify" else "Radio")
 
         def record_playlist_play():
-            if not move and kind == "playlist" and provider == "spotify":
+            if not move and kind == "playlist" and provider == "spotify" and uri:
                 with preference_db() as db:
                     db.execute("INSERT INTO playlist_play_counts(uri, plays) VALUES (?, 1) ON CONFLICT(uri) DO UPDATE SET plays = plays + 1", (media_key(uri),))
                     db.execute("INSERT INTO recent_playlists(category, uri) VALUES (?, ?)", (title, media_key(uri)))
