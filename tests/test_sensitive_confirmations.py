@@ -82,32 +82,6 @@ class SensitiveConfirmationTests(unittest.TestCase):
         with patch("declan.turn.routine_registry.load", return_value={}):
             self.assertEqual(sc.sensitive_group("good night", (("night", {}), None), {}), "night")
 
-    def test_ha_scripts_do_not_use_declan_confirmation_gate(self):
-        from pathlib import Path
-        server = Path(__file__).resolve().parents[1].joinpath("server.py").read_text()
-        decision = Path(__file__).resolve().parents[1].joinpath(
-            "declan/turn/sensitive_confirmation_decision.py").read_text()
-        turn = Path(__file__).resolve().parents[1].joinpath(
-            "declan/turn/sensitive_confirmation_turn.py").read_text()
-        preflight = Path(__file__).resolve().parents[1].joinpath("declan/turn/turn_preflight.py").read_text()
-        session_preflight = Path(__file__).resolve().parents[1].joinpath("declan/turn/turn_session_preflight.py").read_text()
-        self.assertIn("turn_preflight_entry.resolve(", session_preflight)
-        self.assertIn("turn_preflight.resolve(", (Path(__file__).resolve().parents[1] / "declan/turn/turn_preflight_entry.py").read_text())
-        self.assertIn("sensitive_confirmation_resolution.resolve_confirmation(", preflight)
-        self.assertIn("confirm=sensitive_confirmation_turn.confirmation_turn_result", session_preflight)
-        ingress = Path(__file__).resolve().parents[1].joinpath("declan/turn/sensitive_confirmation_resolution.py").read_text()
-        self.assertIn("confirmation = confirm(", ingress)
-        self.assertIn("return resolve(confirmation, phrase, effective_message)", ingress)
-        self.assertIn("evaluate(", turn)
-        self.assertIn("confirmation_response(", turn)
-        self.assertIn("confirmations.evaluate(", decision)
-        self.assertIn("candidate, None, guest_commands, {}, set()", decision)
-        orchestration = Path(__file__).resolve().parents[1].joinpath("declan/turn/routine_turn_orchestration.py").read_text()
-        self.assertIn("discovery.execute_result(", orchestration)
-        self.assertIn("discovery.enqueue_result(", orchestration)
-        self.assertIn("routine_turn_orchestration.execute_routine_result(", server)
-        self.assertIn("discovery=script_discovery", server)
-
 
 if __name__=="__main__":
     unittest.main()

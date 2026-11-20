@@ -135,8 +135,25 @@ class RepairTests(unittest.TestCase):
 
 class StartupTests(unittest.TestCase):
     def test_lifecycle_runs_the_repair_before_initialising(self):
-        source = (ROOT / "server_lifecycle.py").read_text()
-        self.assertLess(source.index("repair(logger)"), source.index("history_store.initialize()"))
+        import server_lifecycle
+        events = []
+        store = Mock()
+        store.repair_data_location.side_effect = lambda logger: events.append("repair")
+        store.initialize.side_effect = lambda: events.append("initialize")
+        timers = Mock()
+        timers.initialize.side_effect = lambda: events.append("timers")
+
+        def no_port(*_args):
+            raise OSError("in use")
+
+        with self.assertRaises(SystemExit):
+            server_lifecycle.main(
+                description="test", argv=["--port", "8765"], environ={}, history_store=store,
+                timer_store=timers, server_factory=no_port, handler=object, thread_factory=Mock(),
+                clock=lambda: 0, opener_factory=Mock(), proxy_factory=Mock(), logger=Mock(),
+                updates_module=Mock(), music_module=Mock(), ha_connect=Mock(), music_inventory=Mock(),
+                ip_address=Mock(), assist_port=52737)
+        self.assertEqual(events, ["repair", "initialize", "timers"])
 
 
 if __name__ == "__main__":

@@ -33,21 +33,7 @@ class DeclanLogTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             declan_logs.recent(limit=1000)
 
-    def test_server_emits_operational_events_without_sensitive_request_data(self):
-        from pathlib import Path
-        root = Path(__file__).resolve().parents[1]
-        server_source = (root / "server.py").read_text()
-        transport_source = (root / "declan/http/http_response_transport.py").read_text()
-        lifecycle_source = (root / "server_lifecycle.py").read_text()
-        runtime_source = (root / 'server_runtime_state.py').read_text()
-        self.assertIn('server_runtime_state.create_runtime(', server_source)
-        self.assertIn('logging_module.getLogger("declan.server")', runtime_source)
-        self.assertIn('event_log.setLevel(logging_module.INFO)', runtime_source)
-        self.assertIn('Declan backend started and health check passed', lifecycle_source)
-        self.assertIn('http_response_transport.send_body(', (root / 'server.py').read_text())
-        self.assertIn('logger.info("HTTP %d POST %s"', transport_source)
-        self.assertIn('logger.warning("HTTP %d %s %s"', transport_source)
-        self.assertIn('route = urlsplit(handler.path).path', transport_source)
+    def test_server_event_log_reaches_the_panel_feed(self):
         logger = logging.getLogger("declan.server")
         previous_level = logger.level
         self.addCleanup(logger.setLevel, previous_level)

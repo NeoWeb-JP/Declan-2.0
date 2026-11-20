@@ -54,6 +54,12 @@ class ResponseCompletionTests(unittest.TestCase):
         self.assertEqual(kwargs["information_context"], "info")
         self.assertIs(self.r.turn_atomic_finalization.finalize.call_args.kwargs["log_error"], self.handler.log_error)
 
+    def test_ai_fallback_gets_exposure_check_and_guarded_dispatcher(self):
+        self.complete()
+        kwargs = self.r.turn_response_preparation.prepare.call_args.kwargs
+        self.assertIs(kwargs["exposed_entities"], self.r.fallback_entity_authorization.exposed_entities)
+        self.assertIs(kwargs["dispatch_fallback"], self.r.guarded_fallback_dispatch.dispatch_fallback_result)
+
 
 if __name__ == "__main__":
     unittest.main()

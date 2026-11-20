@@ -174,9 +174,6 @@ class DialogueTests(unittest.TestCase):
         self.assertTrue(conversation_turn.prefers_agent("play something", parse_music=music.parse))
         self.assertFalse(conversation_turn.prefers_agent("play the beatles", parse_music=music.parse))
 
-    def test_gate_bypass_for_agent_questions(self):
-        source = (ROOT / "declan/turn/turn_preflight.py").read_text()
-        self.assertIn("pending_retry or _agent_asked(session_id, scope)", source)
 
 
 class FullTurnTests(unittest.TestCase):

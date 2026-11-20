@@ -50,6 +50,14 @@ class GetAccessGateTests(unittest.TestCase):
         self.assertTrue(self.check("/api/history", address="127.0.0.1",
                                    host="localhost:52737")[0])
 
+    def test_assist_token_never_unlocks_management_or_updates(self):
+        for path in ("/api/updates", "/api/diagnostics", "/api/settings/spotify",
+                     "/api/voice-profiles", "/api/settings/export", "/api/capabilities/extra"):
+            with self.subTest(path=path):
+                allowed, result = self.check(path, bearer=self.TOKEN)
+                self.assertFalse(allowed)
+                self.assertEqual(result[0], 403)
+
     def test_short_token_never_grants_remote_access(self):
         h = Handler("/api/capabilities")
         h.headers["Authorization"] = "Bearer short"

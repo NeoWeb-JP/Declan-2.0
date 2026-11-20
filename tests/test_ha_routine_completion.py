@@ -38,13 +38,6 @@ class RoutineResultTests(unittest.TestCase):
             return pair_of(script_discovery.execute_result)(("http://ha", {}, opener), item, action_results=recorded)
 
     def test_personality_only_after_verified_completion(self):
-        from pathlib import Path
-        source = (Path(__file__).resolve().parents[1] / "declan/turn/response_composition.py").read_text()
-        self.assertIn('decision_outcome is Outcome.REPORTED_SUCCESS', source)
-        self.assertIn('verified or completed or parse_music(phrase)', source)
-        self.assertIn('outcome=Outcome.CONFIRMED.value if verified or completed else outcome', source)
-        self.assertIn('spoken = "Sorted." if verified else reply', source)
-        self.assertIn('decorated = personality.decorate(', source)
         from declan.turn import personality_policy
         with patch.object(personality_policy.ROTATION.random, "choice", side_effect=lambda lines: lines[0]):
             success = personality_policy.decorate(
@@ -55,6 +48,26 @@ class RoutineResultTests(unittest.TestCase):
                 guest=False, visitor_present=False)
         self.assertNotEqual(success, "Good Morning completed successfully.")
         self.assertEqual(failed, "Good Morning could not be verified.")
+
+    def test_routine_reply_gets_personality_only_once_verified(self):
+        from declan.turn import response_composition
+        personality = Mock(_SAVAGE=(), _GUEST=(), _DINNER_HOME=(), _DINNER_GUEST=())
+        personality.decorate.side_effect = lambda spoken, **kw: "Sass: " + spoken
+        turn: tuple[tuple[str, dict[str, Any]], None] = (("auto:script.good_morning", {}), None)
+
+        def reply(outcome):
+            return response_composition.general_reply(
+                "Good Morning completed successfully.", outcome=outcome,
+                routine_reply="Good Morning completed successfully.", routine_turn=turn,
+                light_result=None, phrase="good morning", action_results=[], guest=False,
+                visitor_present=False, personality=personality, lines={},
+                parse_music=lambda _: None, parse_music_control=lambda _: None)
+
+        self.assertEqual(reply("reported_success"), "Sass: Sorted.")
+        self.assertEqual(personality.decorate.call_args.kwargs["outcome"], "confirmed")
+        personality.decorate.reset_mock()
+        self.assertEqual(reply("unverified"), "Good Morning completed successfully.")
+        personality.decorate.assert_not_called()
 
     def test_unsupported_response_falls_back_once_without_claiming_success(self):
         item: dict[str, Any]

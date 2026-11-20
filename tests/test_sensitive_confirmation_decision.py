@@ -1,6 +1,7 @@
 """Voice confirmation decision and origin-binding tests."""
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+from declan.turn import sensitive_confirmation_decision
 from declan.turn.sensitive_confirmation_decision import evaluate
 
 
@@ -17,6 +18,21 @@ class SensitiveConfirmationDecisionTests(unittest.TestCase):
                         normalize=self.normalize, guest_commands={"assign guests": "assign"},
                         confirmations=self.confirmations,
                         new_session_id=lambda: "generated-session")
+
+    def test_live_path_groups_by_phrase_only_not_by_ha_script(self):
+        """HA scripts are not looked up here: only the phrase decides the group."""
+        from declan.turn.confirmation_results import ConfirmationDecision, ConfirmationEvaluation
+        confirmations = Mock()
+        confirmations.evaluate_result.return_value = ConfirmationEvaluation(ConfirmationDecision.PROMPT)
+        with patch.object(sensitive_confirmation_decision.sensitive_confirmations, "sensitive_group",
+                          return_value="security") as group:
+            result = sensitive_confirmation_decision.evaluate_result(
+                "Arm the alarm", "arm the alarm", "session-1", satellite="kitchen",
+                origin_device=None, speaker=None, normalize=self.normalize,
+                guest_commands={"assign guests": "assign"}, confirmations=confirmations)
+        group.assert_called_once_with("arm the alarm", None, {"assign guests": "assign"}, {}, set())
+        self.assertEqual(confirmations.evaluate_result.call_args.kwargs["group"], "security")
+        self.assertEqual(result.session_id, "session-1")
 
     def test_existing_session_preserved(self):
         self.assertEqual(self.decide()[0], "session-1")

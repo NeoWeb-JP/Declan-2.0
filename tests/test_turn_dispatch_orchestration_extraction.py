@@ -64,6 +64,42 @@ class TurnDispatchExtractionTests(unittest.TestCase):
                           result.lighting_context, result.light_result),
                          ("fallback", "info", "target", "lights", "light"))
 
+    def test_direct_dispatch_gets_guest_commands_and_ha_connection(self):
+        self.dispatch()
+        kwargs = self.r.turn_direct_dispatch.dispatch.call_args.kwargs
+        self.assertIs(kwargs["guest_commands"], self.r.GUEST_COMMANDS)
+        self.assertIs(kwargs["connection"], self.r.ha_device_connection)
+        self.assertIs(kwargs["guest_assignment"], self.r.guest_assignment_result)
+        self.assertIs(kwargs["stop_routines"], self.r.stop_pending_routines_result)
+
+    def test_routine_stage_gets_typed_selection_execution_and_follow_on_tools(self):
+        actions = Mock()
+        turn_dispatch_orchestration.dispatch(
+            "good morning", source="voice", origin_device="kitchen", satellite="kitchen",
+            action_results=actions, scope="home", last_lights=None, last_device=None,
+            last_information=None, services=self.r)
+        kwargs = self.r.turn_routine_stage.dispatch.call_args.kwargs
+        self.assertIs(kwargs["select"], self.r.select_routine_turn_result)
+        self.assertIs(kwargs["execute"], self.r.execute_routine_result)
+        self.assertIs(kwargs["follow_on_execute"], self.r.routine_follow_on.execute_result)
+        self.assertIs(kwargs["parse_music"], self.r.music.parse)
+        self.assertIs(kwargs["play_music"], self.r.music.play_result)
+        self.assertIs(kwargs["handle_lighting"], self.r.handle_light_request_result)
+        self.assertIs(kwargs["chained_outcome"], self.r.chained_outcome_result)
+        self.assertIs(kwargs["action_results"], actions)
+
+    def test_fallback_stage_gets_device_context_and_typed_music(self):
+        turn_dispatch_orchestration.dispatch(
+            "pause the music", source="voice", origin_device="kitchen-show", satellite="kitchen",
+            action_results=[], scope="home", last_lights=None, last_device="media_player.kitchen",
+            last_information=None, services=self.r)
+        args = self.r.turn_fallback_dispatch.dispatch.call_args.args
+        kwargs = self.r.turn_fallback_dispatch.dispatch.call_args.kwargs
+        self.assertEqual(args[4:7], ("media_player.kitchen", "kitchen-show", "kitchen"))
+        self.assertIs(kwargs["music"], self.r.music)
+        self.assertIs(kwargs["search_media_result"], self.r.search_media_result)
+        self.assertIs(kwargs["handle_light_request_result"], self.r.handle_light_request_result)
+
     def test_no_match_has_empty_outcome(self):
         result = self.dispatch()
         self.assertIsNone(result.reply)
