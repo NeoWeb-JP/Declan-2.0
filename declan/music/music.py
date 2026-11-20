@@ -344,13 +344,15 @@ def parse(phrase):
 
 
 def reply_first_enabled():
-    """Opt in to answering once Home Assistant accepts a play request.
+    """Answer once Home Assistant accepts a play request (on by default).
 
     Playback is then verified in the background and a failure is announced on
-    the originating satellite. Off by default: the reply is only spoken after
-    verification, which is slower but never claims more than was observed.
+    the originating satellite. Set DECLAN_MUSIC_REPLY_FIRST to 0, false, no or
+    off to speak the reply only after verification instead: slower, but it never
+    claims more than was observed.
     """
-    return os.environ.get("DECLAN_MUSIC_REPLY_FIRST", "").strip() == "1"
+    value = os.environ.get("DECLAN_MUSIC_REPLY_FIRST", "").strip().lower()
+    return value not in {"0", "false", "no", "off"}
 
 
 def _satellite_for(inventory, origin):

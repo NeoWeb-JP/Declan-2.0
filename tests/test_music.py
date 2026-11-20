@@ -17,6 +17,9 @@ import server
 
 class MusicFixture(unittest.TestCase):
     def setUp(self):
+        # These tests cover the verified (reply-after-playback) path; reply-first,
+        # the default, has its own tests in test_music_reply_first.py.
+        self.enterContext(patch.dict(music.os.environ, {"DECLAN_MUSIC_REPLY_FIRST": "0"}))
         self.players: dict[str, dict[str, Any]] = {entity: {"entity_id": entity, "state": "idle",
                                  "attributes": {"friendly_name": "Everywhere"} if room == "everywhere" else {},
                                  "declan_music_assistant": True,
