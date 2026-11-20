@@ -25,7 +25,10 @@ def prepare(effective_message, *, routine_reply, outcome, light_result,
             exposed_entities, dispatch_fallback, fallback_handler,
             guest_mode_reader, visitors_reader, personality_policy,
             chat_commands, information_context):
-    fallback = fallback_orchestration.resolve_fallback_result(
+    chat_kind = effective_message.casefold().strip(" .?!")
+    # Built-in chat answers (the time, "what's my name") never go to the AI device
+    # planner: it can't answer them and its "nothing to do" reply would replace them.
+    fallback = None if chat_commands.get(chat_kind) else fallback_orchestration.resolve_fallback_result(
         effective_message, routine_reply=routine_reply,
         light_result=light_result, body=body,
         authorization=authorization, bridge_token=bridge_token,
@@ -41,7 +44,6 @@ def prepare(effective_message, *, routine_reply, outcome, light_result,
             guest_mode_reader, visitors_reader, personality_policy,
         )
     )
-    chat_kind = effective_message.casefold().strip(" .?!")
     if routine_reply is None and chat_commands.get(chat_kind) == "time":
         information_context = ("time", None, None)
     return PreparedResponse(
