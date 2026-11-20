@@ -18,8 +18,10 @@ import server
 class MusicFixture(unittest.TestCase):
     def setUp(self):
         # These tests cover the verified (reply-after-playback) path; reply-first,
-        # the default, has its own tests in test_music_reply_first.py.
-        self.enterContext(patch.dict(music.os.environ, {"DECLAN_MUSIC_REPLY_FIRST": "0"}))
+        # the default, has its own tests in test_music_reply_first.py. Turning the
+        # speaker down before playback is covered in test_music_start_volume.py.
+        self.enterContext(patch.dict(music.os.environ, {"DECLAN_MUSIC_REPLY_FIRST": "0",
+                                                        "DECLAN_MUSIC_START_VOLUME": "0"}))
         self.players: dict[str, dict[str, Any]] = {entity: {"entity_id": entity, "state": "idle",
                                  "attributes": {"friendly_name": "Everywhere"} if room == "everywhere" else {},
                                  "declan_music_assistant": True,
@@ -98,6 +100,8 @@ class MusicFixture(unittest.TestCase):
             source["state"] = "idle"
         elif path.endswith("/media_play"):
             player["state"] = "playing"
+        elif path.endswith("/volume_set"):
+            player["attributes"] = {**(player.get("attributes") or {}), "volume_level": data["volume_level"]}
         elif self.throttled:
             raise HTTPError(request.full_url, 429, "Too Many Requests", Message(), None)
         elif self.play_response:

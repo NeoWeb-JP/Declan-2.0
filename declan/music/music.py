@@ -360,6 +360,56 @@ def reply_first_enabled():
     return music_settings.enabled(music_settings_path(), "reply_first")
 
 
+START_VOLUME_PERCENT = 30
+
+
+def start_volume():
+    """Level (0-1) music starts at, or None when turned off.
+
+    Before Declan starts music, a louder speaker is turned down to this level
+    so playback never blasts out at whatever volume was last used. Quieter
+    speakers are left alone. DECLAN_MUSIC_START_VOLUME sets the percentage
+    (default 30); 0 turns it off.
+    """
+    raw = os.environ.get("DECLAN_MUSIC_START_VOLUME", "").strip()
+    try:
+        percent = int(raw) if raw else START_VOLUME_PERCENT
+    except ValueError:
+        percent = START_VOLUME_PERCENT
+    if percent == 0:
+        return None
+    return min(100, max(1, percent)) / 100
+
+
+def _start_volume_targets(destination, players):
+    """The speakers to turn down: a group's members, or the player itself."""
+    attributes = players.get(destination, {}).get("attributes") or {}
+    members = attributes.get("group_members")
+    if isinstance(members, list):
+        speakers = [member for member in members
+                    if isinstance(member, str) and member != destination and member in players]
+        if speakers:
+            return speakers
+    return [destination]
+
+
+def _lower_start_volume(connection, destination, players):
+    """Turn louder speakers down to the start volume. Never blocks playback."""
+    level = start_volume()
+    if level is None:
+        return
+    for entity in _start_volume_targets(destination, players):
+        current = (players.get(entity, {}).get("attributes") or {}).get("volume_level")
+        if (isinstance(current, (int, float)) and not isinstance(current, bool)
+                and 0 <= current <= level + 0.005):
+            continue
+        try:
+            request(connection, "/api/services/media_player/volume_set",
+                    {"entity_id": entity, "volume_level": level}, timeout=2.5)
+        except (OSError, ValueError, TimeoutError):
+            continue
+
+
 def music_assistant_search_enabled():
     """Let Music Assistant search for Spotify requests instead of Declan (opt-in).
 
@@ -1029,6 +1079,7 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             else:
                 data = {"entity_id": destination, "media_id": uri, "media_type": kind, "enqueue": "play"}
             path = "/api/services/music_assistant/play_media"
+        _lower_start_volume(connection, destination, players)
         timed_out = False
         try:
             request(connection, path, data)
