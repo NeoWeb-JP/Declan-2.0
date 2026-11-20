@@ -360,6 +360,47 @@ def reply_first_enabled():
     return music_settings.enabled(music_settings_path(), "reply_first")
 
 
+def start_volume():
+    """Level (0-1) music starts at, or None when turned off.
+
+    Before Declan starts music, a louder speaker is turned down to this level
+    so playback never blasts out at whatever volume was last used. Quieter
+    speakers are left alone. Set in Settings -> Music behaviour, or with
+    DECLAN_MUSIC_START_VOLUME when nothing is saved there (default 30); 0 is off.
+    """
+    percent, _ = music_settings.start_volume(music_settings_path())
+    return percent / 100 if percent else None
+
+
+def _start_volume_targets(destination, players):
+    """The speakers to turn down: a group's members, or the player itself."""
+    attributes = players.get(destination, {}).get("attributes") or {}
+    members = attributes.get("group_members")
+    if isinstance(members, list):
+        speakers = [member for member in members
+                    if isinstance(member, str) and member != destination and member in players]
+        if speakers:
+            return speakers
+    return [destination]
+
+
+def _lower_start_volume(connection, destination, players):
+    """Turn louder speakers down to the start volume. Never blocks playback."""
+    level = start_volume()
+    if level is None:
+        return
+    for entity in _start_volume_targets(destination, players):
+        current = (players.get(entity, {}).get("attributes") or {}).get("volume_level")
+        if (isinstance(current, (int, float)) and not isinstance(current, bool)
+                and 0 <= current <= level + 0.005):
+            continue
+        try:
+            request(connection, "/api/services/media_player/volume_set",
+                    {"entity_id": entity, "volume_level": level}, timeout=2.5)
+        except (OSError, ValueError, TimeoutError):
+            continue
+
+
 def music_assistant_search_enabled():
     """Let Music Assistant search for Spotify requests instead of Declan (opt-in).
 
@@ -1029,6 +1070,7 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             else:
                 data = {"entity_id": destination, "media_id": uri, "media_type": kind, "enqueue": "play"}
             path = "/api/services/music_assistant/play_media"
+        _lower_start_volume(connection, destination, players)
         timed_out = False
         try:
             request(connection, path, data)

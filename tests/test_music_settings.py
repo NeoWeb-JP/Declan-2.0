@@ -23,7 +23,8 @@ class StoreTests(unittest.TestCase):
     def test_defaults_are_reply_first_on_and_music_assistant_search_off(self):
         self.assertEqual(music_settings.listing(self.path), {
             "settings": {"reply_first": True, "music_assistant_search": False},
-            "sources": {"reply_first": "default", "music_assistant_search": "default"}})
+            "sources": {"reply_first": "default", "music_assistant_search": "default"},
+            "start_volume": {"percent": 30, "source": "default"}})
 
     def test_environment_applies_until_a_value_is_saved(self):
         with patch.dict(os.environ, {"DECLAN_MUSIC_REPLY_FIRST": "0", "DECLAN_MUSIC_ASSISTANT_SEARCH": "yes"}):
@@ -96,6 +97,17 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(payload["sources"], {"reply_first": "saved", "music_assistant_search": "saved"})
         self.assertTrue(music.music_assistant_search_enabled())
 
+    def test_start_volume_is_saved_with_the_switches(self):
+        status, payload = self.post({"settings": {"reply_first": True, "music_assistant_search": False},
+                                     "start_volume": 25})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["start_volume"], {"percent": 25, "source": "saved"})
+        self.assertEqual(music.start_volume(), 0.25)
+        for bad in (101, "25", 2.5):
+            with self.subTest(bad=bad):
+                self.assertEqual(self.post({"settings": {"reply_first": True, "music_assistant_search": False},
+                                            "start_volume": bad})[0], 400)
+
     def test_bad_posts_are_400(self):
         for body in (None, {}, {"settings": {"reply_first": "yes", "music_assistant_search": False}},
                      {"settings": {"reply_first": True, "music_assistant_search": False}, "x": 1}):
@@ -149,9 +161,23 @@ class ViewTests(unittest.IsolatedAsyncioTestCase):
                      {"settings": {"reply_first": True}}, {"other": 1}):
             with self.subTest(body=body):
                 self.assertEqual((await self.view.post(self.request(admin, body)))["status"], 400)
+        for start_volume in (101, -1, "30", 2.5, True):
+            bad_volume: dict[str, object] = {"settings": {"reply_first": True, "music_assistant_search": True},
+                                             "start_volume": start_volume}
+            with self.subTest(start_volume=start_volume):
+                self.assertEqual((await self.view.post(self.request(admin, bad_volume)))["status"], 400)
+        with_volume = {"settings": {"reply_first": True, "music_assistant_search": True}, "start_volume": 30}
+        self.assertEqual((await self.view.post(self.request(admin, with_volume)))["status"], 503)
         good = {"settings": {"reply_first": True, "music_assistant_search": True}}
         # Valid body reaches the relay, which reports the missing config entry.
         self.assertEqual((await self.view.post(self.request(admin, good)))["status"], 503)
+
+    def test_start_volume_from_the_backend_is_validated(self):
+        self.assertTrue(self.module.valid_start_volume({"percent": 30, "source": "default"}))
+        for value in (None, {"percent": 130, "source": "default"}, {"percent": 30, "source": "x"},
+                      {"percent": "30", "source": "saved"}, {"percent": 30}):
+            with self.subTest(value=value):
+                self.assertFalse(self.module.valid_start_volume(value))
 
     def test_view_is_registered_and_panel_is_wired(self):
         init = (ROOT / "custom_components/declan_two/__init__.py").read_text()
