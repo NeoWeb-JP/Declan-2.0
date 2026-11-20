@@ -118,8 +118,38 @@ class TimerAndHistoryTests(TestCase):
         reply, outcome = pair_of(timers.handle_result)("how much time is left on my pasta timer", None)
         self.assertEqual(outcome, "timer_status")
         self.assertIn("Kitchen", reply)
-        self.assertEqual(pair_of(timers.handle_result)("stop my pasta timer", None)[1], "unresolved")
-        self.assertEqual(pair_of(timers.handle_result)("cancel my pasta timer", None)[1], "timer_cancelled")
+        self.assertEqual(pair_of(timers.handle_result)("stop my pasta timer", None)[1], "timer_cancelled")
+        self.assertEqual(pair_of(timers.handle_result)("list timers", None)[1], "no_timer")
+
+    def test_plain_stop_silences_a_ringing_alarm(self):
+        self.assertFalse(timers.matches("stop"))  # nothing ringing: "stop" stays a music stop
+        pair_of(timers.handle_result)("set a pasta timer for five seconds", None)
+        pair_of(timers.handle_result)("set a tea timer for ten minutes", None)
+        self.now += 5
+        for phrase in ("stop", "stop the alarm", "okay", "thanks"):
+            self.assertTrue(timers.matches(phrase), phrase)
+        reply, outcome = pair_of(timers.handle_result)("stop", None, satellite="assist_satellite.kitchen")
+        self.assertEqual((reply, outcome), ("Stopped the alarm for the Pasta timer.", "timer_stopped"))
+        self.assertFalse(timers.matches("stop"))
+        reply, _ = pair_of(timers.handle_result)("list timers", None)
+        self.assertIn("Tea", reply)  # a running timer is never cancelled by "stop"
+
+    def test_stop_from_another_room_still_silences_the_alarm(self):
+        pair_of(timers.handle_result)("set a timer for five seconds", None)
+        self.now += 5
+        self.assertEqual(pair_of(timers.handle_result)("stop", None, satellite="assist_satellite.lounge")[1], "timer_stopped")
+        self.assertEqual(pair_of(timers.handle_result)("list timers", None)[1], "no_timer")
+
+    def test_unanswered_alarm_gives_up_after_ten_minutes(self):
+        pair_of(timers.handle_result)("set a timer for five seconds", None)
+        self.now += 5
+        with patch.object(timers, "ha_json", return_value=[]) as announce:
+            timers.ring_due(None)
+            self.now += timers.ALARM_GIVE_UP_SECONDS + timers.ALARM_INTERVAL
+            timers.ring_due(None)
+            self.now += timers.ALARM_INTERVAL
+            timers.ring_due(None)
+        self.assertEqual(announce.call_count, 1)
         self.assertEqual(pair_of(timers.handle_result)("list timers", None)[1], "no_timer")
 
     def test_timer_alarm_repeats_until_acknowledged(self):
