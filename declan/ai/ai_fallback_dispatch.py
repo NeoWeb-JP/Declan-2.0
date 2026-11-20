@@ -40,9 +40,12 @@ def guarded_openai_fallback_result(message, *, source, exposed_entities=(), sett
     # exposure set. Never use all inventory rows as implicit permission.
     if not isinstance(exposed_entities, (list, tuple)) or len(exposed_entities) > 20000:
         return response_factory(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
-    if not exposed_entities or any(
-            not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", item)
-            for item in exposed_entities):
+    if not exposed_entities:
+        return response_factory(ExecutionResult(
+            "No devices are shared with Assist, so I can't control them that way. "
+            "Share them in Home Assistant under Voice assistants, Expose.", Outcome.UNRESOLVED))
+    if any(not isinstance(item, str) or not re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", item)
+           for item in exposed_entities):
         return response_factory(ExecutionResult("AI device permissions are unavailable.", Outcome.UNRESOLVED))
     permitted = set(exposed_entities)
     if len(permitted) != len(exposed_entities):
