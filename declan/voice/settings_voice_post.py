@@ -9,6 +9,7 @@ ROUTES = frozenset({
     "/api/native/spotify-credentials", "/api/settings/ai",
     "/api/voicepipeline", "/api/voice-profiles",
     "/api/settings/import", "/api/native/settings-import",
+    "/api/settings/speaker",
 })
 
 
@@ -44,6 +45,17 @@ def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,
         voice_post_routes.handle_voice_profiles(
             handler, body, manage=profiles_manage,
         )
+    elif path == "/api/settings/speaker":
+        from declan.voice import speaker_settings
+        if not isinstance(body, dict) or set(body) != {"settings"}:
+            handler.send_json(400, {"error": "Send speaker settings."})
+            return
+        try:
+            handler.send_json(200, speaker_settings.save(body["settings"]))
+        except ValueError as error:
+            handler.send_json(400, {"error": str(error)})
+        except OSError:
+            handler.send_json(503, {"error": "Could not save speaker settings."})
     elif path in {"/api/settings/import", "/api/native/settings-import"}:
         settings_import_post.handle_settings_import(
             handler, body, preview=preview, apply=apply,

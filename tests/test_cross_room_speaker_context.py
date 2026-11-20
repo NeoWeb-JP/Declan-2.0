@@ -18,7 +18,10 @@ class SatelliteContextTests(unittest.TestCase):
         self.assertIn("turn_session_entry.prepare(", preflight_source)
         self.assertIn("turn_initialization.prepare(", (Path(__file__).resolve().parents[1] / "declan/turn/turn_session_entry.py").read_text())
         self.assertIn("assist_capture_http.suppress_duplicate(", turn_source)
-        self.assertIn('speaker["confidence"] >= 0.85', capture_source)
+        self.assertIn('speaker["confidence"] >= speaker_settings.threshold()', capture_source)
+        settings_source = Path(__file__).resolve().parents[1].joinpath(
+            "declan", "voice", "speaker_settings.py").read_text()
+        self.assertIn("DEFAULT = 0.85", settings_source)
         # Scope checks live in the extracted session context retrieval module.
         context_source = Path(__file__).resolve().parents[1].joinpath(
             "declan/turn/session_context_retrieval.py").read_text()

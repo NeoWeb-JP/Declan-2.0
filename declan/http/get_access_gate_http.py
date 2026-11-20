@@ -15,13 +15,14 @@ def enforce_access(handler, *, ingress, token):
         # existing Assist token. All write/export/update routes stay protected.
         history_auth = (
             (urlsplit(handler.path).path == "/api/history"
-             or urlsplit(handler.path).path == "/api/history/recording-links")
+             or urlsplit(handler.path).path == "/api/history/recording-links"
+             or handler.path == "/api/history/quality")
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
         players_auth = (
             handler.path in {"/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai",
-                             "/api/settings/music"}
+                             "/api/settings/music", "/api/settings/speaker"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )

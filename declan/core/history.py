@@ -26,6 +26,15 @@ def retention_seconds():
     return int(value) * 24 * 60 * 60
 
 
+def _display_threshold():
+    """Settings -> Voice & learning can lower the label threshold below 0.75."""
+    try:
+        from declan.voice import speaker_settings
+        return speaker_settings.history_threshold()
+    except (ImportError, OSError, ValueError):
+        return SPEAKER_THRESHOLD
+
+
 def speaker_match(value):
     """Keep display metadata only, and label uncertain identities Unknown."""
     if not isinstance(value, dict):
@@ -41,7 +50,7 @@ def speaker_match(value):
         if isinstance(name, str) and re.fullmatch(r"[^\W\d_][\w '\u2019-]{0,39}", name):
             if name.casefold() not in {"unknown", "unidentified", "none"}:
                 display_name = name
-                if confidence >= SPEAKER_THRESHOLD:
+                if confidence >= _display_threshold():
                     match["name"] = display_name
                 else:
                     match["candidate"] = display_name
