@@ -360,25 +360,16 @@ def reply_first_enabled():
     return music_settings.enabled(music_settings_path(), "reply_first")
 
 
-START_VOLUME_PERCENT = 30
-
-
 def start_volume():
     """Level (0-1) music starts at, or None when turned off.
 
     Before Declan starts music, a louder speaker is turned down to this level
     so playback never blasts out at whatever volume was last used. Quieter
-    speakers are left alone. DECLAN_MUSIC_START_VOLUME sets the percentage
-    (default 30); 0 turns it off.
+    speakers are left alone. Set in Settings -> Music behaviour, or with
+    DECLAN_MUSIC_START_VOLUME when nothing is saved there (default 30); 0 is off.
     """
-    raw = os.environ.get("DECLAN_MUSIC_START_VOLUME", "").strip()
-    try:
-        percent = int(raw) if raw else START_VOLUME_PERCENT
-    except ValueError:
-        percent = START_VOLUME_PERCENT
-    if percent == 0:
-        return None
-    return min(100, max(1, percent)) / 100
+    percent, _ = music_settings.start_volume(music_settings_path())
+    return percent / 100 if percent else None
 
 
 def _start_volume_targets(destination, players):

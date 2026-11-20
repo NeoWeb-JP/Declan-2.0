@@ -20,11 +20,12 @@ def dispatch(handler, body, *, music, spotify_playlists,
         handler.approved_player_settings(body)
         return
     if handler.path == "/api/settings/music":
-        if not isinstance(body, dict) or set(body) != {"settings"}:
+        if not isinstance(body, dict) or "settings" not in body or not set(body) <= {"settings", "start_volume"}:
             handler.send_json(400, {"error": "Send music settings."})
             return
         try:
-            result = music.music_settings.save(music.music_settings_path(), body["settings"])
+            result = music.music_settings.save(music.music_settings_path(), body["settings"],
+                                               body.get("start_volume"))
         except ValueError as error:
             handler.send_json(400, {"error": str(error)})
             return

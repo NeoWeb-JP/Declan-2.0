@@ -712,3 +712,38 @@ test('unverified template notes are grouped apart from real problems and long id
   assert.doesNotMatch(direct,/unverified: template_not_evaluated/);
   assert.match(element.shadowRoot.querySelector('style').textContent,/\.audit-results \{ overflow-wrap:anywhere; \}/);
 });
+
+test('music start volume loads, validates and saves with the switches', async t => {
+  const response = {settings:{reply_first:true, music_assistant_search:false},
+    sources:{reply_first:'default', music_assistant_search:'default'},
+    start_volume:{percent:30, source:'default'}};
+  const {element, root, calls} = panel(t, response);
+  await element.loadMusicSettings();
+  const form = root.querySelector('.music-settings-form');
+  const input = form.elements.namedItem('start_volume');
+  assert.equal(input.disabled, false);
+  assert.equal(input.value, '30');
+  assert.match(root.querySelector('.music-settings-status').textContent, /Start volume: 30%/);
+  input.value = '150';
+  await element.saveMusicSettings();
+  assert.equal(calls.filter(args => args[0] === 'POST').length, 0);
+  assert.match(root.querySelector('.music-settings-status').textContent, /0 to 100/);
+  input.value = '20';
+  await element.saveMusicSettings();
+  const post = calls.find(args => args[0] === 'POST');
+  assert.equal(post[2].start_volume, 20);
+  assert.equal(post[2].settings.reply_first, true);
+});
+
+test('music settings still save against an older server without a start volume', async t => {
+  const response = {settings:{reply_first:true, music_assistant_search:true},
+    sources:{reply_first:'saved', music_assistant_search:'saved'}};
+  const {element, root, calls} = panel(t, response);
+  await element.loadMusicSettings();
+  const form = root.querySelector('.music-settings-form');
+  assert.equal(form.elements.namedItem('start_volume').disabled, true);
+  await element.saveMusicSettings();
+  const post = calls.find(args => args[0] === 'POST');
+  assert.equal('start_volume' in post[2], false);
+  assert.match(root.querySelector('.music-settings-status').textContent, /saved/);
+});

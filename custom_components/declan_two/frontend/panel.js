@@ -460,13 +460,15 @@ class DeclanTwoNativePanel extends HTMLElement {
               </div>
             </details>
             <details class="settings-section settings-section--music">
-              <summary><span class="settings-section-icon" aria-hidden="true">♪</span><span class="settings-section-title">Music behaviour<small>Reply speed and who searches for music</small></span></summary>
+              <summary><span class="settings-section-icon" aria-hidden="true">♪</span><span class="settings-section-title">Music behaviour<small>Reply speed, start volume and who searches for music</small></span></summary>
               <div class="settings-section-content">
                 <form class="music-settings-form">
                   <label class="music-toggle"><input type="checkbox" name="reply_first"> Reply as soon as music is requested</label>
                   <p class="muted">Declan says "Starting…" once Music Assistant accepts the request and checks playback in the background. A failed start is announced on the speaker. Turn off to wait until playback is confirmed (slower).</p>
                   <label class="music-toggle"><input type="checkbox" name="music_assistant_search"> Let Music Assistant search for music</label>
                   <p class="muted">"Play X" is sent to Music Assistant with the speaker that heard you, or the room, everywhere, upstairs or downstairs. Declan's Spotify search, curated playlists, saved links and disliked list are skipped. Radio and moving the current queue are unchanged.</p>
+                  <label class="ai-field music-start-volume"><span>Start volume (%)</span><input name="start_volume" type="number" min="0" max="100" step="1" inputmode="numeric"></label>
+                  <p class="muted">Before music starts, any speaker louder than this is turned down to it. Quieter speakers are left alone. 0 turns this off.</p>
                   <button class="music-save" type="submit">Save music settings</button>
                 </form>
                 <p class="music-settings-status muted" role="status" aria-live="polite">Open Settings to load music settings.</p>
@@ -2410,7 +2412,19 @@ class DeclanTwoNativePanel extends HTMLElement {
 
   musicSettingsSummary(response) {
     const describe = source => source === 'saved' ? 'saved here' : source === 'environment' ? 'from declan.env until saved here' : 'default';
-    return 'Reply first: ' + describe(response.sources.reply_first) + '. Music Assistant search: ' + describe(response.sources.music_assistant_search) + '.';
+    const volume = response.start_volume
+      ? ' Start volume: ' + (response.start_volume.percent === 0 ? 'off' : response.start_volume.percent + '%') + ' (' + describe(response.start_volume.source) + ').'
+      : ' Start volume: update the Declan server to change it here.';
+    return 'Reply first: ' + describe(response.sources.reply_first) + '. Music Assistant search: ' + describe(response.sources.music_assistant_search) + '.' + volume;
+  }
+
+  showMusicStartVolume(form, response) {
+    // An older Declan server has no start volume: keep the field disabled and
+    // send nothing for it, so saving the switches still works.
+    const input = form.elements.namedItem('start_volume');
+    const known = response.start_volume && Number.isInteger(response.start_volume.percent);
+    input.disabled = !known;
+    input.value = known ? String(response.start_volume.percent) : '';
   }
 
   async loadMusicSettings() {
@@ -2421,6 +2435,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const response = await this._hass.callApi('GET', 'declan_two/music-settings');
       for (const key of ['reply_first', 'music_assistant_search']) form.elements.namedItem(key).checked = response.settings[key] === true;
+      this.showMusicStartVolume(form, response);
       this._musicSettingsLoaded = true;
       status.textContent = this.musicSettingsSummary(response);
     } catch (error) {
@@ -2438,11 +2453,22 @@ class DeclanTwoNativePanel extends HTMLElement {
       reply_first: form.elements.namedItem('reply_first').checked,
       music_assistant_search: form.elements.namedItem('music_assistant_search').checked,
     };
+    const body = {settings};
+    const volumeInput = form.elements.namedItem('start_volume');
+    if (!volumeInput.disabled) {
+      const percent = Number(volumeInput.value);
+      if (volumeInput.value.trim() === '' || !Number.isInteger(percent) || percent < 0 || percent > 100) {
+        status.textContent = 'Start volume must be a whole number from 0 to 100.';
+        return;
+      }
+      body.start_volume = percent;
+    }
     status.textContent = 'Saving music settings…';
     try {
-      const response = await this._hass.callApi('POST', 'declan_two/music-settings', {settings});
+      const response = await this._hass.callApi('POST', 'declan_two/music-settings', body);
       status.textContent = 'Music settings saved. They apply to the next request.';
       for (const key of ['reply_first', 'music_assistant_search']) form.elements.namedItem(key).checked = response.settings[key] === true;
+      this.showMusicStartVolume(form, response);
     } catch {
       status.textContent = 'Could not save music settings.';
     }

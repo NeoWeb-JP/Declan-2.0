@@ -12,6 +12,16 @@ def valid_settings(settings):
     return isinstance(settings, dict) and set(settings) == KEYS and all(type(v) is bool for v in settings.values())
 
 
+def valid_percent(value):
+    return type(value) is int and 0 <= value <= 100
+
+
+def valid_start_volume(value):
+    """Backend reply: {"percent": 0-100, "source": ...}. Older backends send none."""
+    return (isinstance(value, dict) and set(value) == {"percent", "source"}
+            and valid_percent(value["percent"]) and value["source"] in SOURCES)
+
+
 class DeclanMusicSettingsView(HomeAssistantView):
     url = "/api/declan_two/music-settings"
     name = "api:declan_two:music-settings"
@@ -27,7 +37,9 @@ class DeclanMusicSettingsView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
-        if not isinstance(body, dict) or set(body) != {"settings"} or not valid_settings(body["settings"]):
+        if (not isinstance(body, dict) or "settings" not in body or not set(body) <= {"settings", "start_volume"}
+                or not valid_settings(body["settings"])
+                or ("start_volume" in body and not valid_percent(body["start_volume"]))):
             return web.json_response({"error": "Invalid settings"}, status=400)
         return await self._relay(request, body)
 
@@ -54,7 +66,9 @@ class DeclanMusicSettingsView(HomeAssistantView):
                 if (not valid_settings(data.get("settings")) or not isinstance(sources, dict)
                         or set(sources) != KEYS or not set(sources.values()) <= SOURCES):
                     raise ValueError("Invalid response")
-                return web.json_response({"settings": data["settings"], "sources": sources},
-                                         headers={"Cache-Control": "no-store"})
+                payload = {"settings": data["settings"], "sources": sources}
+                if valid_start_volume(data.get("start_volume")):
+                    payload["start_volume"] = data["start_volume"]
+                return web.json_response(payload, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError, AttributeError):
             return web.json_response({"error": "Backend unavailable"}, status=502)

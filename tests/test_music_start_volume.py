@@ -1,5 +1,7 @@
 """Music starts at a sensible volume: louder speakers are turned down first."""
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from declan.music import music
@@ -7,6 +9,11 @@ from test_music import MusicFixture
 
 
 class StartVolumeSettingTests(unittest.TestCase):
+    def setUp(self):
+        folder = self.enterContext(TemporaryDirectory())
+        self.path = Path(folder) / "music-settings.json"
+        self.enterContext(patch.object(music, "music_settings_path", lambda: self.path))
+
     def level(self, value):
         env = {} if value is None else {"DECLAN_MUSIC_START_VOLUME": value}
         with patch.dict(music.os.environ, env, clear=False):
@@ -21,9 +28,25 @@ class StartVolumeSettingTests(unittest.TestCase):
 
     def test_zero_turns_it_off_and_values_are_bounded(self):
         self.assertIsNone(self.level("0"))
+        self.assertIsNone(self.level("-5"))
         self.assertEqual(self.level("45"), 0.45)
         self.assertEqual(self.level("150"), 1.0)
-        self.assertEqual(self.level("-5"), 0.01)
+
+    def test_value_saved_in_settings_wins_and_survives_an_older_panel_save(self):
+        switches = {"reply_first": True, "music_assistant_search": False}
+        music.music_settings.save(self.path, switches, 20)
+        self.assertEqual(self.level("45"), 0.20)
+        music.music_settings.save(self.path, switches)
+        self.assertEqual(music.music_settings.listing(self.path)["start_volume"],
+                         {"percent": 20, "source": "saved"})
+        music.music_settings.save(self.path, switches, 0)
+        self.assertIsNone(self.level(None))
+
+    def test_invalid_saved_values_are_refused(self):
+        switches = {"reply_first": True, "music_assistant_search": False}
+        for value in (101, -1, 30.5, "30", True):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                music.music_settings.save(self.path, switches, value)
 
     def test_group_members_are_turned_down_not_the_group(self):
         players = {"media_player.all": {"attributes": {"group_members": [
@@ -38,6 +61,9 @@ class StartVolumeSettingTests(unittest.TestCase):
 class StartVolumePlaybackTests(MusicFixture):
     def setUp(self):
         super().setUp()
+        folder = self.enterContext(TemporaryDirectory())
+        self.enterContext(patch.object(music, "music_settings_path",
+                                       lambda: Path(folder) / "music-settings.json"))
         self.enterContext(patch.dict(music.os.environ, {"DECLAN_MUSIC_START_VOLUME": "30"}))
 
     def volume_calls(self):
