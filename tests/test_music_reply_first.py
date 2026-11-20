@@ -96,11 +96,20 @@ class ReplyFirstTests(MusicFixture):
         self.assertNotEqual(outcome, "requested", reply)
         self.assertEqual([t.name for t in threading.enumerate() if t.name == "music-verify"], [])
 
-    def test_default_behaviour_is_unchanged_when_the_option_is_off(self):
-        with patch.dict(music.os.environ, {"DECLAN_MUSIC_REPLY_FIRST": ""}):
-            reply, outcome = self.play_from_utility()
-        self.assertEqual(outcome, "confirmed", reply)
-        self.assertEqual([t.name for t in threading.enumerate() if t.name == "music-verify"], [])
+    def test_verified_reply_is_used_when_the_option_is_turned_off(self):
+        for value in ("0", "false", "No", " off "):
+            with self.subTest(value=value), patch.dict(music.os.environ, {"DECLAN_MUSIC_REPLY_FIRST": value}):
+                reply, outcome = self.play_from_utility()
+                self.assertEqual(outcome, "confirmed", reply)
+                self.assertEqual([t.name for t in threading.enumerate() if t.name == "music-verify"], [])
+
+    def test_reply_first_is_on_by_default(self):
+        for value in (None, "", "1", "yes"):
+            env = {} if value is None else {"DECLAN_MUSIC_REPLY_FIRST": value}
+            with self.subTest(value=value), patch.dict(music.os.environ, env, clear=False):
+                if value is None:
+                    music.os.environ.pop("DECLAN_MUSIC_REPLY_FIRST", None)
+                self.assertTrue(music.reply_first_enabled())
 
     def test_late_result_is_added_to_the_saved_trace_without_changing_its_duration(self):
         with TemporaryDirectory() as folder, \
