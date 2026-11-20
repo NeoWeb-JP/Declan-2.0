@@ -100,6 +100,19 @@ class LightingTests(TestCase):
         self.assertEqual(self.ha.entities["light.study_light"]["state"], "on")
         self.assertEqual(self.ha.entities["light.fairy_lights"]["state"], "off")
 
+    def test_near_miss_names_resolve_to_one_clear_light(self):
+        self.run_light("turn off the bedroom lamps", "confirmed")
+        self.assertEqual(self.ha.entities["light.bedroom_lamp"]["state"], "off")
+        self.assertEqual(self.ha.entities["light.fairy_lights"]["state"], "on")
+        self.run_light("turn on the studdy light", "confirmed")
+        self.assertEqual(self.ha.entities["light.study_light"]["state"], "on")
+
+    def test_room_names_are_never_narrowed_to_one_near_device(self):
+        self.ha.entities["light.study_light"]["state"] = "on"
+        self.run_light("turn off the bedroom", "confirmed")
+        self.assertEqual(self.ha.entities["light.bedroom_lamp"]["state"], "off")
+        self.assertEqual(self.ha.entities["light.fairy_lights"]["state"], "off")
+
     def test_exclusion_and_room_selection(self):
         self.run_light("turn everything off except the bedroom", "confirmed")
         self.assertEqual(self.ha.entities["light.lounge_lamp"]["state"], "off")

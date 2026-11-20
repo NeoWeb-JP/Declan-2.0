@@ -26,6 +26,38 @@ def concurrently(function, items):
         return list(pool.map(function, items))
 
 
+_GENERIC = frozenset({"lights", "all lights", "some lights", "light", "lamp", "lamps", "the lights"})
+
+
+def near_miss(names, spoken):
+    """Entities for a near-miss spoken name, or None when it isn't one clear match.
+
+    Tries: without "the", singular/plural ("kitchen spot" -> "kitchen spots"),
+    a missing or extra "light"/"lamp", then a close spelling (ratio >= 0.86)
+    that must beat the runner-up clearly. Never guesses between two devices.
+    """
+    from difflib import SequenceMatcher
+    key = " ".join(str(spoken or "").casefold().split()).removeprefix("the ")
+    if not key or key in _GENERIC or len(key) < 3:
+        return None
+    variants = [key, key + "s", key[:-1] if key.endswith("s") else key,
+                key + " light", key + " lights", key + " lamp"]
+    for suffix in (" lights", " light", " lamps", " lamp"):
+        if key.endswith(suffix) and len(key) > len(suffix) + 2:
+            variants.append(key[:-len(suffix)])
+    for variant in variants:
+        if variant in names and variant != key:
+            return set(names[variant])
+    scored = sorted(((SequenceMatcher(None, key, candidate).ratio(), candidate) for candidate in names
+                     if "." not in candidate), reverse=True)
+    if not scored or scored[0][0] < 0.86:
+        return None
+    best = scored[0]
+    rivals = [candidate for score, candidate in scored[1:] if best[0] - score < 0.05
+              and names[candidate] != names[best[1]]]
+    return None if rivals else set(names[best[1]])
+
+
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
                action_results=None, origin_device=None, connect, inventory_reader, inventory_module, entities, sass, areas_reader, switch_dispatch, intents, evidence_factory, append_evidence, clock, sleeper, request_factory):
     """Resolve Home Assistant lights before dispatch and verify their reported states."""
@@ -121,7 +153,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             if recovered in {"lights", "all lights"} or recovered == name == "some lights":
                 room_targets.add(target)
                 return local_members
-            return (matches or set()) & local_members
+            return (matches or near_miss(names, recovered) or set()) & local_members
         if not use_area:
             return matches
 
@@ -151,21 +183,26 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             area = max((label for label in areas if recovered.startswith(label + " ")),
                        key=len, default=None)
             if area is None:
-                return None
+                # Last resort: a near-miss device name, never a room ("office" stays the room).
+                if re.sub(r" (?:lights?|lamps?)$", "", recovered) in areas:
+                    return None
+                return near_miss(names, recovered)
             bare_name = recovered[len(area) + 1:]
         if bare_name in {"lights", "all lights"}:
             members = (lights.keys() & areas[area]) - light_groups
             if members:
                 room_targets.add(target)
             return members
-        candidates = names.get(bare_name, set())
+        candidates = names.get(bare_name) or near_miss(names, bare_name) or set()
         in_area = candidates & areas[area]
         if in_area:
             return in_area
         # A unique light with no registered area can still have a spoken room qualifier.
         if len(candidates) == 1 and not any(candidates & entities for entities in areas.values()):
             return candidates
-        return None
+        # "kitchen spot" for "Kitchen Spots": a near miss on the full name, inside that room only.
+        near = near_miss(names, recovered)
+        return (near & areas[area]) or None if near else None
 
     # Prefer a full name, including names that contain "and".
     targets = [name] if name.startswith("everything except ") or resolve(name, desired_state) else re.split(
