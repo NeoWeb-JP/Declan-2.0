@@ -1,4 +1,5 @@
 """Assist capture arbitration and duplicate HTTP response handling."""
+from declan.voice import speaker_settings
 
 
 def trusted_speaker_name(speaker):
@@ -6,7 +7,7 @@ def trusted_speaker_name(speaker):
     if (
         isinstance(speaker, dict)
         and type(speaker.get("confidence")) in (int, float)
-        and speaker["confidence"] >= 0.85
+        and speaker["confidence"] >= speaker_settings.threshold()
         and isinstance(speaker.get("name"), str)
     ):
         return speaker["name"]

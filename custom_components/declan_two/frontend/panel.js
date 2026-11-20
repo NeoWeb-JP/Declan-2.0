@@ -249,6 +249,16 @@ class DeclanTwoNativePanel extends HTMLElement {
         @media(max-width:800px) { .menu {display:inline-flex;} .wrap {padding:12px 12px 40px;} }
       
         /* AI Settings use the same cards, spacing and form controls as other native Settings. */
+        .understanding { display:grid; gap:10px; margin:0 0 18px; padding:14px; border:1px solid rgba(100,200,233,.25); border-radius:12px; min-width:0; }
+        .understanding h3 { margin:0; font-size:1rem; color:#e7f7ff; }
+        .understanding p { margin:0; line-height:1.5; overflow-wrap:anywhere; }
+        .understanding ol { margin:0; padding-left:22px; display:grid; gap:4px; }
+        .understanding li { overflow-wrap:anywhere; }
+        .understanding .understanding-headline { font-size:1.05rem; font-weight:650; color:#c7e6f3; }
+        .speaker-settings-form { display:grid; gap:10px; min-width:0; margin-top:14px; }
+        .speaker-settings-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
+        .speaker-settings-form input { max-width:140px; min-height:40px; }
+        .speaker-settings-form button { justify-self:start; min-height:44px; }
         .music-settings-form { display:grid; gap:12px; min-width:0; }
         .music-settings-form .music-toggle { display:flex; align-items:center; gap:10px; min-width:0; line-height:1.45; color:#c7e6f3; font-weight:650; }
         .music-settings-form input[type=checkbox] { width:18px; height:18px; flex:0 0 18px; margin:0; accent-color:#64c8e9; }
@@ -311,6 +321,13 @@ class DeclanTwoNativePanel extends HTMLElement {
         </section>
         <section class="card panel" id="panel-conversations" role="region" aria-label="Declan page" hidden>
           <h2>Chat History &amp; Voice Recognition</h2>
+          <div class="understanding" aria-label="How well Declan understood requests">
+            <h3>Understanding</h3>
+            <p class="understanding-headline" role="status" aria-live="polite">Open History to load the last four weeks.</p>
+            <p class="understanding-weeks muted"></p>
+            <div class="understanding-phrases"></div>
+            <p class="understanding-speaker muted"></p>
+          </div>
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh recordings</button></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load the last seven days of recordings.</p>
           <div class="timeline-list" aria-label="Voice recording review"></div>
@@ -392,6 +409,12 @@ class DeclanTwoNativePanel extends HTMLElement {
               <div class="settings-section-content">
                 <div class="settings-subsection"><h3>Voice profiles</h3><p class="muted">Manage speakers and review their recognition records.</p>
                   <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
+                  <form class="speaker-settings-form">
+                    <label>Recognised-speaker threshold (%)<input name="threshold" type="number" min="30" max="99" step="1" inputmode="numeric" required></label>
+                    <p class="muted">A voice match at or above this confidence counts as that person in History and when two satellites hear the same request. Compare it with each speaker's average confidence above. Sensitive routine confirmations always need 85%, whatever this is set to.</p>
+                    <button type="submit">Save threshold</button>
+                    <p class="speaker-settings-status muted" role="status" aria-live="polite"></p>
+                  </form>
                 </div>
               </div>
             </details>
@@ -491,6 +514,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
       this.bindPanelEvent('.mic-stop', 'click', () => this._micFollowUp ? this.cancelMicrophone() : this.stopMicrophone());
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
+      this.bindPanelEvent('.speaker-settings-form', 'submit', event => {
+        event.preventDefault(); void this.saveSpeakerSettings();
+      });
       this.bindPanelEvent('.music-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveMusicSettings();
       });
@@ -526,7 +552,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         event.preventDefault();
         void this.sendChat();
       });
-      this.bindPanelEvent('.timeline-refresh', 'click', () => this.loadTimeline());
+      this.bindPanelEvent('.timeline-refresh', 'click', () => { void this.loadTimeline(); void this.loadUnderstanding(); });
       this.bindPanelEvent('.voices-refresh', 'click', () => this.loadVoices());
 
       this.bindPanelEvent('.settings-section--playlists', 'toggle', event => {
@@ -642,10 +668,11 @@ class DeclanTwoNativePanel extends HTMLElement {
       panel.hidden = panel.id !== 'panel-' + name;
     });
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
+    if (name === 'conversations') void this.loadUnderstanding();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'audit') void this.loadHAAudit();
     if (name === 'responses' && !this._responseRoutinesLoaded) void this.loadResponseRoutines();
-    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadMusicSettings(); if (!this._voicesLoaded) void this.loadVoices(); }
+    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
@@ -2151,6 +2178,85 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'AI settings saved.';
     } catch {
       status.textContent = 'Could not save AI settings. Check model prices, lifecycle, budget and permissions.';
+    }
+  }
+
+  async loadUnderstanding() {
+    if (this._understandingPending || !this._hass || typeof this._hass.callApi !== 'function') return;
+    this._understandingPending = true;
+    const root = this.shadowRoot;
+    const headline = root.querySelector('.understanding-headline');
+    const weeksLine = root.querySelector('.understanding-weeks');
+    const phrases = root.querySelector('.understanding-phrases');
+    const speakerLine = root.querySelector('.understanding-speaker');
+    const percent = value => Number.isFinite(value) ? Math.round(value * 100) + '%' : 'n/a';
+    headline.textContent = 'Loading…';
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/history?quality=1');
+      if (!data || !Array.isArray(data.weeks) || !data.weeks.length || !data.speaker) throw new Error('Invalid summary');
+      const week = data.weeks[0];
+      headline.textContent = week.turns
+        ? 'Last 7 days: ' + week.not_understood + ' of ' + week.turns + ' requests not understood (' + percent(week.rate) + ').'
+        : 'Last 7 days: no spoken or typed requests saved.';
+      const earlier = data.weeks.slice(1).map((item, index) =>
+        (index + 1) + ' week' + (index ? 's' : '') + ' before: ' + (item.turns ? percent(item.rate) + ' of ' + item.turns : 'none'));
+      weeksLine.textContent = earlier.length ? 'Earlier: ' + earlier.join(' · ') + '. History keeps up to 30 days.' : '';
+      phrases.replaceChildren();
+      if (data.top_not_understood.length) {
+        const label = document.createElement('p');
+        label.className = 'muted';
+        label.textContent = 'Most-missed phrases this week (use Teach Declan in the conversation list to fix one):';
+        const list = document.createElement('ol');
+        for (const item of data.top_not_understood) {
+          const entry = document.createElement('li');
+          entry.textContent = '"' + item.phrase + '" × ' + item.count + (item.learned ? ' (now learned)' : '');
+          list.append(entry);
+        }
+        phrases.append(label, list);
+      }
+      const speaker = data.speaker;
+      speakerLine.textContent = speaker.samples
+        ? 'Speaker ID this week: median confidence ' + percent(speaker.median_confidence) + ', highest ' + percent(speaker.highest_confidence) +
+          '. ' + percent(speaker.recognised_share) + ' of ' + speaker.samples + ' satellite requests reached the ' + percent(speaker.threshold) + ' recognised-speaker threshold.'
+        : 'Speaker ID this week: no satellite requests carried a speaker match.';
+    } catch {
+      headline.textContent = 'Could not load the understanding summary.';
+      weeksLine.textContent = ''; speakerLine.textContent = ''; phrases.replaceChildren();
+    } finally {
+      this._understandingPending = false;
+    }
+  }
+
+  async loadSpeakerSettings() {
+    if (!this._hass) return;
+    const form = this.shadowRoot.querySelector('.speaker-settings-form');
+    const status = this.shadowRoot.querySelector('.speaker-settings-status');
+    status.textContent = 'Loading speaker threshold…';
+    try {
+      const response = await this._hass.callApi('GET', 'declan_two/speaker-settings');
+      form.elements.namedItem('threshold').value = Math.round(response.threshold * 100);
+      this._speakerSettingsLoaded = true;
+      status.textContent = response.source === 'saved' ? 'Saved here.' : response.source === 'environment'
+        ? 'From declan.env until saved here.' : 'Default (' + Math.round(response.default * 100) + '%).';
+    } catch {
+      this._speakerSettingsLoaded = false;
+      status.textContent = 'Could not load the speaker threshold. Changes are not saved.';
+    }
+  }
+
+  async saveSpeakerSettings() {
+    const form = this.shadowRoot.querySelector('.speaker-settings-form');
+    const status = this.shadowRoot.querySelector('.speaker-settings-status');
+    if (!this._speakerSettingsLoaded) { status.textContent = 'Load settings before saving.'; return; }
+    const value = Number(form.elements.namedItem('threshold').value);
+    if (!Number.isInteger(value) || value < 30 || value > 99) { status.textContent = 'Enter a whole number from 30 to 99.'; return; }
+    status.textContent = 'Saving…';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/speaker-settings', {settings: {threshold: value / 100}});
+      form.elements.namedItem('threshold').value = Math.round(response.threshold * 100);
+      status.textContent = 'Saved. It applies to the next request.';
+    } catch {
+      status.textContent = 'Could not save the speaker threshold.';
     }
   }
 

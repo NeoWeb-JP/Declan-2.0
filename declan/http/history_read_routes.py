@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 
 def handles(path):
     return (path == "/api/history/export"
+            or path == "/api/history/quality"
             or path.startswith("/api/history/recording-links?")
             or path == "/api/history"
             or path.startswith("/api/history?"))
@@ -23,6 +24,17 @@ def dispatch(handler, *, history):
             200, json.dumps({"turns": list(reversed(turns))}, ensure_ascii=False).encode("utf-8"),
             "application/json", "declan-conversation-history.json",
         )
+    elif path == "/api/history/quality":
+        from declan.core import understanding_quality
+        from declan.turn.command_vocabulary import UNMATCHED_REPLY
+        from declan.voice import speaker_settings
+        try:
+            handler.send_json(200, understanding_quality.summary(
+                unmatched_reply=UNMATCHED_REPLY,
+                speaker_threshold=speaker_settings.threshold(),
+            ))
+        except (OSError, sqlite3.Error, ValueError):
+            handler.send_json(503, {"error": "Understanding summary is unavailable."})
     elif path.startswith("/api/history/recording-links?"):
         try:
             params = parse_qs(urlsplit(path).query)

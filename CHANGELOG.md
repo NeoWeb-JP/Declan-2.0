@@ -4,6 +4,8 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- History: new **Understanding** card (VOI-12). It shows how many spoken or typed requests got the "say it another way" reply in the last 7 days and the three weeks before, the most-missed phrases (marked when since learned), and this week's speaker-ID confidence against the recognised-speaker threshold.
+- Voice: the recognised-speaker threshold (VOI-08, default 85%) is now a setting in **Settings → Voice & learning** or `DECLAN_SPEAKER_THRESHOLD`. It controls History speaker labels and duplicate-capture arbitration. Sensitive routine confirmations keep their fixed 85% floor.
 - **Fix (data):** 2.13.0 and 2.13.1-rc1 stored the conversations and diagnostics databases inside the release folder (`declan/core/.data`) instead of the shared `.data`, so learned phrases, history, server settings, routines, custom responses and AI settings appeared reset, and changes made on 2.13 would be lost on the next update. Paths are fixed. On first start Declan merges what was done on 2.13 (learned phrases, history, AI spend) back into the shared database and keeps the release-local file as `*.merged-<timestamp>`. Settings changed on 2.13 are not merged automatically; the log lists them.
 - Settings: new **Music behaviour** card for reply-first playback and Music Assistant search, so neither needs `declan.env`. A saved value wins; until then the environment variable (or default) applies.
 - Music: reply-first playback is now on by default, so "play …" is answered as soon as Home Assistant accepts it and verified in the background. Set `DECLAN_MUSIC_REPLY_FIRST=0` to restore the slower verified-first reply.

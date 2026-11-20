@@ -38,7 +38,7 @@ class SettingsReadTests(unittest.TestCase):
         return h
 
     def test_allowlist_and_delegation(self):
-        self.assertEqual(len(settings_read_routes.ROUTES), 9)
+        self.assertEqual(len(settings_read_routes.ROUTES), 10)
         self.assertFalse(settings_read_routes.handles("/api/settings/import"))
         with self.assertRaises(ValueError):
             self.run_route("/api/settings/import")

@@ -23,6 +23,8 @@ class DeclanHistoryView(HomeAssistantView):
         entries = hass.config_entries.async_entries("declan_two")
         if len(entries) != 1:
             return web.json_response({"status": "not_configured"}, status=503)
+        if request.query.get("quality") == "1":
+            return await self._quality(hass, entries[0])
         recording_ids = request.query.get("recording_ids")
         if recording_ids is not None:
             identifiers = recording_ids.split(",")
@@ -100,4 +102,46 @@ class DeclanHistoryView(HomeAssistantView):
                 }, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
             _LOGGER.debug("Declan history proxy request failed")
+            return web.json_response({"status": "backend_unavailable"}, status=502)
+
+    async def _quality(self, hass, entry):
+        """VOI-12 summary: counts, rates and phrases only; never raw turns."""
+        def number(value, *, ratio=False):
+            if type(value) not in (int, float) or value != value or value < 0:
+                return None
+            return min(float(value), 1.0) if ratio else int(value)
+        try:
+            async with async_get_clientsession(hass).get(
+                entry.data["url"] + "/api/history/quality",
+                headers={"Authorization": f"Bearer {entry.data['token']}"},
+                timeout=aiohttp.ClientTimeout(total=8),
+                allow_redirects=False,
+            ) as response:
+                if response.status != 200:
+                    return web.json_response({"status": "backend_unavailable"}, status=502)
+                payload = await response.json(content_type="application/json")
+                if (not isinstance(payload, dict) or not isinstance(payload.get("weeks"), list)
+                        or not isinstance(payload.get("speaker"), dict)):
+                    raise ValueError("Invalid quality payload")
+                weeks = [{"turns": number(item.get("turns")) or 0,
+                          "not_understood": number(item.get("not_understood")) or 0,
+                          "rate": number(item.get("rate"), ratio=True)}
+                         for item in payload["weeks"][:5] if isinstance(item, dict)]
+                phrases = [{"phrase": str(item.get("phrase") or "")[:120],
+                            "count": number(item.get("count")) or 0,
+                            "learned": item.get("learned") is True}
+                           for item in (payload.get("top_not_understood") or [])[:10] if isinstance(item, dict)]
+                speaker = payload["speaker"]
+                return web.json_response({
+                    "weeks": weeks,
+                    "top_not_understood": phrases,
+                    "speaker": {
+                        "threshold": number(speaker.get("threshold"), ratio=True),
+                        "samples": number(speaker.get("samples")) or 0,
+                        "median_confidence": number(speaker.get("median_confidence"), ratio=True),
+                        "highest_confidence": number(speaker.get("highest_confidence"), ratio=True),
+                        "recognised_share": number(speaker.get("recognised_share"), ratio=True),
+                    },
+                }, headers={"Cache-Control": "no-store"})
+        except (aiohttp.ClientError, TimeoutError, ValueError, TypeError, AttributeError):
             return web.json_response({"status": "backend_unavailable"}, status=502)
