@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Near-miss light names** now work without the AI: "kitchen spot" (Kitchen Spots), "the bedroom lamps", "office lamp light" or a slight mishearing like "studdy light" turn on the one clearly matching light. If two lights are equally close ("lounge lamp" with a floor and a table lamp), Declan doesn't guess, and Conversation can ask which. Room names still mean the whole room.
 - **Better hearing (opt-in):** a new integration option, *Use my Home Assistant names as vocabulary*, gives OpenAI speech-to-text your room names and the names of devices shared with Assist (plus "Howzit Declan" and "my bru"), so names are misheard less. It's capped at 40 names, refreshed every 10 minutes, and off by default because these names are sent to OpenAI. The extra-words vocabulary field now has a proper label.
 - **Free local help:** "what can you do?", "which lights are in here?" / "what lights are in the kitchen?", "what routines are there?", "what rooms do you know?" and "where can you play music?" are answered from Home Assistant data, with no AI and with Conversation on or off.
 - New household guide, **[Talking to Declan](docs/talking-to-declan.md)**, linked from the README and from Settings → AI Intelligence → Conversation.
