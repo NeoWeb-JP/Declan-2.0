@@ -149,11 +149,10 @@ def learned_intents():
 LEARNED_SOURCES = frozenset({"history", "recording", "retry", "edited", "imported"})
 
 
-def _record_provenance(connection, phrase, source, *, only_if_new=False):
+def _record_provenance(connection, phrase, source):
     connection.execute(
         "INSERT INTO learned_intent_provenance(phrase, trained_at, source) VALUES (?, ?, ?) "
-        + ("ON CONFLICT(phrase) DO NOTHING" if only_if_new else
-           "ON CONFLICT(phrase) DO UPDATE SET trained_at = excluded.trained_at, source = excluded.source"),
+        "ON CONFLICT(phrase) DO UPDATE SET trained_at = excluded.trained_at, source = excluded.source",
         (phrase, time(), source))
 
 
