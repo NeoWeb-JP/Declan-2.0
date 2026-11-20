@@ -9,6 +9,7 @@ This file records significant repository changes. Historical releases are availa
   - Music, routines and timers become normal Declan commands, re-checked by the local parsers. Sensitive routines still need a spoken yes, and garage/gate covers stay blocked.
   - If a device isn't confirmed, the reply says so instead of using the AI's wording.
   - Exact commands stay local and instant. When Conversation is off or unavailable, behaviour is unchanged.
+  - To keep spend down, replies are one short sentence where possible. General-knowledge questions ("where is Peru?") get a one-sentence answer and are sent without any house context (no device, room or routine lists).
   - It replaces the separate general chat setting from earlier in this release, keeping the same switch and budget (now defaulting to $20 a month). The AI monthly budget default is now $20 for new installs.
 - TV control: `media_player` turn on/off is now an allowed, verified action (any active state counts as on; off or standby counts as off).
 - Voice (#373): optional **voice command style** in Settings → Voice & learning: any wording (default), must start with a question ("can you…", "could you…", "would you (mind)…", "will you…"), must end with "my bru", or either. It applies to satellites and Echo Shows only. A command in another style is ignored silently: nothing runs, Declan stops listening, and History records it as `ignored`. Stop, cancel, yes/no, real questions and replies to Declan's own questions always work. Also `DECLAN_COMMAND_STYLE`.

@@ -65,6 +65,33 @@ class ContextAndSchemaTests(unittest.TestCase):
         self.assertNotIn("tools", body)
 
 
+class SpendTests(unittest.TestCase):
+    def test_general_questions_send_no_house_context(self):
+        many = [{"entity_id": f"light.lamp_{i}", "state": "off", "declan_area": "Lounge",
+                 "attributes": {"friendly_name": f"Lamp {i}"}} for i in range(100)]
+        slim, permitted = agent.build_context("Where is Peru?", you_are_in="Lounge", dialogue=[], devices=many,
+                                              areas={"Lounge"}, music_rooms={"kitchen"}, routines=ROUTINES)
+        self.assertEqual((slim["devices"], slim["rooms"], slim["routines"], permitted), ([], [], [], {}))
+        full, _ = agent.build_context("it's dark in here", you_are_in="Lounge", dialogue=[], devices=many,
+                                      areas={"Lounge"}, music_rooms={"kitchen"}, routines=ROUTINES)
+        slim_body = agent.request_body(slim, {}, model="m", profile={})
+        full_body = agent.request_body(full, {"light.lamp_0": many[0]}, model="m", profile={})
+        self.assertLess(len(json.dumps(slim_body)) * 3, len(json.dumps(full_body)))
+        self.assertLessEqual(slim_body["max_output_tokens"], 800)
+
+    def test_house_questions_and_follow_ups_keep_context(self):
+        for text in ("what can you do", "is the office light on", "is movie time running", "what's playing"):
+            with self.subTest(text=text):
+                self.assertFalse(agent.is_general_question(text, names=["Office", "movie time"]))
+        payload, _ = agent.build_context("where is peru", you_are_in="Office",
+                                         dialogue=[{"who": "declan", "text": "Spots or pendant?"}],
+                                         devices=DEVICES, areas={"Office"}, music_rooms=set(), routines=set())
+        self.assertTrue(payload["devices"])
+
+    def test_answers_are_asked_to_be_short(self):
+        self.assertIn("ONE short sentence, under 20 words", agent.INSTRUCTIONS)
+
+
 class DecisionValidationTests(unittest.TestCase):
     def parse(self, raw):
         _, permitted = context()
