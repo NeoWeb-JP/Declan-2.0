@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- History → Understanding now shows **Conversation this week**: how many requests reached the conversation agent, how many it acted on, asked about, answered or failed, how many were general questions, the cost, and the typical AI reply time. Each agent turn also adds a `conversation_agent` stage (kind, model time, cost, device count) to the request's diagnostics trace. No text or names are stored.
 - **Volume:** "turn it up/down", "louder", "quieter", "volume up", "turn the music down in the kitchen", "set the volume to 30 percent" and "volume 40" now work. Volume changes go to the speaker in your room (or the named room / Everywhere), in steps of 10%, and the new level is checked and spoken. A speaker that doesn't report its level is asked to step up/down instead.
 - **Brightness:** more ways to say a percentage: "turn the kitchen lights to 40%", "put the lamp at 30 percent", "kitchen lights 50 percent", "set the brightness in the office to 70%", and "lights to 30 percent in here" (uses your room). The conversation agent can use brightness and volume too.
 - Confirmations: **Good Night no longer asks for a spoken yes.** By default only homelab, server, camera/CCTV, security and alarm routines (and guest assignment) need confirming; a security *light* is just a light. Change it with `DECLAN_SENSITIVE_ROUTINES` (default `guest,security`); a routine's saved confirmation setting still wins.

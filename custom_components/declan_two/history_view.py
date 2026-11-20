@@ -132,7 +132,15 @@ class DeclanHistoryView(HomeAssistantView):
                             "learned": item.get("learned") is True}
                            for item in (payload.get("top_not_understood") or [])[:10] if isinstance(item, dict)]
                 speaker = payload["speaker"]
+                raw_conversation = payload.get("conversation")
+                conversation = None
+                if isinstance(raw_conversation, dict):
+                    conversation = {key: number(raw_conversation.get(key)) or 0
+                                    for key in ("turns", "act", "ask", "answer", "failed",
+                                                "general_questions", "spent_micro_usd")}
+                    conversation["median_ms"] = number(raw_conversation.get("median_ms"))
                 return web.json_response({
+                    "conversation": conversation,
                     "weeks": weeks,
                     "top_not_understood": phrases,
                     "speaker": {

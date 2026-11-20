@@ -118,10 +118,12 @@ def _send(body, *, key, opener):
     return json.loads(raw)
 
 
-def call(body, *, config, settings=None, opener=None, database=None, now=None):
+def call(body, *, config, settings=None, opener=None, database=None, now=None, usage=None):
     """Send one Responses request within both budgets; return the output text.
 
-    Raises ModelUnavailable when it cannot or did not get a usable reply.
+    Raises ModelUnavailable when it cannot or did not get a usable reply. When
+    a request was sent, ``usage`` (a dict, if given) receives the settled
+    charge in micro-USD and the round-trip time in milliseconds.
     """
     settings = settings or read()
     if not settings["enabled"]:
@@ -142,6 +144,7 @@ def call(body, *, config, settings=None, opener=None, database=None, now=None):
         except ai_budget.BudgetExhausted:
             raise ModelUnavailable("Monthly AI budget reached") from None
         charged, text, failure = ceiling, None, None
+        started = monotonic()
         try:
             result = _send(body, key=config["key"], opener=opener)
             try:
@@ -161,6 +164,8 @@ def call(body, *, config, settings=None, opener=None, database=None, now=None):
             failure = f"HTTP {error.code}"
         except (OSError, URLError, ValueError, TypeError, KeyError, AttributeError) as error:
             failure = type(error).__name__
+        if usage is not None:
+            usage.update(charged=charged, duration_ms=round((monotonic() - started) * 1000))
         try:
             ai_budget.settle(db, reservation, charged)
             _add_spend(db, charged, now)
@@ -181,3 +186,35 @@ def listing(path=None, database=None):
     except (OSError, sqlite3.Error):
         spent = None
     return {"settings": settings, "month_spent_micro_usd": spent}
+
+
+LOG_KINDS = frozenset({"act", "ask", "answer", "failed"})
+LOG_DAYS = 35
+
+
+def log_turn(kind, *, charged, duration_ms, general, database=None, now=None):
+    """Record one agent turn for the Understanding card (no text, no names)."""
+    if kind not in LOG_KINDS:
+        return
+    stamp = (now or datetime.now(timezone.utc)).timestamp()
+    try:
+        with (database or history.database)() as db:
+            db.execute("CREATE TABLE IF NOT EXISTS conversation_log (created_at REAL NOT NULL, kind TEXT NOT NULL, "
+                       "spent INTEGER NOT NULL, duration_ms INTEGER NOT NULL, general INTEGER NOT NULL)")
+            db.execute("DELETE FROM conversation_log WHERE created_at < ?", (stamp - LOG_DAYS * 86400,))
+            db.execute("INSERT INTO conversation_log VALUES (?, ?, ?, ?, ?)",
+                       (stamp, kind, int(charged or 0), int(duration_ms or 0), 1 if general else 0))
+    except (OSError, sqlite3.Error):
+        LOGGER.warning("Could not record the conversation turn")
+
+
+def week_summary(db, *, now):
+    """Agent turns, kinds, spend and typical time over the seven days before ``now`` (epoch)."""
+    exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='conversation_log'").fetchone()
+    rows = db.execute("SELECT kind, spent, duration_ms, general FROM conversation_log WHERE created_at BETWEEN ? AND ?",
+                      (now - 7 * 86400, now)).fetchall() if exists else []
+    kinds = {kind: sum(1 for row in rows if row[0] == kind) for kind in sorted(LOG_KINDS)}
+    durations = sorted(row[2] for row in rows if row[0] != "failed")
+    return {"turns": len(rows), **kinds, "general_questions": sum(1 for row in rows if row[3]),
+            "spent_micro_usd": sum(row[1] for row in rows),
+            "median_ms": durations[len(durations) // 2] if durations else None}

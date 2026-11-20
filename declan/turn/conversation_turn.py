@@ -20,6 +20,7 @@ from threading import Lock
 from time import monotonic
 
 from declan.ai import conversation_agent, general_chat
+from declan.core import diagnostics
 from declan.core.execution_results import Outcome
 
 LOGGER = logging.getLogger(__name__)
@@ -141,12 +142,26 @@ def decide(message, context, *, session_id, scope, checks, settings=None, config
     config = config or general_chat.model_config()
     body = conversation_agent.request_body(payload, permitted, model=config["model"],
                                            profile=config["profile"])
-    text = general_chat.call(body, config=config, settings=settings, opener=opener, database=database)
+    general = not payload["devices"] and not payload["routines"] and not payload["conversation"]
+    usage: dict = {}
+    started = monotonic()
+
+    def log(kind):
+        if usage:  # Only turns that actually reached the model are logged.
+            general_chat.log_turn(kind, charged=usage.get("charged"), duration_ms=usage.get("duration_ms"),
+                                  general=general, database=database)
+            diagnostics.record("conversation_agent", started, kind=kind, general=general,
+                               model_ms=usage.get("duration_ms"), spent_micro_usd=usage.get("charged"),
+                               devices=len(payload["devices"]))
     try:
+        text = general_chat.call(body, config=config, settings=settings, opener=opener, database=database,
+                                 usage=usage)
         raw = json.loads(text)
-    except ValueError:
-        raise general_chat.ModelUnavailable("Model reply was not JSON") from None
-    decision = conversation_agent.parse_decision(raw, permitted, routines=context["routines"], checks=checks)
+        decision = conversation_agent.parse_decision(raw, permitted, routines=context["routines"], checks=checks)
+    except (general_chat.ModelUnavailable, ValueError, TypeError, KeyError):
+        log("failed")
+        raise
+    log(decision.kind)
     if decision.rejected:
         LOGGER.info("Conversation agent: %d proposal(s) rejected by validation", len(decision.rejected))
     return decision, permitted
