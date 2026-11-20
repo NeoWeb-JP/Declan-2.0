@@ -56,6 +56,18 @@ class TurnHTTPEntryTests(unittest.TestCase):
         self.assertEqual(result.reply, "Switch Conversation on.")
         self.r.conversation_turn.needs_conversation.assert_called_once_with("hello", self.r.CHAT_COMMANDS)
 
+    def test_time_question_with_conversation_on_stays_local(self):
+        self.r.local_help.match.return_value = None
+        self.r.conversation_turn.needs_agent.return_value = True
+        self.r.conversation_turn.prefers_agent.return_value = False
+        self.r.conversation_turn.is_chat_command.return_value = True
+        self.r.turn_dispatch_orchestration.dispatch.return_value = None
+        with patch("declan.ai.general_chat.enabled", return_value=True), \
+                patch("declan.turn.conversation_entry.run") as agent:
+            turn_http_entry.handle_post(self.handler, services=self.r)
+        agent.assert_not_called()
+        self.r.conversation_turn.is_chat_command.assert_called_once_with("hello", self.r.CHAT_COMMANDS)
+
 
 if __name__ == "__main__":
     unittest.main()

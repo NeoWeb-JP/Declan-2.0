@@ -62,7 +62,10 @@ def handle_post(handler, *, services):
         dispatch_result = conversation_entry._result_factory(
             conversation_turn.CONVERSATION_OFF_REPLY, Outcome.UNRESOLVED)
     agent_turn = None
-    if help_request is None and agent_on and conversation_turn.needs_agent(dispatch_result):
+    # Built-in chat answers (the time, "what's my name") are answered locally below;
+    # the agent has no clock and would only spend money saying so.
+    local_chat = conversation_turn.is_chat_command(effective_message, services.CHAT_COMMANDS)
+    if help_request is None and agent_on and not local_chat and conversation_turn.needs_agent(dispatch_result):
         from declan.turn import conversation_entry
         agent_turn = conversation_entry.run(
             handler, body, message=message, session_id=session_id, source=source,

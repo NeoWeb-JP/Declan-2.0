@@ -1,4 +1,5 @@
 """Regression coverage for the bounded native Declan log feed."""
+import io
 import logging
 import unittest
 from unittest.mock import patch
@@ -77,6 +78,27 @@ class DeclanLogTests(unittest.TestCase):
         declan_logs.install()
         self.assertEqual(sum(isinstance(h, declan_logs._Capture)
                              for h in logging.getLogger().handlers), 1)
+
+    def test_install_also_sends_declan_warnings_to_the_journal(self):
+        self.assertEqual(sum(isinstance(h, declan_logs._Journal)
+                             for h in logging.getLogger().handlers), 1)
+        stream = io.StringIO()
+        handler = declan_logs._Journal(stream)
+        logger = logging.getLogger("declan.ai.ai_fallback_dispatch")
+        logger.addHandler(handler)
+        try:
+            logger.warning("AI fallback stopped before changing devices: api_key=sk-secret")
+            logger.info("routine detail")
+            logging.getLogger("unrelated_integration").addHandler(handler)
+            logging.getLogger("unrelated_integration").warning("noise")
+        finally:
+            logger.removeHandler(handler)
+            logging.getLogger("unrelated_integration").removeHandler(handler)
+        output = stream.getvalue()
+        self.assertIn("WARNING declan.ai.ai_fallback_dispatch: AI fallback stopped", output)
+        self.assertNotIn("sk-secret", output)
+        self.assertNotIn("routine detail", output)
+        self.assertNotIn("noise", output)
 
 
 if __name__ == "__main__":

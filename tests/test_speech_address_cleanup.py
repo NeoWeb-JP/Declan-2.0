@@ -61,6 +61,12 @@ class ConversationOffTests(unittest.TestCase):
             with self.subTest(message=message):
                 self.assertFalse(conversation_turn.needs_conversation(message, CHAT_COMMANDS))
 
+    def test_time_questions_are_built_in_chat_commands(self):
+        for message in ("What was the time?", "what time was it", "What's the time"):
+            with self.subTest(message=message):
+                self.assertTrue(conversation_turn.is_chat_command(message, CHAT_COMMANDS))
+        self.assertFalse(conversation_turn.is_chat_command("where is south africa", CHAT_COMMANDS))
+
     def test_reply_says_how_to_switch_it_on(self):
         self.assertIn("Let Declan understand everyday speech", conversation_turn.CONVERSATION_OFF_REPLY)
 

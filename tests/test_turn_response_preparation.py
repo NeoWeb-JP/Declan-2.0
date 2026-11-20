@@ -44,6 +44,18 @@ class ResponsePreparationTests(unittest.TestCase):
             result = stage.prepare("Time?!", **self.kwargs)
         self.assertEqual(result.information_context, ("time", None, None))
 
+    def test_time_question_never_goes_to_the_ai_planner(self):
+        self.kwargs["routine_reply"] = None
+        planner_reply = SimpleNamespace(reply="Nothing to do.", outcome="unresolved")
+        with patch.object(stage.fallback_orchestration, "resolve_fallback_result",
+                          return_value=planner_reply) as fallback, patch.object(
+            stage.response_persona_context, "resolve_response_persona", return_value=(False, False, "Home"),
+        ):
+            result = stage.prepare("Time?", **self.kwargs)
+        fallback.assert_not_called()
+        self.assertIsNone(result.reply)
+        self.assertEqual(result.information_context, ("time", None, None))
+
 
 if __name__ == "__main__":
     unittest.main()

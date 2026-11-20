@@ -100,11 +100,15 @@ CONVERSATION_OFF_REPLY = ("I can only answer questions like that with Conversati
                           "Turn on 'Let Declan understand everyday speech' in Declan's settings.")
 
 
+def is_chat_command(message, chat_commands):
+    """True for built-in chat answers such as the time or "what's my name"."""
+    return str(message or "").casefold().strip(" .?!") in chat_commands
+
+
 def needs_conversation(message, chat_commands):
     """A general question no local command answers, so only the agent could."""
     from declan.ai import conversation_agent
-    key = str(message or "").casefold().strip(" .?!")
-    if key in chat_commands:
+    if is_chat_command(message, chat_commands):
         return False
     return conversation_agent.is_general_question(message)
 
