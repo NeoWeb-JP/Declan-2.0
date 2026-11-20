@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -39,6 +40,7 @@ class AgentTurn:
     dispatch_result: object
     follow_up: bool = False
     immediate_reply: dict | None = None  # A confirmation prompt: send it as-is.
+    command_result: object = None  # The single command's own result, for learning.
 
 
 def _key(session_id, scope):
@@ -179,6 +181,7 @@ def execute(decision, permitted, *, connection, dispatch_command, confirm_comman
         outcome = Outcome.UNRESOLVED if decision.kind == "ask" else Outcome.CHAT_ANSWER
         return AgentTurn(result_factory(decision.say, outcome), follow_up=decision.kind == "ask")
     replies, outcomes, results = [], [], []
+    touched_lights: list[str] = []
     if decision.device_actions:
         if connection is None:
             replies.append("Home Assistant is unavailable, so I couldn't change the devices.")
@@ -197,6 +200,11 @@ def execute(decision, permitted, *, connection, dispatch_command, confirm_comman
             else:
                 replies.append(summary.reply)
                 outcomes.append(summary.outcome)
+            if summary is not None:
+                # "Turn them off" / "make them brighter" next: remember confirmed lights.
+                touched_lights = [action.entity_id for action in getattr(summary, "actions", ())
+                                  if getattr(action, "confirmed", False)
+                                  and str(action.entity_id).startswith(("light.", "switch."))]
     for command in decision.commands:
         prompt = confirm_command(command)
         if prompt is not None:
@@ -212,7 +220,11 @@ def execute(decision, permitted, *, connection, dispatch_command, confirm_comman
     reply = " ".join(part.strip() for part in replies if part and part.strip())
     outcome = _combined(outcomes)
     base = next((result for result in results if result is not None), None)
-    return AgentTurn(result_factory(reply, outcome, base=base))
+    single = results[0] if len(results) == 1 and not decision.device_actions else None
+    if touched_lights:
+        return AgentTurn(result_factory(reply, outcome, base=base, lighting_context=tuple(touched_lights)),
+                         command_result=single)
+    return AgentTurn(result_factory(reply, outcome, base=base), command_result=single)
 
 
 def _combined(outcomes):
@@ -224,3 +236,34 @@ def _combined(outcomes):
     good = {Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED, Outcome.REQUESTED,
             Outcome.STARTED, Outcome.TIMER_SET}
     return Outcome.PARTIAL if any(outcome in good for outcome in outcomes) else outcomes[0]
+
+
+_ROOM_DEPENDENT = re.compile(r"\b(?:here|this room|in this|that|it|them|those|these|there)\b")
+LEARN_SUCCESS = frozenset({Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED,
+                           Outcome.REQUESTED, Outcome.STARTED, Outcome.TIMER_SET})
+
+
+def learnable(message, decision, result, *, rooms, vague):
+    """Phrase -> command to remember, or None.
+
+    Only one successful Declan command (no device actions), never for vague or
+    room-dependent wording ("in here", "it", "them"), and only when every room
+    the command names was also said, so "it's dark in here" never becomes
+    "turn on the kitchen lights" for every room.
+    """
+    if decision.kind != "act" or decision.device_actions or len(decision.commands) != 1 or vague:
+        return None
+    if result is None or getattr(result, "outcome", None) not in LEARN_SUCCESS:
+        return None
+    phrase = " ".join(str(message or "").casefold().replace("\u2019", "'").split()).strip(" .!?,")
+    command = decision.commands[0]
+    if not phrase or len(phrase) > 120 or phrase == command or _ROOM_DEPENDENT.search(phrase):
+        return None
+    if command.startswith("run ") or "timer" in command:
+        return None  # Routines and timers are already matched by name; durations vary.
+    for room in rooms:
+        name = " ".join(str(room or "").casefold().split())
+        if name and re.search(r"\b" + re.escape(name) + r"\b", command) and not re.search(
+                r"\b" + re.escape(name) + r"\b", phrase):
+            return None
+    return phrase, command

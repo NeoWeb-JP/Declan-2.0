@@ -109,7 +109,7 @@ class PanelTests(unittest.TestCase):
 
     def test_proxy_passes_only_known_provenance(self):
         source = (ROOT / "custom_components/declan_two/management_view.py").read_text()
-        self.assertIn('{"history", "recording", "retry", "edited", "imported"}', source)
+        self.assertIn('{"history", "recording", "retry", "edited", "imported", "conversation"}', source)
         self.assertIn('"details": details', source)
 
 

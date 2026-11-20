@@ -2930,7 +2930,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (!data?.intents || typeof data.intents !== 'object') throw new Error('Invalid list');
       const details = data.details && typeof data.details === 'object' ? data.details : {};
       const sources = {history:'taught from History', recording:'taught from a recording', retry:'learned from a successful retry',
-                       edited:'edited here', imported:'imported from a settings file'};
+                       edited:'edited here', imported:'imported from a settings file',
+                       conversation:'learned from a conversation'};
       list.replaceChildren();
       for (const [phrase, target] of Object.entries(data.intents).sort(([a], [b]) => a.localeCompare(b))) {
         const row = document.createElement('div');

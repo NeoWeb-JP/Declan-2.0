@@ -246,6 +246,18 @@ class FullTurnTests(unittest.TestCase):
         self.assertEqual(phrases, ["play jazz in the kitchen"])
         self.assertIn("Playing jazz.", result["reply"])
 
+    def test_successful_phrase_is_learned_then_handled_locally(self):
+        self.decide.return_value = (agent.AgentDecision("act", "Jazz.", (), ("play jazz",)), {})
+        with patch("declan.turn.turn_dispatch_orchestration.dispatch") as dispatch:
+            dispatch.side_effect = lambda phrase, **kwargs: conversation_entry._result_factory(
+                "Playing jazz." if phrase == "play jazz" else None, Outcome.REQUESTED if phrase == "play jazz" else None)
+            self.ask("put some jazz on")
+            self.assertEqual(history.learned_intent("put some jazz on"), "play jazz")
+            self.decide.reset_mock()
+            result = self.ask("put some jazz on")
+        self.decide.assert_not_called()  # second time: local, instant, free
+        self.assertIn("Playing jazz.", result["reply"])
+
     def test_agent_unavailable_falls_back_to_the_rephrase_prompt(self):
         self.decide.side_effect = general_chat.ModelUnavailable("off")
         result = self.ask("flux the capacitor")
@@ -260,3 +272,54 @@ class FullTurnTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FollowUpAndLearningTests(unittest.TestCase):
+    def test_confirmed_agent_lights_become_the_follow_up_context(self):
+        from declan.core.execution_results import ActionResult, ActionStatus
+        summary = ExecutionResult("All confirmed", Outcome.CONFIRMED, (
+            ActionResult(0, "light.office", "turn_on", ActionStatus.CONFIRMED),
+            ActionResult(1, "light.hall", "turn_on", ActionStatus.FAILED),
+            ActionResult(2, "media_player.lounge_tv", "turn_on", ActionStatus.CONFIRMED)))
+        decision = agent.AgentDecision("act", "Lights on.", (CandidateAction("light.office", "turn_on"),))
+        captured = {}
+
+        def factory(reply, outcome, base=None, lighting_context=None):
+            captured["lighting_context"] = lighting_context
+            return SimpleNamespace(reply=reply, outcome=outcome)
+        conversation_turn.execute(decision, {}, connection=("u", {}, None), dispatch_command=Mock(),
+                                  confirm_command=lambda command: None,
+                                  run_devices=lambda *args: summary, result_factory=factory)
+        self.assertEqual(captured["lighting_context"], ("light.office",))
+        result = conversation_entry._result_factory("x", Outcome.CONFIRMED, lighting_context=("light.office",))
+        self.assertEqual(result.lighting_context, ("light.office",))
+
+    def learn(self, message, command, *, rooms=frozenset(), outcome=Outcome.CONFIRMED, vague=False, devices=()):
+        decision = agent.AgentDecision("act", "x", tuple(devices), (command,) if command else ())
+        return conversation_turn.learnable(message, decision, SimpleNamespace(outcome=outcome), rooms=rooms, vague=vague)
+
+    def test_learns_only_safe_single_successful_commands(self):
+        self.assertEqual(self.learn("put some jazz on", "play jazz"), ("put some jazz on", "play jazz"))
+        self.assertEqual(self.learn("switch on the lounge lamp please", "turn on the lounge lamp", rooms={"Lounge"}),
+                         ("switch on the lounge lamp please", "turn on the lounge lamp"))
+        for message, command, kwargs in (
+                ("it's dark in here", "turn on the kitchen lights", {"rooms": {"Kitchen"}}),
+                ("switch the lamp on", "turn on the lounge lamp", {"rooms": {"Lounge"}}),  # room not said
+                ("turn them off", "turn off the lounge lamp", {}),
+                ("play something", "play jazz in the kitchen", {"vague": True}),
+                ("put some jazz on", "play jazz", {"outcome": Outcome.FAILED}),
+                ("bedtime", "run good night", {}),
+                ("give me ten minutes", "set a timer for 10 minutes", {}),
+                ("lights please", "turn on the lights", {"devices": (CandidateAction("light.office", "turn_on"),)})):
+            with self.subTest(message=message):
+                self.assertIsNone(self.learn(message, command, **kwargs))
+
+    def test_learned_source_is_shown(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(history, "DATABASE", Path(folder) / "h.db"):
+            history.teach_phrase("put some jazz on", "play jazz", automatic=True, source="conversation")
+            history.teach_phrase("put some jazz on", "play rock", automatic=True, source="conversation")
+            records = {row["phrase"]: row for row in history.learned_intent_records()}
+        self.assertEqual(records["put some jazz on"]["source"], "conversation")
+        self.assertEqual(records["put some jazz on"]["target"], "play jazz")  # never overwritten
+        js = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
+        self.assertIn("conversation:'learned from a conversation'", js)
