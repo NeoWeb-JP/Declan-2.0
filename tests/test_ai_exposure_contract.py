@@ -14,10 +14,48 @@ CHAT = (ROOT / "custom_components/declan_two/chat_view.py").read_text()
 
 
 class AIExposureContractTests(unittest.TestCase):
-    def test_ha_assist_exposure_source(self):
+    def load_exposure(self, helper):
+        import importlib.util
+        import sys
+        from types import ModuleType, SimpleNamespace
+        module = ModuleType("homeassistant.components.homeassistant.exposed_entities")
+        if helper is not None:
+            setattr(module, "async_should_expose", helper)
+        parent = ModuleType("homeassistant.components.homeassistant")
+        setattr(parent, "exposed_entities", module)
+        modules = {"homeassistant": ModuleType("homeassistant"),
+                   "homeassistant.components": ModuleType("homeassistant.components"),
+                   "homeassistant.components.homeassistant": parent,
+                   "homeassistant.components.homeassistant.exposed_entities": module}
+        spec = importlib.util.spec_from_file_location(
+            "ai_exposure_fixture", ROOT / "custom_components/declan_two/ai_exposure.py")
+        assert spec is not None and spec.loader is not None
+        loaded = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(loaded)
+        states = [SimpleNamespace(entity_id=entity) for entity in (
+            "light.kitchen", "light.secret", "media_player.lounge_tv", "lock.front_door", "switch.kettle")]
+        hass = SimpleNamespace(states=SimpleNamespace(async_all=lambda: states))
+        from unittest.mock import patch
+        with patch.dict(sys.modules, modules):
+            return loaded.exposed_for_declan(hass)
+
+    def test_uses_home_assistants_real_exposure_helper(self):
+        # HA exports async_should_expose(hass, assistant, entity_id). The old code
+        # imported a name that doesn't exist, so AI device control was always refused.
+        calls = []
+
+        def async_should_expose(hass, assistant, entity_id):
+            calls.append(assistant)
+            return entity_id != "light.secret"
+        self.assertEqual(self.load_exposure(async_should_expose),
+                         ["light.kitchen", "media_player.lounge_tv", "switch.kettle"])
+        self.assertEqual(set(calls), {"conversation"})
+
+    def test_missing_helper_fails_closed(self):
+        with self.assertLogs(level="WARNING"):
+            self.assertEqual(self.load_exposure(None), [])
         ast.parse(EXPOSURE)
-        self.assertIn('async_get_should_expose(hass, "conversation", entity_id)', EXPOSURE)
-        self.assertIn('return []', EXPOSURE)
+        self.assertNotIn("async_get_should_expose", EXPOSURE)
 
     def test_native_ha_requests_supply_exposure(self):
         self.assertIn('"ai_exposed_entities": exposed_for_declan(self.hass)', AGENT)
