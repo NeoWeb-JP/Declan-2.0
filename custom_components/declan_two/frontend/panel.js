@@ -409,11 +409,11 @@ class DeclanTwoNativePanel extends HTMLElement {
               </form>
               <p class="ai-settings-status muted" role="status" aria-live="polite">Open Settings to load AI configuration.</p><p class="ai-usage muted">Monthly usage unavailable.</p>
               <form class="chat-settings-form">
-                <h3>General chat</h3>
-                <label class="ai-toggle"><input type="checkbox" name="chat_enabled"><span>Answer general questions ("who wrote Dracula?", "tell me a joke")</span></label>
-                <p class="muted">Uses the model and API key above. Answers are short and spoken in Declan's voice. Chat never sees or controls devices. Only questions nothing else answered are sent; device commands still get "say it another way". Each request is limited by the per-request maximum above and also counts towards the monthly AI budget.</p>
-                <label class="ai-field"><span>Monthly chat budget (USD)</span><input name="chat_budget" inputmode="decimal" required></label>
-                <button type="submit">Save chat settings</button>
+                <h3>Conversation</h3>
+                <label class="ai-toggle"><input type="checkbox" name="chat_enabled"><span>Let Declan understand everyday speech</span></label>
+                <p class="muted">When a request isn't an exact command ("it's dark in here", "put some music on", "what can you do?"), Declan works out what you mean using the room you're in, your exposed devices, music rooms and routines. He then acts, asks a short question ("the spots or the pendant?") or answers. Exact commands stay instant and local. Devices change only through the same checks as other commands. Sensitive routines still need a spoken yes, and garage/gate covers stay blocked. Uses the model and API key above; each request counts towards the monthly AI budget and the budget below.</p>
+                <label class="ai-field"><span>Monthly conversation budget (USD)</span><input name="chat_budget" inputmode="decimal" required></label>
+                <button type="submit">Save conversation settings</button>
                 <p class="chat-settings-status muted" role="status" aria-live="polite"></p>
               </form>
               <details class="settings-spotify ai-key-section"><summary>Replace OpenAI API key</summary>
@@ -2359,14 +2359,14 @@ class DeclanTwoNativePanel extends HTMLElement {
 
   chatSettingsSummary(response) {
     const spent = Number.isInteger(response.month_spent_micro_usd) ? '$' + (response.month_spent_micro_usd / 1e6).toFixed(2) : 'unknown';
-    return (response.settings.enabled ? 'On' : 'Off') + '. Chat spend this month: ' + spent + ' of $' + response.settings.monthly_budget_usd + '.';
+    return (response.settings.enabled ? 'On' : 'Off') + '. Conversation spend this month: ' + spent + ' of $' + response.settings.monthly_budget_usd + '.';
   }
 
   async loadChatSettings() {
     if (!this._hass) return;
     const form = this.shadowRoot.querySelector('.chat-settings-form');
     const status = this.shadowRoot.querySelector('.chat-settings-status');
-    status.textContent = 'Loading chat settings…';
+    status.textContent = 'Loading conversation settings…';
     try {
       const response = await this._hass.callApi('GET', 'declan_two/chat-settings');
       form.elements.namedItem('chat_enabled').checked = response.settings.enabled === true;
@@ -2375,7 +2375,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = this.chatSettingsSummary(response);
     } catch {
       this._chatSettingsLoaded = false;
-      status.textContent = 'Could not load chat settings. Changes are not saved.';
+      status.textContent = 'Could not load conversation settings. Changes are not saved.';
     }
   }
 
@@ -2391,7 +2391,7 @@ class DeclanTwoNativePanel extends HTMLElement {
         {settings: {enabled: form.elements.namedItem('chat_enabled').checked, monthly_budget_usd: budget}});
       status.textContent = 'Saved. ' + this.chatSettingsSummary(response);
     } catch {
-      status.textContent = 'Could not save chat settings.';
+      status.textContent = 'Could not save conversation settings.';
     }
   }
 

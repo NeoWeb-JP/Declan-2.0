@@ -37,7 +37,10 @@ class DirectFinalDispatchTests(unittest.TestCase):
         context = FINALIZATION.index("turn_context_preparation.prepare_turn_context(", lock)
         compose = FINALIZATION.index("turn_response_composition.compose_turn_result(", context)
         persist = FINALIZATION.index("turn_persistence_orchestration.persist_turn_result(", compose)
-        send = HTTP_ENTRY.index("handler.send_json(200, response.to_wire())")
+        # The conversation agent may keep the mic open on the wire reply, so the
+        # finalized response is serialised once and then sent.
+        send = HTTP_ENTRY.index("handler.send_json(200, wire)")
+        self.assertLess(HTTP_ENTRY.index("wire = response.to_wire()"), send)
         self.assertIn("turn_response_completion.complete(", HTTP_ENTRY)
         self.assertIn("turn_atomic_finalization.finalize(", COMPLETION)
         self.assertGreater(send, HTTP_ENTRY.index("turn_response_completion.complete("))

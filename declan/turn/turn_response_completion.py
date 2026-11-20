@@ -4,7 +4,6 @@ import os
 
 from declan.ai import (
     fallback_entity_authorization,
-    general_chat,
     guarded_fallback_dispatch,
 )
 from declan.core import diagnostics, history
@@ -59,7 +58,6 @@ def complete(handler, *, body, message, effective_message, session_id, phrase,
         personality_policy=personality_policy,
         chat_commands=CHAT_COMMANDS,
         information_context=information_context,
-        chat_handler=general_chat.answer,
     )
     routine_reply, outcome = response_preparation.reply, response_preparation.outcome
     guest_mode = response_preparation.guest_mode

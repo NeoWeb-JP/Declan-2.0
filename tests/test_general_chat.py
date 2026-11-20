@@ -4,20 +4,16 @@ import json
 import sqlite3
 import tempfile
 import unittest
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from urllib.error import HTTPError
 
-import server
 from declan.ai import ai_budget, general_chat
 from declan.core import history
-from declan.core.execution_results import ExecutionResult, Outcome
-from declan.turn import turn_response_preparation
 
 NOW = datetime(2026, 11, 20, tzinfo=timezone.utc)
 AI = {"model": "gpt-5-mini", "model_config": None, "monthly_budget_usd": "5.00", "request_ceiling_usd": "0.05"}
@@ -44,23 +40,8 @@ def completed(text, usage=None):
             "output": [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": text}]}]}
 
 
-class EligibilityTests(unittest.TestCase):
-    def test_questions_and_chat_requests_are_eligible(self):
-        for text in ("What's the capital of Peru?", "who wrote dracula", "how far is the moon",
-                     "tell me a joke", "explain how a heat pump works", "any ideas for dinner",
-                     "Is it a good day for a walk?", "can you tell me a fun fact"):
-            with self.subTest(text=text):
-                self.assertTrue(general_chat.eligible(text, source="assist"))
-
-    def test_commands_unknown_phrasing_and_other_sources_are_not(self):
-        for text in ("turn on the flux capacitor", "flux the capacitor", "can you turn on the porch light",
-                     "could you play jazz", "", "x" * 301, "what time is it"):
-            with self.subTest(text=text):
-                self.assertFalse(general_chat.eligible(text, source="assist", chat_commands={"what time is it"}))
-        self.assertFalse(general_chat.eligible("who wrote dracula", source="routine"))
-
-
-class AnswerTests(unittest.TestCase):
+class CallTests(unittest.TestCase):
+    """Shared budgeted model call used by the conversation agent."""
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.addCleanup(self.db.close)
@@ -70,137 +51,58 @@ class AnswerTests(unittest.TestCase):
             with self.db:
                 yield self.db
         self.database = database
+        self.config = general_chat.model_config(ai_settings_reader=lambda: dict(AI), key_reader=lambda: "sk-test")
 
-    def ask(self, opener, *, enabled=True, budget="1.00", text="who wrote dracula"):
-        return general_chat.answer(
-            text, source="assist", opener=opener, now=NOW, database=self.database,
-            settings_reader=lambda: {"enabled": enabled, "monthly_budget_usd": budget},
-            ai_settings_reader=lambda: dict(AI), key_reader=lambda: "sk-test")
+    def call(self, opener, *, enabled=True, budget="20.00"):
+        body = {"model": "gpt-5-mini", "input": "hi", "instructions": "x", "max_output_tokens": 100, "store": False}
+        return general_chat.call(body, config=self.config, settings={"enabled": enabled, "monthly_budget_usd": budget},
+                                 opener=opener, database=self.database, now=NOW)
 
-    def test_disabled_or_ineligible_makes_no_request(self):
+    def test_disabled_makes_no_request(self):
         opener = Opener(completed("x"))
-        self.assertIsNone(self.ask(opener, enabled=False))
-        self.assertIsNone(self.ask(opener, text="turn on the hall light"))
+        with self.assertRaises(general_chat.ModelUnavailable):
+            self.call(opener, enabled=False)
         self.assertEqual(opener.requests, [])
 
-    def test_answers_without_devices_and_settles_spend(self):
-        opener = Opener(completed("  Bram   Stoker, in 1897.  "))
-        self.assertEqual(self.ask(opener), "Bram Stoker, in 1897.")
-        body = opener.requests[0]
-        self.assertEqual(set(body) - {"reasoning"}, {"model", "instructions", "input", "max_output_tokens", "store"})
-        self.assertNotIn("tools", body)
-        self.assertFalse(body["store"])
-        self.assertIn("cannot see or control any devices", body["instructions"])
+    def test_reply_and_spend_in_both_ledgers(self):
+        self.assertEqual(self.call(Opener(completed("hello"))), "hello")
         spent = general_chat.month_spent(self.db, NOW)
         self.assertGreater(spent, 0)
         self.assertEqual(ai_budget.monthly_reserved(self.db, now=NOW), spent)
 
-    def test_chat_slice_and_main_budget_are_enforced(self):
+    def test_slice_and_main_budget_are_enforced(self):
         opener = Opener(completed("x"))
-        self.assertIsNone(self.ask(opener, budget="0.04"))  # below one request ceiling
-        self.assertEqual(opener.requests, [])
+        with self.assertRaises(general_chat.ModelUnavailable):
+            self.call(opener, budget="0.04")
         with self.db:
             self.db.execute("CREATE TABLE IF NOT EXISTS ai_budget (month TEXT PRIMARY KEY, reserved INTEGER NOT NULL)")
             self.db.execute("INSERT INTO ai_budget VALUES ('2026-11', 4990000)")
-        self.assertIsNone(self.ask(opener))
+        with self.assertRaises(general_chat.ModelUnavailable):
+            self.call(opener)
         self.assertEqual(opener.requests, [])
 
-    def test_rejected_request_costs_nothing_and_unknown_failure_keeps_reservation(self):
+    def test_rejected_costs_nothing_unknown_failure_keeps_reservation(self):
         error = HTTPError("https://api.openai.com", 429, "busy", Message(), io.BytesIO(b""))
-        self.assertIsNone(self.ask(Opener(error=error)))
+        with self.assertRaises(general_chat.ModelUnavailable):
+            self.call(Opener(error=error))
         self.assertEqual(ai_budget.monthly_reserved(self.db, now=NOW), 0)
-        self.assertIsNone(self.ask(Opener(error=TimeoutError())))
+        with self.assertRaises(general_chat.ModelUnavailable):
+            self.call(Opener(error=TimeoutError()))
         self.assertEqual(ai_budget.monthly_reserved(self.db, now=NOW), 50000)
 
-    def test_settings_validation(self):
+    def test_missing_key_is_unavailable(self):
+        with self.assertRaises(general_chat.ModelUnavailable):
+            general_chat.model_config(ai_settings_reader=lambda: dict(AI), key_reader=lambda: "")
+
+    def test_settings_validation_and_default_budget(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "chat.json"
-            self.assertEqual(general_chat.read(path), {"enabled": False, "monthly_budget_usd": "1.00"})
-            self.assertEqual(general_chat.save({"enabled": True, "monthly_budget_usd": "2.50"}, path)["enabled"], True)
+            self.assertEqual(general_chat.read(path), {"enabled": False, "monthly_budget_usd": "20.00"})
+            self.assertTrue(general_chat.save({"enabled": True, "monthly_budget_usd": "2.50"}, path)["enabled"])
             for payload in ({"enabled": "yes", "monthly_budget_usd": "1"}, {"enabled": True},
                             {"enabled": True, "monthly_budget_usd": "abc"}):
                 with self.subTest(payload=payload), self.assertRaises(ValueError):
                     general_chat.save(payload, path)
-
-
-class PreparationTests(unittest.TestCase):
-    def prepare(self, *, routine_reply=None, fallback=None, chat="Lima."):
-        handler = Mock(return_value=chat)
-        result = turn_response_preparation.prepare(
-            "what's the capital of peru", routine_reply=routine_reply, outcome=None, light_result=None,
-            body={}, authorization="", bridge_token="", source="assist", action_results=[],
-            exposed_entities=lambda *a: [], dispatch_fallback=lambda *a, **k: fallback,
-            fallback_handler=None, guest_mode_reader=lambda: "off", visitors_reader=lambda: False,
-            personality_policy=SimpleNamespace(response_guest_mode=lambda guest, visitor: guest),
-            chat_commands={}, information_context=None, chat_handler=handler)
-        return result, handler
-
-    def test_unanswered_and_empty_plan_turns_get_chat(self):
-        from declan.ai.guarded_fallback import EMPTY_PLAN_REPLY
-        for fallback in (None, ExecutionResult(EMPTY_PLAN_REPLY, Outcome.UNRESOLVED)):
-            with self.subTest(fallback=fallback):
-                result, handler = self.prepare(fallback=fallback)
-                self.assertEqual((result.reply, result.outcome), ("Lima.", Outcome.CHAT_ANSWER))
-                handler.assert_called_once()
-
-    def test_local_replies_and_other_ai_results_are_kept(self):
-        result, handler = self.prepare(routine_reply="Done.")
-        self.assertEqual(result.reply, "Done.")
-        handler.assert_not_called()
-        result, handler = self.prepare(fallback=ExecutionResult("Monthly OpenAI budget exhausted", Outcome.UNRESOLVED))
-        self.assertEqual(result.reply, "Monthly OpenAI budget exhausted")
-        handler.assert_not_called()
-
-
-class FullTurnTests(unittest.TestCase):
-    def setUp(self):
-        directory = self.enterContext(tempfile.TemporaryDirectory())
-        self.enterContext(patch.object(history, 'DATABASE', Path(directory) / 'history.db'))
-        self.enterContext(patch.object(server, "SESSION_STORE", server.session_store.SessionStore()))
-        self.enterContext(patch.object(server, 'read_guest_mode', return_value='off'))
-        self.enterContext(patch.object(server, 'read_visitors_present', return_value=False))
-        self.enterContext(patch.object(server, 'guarded_openai_fallback_result', return_value=None))
-        self.enterContext(patch.object(server, 'select_routine_turn_result', return_value=None))
-        self.enterContext(patch.object(server, 'handle_light_request_result', return_value=None))
-        self.enterContext(patch.object(server.CAPTURE_ARBITER, 'claim', return_value=True))
-        self.enterContext(patch.dict(server.os.environ, {'DECLAN_ASSIST_TOKEN': 'test'}))
-
-    def ask(self, message):
-        handler = object.__new__(server.Handler)
-        handler.path = '/api/assist'
-        body = json.dumps({"message": message, "device_id": "kitchen"}).encode()
-        handler.rfile = io.BytesIO(body)
-        handler.headers = Message()
-        for key, value in {'Content-Type': 'application/json', 'Content-Length': str(len(body)),
-                           'Authorization': 'Bearer test'}.items():
-            handler.headers[key] = value
-        setattr(handler, "server", SimpleNamespace(bad_tokens=SimpleNamespace(check=lambda *args: 0)))
-        handler.client_address = ('127.0.0.1', 1)
-        setattr(handler, 'has_ingress_access', lambda: True)
-        setattr(handler, 'send_json', Mock())
-        setattr(handler, 'log_error', Mock())
-        handler.handle_post()
-        return cast(Mock, handler.send_json).call_args.args
-
-    def test_chat_answer_is_spoken_recorded_and_closes_the_turn(self):
-        with patch.object(general_chat, "answer", return_value="Lima, sir.") as answer:
-            status, result = self.ask("what's the capital of peru")
-        self.assertEqual(status, 200)
-        self.assertIn("Lima, sir.", result["reply"])
-        self.assertFalse(result["continue_conversation"])
-        self.assertEqual(answer.call_args.kwargs["source"], "assist")
-        with closing(sqlite3.connect(history.DATABASE)) as db:
-            self.assertEqual(db.execute("SELECT outcome FROM turns").fetchall(), [("chat_answer",)])
-
-    def test_without_chat_the_rephrase_prompt_is_unchanged(self):
-        with patch.object(general_chat, "answer", return_value=None):
-            _, result = self.ask("flux the capacitor")
-        self.assertEqual(result["reply"], server.UNMATCHED_REPLY)
-        self.assertTrue(result["continue_conversation"])
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SettingsRouteAndPanelTests(unittest.IsolatedAsyncioTestCase):
@@ -219,7 +121,7 @@ class SettingsRouteAndPanelTests(unittest.IsolatedAsyncioTestCase):
             settings_read_routes.dispatch(handler, voicepipeline=None, voice_profiles=None, diagnostics=None,
                                           history=None, ai_budget=None, ai_settings=None, ai_credentials=None,
                                           spotify_playlists=None)
-            self.assertEqual(handler.sent[-1], (200, {"settings": {"enabled": False, "monthly_budget_usd": "1.00"},
+            self.assertEqual(handler.sent[-1], (200, {"settings": {"enabled": False, "monthly_budget_usd": "20.00"},
                                                       "month_spent_micro_usd": 0}))
             names = ("spotify_save", "ai_replace_key", "ai_save", "ai_configured", "music", "spotify_playlists",
                      "playlist_handler", "opener_factory", "voice_manage", "pipeline_error", "profiles_manage",

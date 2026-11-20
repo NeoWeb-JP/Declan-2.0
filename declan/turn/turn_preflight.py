@@ -61,7 +61,7 @@ def resolve(handler, body, *, message, session_id, scope, source,
         handler.send_json(200, confirmation_reply)
         return None
     if _ignored_by_command_style(handler, body, message=message, session_id=session_id,
-                                 source=source, pending_retry=pending_retry,
+                                 source=source, pending_retry=pending_retry or _agent_asked(session_id, scope),
                                  preprocess=preprocess, record=record):
         return None
     return PreparedTurn(
@@ -105,3 +105,9 @@ def _ignored_by_command_style(handler, body, *, message, session_id, source,
                             "ignored_reason": reason, "continue_conversation": False,
                             "follow_up_timeout": 0})
     return True
+
+
+def _agent_asked(session_id, scope):
+    """An answer to the conversation agent's question is never gated (#373)."""
+    from declan.turn import conversation_turn
+    return isinstance(session_id, str) and conversation_turn.awaiting_answer(session_id, scope)

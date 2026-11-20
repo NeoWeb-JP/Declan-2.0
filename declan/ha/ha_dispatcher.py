@@ -12,6 +12,11 @@ EXPECTED = {
     "close_cover": "closed", "media_pause": "paused",
     "media_play": "playing", "media_stop": "idle",
 }
+# A TV that has just been switched on may report any active state.
+ACCEPTED = {
+    ("media_player", "turn_on"): frozenset({"on", "idle", "playing", "paused", "buffering"}),
+    ("media_player", "turn_off"): frozenset({"off", "standby"}),
+}
 
 
 def dispatch_result(action, connection, *, authorised, clock=monotonic, wait=sleep):
@@ -49,6 +54,7 @@ def dispatch_result(action, connection, *, authorised, clock=monotonic, wait=sle
     if domain == "script":
         return DispatchResult(ActionStatus.UNVERIFIED, "Script started; completion not verified")
     expected = EXPECTED[action.service]
+    accepted = ACCEPTED.get((domain, action.service), frozenset({expected}))
     deadline = clock() + 3.0
     while True:
         try:
@@ -58,8 +64,8 @@ def dispatch_result(action, connection, *, authorised, clock=monotonic, wait=sle
             if len(raw) > 65536:
                 return DispatchResult(ActionStatus.UNVERIFIED, "State response too large")
             observed = json.loads(raw).get("state")
-            if observed == expected:
-                return DispatchResult(ActionStatus.CONFIRMED, f"Observed {expected}")
+            if observed in accepted:
+                return DispatchResult(ActionStatus.CONFIRMED, f"Observed {observed}")
             if observed in ("unknown", "unavailable"):
                 return DispatchResult(ActionStatus.UNVERIFIED, "Entity state unavailable")
         except HTTPError as error:
