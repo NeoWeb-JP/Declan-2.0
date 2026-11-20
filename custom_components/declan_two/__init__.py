@@ -14,6 +14,7 @@ from .chat_view import DeclanChatView
 from .media_players_view import DeclanMediaPlayersView
 from .music_playlists_view import DeclanMusicPlaylistsView
 from .ai_settings_view import DeclanAISettingsView
+from .music_settings_view import DeclanMusicSettingsView
 from .ai_locations_view import DeclanAILocationsView
 from .voice_review_view import DeclanVoiceReviewView
 from .updates_view import DeclanUpdatesView
@@ -37,6 +38,7 @@ async def async_setup(hass, config):
     hass.http.register_view(DeclanMediaPlayersView())
     hass.http.register_view(DeclanMusicPlaylistsView())
     hass.http.register_view(DeclanAISettingsView())
+    hass.http.register_view(DeclanMusicSettingsView())
     hass.http.register_view(DeclanAILocationsView())
     hass.http.register_view(DeclanVoiceReviewView())
     hass.http.register_view(DeclanUpdatesView())

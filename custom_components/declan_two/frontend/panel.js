@@ -249,6 +249,12 @@ class DeclanTwoNativePanel extends HTMLElement {
         @media(max-width:800px) { .menu {display:inline-flex;} .wrap {padding:12px 12px 40px;} }
       
         /* AI Settings use the same cards, spacing and form controls as other native Settings. */
+        .music-settings-form { display:grid; gap:12px; min-width:0; }
+        .music-settings-form .music-toggle { display:flex; align-items:center; gap:10px; min-width:0; line-height:1.45; color:#c7e6f3; font-weight:650; }
+        .music-settings-form input[type=checkbox] { width:18px; height:18px; flex:0 0 18px; margin:0; accent-color:#64c8e9; }
+        .music-settings-form .muted { margin:0 0 4px 28px; line-height:1.55; font-size:.9rem; }
+        .music-settings-form .music-save { justify-self:start; min-height:44px; }
+        @media(max-width:520px) { .music-settings-form .music-save { width:100%; } .music-settings-form .muted { margin-left:0; } }
         .ai-settings-form { display:grid; gap:16px; min-width:0; }
         .ai-settings-form .ai-field { display:grid; gap:7px; min-width:0; color:#c7e6f3; font-weight:600; }
         .ai-settings-form .ai-field input, .ai-settings-form .ai-field select,
@@ -389,6 +395,19 @@ class DeclanTwoNativePanel extends HTMLElement {
                 </div>
               </div>
             </details>
+            <details class="settings-section settings-section--music">
+              <summary><span class="settings-section-icon" aria-hidden="true">♪</span><span class="settings-section-title">Music behaviour<small>Reply speed and who searches for music</small></span></summary>
+              <div class="settings-section-content">
+                <form class="music-settings-form">
+                  <label class="music-toggle"><input type="checkbox" name="reply_first"> Reply as soon as music is requested</label>
+                  <p class="muted">Declan says "Starting…" once Music Assistant accepts the request and checks playback in the background. A failed start is announced on the speaker. Turn off to wait until playback is confirmed (slower).</p>
+                  <label class="music-toggle"><input type="checkbox" name="music_assistant_search"> Let Music Assistant search for music</label>
+                  <p class="muted">"Play X" is sent to Music Assistant with the speaker that heard you, or the room, everywhere, upstairs or downstairs. Declan's Spotify search, curated playlists, saved links and disliked list are skipped. Radio and moving the current queue are unchanged.</p>
+                  <button class="music-save" type="submit">Save music settings</button>
+                </form>
+                <p class="music-settings-status muted" role="status" aria-live="polite">Open Settings to load music settings.</p>
+              </div>
+            </details>
             <details class="settings-section">
               <summary><span class="settings-section-icon" aria-hidden="true">♫</span><span class="settings-section-title">Spotify integration<small>Connection status and API credentials</small></span></summary>
               <div class="settings-section-content">
@@ -472,6 +491,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
       this.bindPanelEvent('.mic-stop', 'click', () => this._micFollowUp ? this.cancelMicrophone() : this.stopMicrophone());
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
+      this.bindPanelEvent('.music-settings-form', 'submit', event => {
+        event.preventDefault(); void this.saveMusicSettings();
+      });
       this.bindPanelEvent('.ai-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveAISettings();
       });
@@ -623,7 +645,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'audit') void this.loadHAAudit();
     if (name === 'responses' && !this._responseRoutinesLoaded) void this.loadResponseRoutines();
-    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); if (!this._voicesLoaded) void this.loadVoices(); }
+    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadMusicSettings(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
@@ -2129,6 +2151,46 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'AI settings saved.';
     } catch {
       status.textContent = 'Could not save AI settings. Check model prices, lifecycle, budget and permissions.';
+    }
+  }
+
+  musicSettingsSummary(response) {
+    const describe = source => source === 'saved' ? 'saved here' : source === 'environment' ? 'from declan.env until saved here' : 'default';
+    return 'Reply first: ' + describe(response.sources.reply_first) + '. Music Assistant search: ' + describe(response.sources.music_assistant_search) + '.';
+  }
+
+  async loadMusicSettings() {
+    if (!this._hass) return;
+    const form = this.shadowRoot.querySelector('.music-settings-form');
+    const status = this.shadowRoot.querySelector('.music-settings-status');
+    status.textContent = 'Loading music settings…';
+    try {
+      const response = await this._hass.callApi('GET', 'declan_two/music-settings');
+      for (const key of ['reply_first', 'music_assistant_search']) form.elements.namedItem(key).checked = response.settings[key] === true;
+      this._musicSettingsLoaded = true;
+      status.textContent = this.musicSettingsSummary(response);
+    } catch (error) {
+      this._musicSettingsLoaded = false;
+      const detail = error?.message ? ': ' + String(error.message).slice(0, 180) : '';
+      status.textContent = 'Could not load music settings' + detail + '. Changes are not saved.';
+    }
+  }
+
+  async saveMusicSettings() {
+    const form = this.shadowRoot.querySelector('.music-settings-form');
+    const status = this.shadowRoot.querySelector('.music-settings-status');
+    if (!this._musicSettingsLoaded) { status.textContent = 'Load settings before saving.'; return; }
+    const settings = {
+      reply_first: form.elements.namedItem('reply_first').checked,
+      music_assistant_search: form.elements.namedItem('music_assistant_search').checked,
+    };
+    status.textContent = 'Saving music settings…';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/music-settings', {settings});
+      status.textContent = 'Music settings saved. They apply to the next request.';
+      for (const key of ['reply_first', 'music_assistant_search']) form.elements.namedItem(key).checked = response.settings[key] === true;
+    } catch {
+      status.textContent = 'Could not save music settings.';
     }
   }
 
