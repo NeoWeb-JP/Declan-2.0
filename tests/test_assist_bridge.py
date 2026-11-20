@@ -499,6 +499,23 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         cleared = await flow.async_step_init({**settings, "openai_stt_vocabulary": ""})
         self.assertEqual(cleared["openai_stt_vocabulary"], "")
 
+    async def test_rel01_local_tts_option_validates_and_persists(self):
+        flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
+        flow.config_entry = SimpleNamespace(options={})
+        flow.async_show_form = Mock(side_effect=lambda **kwargs: kwargs["errors"])
+        flow.async_create_entry = Mock(side_effect=lambda **kwargs: kwargs["data"])
+        fields = {"openai_stt_enabled": False, "openai_stt_model": "gpt-4o-mini-transcribe",
+                  "tts_enabled": True, "primary_tts": "tts.elevenlabs_text_to_speech"}
+        for bad in ("piper", "tts.Piper", "tts.elevenlabs_text_to_speech", "tts.declan_2_0_voice_manager"):
+            with self.subTest(bad=bad):
+                self.assertEqual(await flow.async_step_init({**fields, "local_tts": bad}),
+                                 {"local_tts": "invalid_local_tts"})
+        saved = await flow.async_step_init({**fields, "local_tts": " tts.piper "})
+        self.assertEqual(saved["local_tts"], "tts.piper")
+        flow.config_entry.options = saved
+        self.assertEqual((await flow.async_step_init(fields))["local_tts"], "tts.piper")
+        self.assertEqual((await flow.async_step_init({**fields, "local_tts": ""}))["local_tts"], "")
+
     async def test_guest_mode_helper_options_validate_and_persist(self):
         flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
         flow.config_entry = SimpleNamespace(options={"guest_mode_entity": "input_boolean.old_guest"})
@@ -563,6 +580,84 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             await entity.async_will_remove_from_hass()
         logger.warning.assert_called_once_with(
             "Declan voice usage could not be saved on unload")
+
+    def _voice_manager(self, options):
+        platform = import_module("custom_components.declan_two.tts")
+        self.entry.options = options
+        cache = Mock()
+        cache.find_cached_audio = AsyncMock(return_value=None)
+
+        async def cached_audio(**kwargs):
+            extension, audio = await kwargs["generate"]()
+            return extension, audio, False
+        cache.get_or_generate_audio = AsyncMock(side_effect=cached_audio)
+        budget = Mock(reserve=AsyncMock())
+        entity = platform.DeclanVoiceManager(self.entry, cache, budget)
+        entity.hass = SimpleNamespace()
+        entity.entity_id = "tts.declan_2_0_voice_manager"
+        return platform, entity, cache, budget
+
+    async def test_rel01_local_tts_speaks_when_primary_and_alternatives_fail(self):
+        platform, entity, cache, budget = self._voice_manager(
+            {"tts_enabled": True, "local_tts": "tts.piper", "category_fallback": True})
+        error = platform.HomeAssistantError("ElevenLabs down")
+
+        async def provider(hass, *, provider_entity_id, **kwargs):
+            if provider_entity_id == "tts.piper":
+                return "wav", b"local"
+            raise error
+        with patch.object(platform, "quiet_hours", return_value=False), \
+                patch.object(platform, "generate_from_existing_tts", AsyncMock(side_effect=provider)) as generate, \
+                patch.object(entity, "_cached_alternative", AsyncMock(return_value=None)) as alternative:
+            self.assertEqual(await entity.async_get_tts_audio("Hello", "en", {}), ("wav", b"local"))
+        alternative.assert_awaited_once()
+        self.assertEqual(generate.await_args_list[-1].kwargs["provider_entity_id"], "tts.piper")
+        local_identity = cache.get_or_generate_audio.await_args_list[-1].kwargs
+        self.assertEqual((local_identity["provider"], local_identity["voice_id"]), ("tts.piper", "v1:local"))
+        self.assertEqual(budget.reserve.await_args_list[-1].args, ("Hello", "fallback"))
+
+    async def test_rel01_cached_alternative_wins_over_local_tts(self):
+        platform, entity, _cache, _budget = self._voice_manager({"tts_enabled": True, "local_tts": "tts.piper"})
+        with patch.object(platform, "quiet_hours", return_value=False), \
+                patch.object(platform, "generate_from_existing_tts",
+                             AsyncMock(side_effect=platform.HomeAssistantError("down"))) as generate, \
+                patch.object(entity, "_cached_alternative", AsyncMock(return_value=("mp3", b"saved"))):
+            self.assertEqual(await entity.async_get_tts_audio("Hello", "en", {}), ("mp3", b"saved"))
+        self.assertNotIn("tts.piper", [call.kwargs["provider_entity_id"] for call in generate.await_args_list])
+
+    async def test_rel01_clear_failure_without_or_after_local_tts(self):
+        for options in ({"tts_enabled": True}, {"tts_enabled": True, "local_tts": "tts.piper"},
+                        {"tts_enabled": True, "local_tts": "tts.piper", "cache_enabled": False}):
+            with self.subTest(options=options):
+                platform, entity, _, _ = self._voice_manager(options)
+                with patch.object(platform, "quiet_hours", return_value=False), \
+                        patch.object(platform, "generate_from_existing_tts",
+                                     AsyncMock(side_effect=platform.HomeAssistantError("down"))), \
+                        patch.object(entity, "_cached_alternative", AsyncMock(return_value=None)), \
+                        self.assertRaises(platform.HomeAssistantError):
+                    await entity.async_get_tts_audio("Hello", "en", {})
+
+    async def test_rel01_local_tts_without_cache_still_speaks(self):
+        platform, entity, cache, _ = self._voice_manager(
+            {"tts_enabled": True, "local_tts": "tts.piper", "cache_enabled": False})
+
+        async def provider(hass, *, provider_entity_id, **kwargs):
+            if provider_entity_id == "tts.piper":
+                return "wav", b"local"
+            raise ValueError("Daily primary speech character limit reached")
+        with patch.object(platform, "quiet_hours", return_value=False), \
+                patch.object(platform, "generate_from_existing_tts", AsyncMock(side_effect=provider)):
+            self.assertEqual(await entity.async_get_tts_audio("Hello", "en", {}), ("wav", b"local"))
+        cache.get_or_generate_audio.assert_not_awaited()
+
+    def test_rel01_local_provider_rejects_unsafe_entities(self):
+        platform = import_module("custom_components.declan_two.tts")
+        primary = "tts.elevenlabs_text_to_speech"
+        self.assertEqual(platform.local_provider({"local_tts": " tts.piper "}, primary), "tts.piper")
+        for value in ("", None, "piper", primary, "tts.declan_2_0_voice_manager", "tts.declan_2_0_voice_manager_2"):
+            with self.subTest(value=value):
+                self.assertIsNone(platform.local_provider({"local_tts": value}, primary))
+        self.assertIsNone(platform.local_provider({"local_tts": "tts.me"}, primary, "tts.me"))
 
     async def test_voice_manager_reuses_provider_and_legacy_cache_identity(self):
         platform = import_module("custom_components.declan_two.tts")

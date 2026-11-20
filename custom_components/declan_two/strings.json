@@ -34,12 +34,14 @@
           "cache_enabled": "Save and reuse generated speech",
           "cache_revision": "Voice cache revision",
           "category_fallback": "Use a saved equivalent reply when the provider fails",
+          "local_tts": "Local TTS fallback entity",
           "primary_daily_character_limit": "Daily primary character limit (UTC; 0 means unlimited)",
           "local_stt_entity": "Local STT fallback entity"
         },
         "data_description": {
           "openai_stt_api_key": "Leave blank to keep the existing key. Required when enabling transcription for the first time.",
-          "local_stt_entity": "Optional local stt.* entity. Leave blank to use the configured Wyoming speaker bridge."
+          "local_stt_entity": "Optional local stt.* entity. Leave blank to use the configured Wyoming speaker bridge.",
+          "local_tts": "Optional local tts.* entity, such as tts.piper. Used only after the primary provider and saved equivalent replies fail. Leave blank for no local fallback."
         }
       }
     },
@@ -47,7 +49,8 @@
       "openai_key_required": "Enter an OpenAI API key to enable transcription.",
       "wyoming_host_required": "Enter the VoicePipeline host to enable Wyoming recognition.",
       "invalid_tts_provider": "Enter the entity ID of your speech provider, such as tts.elevenlabs_text_to_speech.",
-      "invalid_stt_provider": "Enter a valid local speech entity ID, such as stt.faster_whisper."
+      "invalid_stt_provider": "Enter a valid local speech entity ID, such as stt.faster_whisper.",
+      "invalid_local_tts": "Enter a local speech entity ID such as tts.piper. It must differ from the primary provider and must not be the Declan Voice Manager."
     }
   }
 }

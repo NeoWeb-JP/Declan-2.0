@@ -162,6 +162,13 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
             if local_stt and not re.fullmatch(r'stt\.[a-z0-9_]+', local_stt):
                 errors['local_stt_entity'] = 'invalid_stt_provider'
             provider = user_input.get("primary_tts", DEFAULT_PROVIDER).strip()
+            local_tts = user_input.get("local_tts", current.get("local_tts", ""))
+            local_tts = local_tts.strip() if isinstance(local_tts, str) else ""
+            if local_tts and (
+                not re.fullmatch(r"tts\.[a-z0-9_]+", local_tts) or local_tts == provider
+                or local_tts.startswith(("tts.jarvis_voice_manager", "tts.declan_voice_manager", "tts.declan_2_0_voice_manager"))
+            ):
+                errors["local_tts"] = "invalid_local_tts"
             if user_input.get("wyoming_bridge_enabled") and not host:
                 errors["wyoming_bridge_host"] = "wyoming_host_required"
             if user_input.get("tts_enabled") and (
@@ -189,6 +196,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                     "wyoming_bridge_host": host,
                     "local_stt_entity": local_stt,
                     "primary_tts": provider,
+                    "local_tts": local_tts,
                     "guest_mode_entity": guest_mode_entity,
                     "openai_stt_enabled": enabled,
                     "openai_stt_model": user_input["openai_stt_model"],
@@ -216,6 +224,7 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
             vol.Required("cache_enabled", default=values.get("cache_enabled", True)): bool,
             vol.Required("cache_revision", default=values.get("cache_revision", "v1")): vol.All(str, vol.Length(min=1)),
             vol.Required("category_fallback", default=values.get("category_fallback", True)): bool,
+            vol.Optional("local_tts", default=values.get("local_tts", "")): str,
             vol.Optional("guest_mode_entity", default=values.get("guest_mode_entity", "input_boolean.guest_mode")): str,
             vol.Optional("overnight_announcement_outputs",
                          default=values.get("overnight_announcement_outputs", "")): str,
