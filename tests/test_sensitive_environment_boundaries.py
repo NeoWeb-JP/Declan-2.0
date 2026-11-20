@@ -9,7 +9,7 @@ from declan.turn import sensitive_confirmations as confirmations
 class SensitiveEnvironmentBoundariesTests(unittest.TestCase):
     def test_default_groups_and_explicit_empty_override(self):
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(confirmations.groups(), {"night", "guest"})
+            self.assertEqual(confirmations.groups(), {"guest", "security"})
         with patch.dict(os.environ, {"DECLAN_SENSITIVE_ROUTINES": ""}, clear=True):
             self.assertEqual(confirmations.groups(), set())
 
