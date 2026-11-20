@@ -35,9 +35,8 @@ def _result_factory(reply, outcome, base=None, lighting_context=None):
                           field("information_context"), field("status_target"), field("light_result"))
 
 
-def run(handler, body, *, message, session_id, source, scope, origin_device, satellite,
-        action_results, dispatch, services, local_result=None):
-    """Return an AgentTurn, or None to continue with the existing behaviour."""
+def house_context(handler, body, *, origin_device, satellite, services):
+    """(connection, inventory rows, context) from trusted HA data, for the agent and local help."""
     connection = None
     try:
         connection = services.ha_device_connection()
@@ -66,6 +65,14 @@ def run(handler, body, *, message, session_id, source, scope, origin_device, sat
         connection=connection, inventory_rows=rows, exposed=exposed if isinstance(exposed, (list, tuple)) else (),
         origin_device=origin_device or satellite, read_areas=services.read_ha_areas,
         music_rooms=music_rooms, scripts=scripts, phrases=script_discovery.phrases, allowed_domains=allowed)
+    return connection, rows, context
+
+
+def run(handler, body, *, message, session_id, source, scope, origin_device, satellite,
+        action_results, dispatch, services, local_result=None):
+    """Return an AgentTurn, or None to continue with the existing behaviour."""
+    connection, _, context = house_context(handler, body, origin_device=origin_device,
+                                           satellite=satellite, services=services)
     checks = (
         lambda phrase: lighting_intents.matches(phrase, services.parse_light_command),
         lambda phrase: music.parse(phrase) is not None,

@@ -413,6 +413,7 @@ class DeclanTwoNativePanel extends HTMLElement {
                 <h3>Conversation</h3>
                 <label class="ai-toggle"><input type="checkbox" name="chat_enabled"><span>Let Declan understand everyday speech</span></label>
                 <p class="muted">When a request isn't an exact command ("it's dark in here", "put some music on", "what can you do?"), Declan works out what you mean using the room you're in, your exposed devices, music rooms and routines. He then acts, asks a short question ("the spots or the pendant?") or answers. Exact commands stay instant and local. Devices change only through the same checks as other commands. Sensitive routines still need a spoken yes, and garage/gate covers stay blocked. Uses the model and API key above; each request counts towards the monthly AI budget and the budget below.</p>
+                <p class="muted"><a href="https://github.com/NeoWeb-JP/Declan-2.0/blob/main/docs/talking-to-declan.md" target="_blank" rel="noopener noreferrer">Talking to Declan: example phrases and how Conversation behaves</a></p>
                 <label class="ai-field"><span>Monthly conversation budget (USD)</span><input name="chat_budget" inputmode="decimal" required></label>
                 <button type="submit">Save conversation settings</button>
                 <p class="chat-settings-status muted" role="status" aria-live="polite"></p>

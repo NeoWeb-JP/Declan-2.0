@@ -230,11 +230,12 @@ class FullTurnTests(unittest.TestCase):
         context = self.decide.call_args.args[1]
         self.assertIn("devices", context)
 
-    def test_help_is_answered(self):
-        self.decide.return_value = (agent.AgentDecision("answer", "I can do lights, music and routines."), {})
+    def test_help_is_answered_locally_for_free(self):
         result = self.ask("what can you do")
-        self.assertIn("lights, music and routines", result["reply"])
+        self.assertIn("I can switch lights", result["reply"])
+        self.assertIn("in your own words", result["reply"])
         self.assertFalse(result["continue_conversation"])
+        self.decide.assert_not_called()
 
     def test_vague_music_never_reaches_literal_spotify_search(self):
         self.decide.return_value = (agent.AgentDecision("act", "Some jazz.", (), ("play jazz in the kitchen",)), {})

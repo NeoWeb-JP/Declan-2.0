@@ -4,6 +4,7 @@ import logging
 from declan.http import post_ingress_orchestration
 from declan.turn import (
     conversation_turn,
+    local_help,
     turn_dispatch_orchestration,
     turn_response_completion,
     turn_session_preflight,
@@ -40,12 +41,20 @@ def handle_post(handler, *, services):
     from declan.ai import general_chat
     from declan.music import music
     agent_on = _conversation_enabled(general_chat)
-    if agent_on and conversation_turn.prefers_agent(phrase, parse_music=music.parse):
+    help_request = local_help.match(effective_message)
+    if help_request is not None:
+        dispatch_result = _local_help(handler, body, help_request, origin_device=origin_device,
+                                      satellite=satellite, services=services, conversation_on=agent_on)
+    else:
+        dispatch_result = None
+    if dispatch_result is not None:
+        pass  # Answered locally and for free.
+    elif agent_on and conversation_turn.prefers_agent(phrase, parse_music=music.parse):
         dispatch_result = None  # "play something": let the agent choose, not Spotify's literal search.
     else:
         dispatch_result = dispatch(phrase)
     agent_turn = None
-    if agent_on and conversation_turn.needs_agent(dispatch_result):
+    if help_request is None and agent_on and conversation_turn.needs_agent(dispatch_result):
         from declan.turn import conversation_entry
         agent_turn = conversation_entry.run(
             handler, body, message=message, session_id=session_id, source=source,
@@ -82,3 +91,16 @@ def _conversation_enabled(general_chat):
         return general_chat.enabled()
     except (OSError, ValueError):
         return False
+
+
+def _local_help(handler, body, request, *, origin_device, satellite, services, conversation_on):
+    from declan.core.execution_results import Outcome
+    from declan.turn import conversation_entry
+    try:
+        _, rows, context = conversation_entry.house_context(
+            handler, body, origin_device=origin_device, satellite=satellite, services=services)
+        reply = local_help.answer(request, rows=rows, context=context, conversation_on=conversation_on)
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        LOGGER.warning("Local help failed (%s)", type(error).__name__)
+        return None
+    return conversation_entry._result_factory(reply, Outcome.CHAT_ANSWER) if reply else None
