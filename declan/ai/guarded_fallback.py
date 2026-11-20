@@ -13,6 +13,7 @@ import logging
 from declan.ai.model_response_results import NonBillablePlanningError
 
 LOGGER = logging.getLogger(__name__)
+EMPTY_PLAN_REPLY = "I couldn't safely identify an action. Please be more specific."
 
 
 def run_guarded_result(
@@ -64,8 +65,7 @@ def run_guarded_result(
         actual = charge_micro_usd()
         settle(budget_db, reservation, actual)
     if not plan:
-        return ExecutionResult("I couldn't safely identify an action. Please be more specific.",
-                               Outcome.UNRESOLVED)
+        return ExecutionResult(EMPTY_PLAN_REPLY, Outcome.UNRESOLVED)
     # Never trust a planner's claim that its candidates were validated.
     try:
         raw = {"actions": [{"entity_id": action.entity_id, "service": action.service,

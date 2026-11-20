@@ -275,6 +275,11 @@ class DeclanTwoNativePanel extends HTMLElement {
         .music-settings-form .music-save { justify-self:start; min-height:44px; }
         @media(max-width:520px) { .music-settings-form .music-save { width:100%; } .music-settings-form .muted { margin-left:0; } }
         .ai-settings-form { display:grid; gap:16px; min-width:0; }
+        .chat-settings-form { display:grid; gap:12px; min-width:0; margin:18px 0; }
+        .chat-settings-form h3 { margin:0; font-size:1rem; color:#e7f7ff; }
+        .chat-settings-form .ai-field { display:grid; gap:7px; color:#c7e6f3; font-weight:600; max-width:240px; }
+        .chat-settings-form .ai-toggle { display:flex; gap:10px; align-items:center; color:#c7e6f3; font-weight:650; }
+        .chat-settings-form button { justify-self:start; min-height:44px; }
         .ai-settings-form .ai-field { display:grid; gap:7px; min-width:0; color:#c7e6f3; font-weight:600; }
         .ai-settings-form .ai-field input, .ai-settings-form .ai-field select,
         .ai-key-form input { display:block; width:100%; min-width:0; min-height:44px; padding:10px 12px; border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff; font:inherit; font-weight:400; }
@@ -403,6 +408,14 @@ class DeclanTwoNativePanel extends HTMLElement {
                 <button class="ai-save" type="submit">Save AI settings</button>
               </form>
               <p class="ai-settings-status muted" role="status" aria-live="polite">Open Settings to load AI configuration.</p><p class="ai-usage muted">Monthly usage unavailable.</p>
+              <form class="chat-settings-form">
+                <h3>General chat</h3>
+                <label class="ai-toggle"><input type="checkbox" name="chat_enabled"><span>Answer general questions ("who wrote Dracula?", "tell me a joke")</span></label>
+                <p class="muted">Uses the model and API key above. Answers are short and spoken in Declan's voice. Chat never sees or controls devices. Only questions nothing else answered are sent; device commands still get "say it another way". Each request is limited by the per-request maximum above and also counts towards the monthly AI budget.</p>
+                <label class="ai-field"><span>Monthly chat budget (USD)</span><input name="chat_budget" inputmode="decimal" required></label>
+                <button type="submit">Save chat settings</button>
+                <p class="chat-settings-status muted" role="status" aria-live="polite"></p>
+              </form>
               <details class="settings-spotify ai-key-section"><summary>Replace OpenAI API key</summary>
                 <form class="ai-key-form spotify-form" autocomplete="off">
                   <label>New OpenAI API key <input type="password" name="api_key" autocomplete="new-password" minlength="19" maxlength="260" required></label>
@@ -548,6 +561,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       });
       this.bindPanelEvent('.music-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveMusicSettings();
+      });
+      this.bindPanelEvent('.chat-settings-form', 'submit', event => {
+        event.preventDefault(); void this.saveChatSettings();
       });
       this.bindPanelEvent('.ai-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveAISettings();
@@ -703,7 +719,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'audit') void this.loadHAAudit();
     if (name === 'responses' && !this._responseRoutinesLoaded) void this.loadResponseRoutines();
-    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); void this.loadCommandStyle(); void this.loadLearnedIntents(); if (!this._voicesLoaded) void this.loadVoices(); }
+    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadChatSettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); void this.loadCommandStyle(); void this.loadLearnedIntents(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
@@ -2338,6 +2354,44 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Saved. It applies to the next request.';
     } catch {
       status.textContent = 'Could not save the speaker threshold.';
+    }
+  }
+
+  chatSettingsSummary(response) {
+    const spent = Number.isInteger(response.month_spent_micro_usd) ? '$' + (response.month_spent_micro_usd / 1e6).toFixed(2) : 'unknown';
+    return (response.settings.enabled ? 'On' : 'Off') + '. Chat spend this month: ' + spent + ' of $' + response.settings.monthly_budget_usd + '.';
+  }
+
+  async loadChatSettings() {
+    if (!this._hass) return;
+    const form = this.shadowRoot.querySelector('.chat-settings-form');
+    const status = this.shadowRoot.querySelector('.chat-settings-status');
+    status.textContent = 'Loading chat settings…';
+    try {
+      const response = await this._hass.callApi('GET', 'declan_two/chat-settings');
+      form.elements.namedItem('chat_enabled').checked = response.settings.enabled === true;
+      form.elements.namedItem('chat_budget').value = response.settings.monthly_budget_usd;
+      this._chatSettingsLoaded = true;
+      status.textContent = this.chatSettingsSummary(response);
+    } catch {
+      this._chatSettingsLoaded = false;
+      status.textContent = 'Could not load chat settings. Changes are not saved.';
+    }
+  }
+
+  async saveChatSettings() {
+    const form = this.shadowRoot.querySelector('.chat-settings-form');
+    const status = this.shadowRoot.querySelector('.chat-settings-status');
+    if (!this._chatSettingsLoaded) { status.textContent = 'Load settings before saving.'; return; }
+    const budget = form.elements.namedItem('chat_budget').value.trim();
+    if (!/^(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{1,2})?$/.test(budget)) { status.textContent = 'Enter a USD amount such as 1.00.'; return; }
+    status.textContent = 'Saving…';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/chat-settings',
+        {settings: {enabled: form.elements.namedItem('chat_enabled').checked, monthly_budget_usd: budget}});
+      status.textContent = 'Saved. ' + this.chatSettingsSummary(response);
+    } catch {
+      status.textContent = 'Could not save chat settings.';
     }
   }
 
