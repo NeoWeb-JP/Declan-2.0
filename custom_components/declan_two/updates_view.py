@@ -11,6 +11,10 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _integration_version():
+    return json.loads((Path(__file__).parent / "manifest.json").read_text())["version"]
 VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.]+)?$")
 
 
@@ -23,9 +27,9 @@ class DeclanUpdatesView(HomeAssistantView):
         response = await self._relay(request, "GET", "/api/updates/status")
         if response.status == 200:
             # Manifest is the installed HACS integration version, not the backend version.
-            manifest = json.loads((Path(__file__).parent / "manifest.json").read_text())
+            version = await request.app["hass"].async_add_executor_job(_integration_version)
             payload = json.loads(response.body)
-            payload["integration_version"] = manifest["version"]
+            payload["integration_version"] = version
             return web.json_response(payload, headers={"Cache-Control": "no-store"})
         return response
 

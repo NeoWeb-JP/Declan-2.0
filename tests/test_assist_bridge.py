@@ -340,6 +340,12 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                 self.assertEqual(result.result, 'error')
         local.async_process_audio_stream.assert_awaited_once()
 
+    @staticmethod
+    def _hass_with_executor():
+        async def run(func, *args):
+            return func(*args)
+        return SimpleNamespace(async_add_executor_job=run)
+
     async def test_wyoming_configuration_is_used_as_local_fallback(self):
         provider = import_module('custom_components.declan_two.stt')
         bridge = import_module('custom_components.declan_two.wyoming_speaker_stt')
@@ -347,7 +353,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         engine = SimpleNamespace(check_metadata=Mock(return_value=True), async_process_audio_stream=AsyncMock(
             return_value=provider.stt.SpeechResult('hello', 'success')))
         with patch.object(bridge, 'DeclanWyomingVoiceBridge', return_value=engine):
-            result = await provider.DeclanOpenAISTT(object(), self.entry)._fallback(None, b'\0\0', {})
+            result = await provider.DeclanOpenAISTT(self._hass_with_executor(), self.entry)._fallback(None, b'\0\0', {})
         self.assertEqual(result.result, 'success')
 
     async def test_local_fallback_deadline_and_external_cancellation(self):
@@ -520,7 +526,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             "wyoming_bridge_port": 10300,
         }
         add = Mock()
-        await provider.async_setup_entry(None, self.entry, add)
+        await provider.async_setup_entry(self._hass_with_executor(), self.entry, add)
         entity = add.call_args.args[0][0]
         bridge.Transcript.is_type.side_effect = lambda name: name == "transcript"
         bridge.Transcript.from_event.return_value.text = "What's the time?"
