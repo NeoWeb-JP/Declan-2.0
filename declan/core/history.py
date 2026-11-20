@@ -91,6 +91,11 @@ def _migrate_schema():
                     connection.execute(f"ALTER TABLE turns ADD COLUMN {column} TEXT")
             connection.execute("CREATE TABLE IF NOT EXISTS learned_intents "
                                "(phrase TEXT PRIMARY KEY, target TEXT NOT NULL)")
+            # Provenance (#98) lives beside learned_intents, not in it, so the
+            # two-column table (settings import, older releases after a
+            # rollback) is unchanged. Phrases learned earlier have no row.
+            connection.execute("CREATE TABLE IF NOT EXISTS learned_intent_provenance "
+                               "(phrase TEXT PRIMARY KEY, trained_at REAL NOT NULL, source TEXT NOT NULL)")
     finally:
         connection.close()
 
@@ -141,6 +146,36 @@ def learned_intents():
         return dict(connection.execute("SELECT phrase, target FROM learned_intents ORDER BY phrase"))
 
 
+LEARNED_SOURCES = frozenset({"history", "recording", "retry", "edited", "imported"})
+
+
+def _record_provenance(connection, phrase, source, *, only_if_new=False):
+    connection.execute(
+        "INSERT INTO learned_intent_provenance(phrase, trained_at, source) VALUES (?, ?, ?) "
+        + ("ON CONFLICT(phrase) DO NOTHING" if only_if_new else
+           "ON CONFLICT(phrase) DO UPDATE SET trained_at = excluded.trained_at, source = excluded.source"),
+        (phrase, time(), source))
+
+
+def learned_intent_records():
+    """Every learned phrase with when and how it was last trained (None before tracking)."""
+    with database() as connection:
+        rows = connection.execute(
+            "SELECT l.phrase, l.target, p.trained_at, p.source FROM learned_intents l "
+            "LEFT JOIN learned_intent_provenance p ON p.phrase = l.phrase ORDER BY l.phrase").fetchall()
+    records = []
+    for phrase, target, trained_at, source in rows:
+        when = None
+        if type(trained_at) in (int, float) and math.isfinite(trained_at) and trained_at > 0:
+            try:
+                when = datetime.fromtimestamp(trained_at, timezone.utc).isoformat()
+            except (OverflowError, OSError, ValueError):
+                when = None
+        records.append({"phrase": phrase, "target": target, "trained_at": when,
+                        "source": source if source in LEARNED_SOURCES and when else None})
+    return records
+
+
 def learned_intent(phrase):
     """Resolve corrections using the same normalisation as training writes."""
     if not isinstance(phrase, str):
@@ -174,6 +209,7 @@ def teach_intent(turn_id, target, unmatched_reply):
             "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) "
             "ON CONFLICT(phrase) DO UPDATE SET target = excluded.target", (phrase, target),
         )
+        _record_provenance(connection, phrase, "history")
 
 
 def forget_intent(phrase):
@@ -181,12 +217,16 @@ def forget_intent(phrase):
     with database() as connection:
         _intent_table(connection)
         connection.execute("DELETE FROM learned_intents WHERE phrase = ?", (phrase,))
+        connection.execute("DELETE FROM learned_intent_provenance WHERE phrase = ?", (phrase,))
 
 
-def teach_phrase(phrase, target, *, automatic=False):
+def teach_phrase(phrase, target, *, automatic=False, source="recording"):
     """Save an explicit correction, or add a retry without overwriting user training."""
     if type(automatic) is not bool:
         raise ValueError("Automatic training must be enabled or disabled.")
+    source = "retry" if automatic else source
+    if source not in LEARNED_SOURCES:
+        raise ValueError("Unknown training source.")
     if not isinstance(phrase, str) or not isinstance(target, str):
         raise ValueError("Enter a phrase and the command you meant.")
     phrase = validated_training_phrase(phrase, "Enter a different command, up to 120 characters.")
@@ -195,13 +235,16 @@ def teach_phrase(phrase, target, *, automatic=False):
         raise ValueError("Enter a different command, up to 120 characters.")
     with database() as connection:
         if automatic:
-            connection.execute(
+            added = connection.execute(
                 "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) "
-                "ON CONFLICT(phrase) DO NOTHING", (phrase, target))
+                "ON CONFLICT(phrase) DO NOTHING", (phrase, target)).rowcount
+            if added:
+                _record_provenance(connection, phrase, source)
         else:
             connection.execute(
                 "INSERT INTO learned_intents(phrase, target) VALUES (?, ?) "
                 "ON CONFLICT(phrase) DO UPDATE SET target = excluded.target", (phrase, target))
+            _record_provenance(connection, phrase, source)
 
 
 def clear():
@@ -329,4 +372,5 @@ def edit_intent(phrase, target, previous):
             "UPDATE learned_intents SET target = ? WHERE phrase = ? AND target = ?", (target, phrase, previous))
         if changed.rowcount != 1:
             raise ValueError("This intention changed in another tab. Refresh before editing.")
+        _record_provenance(connection, phrase, "edited")
 

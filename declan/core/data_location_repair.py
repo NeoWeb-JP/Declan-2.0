@@ -33,7 +33,7 @@ from time import time
 
 _NAME = "conversations.sqlite3"
 _RELATIVE = Path("declan") / "core" / ".data" / _NAME
-_MERGED = ("learned_intents", "turns", "ai_budget")
+_MERGED = ("learned_intents", "learned_intent_provenance", "turns", "ai_budget")
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _SCHEMAS = frozenset({"main", "stray"})
 
@@ -119,6 +119,13 @@ def merge(stray: Path, target: Path) -> dict:
                         "INSERT INTO main.learned_intents(phrase, target) "
                         "SELECT phrase, target FROM stray.learned_intents WHERE true "
                         "ON CONFLICT(phrase) DO UPDATE SET target = excluded.target").rowcount
+                if "learned_intent_provenance" in source_tables:
+                    db.execute("CREATE TABLE IF NOT EXISTS learned_intent_provenance "
+                               "(phrase TEXT PRIMARY KEY, trained_at REAL NOT NULL, source TEXT NOT NULL)")
+                    db.execute("INSERT INTO main.learned_intent_provenance(phrase, trained_at, source) "
+                               "SELECT phrase, trained_at, source FROM stray.learned_intent_provenance WHERE true "
+                               "ON CONFLICT(phrase) DO UPDATE SET trained_at = excluded.trained_at, "
+                               "source = excluded.source")
                 if "turns" in source_tables and "turns" in target_tables:
                     shared = [c for c in _columns(db, "stray", "turns")
                               if c != "id" and c in set(_columns(db, "main", "turns"))]

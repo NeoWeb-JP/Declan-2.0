@@ -43,7 +43,12 @@ def dispatch(handler, *, music, configuration, script_discovery,
         handler.send_json(410, {"error": "Routine mappings are retired. Home Assistant scripts are the source of truth."})
     elif path == "/api/native/intents":
         try:
-            handler.send_json(200, {"intents": history.learned_intents()})
+            records = history.learned_intent_records()
+            handler.send_json(200, {
+                "intents": {row["phrase"]: row["target"] for row in records},
+                "details": {row["phrase"]: {"trained_at": row["trained_at"], "source": row["source"]}
+                            for row in records},
+            })
         except (OSError, sqlite3.Error):
             handler.send_json(503, {"error": "Learned intentions unavailable."})
     elif path == "/api/native/logs":
