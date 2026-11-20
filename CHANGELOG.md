@@ -4,6 +4,8 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Free local help:** "what can you do?", "which lights are in here?" / "what lights are in the kitchen?", "what routines are there?", "what rooms do you know?" and "where can you play music?" are answered from Home Assistant data, with no AI and with Conversation on or off.
+- New household guide, **[Talking to Declan](docs/talking-to-declan.md)**, linked from the README and from Settings → AI Intelligence → Conversation.
 - Conversation: **follow-ups work after Declan acts**. After "it's dark in here" turns the lights on, "turn them off" or "make them brighter" is understood locally and instantly.
 - Conversation: **Declan remembers what worked**. When a phrase was turned into one successful command ("put some jazz on" → "play jazz"), it is saved, so the next time it's instant and free. It shows in Learned commands as "learned from a conversation", where you can edit or forget it. It never overwrites a phrase you taught, and never learns room-dependent wording ("in here", "it", "them"), vague requests ("play something"), routines, timers or commands naming a room you didn't say.
 - History → Understanding now shows **Conversation this week**: how many requests reached the conversation agent, how many it acted on, asked about, answered or failed, how many were general questions, the cost, and the typical AI reply time. Each agent turn also adds a `conversation_agent` stage (kind, model time, cost, device count) to the request's diagnostics trace. No text or names are stored.

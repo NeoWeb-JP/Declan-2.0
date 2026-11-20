@@ -4,6 +4,7 @@ Declan 2.0 is a proprietary household voice assistant with a standalone backend 
 
 ## Getting started
 
+- [Talking to Declan](docs/talking-to-declan.md): household guide to phrases, Conversation and listening settings.
 - [Installation guide](docs/installation.md): Home Assistant Assist Bridge, Home Assistant Ingress app, and deployment checks.
 - [Architecture overview](docs/architecture.md): runtime components, voice processing, Home Assistant actions and security boundaries.
 - [Environment reference](docs/environment.md) and [example configuration](.env.example): safe configuration starting points.
