@@ -44,7 +44,7 @@ CHAT_COMMANDS = {
     "what's the time": "time", "what’s the time": "time",
     "what time is it now": "time", "what's the time now": "time", "what is the time now": "time",
     "what time is it right now": "time", "what's the time right now": "time",
-    "what was the time": "time", "do you know what time it is": "time",
+    "what was the time": "time", "what time was it": "time", "do you know what time it is": "time",
     "do you know the time": "time", "can you tell me the time": "time",
     "could you tell me the time": "time", "have you got the time": "time",
     "what time have you got": "time", "what's the time please": "time",

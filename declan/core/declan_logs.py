@@ -38,8 +38,34 @@ class _Capture(logging.Handler):
         STATE.append(item)
 
 
-def install():
-    STATE.install(logging.getLogger(), _Capture)
+class _Journal(logging.StreamHandler):
+    """Declan warnings and errors on stderr, so `journalctl -u declan` shows them.
+
+    Once the panel feed handler is on the root logger, Python no longer prints
+    warnings anywhere else, so without this they were visible only in the panel.
+    """
+    def __init__(self, stream=None):
+        super().__init__(stream)
+        self.setLevel(logging.WARNING)
+        self.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+
+    def filter(self, record):
+        return record.name in _NAMES or record.name.startswith("declan")
+
+    def format(self, record):
+        return _safe(super().format(record))
+
+
+_JOURNAL: list[logging.Handler] = []
+
+
+def install(stream=None):
+    root = logging.getLogger()
+    STATE.install(root, _Capture)
+    if not _JOURNAL:
+        _JOURNAL.append(_Journal(stream))
+    if _JOURNAL[0] not in root.handlers:
+        root.addHandler(_JOURNAL[0])
 
 
 def recent(level="ALL", limit=200):
