@@ -24,6 +24,7 @@ exist at all the release-local database is copied into place unchanged.
 """
 from __future__ import annotations
 
+import re
 import shutil
 import sqlite3
 from contextlib import closing
@@ -33,6 +34,15 @@ from time import time
 _NAME = "conversations.sqlite3"
 _RELATIVE = Path("declan") / "core" / ".data" / _NAME
 _MERGED = ("learned_intents", "turns", "ai_budget")
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+_SCHEMAS = frozenset({"main", "stray"})
+
+
+def _identifier(name: str) -> str:
+    """Only plain SQLite identifiers (read from the database itself) are interpolated."""
+    if not isinstance(name, str) or not _IDENTIFIER.match(name):
+        raise sqlite3.DatabaseError(f"Unexpected identifier {name!r}")
+    return name
 
 
 def candidates(app: Path) -> list[Path]:
@@ -64,11 +74,16 @@ def candidates(app: Path) -> list[Path]:
 
 
 def _tables(db: sqlite3.Connection, schema: str) -> set[str]:
-    return {name for (name,) in db.execute(f"SELECT name FROM {schema}.sqlite_master WHERE type = 'table'")}
+    if schema not in _SCHEMAS:
+        raise ValueError(schema)
+    query = f"SELECT name FROM {schema}.sqlite_master WHERE type = 'table'"  # nosec B608 - schema is a fixed constant
+    return {name for (name,) in db.execute(query) if _IDENTIFIER.match(name)}
 
 
 def _columns(db: sqlite3.Connection, schema: str, table: str) -> list[str]:
-    return [row[1] for row in db.execute(f"PRAGMA {schema}.table_info({table})")]
+    if schema not in _SCHEMAS:
+        raise ValueError(schema)
+    return [_identifier(row[1]) for row in db.execute(f"PRAGMA {schema}.table_info({_identifier(table)})")]
 
 
 def _checkpoint(path: Path) -> None:
@@ -108,11 +123,11 @@ def merge(stray: Path, target: Path) -> dict:
                     shared = [c for c in _columns(db, "stray", "turns")
                               if c != "id" and c in set(_columns(db, "main", "turns"))]
                     if {"created_at", "session_id", "message"} <= set(shared):
-                        names = ", ".join(shared)
-                        report["turns"] = db.execute(
-                            f"INSERT INTO main.turns({names}) SELECT {names} FROM stray.turns s "
-                            "WHERE NOT EXISTS (SELECT 1 FROM main.turns m WHERE m.created_at = s.created_at "
-                            "AND m.session_id = s.session_id AND m.message = s.message)").rowcount
+                        names = ", ".join(_identifier(column) for column in shared)
+                        insert = (f"INSERT INTO main.turns({names}) SELECT {names} FROM stray.turns s "  # nosec B608 - validated column identifiers
+                                  "WHERE NOT EXISTS (SELECT 1 FROM main.turns m WHERE m.created_at = s.created_at "
+                                  "AND m.session_id = s.session_id AND m.message = s.message)")
+                        report["turns"] = db.execute(insert).rowcount
                 if "ai_budget" in source_tables:
                     db.execute("CREATE TABLE IF NOT EXISTS ai_budget (month TEXT PRIMARY KEY, reserved INTEGER NOT NULL)")
                     report["ai_budget_months"] = db.execute(
@@ -122,7 +137,8 @@ def merge(stray: Path, target: Path) -> dict:
                 for table in sorted(source_tables - set(_MERGED)):
                     if table.startswith("sqlite_"):
                         continue
-                    count = db.execute(f'SELECT count(*) FROM stray."{table}"').fetchone()[0]
+                    count_query = f'SELECT count(*) FROM stray."{_identifier(table)}"'  # nosec B608 - validated table identifier
+                    count = db.execute(count_query).fetchone()[0]
                     if count:
                         report["not_merged"][table] = count
         finally:
