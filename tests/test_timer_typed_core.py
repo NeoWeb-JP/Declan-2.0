@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from declan.timers import timers
 from declan.core.execution_results import ExecutionResult, Outcome
+from result_pairs import pair, pair_of
 
 
 class TimerCoreTypedTests(unittest.TestCase):
@@ -34,14 +35,14 @@ class TimerCoreTypedTests(unittest.TestCase):
 
     def test_unmatched_phrase_remains_none(self):
         self.assertIsNone(timers.handle_result("turn on kitchen", Mock()))
-        self.assertIsNone(timers.handle("turn on kitchen", Mock()))
+        self.assertIsNone(pair_of(timers.handle_result)("turn on kitchen", Mock()))
 
     def test_invalid_duration_returns_typed_unresolved(self):
         result = timers.handle_result("set a timer for nonsense minutes", Mock())
         self.assertIsInstance(result, ExecutionResult)
         self.assertIs(result.outcome, Outcome.UNRESOLVED)
-        self.assertEqual(timers.handle("set a timer for nonsense minutes", Mock()),
-                         result.as_legacy_pair())
+        self.assertEqual(pair_of(timers.handle_result)("set a timer for nonsense minutes", Mock()),
+                         pair(result))
 
     def test_missing_alarm_output_is_typed_unavailable(self):
         with patch.object(timers, "resolve_output", return_value=None):
@@ -69,13 +70,13 @@ class TimerCoreTypedTests(unittest.TestCase):
     def test_public_handle_uses_typed_core(self):
         with patch.object(timers, "handle_result",
                           return_value=ExecutionResult("Set timer", Outcome.TIMER_SET)):
-            self.assertEqual(timers.handle("set a timer for 5 minutes", Mock()),
+            self.assertEqual(pair_of(timers.handle_result)("set a timer for 5 minutes", Mock()),
                              ("Set timer", "timer_set"))
 
     def test_invalid_core_result_cannot_be_silently_accepted(self):
         with patch.object(timers, "handle_result", return_value=("Set", "timer_set")):
-            with self.assertRaises(AttributeError):
-                timers.handle("set a timer for 5 minutes", Mock())
+            with self.assertRaises(TypeError):
+                pair_of(timers.handle_result)("set a timer for 5 minutes", Mock())
 
 
 if __name__ == "__main__":

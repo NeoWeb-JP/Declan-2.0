@@ -4,6 +4,7 @@ from email.message import Message
 import io
 import json
 import unittest
+from result_pairs import pair_of
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from declan.ha import script_discovery
@@ -47,7 +48,7 @@ class TraceCompletionTests(unittest.TestCase):
             return response
         opener = Mock(open=open_request)
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([script]), None)):
-            result = script_discovery.execute(("http://ha", {}, opener), script, expect_response=expect_response)
+            result = pair_of(script_discovery.execute_result)(("http://ha", {}, opener), script, expect_response=expect_response)
         return result, calls
 
     def test_empty_response_reports_correlated_execution_completion(self):

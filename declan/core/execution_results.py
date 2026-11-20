@@ -65,9 +65,6 @@ class MovieLaunchResult:
         if type(self.detail) is not str:
             raise ValueError("Movie launch detail must be text")
 
-    def as_legacy_pair(self):
-        return self.status.value, self.detail
-
 
 class ActionStatus(StrEnum):
     CONFIRMED = "confirmed"
@@ -99,9 +96,6 @@ class DispatchResult:
         if type(value) not in (tuple, list) or len(value) != 2:
             raise ValueError("Invalid dispatch result")
         return cls(*value)
-
-    def as_legacy_pair(self):
-        return self.status.value, self.detail
 
 
 @dataclass(frozen=True)
@@ -137,9 +131,6 @@ class ExecutionResult:
         if type(self.reply) is not str or type(self.actions) is not tuple or any(
                 not isinstance(action, ActionResult) for action in self.actions):
             raise ValueError("Invalid execution result")
-
-    def as_legacy_pair(self):
-        return self.reply, self.outcome.value
 
     def to_wire(self):
         return {"reply": self.reply, "outcome": self.outcome.value,

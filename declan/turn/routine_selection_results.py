@@ -1,4 +1,4 @@
-"""Typed routine selection with explicit adapters for legacy selection tuples."""
+"""Typed routine selection; coerce() still accepts older (key, options) selection tuples."""
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -35,13 +35,6 @@ class RoutineSelection:
         memo[id(self)] = result
         return result
 
-    def as_legacy_pair(self):
-        key = {RoutineSelectionKind.SCRIPT: "auto:" + (self.entity_id or ""),
-               RoutineSelectionKind.AMBIGUOUS: "auto_ambiguous",
-               RoutineSelectionKind.HOUSE_STATUS_MISSING: "unconfigured_house_status",
-               RoutineSelectionKind.UNSUPPORTED: self.legacy_key}[self.kind]
-        return key, deepcopy(dict(self.options))
-
     @classmethod
     def coerce(cls, value) -> 'RoutineSelection':
         if isinstance(value, cls):
@@ -64,9 +57,6 @@ class RoutineTurnSelection:
     def __post_init__(self):
         if not isinstance(self.routine, RoutineSelection):
             raise TypeError("routine turn requires a typed selection")
-
-    def as_legacy_pair(self):
-        return self.routine.as_legacy_pair(), self.follow_on
 
     @classmethod
     def coerce(cls, value) -> 'RoutineTurnSelection':

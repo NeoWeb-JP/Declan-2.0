@@ -2,12 +2,12 @@
 import unittest
 from unittest.mock import Mock
 
-from declan.turn import routine_follow_on
+from result_pairs import execute_follow_on
 from declan.core.execution_results import ExecutionResult, Outcome
 
 
 def run_follow_on(lighting_result):
-    return routine_follow_on.execute(
+    return execute_follow_on(
         "turn kitchen lights on",
         routine_reply="Routine complete", routine_outcome="confirmed",
         routine_status=None, parse_music=Mock(), play_music=Mock(),

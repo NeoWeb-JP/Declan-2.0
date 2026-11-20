@@ -1,6 +1,7 @@
 """Typed script discovery results preserve existing HA execution and receipt contracts."""
 from typing import Any, cast
 import unittest
+from result_pairs import pair
 import json
 from unittest.mock import MagicMock, patch
 
@@ -68,7 +69,7 @@ class ScriptDiscoveryTypedResultTests(unittest.TestCase):
                 None, {"entity_id": "script.morning"}, parameters={"mode": "on"},
                 expect_response=True, action_results=[])
         self.assertIs(result.outcome, Outcome.REPORTED_SUCCESS)
-        self.assertEqual(result.as_legacy_pair(), ("Routine complete.", "reported_success"))
+        self.assertEqual(pair(result), ("Routine complete.", "reported_success"))
         self.assertIsNone(detail)
         self.assertEqual(execute.call_count, 1)
 

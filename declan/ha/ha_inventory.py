@@ -31,9 +31,6 @@ class InventoryResult:
     def inventory(self):
         return list(self.rows) if self.rows is not None else None
 
-    def as_legacy_pair(self):
-        return self.inventory, self.error.value if self.error is not None else None
-
     @classmethod
     def coerce(cls, value) -> 'InventoryResult':
         if isinstance(value, cls):
@@ -42,10 +39,6 @@ class InventoryResult:
             raise ValueError('inventory provider must return a typed result or inventory/error pair')
         rows, error = value
         return cls(tuple(rows) if rows is not None else None, Outcome(error) if error else None)
-
-
-def read(connection, *, music=False):
-    return read_result(connection, music=music).as_legacy_pair()
 
 
 def read_locations(connection):

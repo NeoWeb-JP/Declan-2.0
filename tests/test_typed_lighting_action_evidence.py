@@ -2,6 +2,7 @@
 from typing import Any
 import io
 import unittest
+from result_pairs import pair
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
@@ -48,7 +49,7 @@ class TypedLightingActionEvidenceTests(unittest.TestCase):
             self.assertTrue(all(isinstance(call.args[1], Outcome) for call in model.call_args_list))
             if "missing" in name:
                 self.assertIn("couldn't find", result.reply)
-            self.assertIs(type(result.as_legacy_pair()[1]), str)
+            self.assertIs(type(pair(result)[1]), str)
 
     def test_all_six_statuses_roundtrip_without_promoting_planned_actions(self):
         for status in LightingActionStatus:

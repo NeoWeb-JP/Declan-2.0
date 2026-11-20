@@ -1,14 +1,21 @@
 """Pure routing of successful background routine acknowledgements to persona replies."""
 from declan.core.execution_results import ExecutionResult, Outcome, parse_outcome
 from declan.ai.action_evidence_buffer import evidence_completed
+from declan.turn.routine_selection_results import RoutineTurnSelection
+
+
+def _turn(routine_turn):
+    """The typed routine turn, or None when this was not a routine request."""
+    return RoutineTurnSelection.coerce(routine_turn) if routine_turn else None
 
 
 def background_reply(outcome, routine_turn, *, guest, visitor_present, personality):
     """Return a background routine acknowledgement, or None if not applicable."""
-    if not (parse_outcome(outcome) is Outcome.STARTED and routine_turn and not routine_turn[1]
-            and routine_turn[0][1].get("_declan_background")):
+    turn = _turn(routine_turn)
+    if not (parse_outcome(outcome) is Outcome.STARTED and turn and not turn.follow_on
+            and turn.routine.options.get("_declan_background")):
         return None
-    options = routine_turn[0][1]
+    options = turn.routine.options
     category = options.get("_declan_reply_category")
     kwargs = {"guest": guest, "visitor_present": visitor_present}
     if category == "morning":
@@ -27,7 +34,8 @@ def routine_reply(reply, *, outcome, routine_turn, routine_voice_result,
     """Apply editable routine response text without overriding previews or safety replies."""
     import re
     decision_outcome = parse_outcome(outcome)
-    if not (routine_turn and decision_outcome is not Outcome.PREVIEW
+    turn = _turn(routine_turn)
+    if not (turn and decision_outcome is not Outcome.PREVIEW
             and not re.match(r"^(?:preview|dry[ -]run)\b", phrase)
             and not any(word in phrase.casefold() for word in (
                 "smoke", "fire alarm", "carbon monoxide", "security alert",
@@ -38,13 +46,13 @@ def routine_reply(reply, *, outcome, routine_turn, routine_voice_result,
             original, routine_outcome = routine_voice_result.reply, routine_voice_result.outcome
         else:
             original, routine_outcome = routine_voice_result
-        reply = render(routine_turn[0], routine_outcome, original,
+        reply = render(turn.routine, routine_outcome, original,
                        guest=guest or visitor_present is not False) + original_routine_reply[len(original):]
     else:
-        reply = render(routine_turn[0], outcome, reply,
+        reply = render(turn.routine, outcome, reply,
                        guest=guest or visitor_present is not False)
     if (decision_outcome in {Outcome.CONFIRMED, Outcome.REPORTED_SUCCESS, Outcome.EXECUTION_COMPLETED}
-            and routine_turn[0][1].get("_declan_reply_category") == "dinner"):
+            and turn.routine.options.get("_declan_reply_category") == "dinner"):
         note = personality.dinner_music_feedback(
             action_results, guest=guest, visitor_present=visitor_present)
         if note and note not in reply:
@@ -77,9 +85,10 @@ def general_reply(reply, *, outcome, routine_reply, routine_turn, light_result,
                 "emergency", "intruder", "panic alarm"))):
         return reply
     spoken = "Sorted." if verified else reply
-    dinner = bool(routine_turn is not None and (verified or completed)
-                  and routine_turn[0][1].get("_declan_reply_category") == "dinner")
-    if dinner and not routine_turn[1]:
+    turn = _turn(routine_turn)
+    dinner = bool(turn is not None and (verified or completed)
+                  and turn.routine.options.get("_declan_reply_category") == "dinner")
+    if dinner and turn is not None and not turn.follow_on:
         spoken = ""
     decorated = personality.decorate(
         spoken, outcome=Outcome.CONFIRMED.value if verified or completed else outcome,

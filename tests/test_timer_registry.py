@@ -1,4 +1,5 @@
 """Timer registry recognition, routing and compatibility tests."""
+from result_pairs import pair
 from unittest import TestCase
 from unittest.mock import Mock
 
@@ -22,7 +23,7 @@ class TimerRegistryTests(TestCase):
         result = self.dispatch("set a tea timer for 5 minutes", satellite="kitchen", origin_device="tablet")
         self.assertEqual(result.handler, "timer")
         self.assertIs(result.result.outcome, Outcome.TIMER_SET)
-        self.assertEqual(result.result.as_legacy_pair(), ("Set tea timer. Sass.", "timer_set"))
+        self.assertEqual(pair(result.result), ("Set tea timer. Sass.", "timer_set"))
         self.handle.assert_called_once_with("set a tea timer for 5 minutes", "HA",
             satellite="kitchen", device="tablet", browser=False)
         self.decorate.assert_called_once_with("Set tea timer.", "timer_set", "off")

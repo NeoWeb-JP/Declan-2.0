@@ -480,10 +480,3 @@ def handle_result(phrase, opener):
     if report:
         return InformationResult(ExecutionResult(f"It's {temperature} in {name}. I couldn't verify the conditions.", Outcome.PARTIAL), category)
     return InformationResult(ExecutionResult(f"It's {temperature} in {name}.", Outcome.CONFIRMED), category)
-
-
-
-def handle(phrase, opener):
-    """Compatibility API for information reply/outcome/category triples."""
-    result = handle_result(phrase, opener)
-    return result.as_legacy_triple() if result is not None else None

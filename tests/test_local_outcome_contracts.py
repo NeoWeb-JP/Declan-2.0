@@ -1,5 +1,6 @@
 """Timer and routine provider contract regression tests."""
 import unittest
+from result_pairs import pair
 from unittest.mock import Mock
 
 from declan.turn.command_registry import RequestContext, routine_registry, timer_registry
@@ -56,7 +57,7 @@ class LocalProviderContractsTests(unittest.TestCase):
             opener=None, guest_mode=lambda: "off", decorate=decorate,
         )
         result = registry.dispatch(RequestContext("set timer", "assist"))
-        self.assertEqual(result.result.as_legacy_pair(), ("Sassy timer", "timer_set"))
+        self.assertEqual(pair(result.result), ("Sassy timer", "timer_set"))
         decorate.assert_called_once_with("Set", "timer_set", "off")
 
     def test_routine_registry_accepts_typed_provider(self):

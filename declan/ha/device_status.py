@@ -49,14 +49,6 @@ class DeviceStatusResult:
         reply, outcome, target = value
         return cls(ExecutionResult(reply, outcome), target)
 
-    def as_legacy_triple(self):
-        return self.result.reply, self.result.outcome.value, self.target
-
-
-def describe(name, requested, inventory):
-    """Compatibility API retaining plain reply/outcome/target triples."""
-    return describe_result(name, requested, inventory).as_legacy_triple()
-
 
 def describe_result(name, requested, inventory):
     if not name:

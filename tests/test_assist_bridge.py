@@ -20,7 +20,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                 probe.status = http_status
                 result = await self.config.verify_declan_token_result(None, "http://declan.invalid", "secret-token")
                 self.assertIs(result.status, expected)
-                self.assertEqual(result.as_legacy_error(), None if expected is statuses.VALID else expected.value)
+                self.assertEqual(result.form_error(), None if expected is statuses.VALID else expected.value)
                 self.assertNotIn("secret-token", str(result))
                 self.assertNotIn("declan.invalid", str(result))
                 self.assertFalse(self.session.get.call_args.kwargs["allow_redirects"])
@@ -37,7 +37,7 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
             result = self.config.TokenVerificationResult(status)
             with patch.object(self.config, "verify_declan_token_result", return_value=result):
                 error = await self.config.verify_declan_token(None, "http://declan.invalid", "token")
-            self.assertEqual(error, result.as_legacy_error())
+            self.assertEqual(error, result.form_error())
             if error is not None:
                 self.assertIs(type(error), str)
 

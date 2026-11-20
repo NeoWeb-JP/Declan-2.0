@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from declan.core.execution_results import ExecutionResult
 from declan.ai.fallback_action_evidence import FallbackActionEvidence
-from declan.ai.action_evidence_wire import action_evidence_to_wire
 from declan.ai.action_evidence_buffer import extend_action_evidence
 
 
@@ -28,9 +27,6 @@ class FallbackResponse:
         if not isinstance(steps, (tuple, list)):
             raise ValueError("Fallback action steps must be a sequence")
         return cls(ExecutionResult(reply, outcome), tuple(steps))
-
-    def as_legacy_triple(self):
-        return self.result.reply, self.result.outcome.value, list(action_evidence_to_wire(self.action_steps))
 
 
 def dispatch_fallback_result(message, *, source, exposed_entities, fallback_handler, action_results):

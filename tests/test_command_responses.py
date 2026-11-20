@@ -15,6 +15,7 @@ from declan.core import history
 from declan.core.database_schema_state import DatabaseSchemaState
 from declan.turn import personality
 import server
+from result_pairs import pair_of
 
 
 class CommandResponseTests(TestCase):
@@ -63,7 +64,7 @@ class CommandResponseTests(TestCase):
         self.assertEqual(self.handler("POST", self.row, authorised=False, remote=True)[0], 403)
 
     def test_authenticated_edits_persist_without_discovery_or_action_dispatch(self):
-        with patch.object(server.script_discovery, "discover_result", side_effect=AssertionError("Must not need HA")), patch.object(server, "set_lights") as dispatch:
+        with patch.object(server.script_discovery, "discover_result", side_effect=AssertionError("Must not need HA")), patch.object(server, "set_lights_result") as dispatch:
             status, state = self.handler("POST", self.row, remote=True)
             self.assertEqual(status, 200)
             state["profile"]["completed"]["sass"]["default"] = ["Custom one", "Custom two"]
@@ -125,7 +126,7 @@ class CommandResponseTests(TestCase):
             state["profile"]["completed"]["sass"]["default"] = [expected]
             commands.save(row, state["profile"], state["expected"])
             with patch.dict(server.os.environ, HA_ENV), patch.object(server, "build_opener", return_value=ha):
-                result, outcome = server.handle_light_request(phrase)
+                result, outcome = pair_of(server.handle_light_request_result)(phrase)
             self.assertEqual(outcome, "confirmed")
             self.assertIn(expected, result)
             self.assertRegex(result, r"is (?:on|off)|at 30%")

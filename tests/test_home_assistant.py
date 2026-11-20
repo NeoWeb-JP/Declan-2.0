@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import server
 from declan.timers import timers
+from result_pairs import pair, pair_of
 
 
 HA_ENV = {"DECLAN_HA_URL": "http://ha.invalid", "DECLAN_HA_TOKEN": "test-only"}
@@ -90,7 +91,7 @@ class LightingTests(TestCase):
     def run_light(self, phrase, expected, **kwargs):
         steps: list[dict[str, Any]]
         steps = []
-        reply, outcome = server.handle_light_request(phrase, action_results=steps, **kwargs)
+        reply, outcome = pair_of(server.handle_light_request_result)(phrase, action_results=steps, **kwargs)
         self.assertEqual(outcome, expected, reply)
         return steps
 
@@ -134,7 +135,7 @@ class LightingTests(TestCase):
             with self.subTest(starting_state=starting_state):
                 steps: list[dict[str, Any]]
                 steps = []
-                reply, outcome = server.handle_light_request(
+                reply, outcome = pair_of(server.handle_light_request_result)(
                     "turn the lounge and the bedroom lights off", action_results=steps,
                 )
                 self.assertEqual(outcome, "confirmed", reply)
@@ -158,7 +159,7 @@ class LightingTests(TestCase):
         self.ha.entities["light.bedroom_lamp"]["state"] = "unavailable"
         steps: list[dict[str, Any]]
         steps = []
-        reply, outcome = server.handle_light_request(
+        reply, outcome = pair_of(server.handle_light_request_result)(
             "turn the office off and the bedroom on", action_results=steps,
         )
         self.assertEqual(outcome, "partial", reply)
@@ -319,7 +320,7 @@ class ServiceTests(TestCase):
                 io.BytesIO(b'{"entity_id":"conversation.declan_local","state":"unknown"}'),
                 io.BytesIO(json.dumps({"service_response": {"response": reply}}).encode()),
             ]
-            self.assertEqual(server.search_media_result("where can i watch dune").as_legacy_pair(), ("It's on Netflix.", "search_result"))
+            self.assertEqual(pair(server.search_media_result("where can i watch dune")), ("It's on Netflix.", "search_result"))
             request = opener.open.call_args.args[0]
             self.assertEqual(json.loads(request.data)["agent_id"], "conversation.declan_local")
             self.assertEqual(server.search_media_result("where can i watch dune and turn on the lights").outcome.value, "unresolved")
@@ -340,7 +341,7 @@ class ServiceTests(TestCase):
                 io.BytesIO(json.dumps({"legacy": agents, "self": []}).encode()),
                 io.BytesIO(json.dumps(reply).encode()),
             ]
-            self.assertEqual(server.search_media_result("where can i watch friends").as_legacy_pair(), ("Test result.", "search_result"))
+            self.assertEqual(pair(server.search_media_result("where can i watch friends")), ("Test result.", "search_result"))
             discovery = opener.open.call_args_list[0].args[0]
             self.assertEqual(urlsplit(discovery.full_url).path, "/api/template")
             self.assertIn("integration_entities('declan_local')", json.loads(discovery.data)["template"])

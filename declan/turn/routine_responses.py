@@ -81,13 +81,15 @@ def select(item, phase, guest, action="default"):
 
 def render(selection, outcome, original, *, guest=False):
     """Replace ordinary routine wording, retain diagnostics and informative scripts."""
-    kind, options = selection
-    if not kind.startswith("auto:"):
+    from declan.turn.routine_selection_results import RoutineSelection, RoutineSelectionKind
+    selection = RoutineSelection.coerce(selection)
+    if selection.kind is not RoutineSelectionKind.SCRIPT or not selection.entity_id:
         return original
     phase = response_phase(outcome)
     if phase is None:
         return original
-    entity = kind[5:]
+    options = selection.options
+    entity = selection.entity_id
     item = {"entity_id": entity, "name": entity[7:].replace('_', ' ')}
     # Rendering is not bound to a specific HA credential scope. Do not scan
     # another request's authenticated discovery cache for script metadata.

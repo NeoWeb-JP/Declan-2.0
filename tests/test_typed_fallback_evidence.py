@@ -2,6 +2,7 @@
 from typing import Any
 import json
 import unittest
+from result_pairs import pair
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
 
@@ -59,7 +60,7 @@ class TypedFallbackEvidenceTests(unittest.TestCase):
         dispatch_fallback_result("lights", source="assist", exposed_entities=(),
                                  fallback_handler=lambda *args, **kwargs: response, action_results=rows)
         self.assertEqual(rows, [evidence.to_wire()])
-        self.assertEqual(response.as_legacy_triple(), ("Cannot verify", "unverified", rows))
+        self.assertEqual(pair(response), ("Cannot verify", "unverified", rows))
         self.assertIs(type(rows[0]["status"]), str)
         self.assertNotIn("detail", rows[0])
 
@@ -67,7 +68,7 @@ class TypedFallbackEvidenceTests(unittest.TestCase):
         evidence = FallbackActionEvidence.from_action(self.action(), include_detail=True)
         legacy = {"status": "custom", "extra": "kept"}
         response = FallbackResponse(ExecutionResult("Partial", Outcome.PARTIAL), (legacy, evidence))
-        triple = response.as_legacy_triple()
+        triple = pair(response)
         self.assertIs(triple[2][0], legacy)
         self.assertEqual(triple[2][1], evidence.to_wire())
 

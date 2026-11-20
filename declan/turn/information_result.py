@@ -27,6 +27,3 @@ class InformationResult:
             raise ValueError("Information provider requires a typed result or legacy triple")
         reply, outcome, category = value
         return cls(ExecutionResult(reply, outcome), category)
-
-    def as_legacy_triple(self):
-        return self.result.reply, self.result.outcome.value, self.category.value

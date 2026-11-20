@@ -16,8 +16,8 @@ class ScriptDiscoveryUITests(unittest.TestCase):
         self.assertNotIn("void this.loadRoutines(); void this.loadSettingsStatus()", PANEL)
 
     def test_automatic_discovery_still_available_to_voice_commands(self):
-        self.assertIn("def discover(", DISCOVERY)
-        self.assertIn("def execute(", DISCOVERY)
+        self.assertIn("def discover_result(", DISCOVERY)
+        self.assertIn("def execute_result(", DISCOVERY)
         self.assertNotIn("Review / enable", PANEL)
         self.assertNotIn("Protected · approval required", PANEL)
 

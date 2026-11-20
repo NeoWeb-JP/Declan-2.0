@@ -173,13 +173,6 @@ def matches(phrase):
                 or phrase in {"what timers are running", "list timers", "list my timers"})
 
 
-def handle(phrase, opener, *, satellite=None, device=None, browser=False):
-    """Legacy timer API, preserving None for phrases that are not timer commands."""
-    result = handle_result(phrase, opener, satellite=satellite, device=device,
-                           browser=browser)
-    return result.as_legacy_pair() if result is not None else None
-
-
 def handle_result(phrase, opener, *, satellite=None, device=None, browser=False):
     """Typed timer provider outcome; None means the phrase did not match."""
     creation_text = phrase

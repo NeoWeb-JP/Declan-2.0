@@ -1,4 +1,5 @@
 """Lighting registry matching and compatibility tests."""
+from result_pairs import pair
 from typing import Any
 from unittest import TestCase
 from unittest.mock import Mock
@@ -25,7 +26,7 @@ class LightingRegistryTests(TestCase):
         result = self.dispatch("turn on kitchen")
         self.assertEqual(result.handler, "lighting")
         self.assertIs(result.result.outcome, Outcome.CONFIRMED)
-        self.assertEqual(result.result.as_legacy_pair(), ("Kitchen lights on.", "confirmed"))
+        self.assertEqual(pair(result.result), ("Kitchen lights on.", "confirmed"))
         self.execute.assert_called_once_with("turn on kitchen", action_results=self.actions,
             last_lights=("kitchen",), origin_device="kitchen satellite")
 

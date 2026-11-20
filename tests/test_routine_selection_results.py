@@ -1,6 +1,7 @@
 """Routine selection stays typed through preview and execution decisions."""
 from copy import deepcopy
 import unittest
+from result_pairs import pair
 from unittest.mock import Mock, patch
 
 from declan.turn.command_registry import RequestContext, routine_registry
@@ -21,10 +22,10 @@ class RoutineSelectionResultTests(unittest.TestCase):
                 options = {"operation": "start", "extra": {"retained": True}}
                 result = RoutineSelection.coerce((key, options))
                 self.assertIs(result.kind, expected)
-                self.assertEqual(result.as_legacy_pair(), (key, options))
+                self.assertEqual(pair(result), (key, options))
                 options["operation"] = "end"
                 self.assertEqual(result.options["operation"], "start")
-                legacy = result.as_legacy_pair()
+                legacy = pair(result)
                 legacy[1]["extra"]["retained"] = False
                 self.assertTrue(result.options["extra"]["retained"])
                 self.assertEqual(deepcopy(result), result)
@@ -56,7 +57,7 @@ class RoutineSelectionResultTests(unittest.TestCase):
         assert response is not None
         execute.assert_called_once_with(selected, [])
         self.assertIs(execute.call_args.args[0], selected)
-        self.assertEqual(response.routine_selection, turn.as_legacy_pair())
+        self.assertEqual(response.routine_selection, turn)
         self.assertEqual(response.routine_follow_on, "turn off kitchen")
         self.assertIs(response.result.outcome, Outcome.STARTED)
 
@@ -69,6 +70,6 @@ class RoutineSelectionResultTests(unittest.TestCase):
                  patch.object(script_discovery, "enqueue_result") as enqueue:
                 result, _ = server.execute_routine_result(selection, [])
                 self.assertIs(result.outcome, expected)
-                self.assertEqual(legacy_wire.execute_routine(selection.as_legacy_pair(), [])[1], expected.value)
+                self.assertEqual(legacy_wire.execute_routine(pair(selection), [])[1], expected.value)
             execute.assert_not_called()
             enqueue.assert_not_called()

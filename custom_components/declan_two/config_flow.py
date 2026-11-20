@@ -17,7 +17,7 @@ from .voice_defaults import DEFAULT_PROVIDER
 
 async def verify_declan_token(hass, url: str, token: str) -> str | None:
     """Compatibility API returning the original form error key or None."""
-    return (await verify_declan_token_result(hass, url, token)).as_legacy_error()
+    return (await verify_declan_token_result(hass, url, token)).form_error()
 
 
 async def verify_declan_token_result(hass, url: str, token: str) -> TokenVerificationResult:

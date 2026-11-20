@@ -27,11 +27,6 @@ class LightingExecutionExtractionTests(unittest.TestCase):
             result = server.set_lights_result("kitchen", "on")
         self.assertEqual(result.outcome, Outcome.NOT_CONFIGURED)
 
-    def test_legacy_api_preserves_result_pair(self):
-        with patch.object(server, "set_lights_result") as result:
-            result.return_value.as_legacy_pair.return_value = ("reply", "confirmed")
-            self.assertEqual(server.set_lights("kitchen", "off"), ("reply", "confirmed"))
-
     def test_unavailable_inventory_does_not_dispatch(self):
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, None)):
             with patch.object(server, "read_ha_inventory_result", return_value=(None, Outcome.UNAVAILABLE)):

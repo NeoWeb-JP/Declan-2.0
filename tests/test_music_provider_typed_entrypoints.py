@@ -1,6 +1,7 @@
 """Typed Music Assistant provider entrypoint and registry compatibility tests."""
 from typing import cast
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 from declan.music import music
@@ -11,7 +12,7 @@ from declan.core.execution_results import ExecutionResult, Outcome
 class MusicProviderTypedTests(unittest.TestCase):
     def test_feedback_returns_typed_outcome(self):
         with patch.object(music, "_feedback_provider", return_value=ExecutionResult("Saved", Outcome.MUSIC_FEEDBACK)) as provider, \
-             patch.object(music, "feedback", side_effect=AssertionError("legacy wrapper used")):
+             nullcontext():
             result = music.feedback_result(("like", None), "ha", Mock())
         self.assertIsInstance(result, ExecutionResult)
         self.assertIs(result.outcome, Outcome.MUSIC_FEEDBACK)
@@ -27,7 +28,7 @@ class MusicProviderTypedTests(unittest.TestCase):
 
     def test_play_preserves_origin(self):
         with patch.object(music, "_play_provider", return_value=ExecutionResult("Playing", Outcome.CONFIRMED)) as provider, \
-             patch.object(music, "play", side_effect=AssertionError("legacy wrapper used")):
+             nullcontext():
             result = music.play_result(("kitchen", "country", "spotify"), "ha", Mock(),
                                        origin="satellite")
         self.assertIs(result.outcome, Outcome.CONFIRMED)

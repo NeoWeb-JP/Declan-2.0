@@ -46,16 +46,6 @@ def _lighting_result(value):
     return value if isinstance(value, ExecutionResult) else ExecutionResult(*value)
 
 
-def handle_light_request(phrase, *, parse_light_command, set_lights, action_results=None, last_lights=(), origin_device=None):
-    """Legacy-compatible lighting API returning reply/outcome pairs."""
-    result = handle_light_request_result(
-        phrase, parse_light_command=parse_light_command, set_lights=set_lights,
-        action_results=action_results, last_lights=last_lights,
-        origin_device=origin_device,
-    )
-    return result.as_legacy_pair() if result is not None else None
-
-
 def handle_light_request_result(phrase, *, parse_light_command, set_lights, action_results=None, last_lights=(), origin_device=None):
     """Typed lighting intent outcome, or None for an unmatched request."""
     if phrase in {"what lights are on", "which lights are on", "what lights are still on", "which lights are still on"}:
@@ -146,7 +136,6 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
         return None
     return _lighting_result(set_lights(*command, brightness=brightness or None, preview=bool(preview),
                       require_all=corrected, action_results=action_results, relative_step=relative_step))
-
 
 
 def response_category(phrase, parse_light_command):

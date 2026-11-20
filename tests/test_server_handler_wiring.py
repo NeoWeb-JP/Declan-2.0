@@ -1,5 +1,5 @@
 """Server-level wiring for HTTP handler methods, startup and typed routine helpers."""
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 import unittest
 
 import server
@@ -71,13 +71,6 @@ class ServerHandlerWiringTests(unittest.TestCase):
         self.assertIs(kwargs["ha_connect"], server.ha_device_connection)
         self.assertIs(kwargs["music_inventory"], server.read_music_inventory_result)
         self.assertIs(kwargs["logger"], server.DECLAN_EVENT_LOG)
-
-    def test_set_lights_preserves_legacy_pair(self):
-        result = Mock()
-        result.as_legacy_pair.return_value = ("on", "confirmed")
-        with patch.object(server, "set_lights_result", return_value=result) as lights:
-            self.assertEqual(server.set_lights("study", "on", brightness=25), ("on", "confirmed"))
-        self.assertEqual(lights.call_args.kwargs["brightness"], 25)
 
     def test_routine_tracker_and_evidence_use_live_state(self):
         with patch.object(server.ACTIVE_ROUTINE_REGISTRY, "track", return_value="tracked") as track:

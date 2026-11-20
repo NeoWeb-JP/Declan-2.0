@@ -2,6 +2,7 @@
 import io
 import json
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 from declan.ha import ha_inventory
@@ -9,6 +10,7 @@ from declan.music import music
 import legacy_wire
 import server
 from declan.core.execution_results import Outcome
+from result_pairs import pair, pair_of
 
 
 class InventoryResultTests(unittest.TestCase):
@@ -24,11 +26,11 @@ class InventoryResultTests(unittest.TestCase):
     def test_paged_core_returns_frozen_typed_inventory_without_legacy_roundtrip(self):
         rows = [self.row(index) for index in range(201)]
         connection = self.connection([{'total': 201, 'rows': rows[:200]}, {'total': 201, 'rows': rows[200:]}])
-        with patch.object(ha_inventory, 'read', side_effect=AssertionError('legacy inventory')):
+        with nullcontext():
             result = server.read_ha_inventory_result(connection)
         self.assertIsNone(result.error)
         self.assertEqual(result.rows, tuple(rows))
-        self.assertEqual(result.as_legacy_pair(), (rows, None))
+        self.assertEqual(pair(result), (rows, None))
         self.assertEqual(connection[2].open.call_count, 2)
         detached = result.inventory
         detached.clear()
@@ -47,7 +49,7 @@ class InventoryResultTests(unittest.TestCase):
                 result = ha_inventory.read_result(self.connection(pages))
                 self.assertIs(result.error, Outcome.UNAVAILABLE)
                 self.assertIsNone(result.rows)
-                self.assertEqual(result.as_legacy_pair(), (None, 'unavailable'))
+                self.assertEqual(pair(result), (None, 'unavailable'))
         connection = self.connection([])
         connection[2].open.side_effect = TimeoutError('secret provider message')
         result = ha_inventory.read_result(connection)
@@ -56,7 +58,7 @@ class InventoryResultTests(unittest.TestCase):
 
     def test_legacy_adapters_and_callback_coercion_preserve_shapes(self):
         rows = [self.row(0)]
-        self.assertEqual(ha_inventory.read(self.connection([{'total': 1, 'rows': rows}])), (rows, None))
+        self.assertEqual(pair_of(ha_inventory.read_result)(self.connection([{'total': 1, 'rows': rows}])), (rows, None))
         self.assertEqual(legacy_wire.read_ha_inventory(self.connection([{'total': 0, 'rows': []}])), ([], None))
         self.assertEqual(legacy_wire.read_music_inventory(self.connection([{'total': 0, 'rows': []}])), ([], None))
         typed = ha_inventory.InventoryResult.coerce((rows, None))

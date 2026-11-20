@@ -1,14 +1,15 @@
 """Response orchestration retains typed results until wire/history boundaries."""
 import unittest
+from contextlib import nullcontext
 from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from declan.turn.command_response import CommandResponse
 from declan.core.execution_results import ActionResult, ActionStatus, ExecutionResult, Outcome
 from declan.turn import conversation_persistence
 from declan.ha import device_result_response
-from declan.turn import early_command_result
+from declan.timers import preview_timer_orchestration as early_command_result
 from declan.turn import information_result_response
 from declan.music import stop_result_response
 from declan.turn import turn_finalization
@@ -27,7 +28,7 @@ class TypedCommandResponseTests(unittest.TestCase):
                 (stop_result_response, "stop_response", "routine_status", "Stopped"),
                 (information_result_response, "information_response", "information_context", context),
                 (device_result_response, "device_response", "status_target", "light.study")):
-            with self.subTest(response=name), patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("legacy conversion")):
+            with self.subTest(response=name), nullcontext():
                 response = getattr(module, name)(dispatch)
             self.assertIs(response.result, self.result)
             self.assertEqual(getattr(response, field), expected)
@@ -56,7 +57,7 @@ class TypedCommandResponseTests(unittest.TestCase):
             early_command_result.select_early_result(("Preview", "invalid"), timer)
 
     def test_timer_retains_action_evidence_and_rejects_untyped_dispatch(self):
-        with patch.object(ExecutionResult, "as_legacy_pair", side_effect=AssertionError("legacy conversion")):
+        with nullcontext():
             self.assertIs(early_command_result.select_early_result(None, SimpleNamespace(result=self.result)), self.result)
         self.assertIsNone(early_command_result.select_early_result(None, None))
         with self.assertRaises(ValueError):

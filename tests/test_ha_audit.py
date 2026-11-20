@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import sys
 import types
 import unittest
+from result_pairs import pair_of
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -417,7 +418,7 @@ class AuditViewTests(AuditViewFixture):
             response.status = 200
             return response
         with patch.object(script_discovery, "discover_result", return_value=script_discovery.DiscoveryResult(tuple([item]), None)):
-            result = script_discovery.execute(("http://ha", {}, SimpleNamespace(open=open_request)), item,
+            result = pair_of(script_discovery.execute_result)(("http://ha", {}, SimpleNamespace(open=open_request)), item,
                                               parameters={"requested_action": "toggle"})
         self.assertEqual(result[1], "reported_success")
         self.assertEqual(len(calls), 1)

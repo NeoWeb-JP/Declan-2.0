@@ -18,7 +18,7 @@ class TokenVerificationResult:
         if not isinstance(self.status, TokenVerificationStatus):
             raise TypeError("status must be a TokenVerificationStatus")
 
-    def as_legacy_error(self) -> str | None:
+    def form_error(self) -> str | None:
         return None if self.status is TokenVerificationStatus.VALID else self.status.value
 
 
