@@ -36,12 +36,16 @@
           "category_fallback": "Use a saved equivalent reply when the provider fails",
           "local_tts": "Local TTS fallback entity",
           "primary_daily_character_limit": "Daily primary character limit (UTC; 0 means unlimited)",
-          "local_stt_entity": "Local STT fallback entity"
+          "local_stt_entity": "Local STT fallback entity",
+          "openai_stt_vocabulary": "Extra words to recognise",
+          "openai_stt_auto_vocabulary": "Use my Home Assistant names as vocabulary"
         },
         "data_description": {
           "openai_stt_api_key": "Leave blank to keep the existing key. Required when enabling transcription for the first time.",
           "local_stt_entity": "Optional local stt.* entity. Leave blank to use the configured Wyoming speaker bridge.",
-          "local_tts": "Optional local tts.* entity, such as tts.piper. Used only after the primary provider and saved equivalent replies fail. Leave blank for no local fallback."
+          "local_tts": "Optional local tts.* entity, such as tts.piper. Used only after the primary provider and saved equivalent replies fail. Leave blank for no local fallback.",
+          "openai_stt_vocabulary": "Up to 12 comma-separated names or words that speech-to-text often gets wrong, such as Braai or Study.",
+          "openai_stt_auto_vocabulary": "Also send your Home Assistant room names and the names of devices shared with Assist (plus Howzit Declan), so names are misheard less. These names go to OpenAI with each request. Refreshed every 10 minutes."
         }
       }
     },

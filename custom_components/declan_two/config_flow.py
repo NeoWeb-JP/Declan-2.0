@@ -201,6 +201,8 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
                     "openai_stt_enabled": enabled,
                     "openai_stt_model": user_input["openai_stt_model"],
                     "openai_stt_vocabulary": vocabulary,
+                    "openai_stt_auto_vocabulary": bool(user_input.get(
+                        "openai_stt_auto_vocabulary", current.get("openai_stt_auto_vocabulary", False))),
                     "openai_stt_api_key": key,
                 })
         values = {**current, **(user_input or {})}
@@ -211,6 +213,8 @@ class DeclanTwoOptionsFlow(config_entries.OptionsFlowWithReload):
             vol.Optional("openai_stt_vocabulary",
                          default=values.get("openai_stt_vocabulary", "")):
                 vol.All(str, vol.Length(max=240)),
+            vol.Optional("openai_stt_auto_vocabulary",
+                         default=values.get("openai_stt_auto_vocabulary", False)): bool,
             vol.Optional("openai_stt_api_key"): selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
             ),
