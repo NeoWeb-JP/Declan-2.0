@@ -5,7 +5,7 @@ from pathlib import Path
 import sqlite3
 
 from cryptography.exceptions import InvalidTag
-from declan.voice.voice_audio_crypto import MAGIC, _aesgcm, decrypt
+from declan.voice.voice_audio_crypto import _aesgcm, decrypt, is_encrypted
 
 
 def inspect(database):
@@ -23,7 +23,7 @@ def inspect(database):
         for sample_id, audio in db.execute('SELECT id, audio FROM samples'):
             if not isinstance(audio, bytes):
                 raise ValueError('Voice database contains an invalid audio value.')
-            if audio.startswith(MAGIC):
+            if is_encrypted(audio):
                 decrypt(audio, sample_id)
                 encrypted += 1
             else:
