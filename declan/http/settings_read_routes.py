@@ -6,6 +6,7 @@ ROUTES = frozenset({
     "/api/settings/spotify", "/api/settings/ai",
     "/api/settings/media-players", "/api/settings/music-playlists",
     "/api/settings/music", "/api/settings/speaker",
+    "/api/settings/command-style",
 })
 
 
@@ -50,6 +51,9 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
     elif path == "/api/settings/music":
         from declan.music import music
         handler.send_json(200, music.music_settings.listing(music.music_settings_path()))
+    elif path == "/api/settings/command-style":
+        from declan.turn import command_style
+        handler.send_json(200, command_style.listing())
     elif path == "/api/settings/speaker":
         from declan.voice import speaker_settings
         handler.send_json(200, speaker_settings.listing())

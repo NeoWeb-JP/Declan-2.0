@@ -260,6 +260,10 @@ class DeclanTwoNativePanel extends HTMLElement {
         .understanding ol { margin:0; padding-left:22px; display:grid; gap:4px; }
         .understanding li { overflow-wrap:anywhere; }
         .understanding .understanding-headline { font-size:1.05rem; font-weight:650; color:#c7e6f3; }
+        .command-style-form { display:grid; gap:10px; min-width:0; margin-top:14px; }
+        .command-style-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
+        .command-style-form select { max-width:100%; min-height:40px; }
+        .command-style-form button { justify-self:start; min-height:44px; }
         .speaker-settings-form { display:grid; gap:10px; min-width:0; margin-top:14px; }
         .speaker-settings-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
         .speaker-settings-form input { max-width:140px; min-height:40px; }
@@ -414,6 +418,17 @@ class DeclanTwoNativePanel extends HTMLElement {
               <div class="settings-section-content">
                 <div class="settings-subsection"><h3>Voice profiles</h3><p class="muted">Manage speakers and review their recognition records.</p>
                   <button class="voices-refresh" type="button">Refresh voice profiles</button><p class="voices-status muted" role="status" aria-live="polite"></p><div class="voices-list"></div>
+                  <form class="command-style-form">
+                    <label>Voice command style<select name="style">
+                      <option value="any">Any wording (default)</option>
+                      <option value="question">Must start with a question ("can you…", "could you…")</option>
+                      <option value="my_bru">Must end with "my bru"</option>
+                      <option value="either">Either a question or "my bru"</option>
+                    </select></label>
+                    <p class="muted">Applies to satellites and Echo Shows only, not typed chat. A command in another style is ignored silently: nothing runs and Declan stops listening. "Stop", "cancel", yes/no answers, real questions ("what time is it") and replies to Declan's own questions always work.</p>
+                    <button type="submit">Save command style</button>
+                    <p class="command-style-status muted" role="status" aria-live="polite"></p>
+                  </form>
                   <form class="speaker-settings-form">
                     <label>Recognised-speaker threshold (%)<input name="threshold" type="number" min="30" max="99" step="1" inputmode="numeric" required></label>
                     <p class="muted">A voice match at or above this confidence counts as that person in History and when two satellites hear the same request. Compare it with each speaker's average confidence above. Sensitive routine confirmations always need 85%, whatever this is set to.</p>
@@ -525,6 +540,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
       this.bindPanelEvent('.mic-stop', 'click', () => this._micFollowUp ? this.cancelMicrophone() : this.stopMicrophone());
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
+      this.bindPanelEvent('.command-style-form', 'submit', event => {
+        event.preventDefault(); void this.saveCommandStyle();
+      });
       this.bindPanelEvent('.speaker-settings-form', 'submit', event => {
         event.preventDefault(); void this.saveSpeakerSettings();
       });
@@ -685,7 +703,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'audit') void this.loadHAAudit();
     if (name === 'responses' && !this._responseRoutinesLoaded) void this.loadResponseRoutines();
-    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); void this.loadLearnedIntents(); if (!this._voicesLoaded) void this.loadVoices(); }
+    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); void this.loadCommandStyle(); void this.loadLearnedIntents(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
@@ -2256,6 +2274,37 @@ class DeclanTwoNativePanel extends HTMLElement {
       weeksLine.textContent = ''; speakerLine.textContent = ''; phrases.replaceChildren();
     } finally {
       this._understandingPending = false;
+    }
+  }
+
+  async loadCommandStyle() {
+    if (!this._hass) return;
+    const form = this.shadowRoot.querySelector('.command-style-form');
+    const status = this.shadowRoot.querySelector('.command-style-status');
+    status.textContent = 'Loading command style…';
+    try {
+      const response = await this._hass.callApi('GET', 'declan_two/command-style');
+      form.elements.namedItem('style').value = response.style;
+      this._commandStyleLoaded = true;
+      status.textContent = response.source === 'saved' ? 'Saved here.' : response.source === 'environment'
+        ? 'From declan.env until saved here.' : 'Default.';
+    } catch {
+      this._commandStyleLoaded = false;
+      status.textContent = 'Could not load the command style. Changes are not saved.';
+    }
+  }
+
+  async saveCommandStyle() {
+    const form = this.shadowRoot.querySelector('.command-style-form');
+    const status = this.shadowRoot.querySelector('.command-style-status');
+    if (!this._commandStyleLoaded) { status.textContent = 'Load settings before saving.'; return; }
+    status.textContent = 'Saving…';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/command-style', {settings: {style: form.elements.namedItem('style').value}});
+      form.elements.namedItem('style').value = response.style;
+      status.textContent = 'Saved. It applies to the next voice command.';
+    } catch {
+      status.textContent = 'Could not save the command style.';
     }
   }
 

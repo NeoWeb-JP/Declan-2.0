@@ -47,7 +47,7 @@ def summary(*, unmatched_reply, speaker_threshold, now=None, weeks=4):
         ).fetchall()
         learned = dict(connection.execute("SELECT phrase, target FROM learned_intents"))
     for created_at, source, message, reply, outcome, speaker_match in rows:
-        if source not in REQUEST_SOURCES or outcome == "duplicate" or not isinstance(message, str):
+        if source not in REQUEST_SOURCES or outcome in {"duplicate", "ignored"} or not isinstance(message, str):
             continue
         index = int((now - created_at) // WEEK)
         if not 0 <= index < weeks:
