@@ -26,10 +26,11 @@
 
 | Criterion | Remaining work |
 | --- | --- |
-| HIS-11 | Aggregate per-speaker match-rate percentage. Average confidence, counts and per-recording confidence already exist. |
-| REL-01 | Automatic local TTS fallback after primary/cached alternatives fail. Persistent cache, identity isolation and concurrent synthesis coalescing already exist. |
-| REL-08 | Voice-sample encryption, explicit per-person consent and deletion from retained snapshots; tracked with other security/engineering gaps in #17. |
+| HIS-11 | Per-speaker match rate. Definition agreed 20 Nov (D1): of the recordings VoicePipeline attributed to a speaker that you then reviewed, the % where you kept that speaker; n/a under 5 reviews. Implemented in #810. |
+| REL-01 | Local TTS fallback after the primary provider and cached alternatives fail, kept as written (D2). Implemented in #811 (`local_tts` integration option, own cache identity). |
+| VOI-12 (new) | Weekly "not understood" rate and top missed phrases. Summary implemented in #808; the owner sets the target. |
+| DEV-01 (new) | "Howzit Declan" wake word and multi-room Spotify on every satellite and EchoLocal Echo Show, with a device inventory. |
 
-#12 remains open for these partial criteria. #17 remains open for security/privacy and engineering work. #98 is the deferred all-time trained-phrase manager, distinct from History teaching. #97 is complete through #171/#172. #131 is closed as superseded by the owner's #137 policy. Declan Local #12 remains a separate installed wake-word model/hardware inventory item.
+REL-08 was re-scoped on 20 Nov (D3) to Declan-managed data and is met. VoicePipeline's own storage is a documented limitation, and live deletion acceptance is a #779 check. #17 was closed on 19 Nov; its open items and the engineering follow-ups are tracked in #802. #98's all-time phrase manager is implemented in #809. #12 stays open until #810 and #811 are merged and retested live.
 
 Historical implementation notes and earlier product decisions are available in Git history. They must not override the current issue register. Homelab operations, predictive heating/EV optimisation and the all-time phrase manager remain deferred.
