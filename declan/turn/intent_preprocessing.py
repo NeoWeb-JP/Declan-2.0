@@ -42,3 +42,41 @@ def preprocess_speech(text: str, *, max_length: int = 2048) -> ParsedSpeech:
     if not text:
         raise ValueError("Speech contains no usable command")
     return ParsedSpeech((text,), corrected)
+
+
+# Polite request wrappers around an ordinary command ("can you turn on the office
+# light please"). Only the wrapper is removed; the command itself is untouched.
+_POLITE_LEAD = re.compile(
+    r"^(?:please,? )?(?:(?:can|could|would|will) you(?:,? please)?,? |please,? )"
+)
+_MIND_LEAD = re.compile(r"^(?:please,? )?(?:would|do) you mind (\w+) ")
+_POLITE_TAIL = re.compile(r"(?:,? (?:please|thanks|thank you|my bru|for me))+$")
+_GERUNDS = {
+    "turning": "turn", "switching": "switch", "playing": "play", "setting": "set",
+    "dimming": "dim", "brightening": "brighten", "starting": "start", "stopping": "stop",
+    "running": "run", "opening": "open", "closing": "close", "putting": "put",
+    "making": "make", "pausing": "pause", "skipping": "skip", "cancelling": "cancel",
+    "canceling": "cancel",
+}
+
+
+def strip_polite_request(phrase: str) -> str:
+    """Return a normalised phrase without a polite request wrapper.
+
+    Input must already be normalised (lower case, single spaces). Returns the
+    phrase unchanged when no wrapper is present or under two words would remain, so
+    plain commands, questions and unknown phrasing are never altered.
+    """
+    if not isinstance(phrase, str):
+        return phrase
+    command = _POLITE_TAIL.sub("", phrase)
+    mind = _MIND_LEAD.match(command)
+    if mind:
+        verb = _GERUNDS.get(mind.group(1))
+        command = verb + command[mind.end() - 1:] if verb else command
+    else:
+        command = _POLITE_LEAD.sub("", command, count=1)
+    command = command.strip(" ,")
+    # A one-word remainder ("yes please", "stop please") is left as spoken, so
+    # confirmation replies and bare Stop keep their existing exact-match meaning.
+    return command if len(command.split()) >= 2 else phrase
