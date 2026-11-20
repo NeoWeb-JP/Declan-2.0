@@ -5,6 +5,7 @@ This file records significant repository changes. Historical releases are availa
 ## Unreleased
 
 - Music: reply-first playback is now on by default, so "play …" is answered as soon as Home Assistant accepts it and verified in the background. Set `DECLAN_MUSIC_REPLY_FIRST=0` to restore the slower verified-first reply.
+- Music: optional `DECLAN_MUSIC_ASSISTANT_SEARCH=1` hands "play X" to Music Assistant's own search on the right speaker or group, bypassing Declan's Spotify search (kept for switching back). "Play X upstairs/downstairs" now parses like "everywhere".
 - Voice: polite requests are understood locally, so "can you turn on the office light", "turn on the office light please" and "... my bru" no longer fall through to the AI fallback or a rephrase prompt (#801).
 - Fix: one lighting command joined to one music command ("turn on the office lights and play country music everywhere", either order) now runs both actions and reports each result (#300, #799).
 - Voice encryption: optional key IDs (`DECLAN_VOICE_AUDIO_KEY_ID`), retired keys (`DECLAN_VOICE_AUDIO_PREVIOUS_KEYS`) and `migrate_voice_audio --rewrap` for key rotation. Nothing changes until a key ID is set (#800).
