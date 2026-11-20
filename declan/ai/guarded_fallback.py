@@ -77,16 +77,3 @@ def run_guarded_result(
     results = execute_verified(checked, dispatcher)
     return summarise_result(results)
 
-
-def run_guarded_fallback(
-    utterance, inventory, *, planner, dispatcher, budget_db,
-    monthly_limit_micro_usd, request_ceiling_micro_usd,
-    charge_micro_usd=None, sensitive_confirmed=False,
-):
-    """Compatibility API for callers using the original Python mapping."""
-    return run_guarded_result(
-        utterance, inventory, planner=planner, dispatcher=dispatcher, budget_db=budget_db,
-        monthly_limit_micro_usd=monthly_limit_micro_usd,
-        request_ceiling_micro_usd=request_ceiling_micro_usd,
-        charge_micro_usd=charge_micro_usd, sensitive_confirmed=sensitive_confirmed,
-    ).as_legacy_mapping()

@@ -59,7 +59,3 @@ def summarise_result(results):
         f"{counts[ActionStatus.UNVERIFIED]} unverified and {counts[ActionStatus.SKIPPED_DEPENDENCY]} skipped.",
         Outcome.UNVERIFIED, results)
 
-
-def summarise(results):
-    """Compatibility API: retain the existing (reply, outcome-string) tuple."""
-    return summarise_result(results).as_legacy_pair()

@@ -8,11 +8,11 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-from declan.ai.action_executor import ActionResult, execute_verified, summarise, summarise_result
+from declan.ai.action_executor import ActionResult, execute_verified, summarise_result
 from declan.ai.action_plan import validate_plan
 from declan.core.execution_results import ActionStatus, DispatchResult, ExecutionResult, Outcome
-from declan.ai.guarded_fallback import run_guarded_result, run_guarded_fallback
-from declan.ha.ha_dispatcher import dispatch_result, dispatch_verified
+from declan.ai.guarded_fallback import run_guarded_result
+from declan.ha.ha_dispatcher import dispatch_result
 from test_ha_dispatcher import Opener
 from declan.core import history
 import server
@@ -46,7 +46,6 @@ class ResultModelTests(TestCase):
         payload = json.loads(json.dumps(result.to_wire()))
         self.assertEqual(payload, {"reply":"Done.", "outcome":"confirmed", "actions":[
             {"index":0,"entity_id":"light.a","service":"turn_on","status":"confirmed","detail":"Observed on"}]})
-        self.assertIs(result.as_legacy_mapping()["actions"], result.actions)
 
     def test_result_objects_and_action_evidence_are_immutable(self):
         step = ActionResult(0, "light.a", "turn_on", ActionStatus.UNVERIFIED)
@@ -77,7 +76,6 @@ class ResultModelTests(TestCase):
             result = summarise_result(actions)
             self.assertIs(result.outcome, expected)
             self.assertEqual(result.actions, actions)
-            self.assertEqual(summarise(actions), result.as_legacy_pair())
         with self.assertRaises(ValueError):
             summarise_result(("not action evidence",))
 
@@ -114,19 +112,14 @@ class TypedPipelineTests(TestCase):
                             dispatcher=dispatch,budget_db=db,monthly_limit_micro_usd=100,
                             request_ceiling_micro_usd=30,charge_micro_usd=lambda:10)
 
-    def test_real_readback_dispatch_and_legacy_pipeline_have_identical_public_results(self):
+    def test_real_readback_dispatch_flows_through_the_typed_pipeline(self):
         action=self.plan[0]
-        def args():
-            return ("http://ha.local", {}, Opener(["on"]))
-        typed=dispatch_result(action,args(),authorised=lambda _:True)
-        legacy=dispatch_verified(action,args(),authorised=lambda _:True)
+        typed=dispatch_result(action,("http://ha.local", {}, Opener(["on"])),authorised=lambda _:True)
         self.assertIsInstance(typed,DispatchResult)
         self.assertIs(typed.status,ActionStatus.CONFIRMED)
-        self.assertEqual(typed.as_legacy_pair(),legacy)
         result=self.pipeline(run_guarded_result,lambda _:typed)
-        previous=self.pipeline(run_guarded_fallback,lambda _:legacy)
         self.assertIsInstance(result,ExecutionResult)
-        self.assertEqual(result.as_legacy_mapping(),previous)
+        self.assertIs(result.outcome,Outcome.CONFIRMED)
         self.assertEqual(result.to_wire()["actions"][0]["status"],"confirmed")
 
     def test_acknowledgement_only_and_clarification_cannot_become_success(self):

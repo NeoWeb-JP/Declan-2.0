@@ -482,16 +482,6 @@ def handle_result(phrase, opener):
     return InformationResult(ExecutionResult(f"It's {temperature} in {name}.", Outcome.CONFIRMED), category)
 
 
-def home_temperatures(opener, *, indoors_only=False, outdoors_only=False, report=False):
-    """Compatibility API for home temperature reply/outcome pairs."""
-    return home_temperatures_result(opener, indoors_only=indoors_only,
-                                    outdoors_only=outdoors_only, report=report).as_legacy_pair()
-
-
-def forecast_reply(opener, match):
-    """Compatibility API for forecast reply/outcome/category triples."""
-    return forecast_reply_result(opener, match).as_legacy_triple()
-
 
 def handle(phrase, opener):
     """Compatibility API for information reply/outcome/category triples."""

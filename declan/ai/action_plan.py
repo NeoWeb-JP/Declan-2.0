@@ -76,9 +76,6 @@ class OrderedActionResult:
         if not isinstance(self.status, ActionReadiness):
             raise TypeError("Ordered action status must be an ActionReadiness")
 
-    def as_legacy_tuple(self):
-        return self.index, self.action, self.status.value
-
 
 def execution_order_result(plan, outcomes):
     """Yield pending candidates; skip dependencies that did not succeed.
@@ -92,8 +89,3 @@ def execution_order_result(plan, outcomes):
         else:
             yield OrderedActionResult(index, action, ActionReadiness.PENDING)
 
-
-def execution_order(plan, outcomes):
-    """Compatibility API retaining index/action/plain-status tuples."""
-    for result in execution_order_result(plan, outcomes):
-        yield result.as_legacy_tuple()

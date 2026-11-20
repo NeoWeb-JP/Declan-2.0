@@ -16,9 +16,9 @@ class TypedInformationPreviewTests(unittest.TestCase):
     def test_information_handle_consumes_typed_home_and_forecast_without_legacy_calls(self):
         home = ExecutionResult("Cannot verify", Outcome.UNAVAILABLE)
         forecast = InformationResult(home, InformationCategory.WEATHER)
-        with patch.object(conditions, "home_temperatures", side_effect=AssertionError("legacy home")), \
-             patch.object(conditions, "home_temperatures_result", return_value=home) as read_home, \
-             patch.object(conditions, "forecast_reply", side_effect=AssertionError("legacy forecast")), \
+        self.assertFalse(hasattr(conditions, "home_temperatures"))  # legacy pair API removed (D5)
+        self.assertFalse(hasattr(conditions, "forecast_reply"))
+        with patch.object(conditions, "home_temperatures_result", return_value=home) as read_home, \
              patch.object(conditions, "forecast_reply_result", return_value=forecast) as read_forecast:
             result = conditions.handle_result("what's the weather", None)
             self.assertIs(result.result, home)
