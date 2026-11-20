@@ -152,8 +152,8 @@ def request_plan(utterance, exposed_entities, *, opener=None, model=None, api_ke
         if error.code in {408, 504}:
             raise PlanningTimeoutError("OpenAI planning timed out") from None
         if error.code in {400, 401, 403, 404, 405, 413, 415, 422, 429}:
-            raise NonBillablePlanningError("OpenAI plan request rejected") from None
-        raise ValueError("OpenAI plan request failed") from None
+            raise NonBillablePlanningError(f"OpenAI plan request rejected (HTTP {error.code})") from None
+        raise ValueError(f"OpenAI plan request failed (HTTP {error.code})") from None
     except (OSError, URLError) as error:
         if isinstance(error, TimeoutError) or isinstance(getattr(error, 'reason', None), TimeoutError):
             raise PlanningTimeoutError("OpenAI planning timed out") from None
