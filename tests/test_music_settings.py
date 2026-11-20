@@ -162,9 +162,10 @@ class ViewTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(body=body):
                 self.assertEqual((await self.view.post(self.request(admin, body)))["status"], 400)
         for start_volume in (101, -1, "30", 2.5, True):
-            body = {"settings": {"reply_first": True, "music_assistant_search": True}, "start_volume": start_volume}
+            bad_volume: dict[str, object] = {"settings": {"reply_first": True, "music_assistant_search": True},
+                                             "start_volume": start_volume}
             with self.subTest(start_volume=start_volume):
-                self.assertEqual((await self.view.post(self.request(admin, body)))["status"], 400)
+                self.assertEqual((await self.view.post(self.request(admin, bad_volume)))["status"], 400)
         with_volume = {"settings": {"reply_first": True, "music_assistant_search": True}, "start_volume": 30}
         self.assertEqual((await self.view.post(self.request(admin, with_volume)))["status"], 503)
         good = {"settings": {"reply_first": True, "music_assistant_search": True}}
