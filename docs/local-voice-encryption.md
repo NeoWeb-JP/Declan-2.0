@@ -3,7 +3,7 @@
 This is an **opt-in migration requiring operator action**. The actual speaker recognition recordings live in the separate VoicePipeline service and are **not** encrypted by this change.
 
 1. Install Python `cryptography==50.0.0` in the Declan backend runtime. CI installs this version, but runtime packaging must be checked before deployment.
-2. Generate a 32-byte random key with a secure secret manager. Supply its URL-safe base64 representation as `DECLAN_VOICE_AUDIO_KEY`. Keep it **outside** the Declan data directory, source control, logs and snapshots. Back up the key separately in a secure location. Never rotate it without a dedicated re-encryption migration.
+2. Generate a 32-byte random key with a secure secret manager. Supply its URL-safe base64 representation as `DECLAN_VOICE_AUDIO_KEY`. Keep it **outside** the Declan data directory, source control, logs and snapshots. Back up the key separately in a secure location. Rotate it only with the re-encryption steps in **Rotating the key** below.
 3. Stop the Declan backend to prevent concurrent writes. Confirm the exact `.data/voice-profiles.sqlite3` path.
 4. Run `python -m migrate_voice_audio --database /path/to/.data/voice-profiles.sqlite3` with the key available in the environment. The migration is idempotent, verifies existing encrypted samples against the configured key, and VACUUMs after conversion.
 5. Restart and verify preview/export of local samples, consent revocation and new sample saving. Test an incorrect/missing key fails closed. Do not delete the separately protected key backup.
@@ -37,3 +37,15 @@ Declan is deployed as a Linux service on Proxmox. The main Python regression wor
 ## Migration lifecycle regression coverage
 
 `tests/test_voice_migration_lifecycle.py` exercises the complete local lifecycle on disposable Linux SQLite files: legacy plaintext detection, mixed encrypted/plaintext migration, post-migration verification, idempotence, incorrect-key rejection, empty database handling and symlink rejection. These automated tests never touch the deployed database. A successful CI run is **not** evidence of actual Proxmox migration or VoicePipeline encryption; perform those acceptance checks separately with a protected backup and backend stopped.
+
+## Rotating the key
+
+Rotation is explicit and needs the backend stopped. Key IDs let Declan tell keys apart, so old samples stay readable while you move to a new key.
+
+1. Generate a new 32-byte key and back it up beside the old one in your secret manager.
+2. Set `DECLAN_VOICE_AUDIO_KEY` to the **new** key and `DECLAN_VOICE_AUDIO_KEY_ID` to a new name (for example `2026-11`).
+3. Set `DECLAN_VOICE_AUDIO_PREVIOUS_KEYS` to the old key as `old-name:<old key>`. Samples written before key IDs existed (DVAE1) are tried against the current key and then every previous key, so any name works for the original key.
+4. With the backend stopped, run `python -m migrate_voice_audio --database /path/to/.data/voice-profiles.sqlite3 --rewrap`. Every sample is authenticated first; if any sample cannot be decrypted, nothing is written.
+5. Run `python -m check_voice_encryption --database ...` **without** `DECLAN_VOICE_AUDIO_PREVIOUS_KEYS` to prove nothing still depends on the old key. Then remove the previous-keys setting and start Declan.
+
+**Compatibility:** with `DECLAN_VOICE_AUDIO_KEY_ID` unset, Declan keeps writing the original DVAE1 format, which older releases can read. Once a key ID is set, new samples use DVAE2, which releases before this change cannot read. Treat setting a key ID like the original encryption migration: roll back application code only with a plan. Rotation covers local Declan samples only, not VoicePipeline storage or external backups.
