@@ -74,8 +74,15 @@ class UpdateTests(TestCase):
             updates.install(Path("/unused"), "0.2.0", "a" * 40)
             self.assertEqual(updates.status()["state"], "failed")
         logger.error.assert_called_once_with(
-            "Release staging failed (reason=%s)", "ValueError")
+            "Release staging failed (step=%s, reason=%s)", "check-release", "ValueError")
         self.assertNotIn(secret, repr(logger.error.call_args))
+
+    def test_new_install_clears_previous_failed_step(self):
+        state = updates.RUNTIME
+        with patch.object(state, 'job', {'state': 'failed', 'failed_step': 'clone'}), \
+             patch.object(state, 'tags', {'2.0.0': {'ref': 'a' * 40, 'commit': 'b' * 40, 'source': 'github'}}):
+            state.claim('2.0.0', '1.0.0', False)
+            self.assertNotIn('failed_step', state.job)
 
     def test_unapproved_release_never_clones_or_executes_code(self):
         with patch.object(updates, 'run') as run, patch.object(updates.RUNTIME, "job", {}):
@@ -116,10 +123,17 @@ class UpdateTests(TestCase):
                     self.assertIn('--only-binary=:all:', args)
                     raise subprocess.CalledProcessError(1, args)
                 return 'a' * 40
-            with patch.object(updates, 'APP', app), patch.object(updates, 'run', side_effect=command):
+            with patch.object(updates, 'APP', app), patch.object(updates, 'run', side_effect=command), \
+                 patch.object(updates, '_LOGGER') as logger:
                 updates.install(root, '0.2.0', 'a' * 40)
             self.assertEqual((root / 'current').resolve(), app)
             self.assertEqual(list((root / 'releases').iterdir()), [])
+            # The operator log names the failing stage without command output or arguments.
+            logger.error.assert_called_once_with(
+                "Release staging failed (step=%s, reason=%s)", "install-dependencies", "CalledProcessError")
+            self.assertNotIn('requirements-web-voice.txt', repr(logger.error.call_args))
+            status = updates.status()
+            self.assertEqual((status['state'], status['failed_step']), ('failed', 'install-dependencies'))
 
 
 class ReleaseTrustTests(TestCase):

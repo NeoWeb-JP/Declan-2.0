@@ -207,11 +207,13 @@ def queue(version, current, include_prereleases=False):
 def install(root, version, expected_ref):
     staged = None
     activated = False
+    step = "validate"
     try:
         if os.environ.get("DECLAN_UPDATE_SUPERVISED") != "1":
             raise ValueError("Install the stable update supervisor before enabling updates.")
         if not isinstance(version, str) or not VERSION.fullmatch(version):
             raise ValueError('Invalid release tag')
+        step = "check-release"
         source = release_source()
         if isinstance(expected_ref, dict):
             selection = expected_ref
@@ -235,21 +237,26 @@ def install(root, version, expected_ref):
                 raise ValueError('Release is not approved by the administrator.')
         else:
             raise ValueError('Check for updates before installing a published release.')
+        step = "clone"
         staged = Path(mkdtemp(prefix=f"{version}-", dir=root / "releases"))
         run("git", "clone", "--quiet", "--depth", "1", "--branch", version, REPOSITORY, str(staged), timeout=90)
+        step = "verify-tag"
         ref = f"refs/tags/{version}"
         if (run("git", "rev-parse", ref, cwd=staged) != expected_ref
                 or run("git", "rev-parse", "HEAD", cwd=staged) != approved_commit
                 or run("git", "rev-parse", ref + "^{commit}", cwd=staged) != approved_commit):
             raise ValueError("Release tag changed")
+        step = "create-venv"
         run(sys.executable, "-m", "venv", str(staged / ".venv"), timeout=90)
         python = str(staged / ".venv/bin/python")
+        step = "install-dependencies"
         if (staged / "requirements-web-voice.txt").is_file():
             run(python, "-m", "pip", "--disable-pip-version-check", "install", "--require-hashes",
                 "--only-binary=:all:", "-r", "requirements-web-voice.txt",
                 cwd=staged, timeout=180)
         # An encrypted voice release cannot be activated without its crypto runtime.
         # Do this before selecting the release or touching persistent data.
+        step = "check-crypto-runtime"
         if (staged / "declan" / "voice" / "voice_audio_crypto.py").is_file() or (staged / "voice_audio_crypto.py").is_file():
             run(python, "-c",
                 "from cryptography.hazmat.primitives.ciphers.aead import AESGCM; "
@@ -257,6 +264,7 @@ def install(root, version, expected_ref):
                 cwd=staged)
         # Fail closed before activating encrypted voice code or touching persistent state.
         # The operator must provision the key and migrate legacy samples explicitly.
+        step = "check-voice-data"
         if (staged / "check_voice_encryption.py").is_file():
             voice_db = APP / ".data" / "voice-profiles.sqlite3"
             if voice_db.exists() or voice_db.is_symlink():
@@ -265,13 +273,17 @@ def install(root, version, expected_ref):
             else:
                 run(python, "-c", "from declan.voice.voice_audio_crypto import _aesgcm; _aesgcm()",
                     cwd=staged, timeout=30)
+        step = "check-server-starts"
         run(python, "server.py", "--help", cwd=staged)
+        step = "link-data"
         (staged / ".data").symlink_to((APP / ".data").resolve(), target_is_directory=True)
         (staged / ".declan-release").write_text(version + "\n", encoding="ascii")
         if layout() != root:
             raise ValueError("Active release changed during staging")
+        step = "snapshot-data"
         backup = state_backup.snapshot(APP / ".data")
         RUNTIME.update_job(backup=backup)
+        step = "activate"
         for name, target in (("previous", APP), ("current", staged)):
             pending = root / f".{name}-{staged.name}"
             pending.symlink_to(target, target_is_directory=True)
@@ -282,9 +294,10 @@ def install(root, version, expected_ref):
         activated = True
         RUNTIME.request_restart()
     except (OSError, ValueError, sqlite3.Error, subprocess.SubprocessError) as error:
-        # Never log exception text: subprocess commands may contain secrets.
-        _LOGGER.error("Release staging failed (reason=%s)", type(error).__name__)
-        RUNTIME.update_job(state=UpdateJobState.FAILED.value)
+        # Never log exception text or command output: subprocess commands may contain secrets.
+        # `step` is a fixed label, so it is safe and tells the operator which stage failed.
+        _LOGGER.error("Release staging failed (step=%s, reason=%s)", step, type(error).__name__)
+        RUNTIME.update_job(state=UpdateJobState.FAILED.value, failed_step=step)
     finally:
         if staged is not None and not activated:
             shutil.rmtree(staged, ignore_errors=True)

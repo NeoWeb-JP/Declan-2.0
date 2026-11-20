@@ -1159,7 +1159,16 @@ class DeclanTwoNativePanel extends HTMLElement {
         restarting: 'Restarting Declan and checking its health.',
         failed: 'Installation failed. Check backend logs and confirm the previous release is healthy.'
       };
-      status.textContent = data.enabled ? (labels[state] || 'Updater: ' + state) +
+      const steps = {
+        'check-release': 'checking the release', clone: 'downloading the release', 'verify-tag': 'verifying the release tag',
+        'create-venv': 'creating the Python environment', 'install-dependencies': 'installing dependencies',
+        'check-crypto-runtime': 'checking the voice encryption runtime', 'check-voice-data': 'checking voice data and key',
+        'check-server-starts': 'test-starting the new release', 'link-data': 'linking the data folder',
+        'snapshot-data': 'backing up data', activate: 'switching releases', validate: 'validating the request'
+      };
+      const failedStep = state === 'failed' && typeof data.failed_step === 'string' ?
+        ' It stopped while ' + (steps[data.failed_step] || data.failed_step) + '.' : '';
+      status.textContent = data.enabled ? (labels[state] || 'Updater: ' + state) + failedStep +
         (data.version ? ' (' + data.version + ')' : '') +
         (data.error ? ' — ' + data.error : '') : 'Backend updater is not enabled on this installation.';
       recovery.hidden = state !== 'failed';
