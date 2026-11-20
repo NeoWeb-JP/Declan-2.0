@@ -82,7 +82,7 @@ class OutcomeTests(unittest.TestCase):
 
 class CompoundDispatchTests(unittest.TestCase):
     def run_turn(self, phrase, *, light, play):
-        calls = []
+        calls: list[tuple[str, ...]] = []
 
         def fake_light(text, *, action_results=None, last_lights=(), origin_device=None):
             calls.append(("light", text))
