@@ -491,7 +491,48 @@ def _request(connection, path, data=None, *, timeout=None):
             return response.read().decode().strip()
 
 
+_VOLUME_ROOM = r"(?: in (?:the )?(?P<room>.+?)| (?P<group>everywhere|upstairs|downstairs))?"
+_VOLUME_RELATIVE = (
+    re.compile(r"(?:turn|put) (?:it|the music|the volume|this|the sound|the speaker)"
+               r"(?: (?:right|a bit|a little|a touch))? (?P<dir>up|down)" + _VOLUME_ROOM),
+    re.compile(r"(?:turn|put) (?P<dir>up|down) (?:the )?(?:music|volume|sound|speaker)" + _VOLUME_ROOM),
+    re.compile(r"volume (?P<dir>up|down)" + _VOLUME_ROOM),
+    re.compile(r"(?:make it |make the music |a bit |a little )?(?P<dir>louder|quieter|softer)" + _VOLUME_ROOM),
+)
+_VOLUME_LEVEL = (
+    re.compile(r"(?:set|turn|put|change) (?:the )?volume(?: in (?:the )?(?P<room_first>.+?))? to (?P<level>\d{1,3})"
+               r"(?: ?(?:percent|per cent|%))?" + _VOLUME_ROOM),
+    re.compile(r"volume (?:to )?(?P<level>\d{1,3})(?: ?(?:percent|per cent|%))?" + _VOLUME_ROOM),
+)
+VOLUME_STEP = 0.1
+
+
+def parse_volume(phrase):
+    """("volume_up"|"volume_down"|"volume_set_<0-100>", room) or None. No side effects."""
+    if not isinstance(phrase, str):
+        return None
+    phrase = phrase.removesuffix(" please").strip()
+    for pattern in _VOLUME_LEVEL:
+        match = pattern.fullmatch(phrase)
+        if match:
+            level = int(match["level"])
+            if not 0 <= level <= 100:
+                return None
+            room = match.groupdict().get("room_first") or match["room"] or match["group"]
+            return f"volume_set_{level}", room_key(room) if room else None
+    for pattern in _VOLUME_RELATIVE:
+        match = pattern.fullmatch(phrase)
+        if match:
+            direction = "up" if match["dir"] in ("up", "louder") else "down"
+            room = match["room"] or match["group"]
+            return f"volume_{direction}", room_key(room) if room else None
+    return None
+
+
 def parse_control(phrase):
+    volume = parse_volume(phrase)
+    if volume:
+        return volume
     dislike = re.fullmatch(
         r"(?:i|we) (?:do not|don['’]t) like this (?:song|track)"
         r"(?: in (?:the )?(.+))?", phrase,
@@ -513,6 +554,46 @@ def parse_control(phrase):
         return None
     action = CONTROLS[subject.split()[0] if verb == "play" and subject.startswith(("next ", "previous ")) else verb]
     return action, room_key(room) if room else None
+
+
+def _volume_result(connection, entity, player, action, location):
+    """Set or step the speaker volume and verify the reported level."""
+    raw_level = (player.get("attributes") or {}).get("volume_level")
+    known = isinstance(raw_level, (int, float)) and not isinstance(raw_level, bool) and 0 <= raw_level <= 1
+    current = float(raw_level) if isinstance(raw_level, (int, float)) and known else 0.0
+    if action.startswith("volume_set_"):
+        target = int(action.removeprefix("volume_set_")) / 100
+    elif known:
+        step = VOLUME_STEP if action == "volume_up" else -VOLUME_STEP
+        target = min(1.0, max(0.0, round(current + step, 2)))
+    else:
+        # No reported level: ask the player to step itself; it can't be verified.
+        try:
+            request(connection, "/api/services/media_player/" + action, {"entity_id": entity}, timeout=2.5)
+        except (OSError, ValueError, HTTPError, TimeoutError):
+            return ExecutionResult(f"I couldn't change the volume {location}.", Outcome.FAILED)
+        word = "up" if action == "volume_up" else "down"
+        return ExecutionResult(f"I've asked the speaker {location} to turn {word}.", Outcome.REQUESTED)
+    percent = round(target * 100)
+    if known and abs(current - target) < 0.005:
+        return ExecutionResult(f"The volume is already {percent}% {location}.", Outcome.CONFIRMED)
+    try:
+        request(connection, "/api/services/media_player/volume_set",
+                {"entity_id": entity, "volume_level": target}, timeout=2.5)
+    except TimeoutError:
+        pass
+    except (OSError, ValueError, HTTPError):
+        return ExecutionResult(f"I couldn't change the volume {location}.", Outcome.FAILED)
+
+    def verify(state):
+        level = (state.get("attributes") or {}).get("volume_level")
+        return isinstance(level, (int, float)) and not isinstance(level, bool) and abs(level - target) <= 0.03
+    if wait_for(connection, entity, verify, attempts=4, deadline=monotonic() + 4):
+        if action.startswith("volume_set_"):
+            return ExecutionResult(f"Volume set to {percent}% {location}.", Outcome.CONFIRMED)
+        word = "Turned it up" if action == "volume_up" else "Turned it down"
+        return ExecutionResult(f"{word} to {percent}% {location}.", Outcome.CONFIRMED)
+    return ExecutionResult(f"I sent the volume change {location}, but couldn't verify it.", Outcome.UNVERIFIED)
 
 
 @diagnostics.timed("music_control")
@@ -600,6 +681,8 @@ def _control_provider(command, connection, read_inventory, *, origin=None, read_
             return ExecutionResult(f"The music player {location} is unavailable.", Outcome.UNAVAILABLE)
         if entity != group and entity in members:
             return ExecutionResult("That player is part of Everywhere. Say Everywhere to control the group.", Outcome.UNRESOLVED)
+        if action.startswith("volume_"):
+            return _volume_result(connection, entity, player, action, location)
         target_states = {"media_stop": STOPPED, "media_pause": {"paused"}, "media_play": {"playing"}}
         expected = target_states.get(action)
         if expected and state in expected:

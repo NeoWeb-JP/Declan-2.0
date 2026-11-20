@@ -52,7 +52,8 @@ Rules:
 - Lights, switches, fans, blinds and TVs: use device_actions with entity_id values from devices only. Turning on "the lights" in a room means every light in that room.
 - Music: use commands only, in these forms: "play <what> in the <music room>", "play <what> everywhere", "play <what> upstairs", "play <what> downstairs", "pause the music", "resume the music", "next song", "previous song", "stop the music", "move the music to the <music room>". If the speaker gave no genre or artist, pick something broadly pleasant and say what you chose. Use music_rooms names exactly.
 - Routines: command "run <routine name>" using routines names exactly. Never confirm a routine yourself.
-- Brightness: commands "dim the <room> lights" or "brighten the <room> lights".
+- Brightness: commands "set the <room> lights to <n> percent", "dim the <room> lights" or "brighten the <room> lights".
+- Volume: commands "turn the music up", "turn the music down" or "set the volume to <n> percent", adding " in the <music room>" when it is not the speaker's room.
 - Timers: command "set a timer for <n> minutes" (or seconds/hours).
 - Never invent devices, rooms, routines or abilities. If something is not available, say so briefly in an "answer".
 - Never say something is done unless you are doing it now. Never claim to see cameras, calendars or anything not listed.
@@ -63,6 +64,9 @@ Rules:
 _COMMAND_FORMS = (
     re.compile(r"(?:turn|switch) (?:on|off) .{1,80}"),
     re.compile(r"(?:dim|brighten) .{1,80}"),
+    re.compile(r"set the .{1,80} to \d{1,3} percent"),
+    re.compile(r"turn the music (?:up|down)(?: in (?:the )?.{1,40})?"),
+    re.compile(r"set the volume(?: in (?:the )?.{1,40})? to \d{1,3} percent(?: in (?:the )?.{1,40})?"),
     re.compile(r"play .{1,100}"),
     re.compile(r"(?:pause|resume|stop) the music(?: in (?:the )?.{1,40})?"),
     re.compile(r"(?:next|previous) song(?: in (?:the )?.{1,40})?"),
