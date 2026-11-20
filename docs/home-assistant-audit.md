@@ -43,6 +43,9 @@ errors, variables, configuration, messages and state attributes are not returned
 
 Missing configuration, missing retained traces, unavailable trace APIs, broad targets
 and unevaluated templates are explicitly unverified. Templates are never evaluated.
+The panel counts only errors and warnings as problems. Unverified notes are
+informational: they are grouped per routine under a collapsed "unverified checks"
+section, by code, so a script with many templates does not look broken.
 The audit cannot prove every branch ran or that a device changed successfully. A
 finished trace remains `finished_unverified`. Historical traces may refer to earlier
 configuration. No trace does not mean a routine has never run. Disabled routines are

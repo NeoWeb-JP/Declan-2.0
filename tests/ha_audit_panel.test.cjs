@@ -690,3 +690,25 @@ test('everyday responses load beside routines and keep bulk edits isolated to th
   assert.deepEqual([...payload.profile.completed.guest.default],['guest light line']);
   assert.ok([...root.querySelectorAll('.responses-editor details')].every(row=>!row.open));
 });
+
+test('unverified template notes are grouped apart from real problems and long ids can wrap', async t => {
+  const data = report();
+  const note = path => ({severity:'unverified',code:'template_not_evaluated',path,
+    recommendation:'Review template dependencies and execution traces in Home Assistant.'});
+  data.routines[0].findings.push(note('config.sequence[3].wait_template'), note('config.sequence[4].variables.ready'));
+  const {element,root} = panel(t,data);
+  await element.loadHAAudit();
+  const routine = root.querySelector('.audit-routine');
+  const meta = routine.querySelector('.audit-routine-meta').textContent;
+  assert.match(meta,/1 error\b/);
+  assert.match(meta,/2 unverified \(info\)/);
+  assert.equal(routine.querySelector('.audit-routine-id').textContent,'script.dinner');
+  const box = routine.querySelector('.audit-unverified');
+  assert.equal(box.open,false);
+  assert.match(box.querySelector('summary').textContent,/2 unverified checks - informational, not errors/);
+  assert.equal(box.querySelectorAll('li code').length,2);
+  const direct = [...routine.children].filter(node => node.tagName === 'P').map(node => node.textContent).join('\n');
+  assert.match(direct,/error: missing_entity/);
+  assert.doesNotMatch(direct,/unverified: template_not_evaluated/);
+  assert.match(element.shadowRoot.querySelector('style').textContent,/\.audit-results \{ overflow-wrap:anywhere; \}/);
+});

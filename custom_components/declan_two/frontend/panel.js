@@ -94,6 +94,17 @@ class DeclanTwoNativePanel extends HTMLElement {
         .audit-toolbar, .audit-routine-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; margin:12px 0; }
         .audit-routine-actions label, .audit-stale-label { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:4px 0; }
         .audit-routine-actions input[type="checkbox"], .audit-stale-label input { margin:0; width:18px; height:18px; }
+        .audit-results { overflow-wrap:anywhere; }
+        .audit-routine > summary { line-height:1.4; }
+        .audit-routine-id, .audit-routine-meta { display:block; margin:2px 0 0 1.1em; font-weight:400; }
+        .audit-routine-id { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.8rem; color:#8fb7c9; }
+        .audit-routine-meta { font-size:.85rem; color:#a1ccdf; }
+        .audit-routine-meta .audit-error { color:#ff9b9b; font-weight:650; }
+        .audit-routine-meta .audit-warning { color:#ffd27a; font-weight:650; }
+        .audit-unverified { margin:10px 0; padding:8px 12px; border:1px solid #28495b; border-radius:9px; background:#0d1f2b; }
+        .audit-unverified > summary { cursor:pointer; color:#a1ccdf; }
+        .audit-unverified ul { margin:4px 0 8px; padding-left:18px; }
+        .audit-unverified code { font-size:.8rem; color:#8fb7c9; }
         @media(max-width:520px) { .overview-chat { padding:18px; } .overview-chat-intro { gap:10px; } .overview-chat-intro h2 { font-size:1.25rem; } .overview-chat .chat-controls { flex-wrap:wrap; } .overview-chat .chat-controls input { flex:1 1 100%; } .overview-chat .chat-send { width:100%; } .overview-voice-controls button { flex:1 1 100%; } .overview-connection { padding:16px 18px; } }
         .turn { padding:14px 0; border-top:1px solid #1d3d51; overflow-wrap:anywhere; }
         .turn p { margin:6px 0; white-space:pre-wrap; }
@@ -871,13 +882,30 @@ class DeclanTwoNativePanel extends HTMLElement {
       addText(group, 'p', 'Showing up to 50 matches. Use search to narrow the list.');
       for (const item of matching.slice(0, 50)) {
         const details = document.createElement('details');
-        details.className = 'timeline-subsection';
+        details.className = 'timeline-subsection audit-routine';
         const findings = item.findings || [];
-        const count = findings.length ? ` · ${findings.length} findings` : item.findings ? ' · No static issues found; device success unverified' : '';
-        addText(details, 'summary', `${item.name} · ${item.entity_id} · ${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}${count}${item.findings ? item.reviewed ? ' · Reviewed' : ' · Unreviewed' : ''}`);
+        const problems = findings.filter(finding => finding.severity !== 'unverified');
+        const unverified = findings.filter(finding => finding.severity === 'unverified');
+        const summary = document.createElement('summary');
+        details.append(summary);
+        addText(summary, 'span', item.name).className = 'audit-routine-name';
+        if (item.name !== item.entity_id) addText(summary, 'span', item.entity_id).className = 'audit-routine-id';
+        const meta = addText(summary, 'span', `${item.state || 'no state'}${item.disabled ? ' · disabled' : ''}`);
+        meta.className = 'audit-routine-meta';
+        const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
         if (item.findings) {
+          for (const severity of ['error', 'warning']) {
+            const total = problems.filter(finding => finding.severity === severity).length;
+            if (total) {
+              meta.append(' · ');
+              addText(meta, 'span', plural(total, severity)).className = 'audit-' + severity;
+            }
+          }
+          if (!problems.length) meta.append(findings.length ? ' · No static issues found' : ' · No static issues found; device success unverified');
+          if (unverified.length) meta.append(` · ${unverified.length} unverified (info)`);
+          meta.append(item.reviewed ? ' · Reviewed' : ' · Unreviewed');
           if (item.review_changed) {
-            addText(details.querySelector('summary'), 'span', ' - Changed since review');
+            addText(meta, 'span', ' - Changed since review');
             addText(details, 'p', 'Configuration or findings changed since this review. Your Reviewed flag is kept. Review the current findings and untick Reviewed if you want to reopen this item.');
           }
           if (item.stale) addText(details, 'p', 'Stale entity record: Home Assistant has no loaded routine definition for this entity.');
@@ -904,9 +932,34 @@ class DeclanTwoNativePanel extends HTMLElement {
             edit.title = 'Open the Home Assistant editor. Choose the three-dot menu, then Edit in YAML.';
             edit.addEventListener('click', () => this.openAuditEditor(item));
           }
-          if (item.reviewed) addText(details, 'p', `Reviewed · ${item.reviewed_at || ''}`);
+          if (item.reviewed) {
+            const when = item.reviewed_at ? new Date(item.reviewed_at) : null;
+            addText(details, 'p', `Reviewed · ${when && !Number.isNaN(when.getTime()) ? when.toLocaleString() : item.reviewed_at || ''}`);
+          }
         }
-        for (const finding of findings) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
+        for (const finding of problems) addText(details, 'p', `${finding.severity}: ${finding.code} (${finding.path}). ${finding.recommendation}`);
+        if (unverified.length) {
+          const box = document.createElement('details');
+          box.className = 'audit-unverified';
+          addText(box, 'summary', `${plural(unverified.length, 'unverified check')} - informational, not errors`);
+          addText(box, 'p', 'The audit only reads configuration. It never runs templates or touches devices, so anything Home Assistant works out at run time cannot be checked here. Confirm these by opening a recent run in Home Assistant Traces.');
+          const groups = new Map();
+          for (const finding of unverified) {
+            if (!groups.has(finding.code)) groups.set(finding.code, []);
+            groups.get(finding.code).push(finding);
+          }
+          for (const [code, rows] of groups) {
+            addText(box, 'p', `${code} (${rows.length}). ${rows[0].recommendation}`);
+            const list = document.createElement('ul');
+            for (const row of rows) {
+              const li = document.createElement('li');
+              addText(li, 'code', row.path);
+              list.append(li);
+            }
+            box.append(list);
+          }
+          details.append(box);
+        }
         if (item.background_result) {
           const job = item.background_result;
           addText(details, 'p', `Background request ${job.job_id}: ${job.outcome} · ${job.updated_at}`);
