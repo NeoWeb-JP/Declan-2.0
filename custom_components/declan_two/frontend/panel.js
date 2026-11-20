@@ -341,6 +341,7 @@ class DeclanTwoNativePanel extends HTMLElement {
             <p class="understanding-weeks muted"></p>
             <div class="understanding-phrases"></div>
             <p class="understanding-speaker muted"></p>
+            <p class="understanding-conversation muted"></p>
           </div>
           <div class="history-actions"><button class="timeline-refresh" type="button">Refresh recordings</button></div>
           <p class="timeline-status muted" role="status" aria-live="polite">Open History & Voice Recognition to load the last seven days of recordings.</p>
@@ -2255,6 +2256,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     const weeksLine = root.querySelector('.understanding-weeks');
     const phrases = root.querySelector('.understanding-phrases');
     const speakerLine = root.querySelector('.understanding-speaker');
+    const conversationLine = root.querySelector('.understanding-conversation');
     const percent = value => Number.isFinite(value) ? Math.round(value * 100) + '%' : 'n/a';
     headline.textContent = 'Loading…';
     try {
@@ -2285,9 +2287,10 @@ class DeclanTwoNativePanel extends HTMLElement {
         ? 'Speaker ID this week: median confidence ' + percent(speaker.median_confidence) + ', highest ' + percent(speaker.highest_confidence) +
           '. ' + percent(speaker.recognised_share) + ' of ' + speaker.samples + ' satellite requests reached the ' + percent(speaker.threshold) + ' recognised-speaker threshold.'
         : 'Speaker ID this week: no satellite requests carried a speaker match.';
+      conversationLine.textContent = this.conversationSummary(data.conversation);
     } catch {
       headline.textContent = 'Could not load the understanding summary.';
-      weeksLine.textContent = ''; speakerLine.textContent = ''; phrases.replaceChildren();
+      weeksLine.textContent = ''; speakerLine.textContent = ''; conversationLine.textContent = ''; phrases.replaceChildren();
     } finally {
       this._understandingPending = false;
     }
@@ -2322,6 +2325,15 @@ class DeclanTwoNativePanel extends HTMLElement {
     } catch {
       status.textContent = 'Could not save the command style.';
     }
+  }
+
+  conversationSummary(conversation) {
+    if (!conversation || !conversation.turns) return 'Conversation this week: not used.';
+    const cost = '$' + ((conversation.spent_micro_usd || 0) / 1e6).toFixed(2);
+    const time = Number.isFinite(conversation.median_ms) ? (conversation.median_ms / 1000).toFixed(1) + ' s' : 'n/a';
+    return 'Conversation this week: ' + conversation.turns + ' requests (' + conversation.act + ' acted, ' +
+      conversation.ask + ' asked, ' + conversation.answer + ' answered, ' + conversation.failed + ' failed; ' +
+      conversation.general_questions + ' general questions). Cost ' + cost + '. Typical AI reply time ' + time + '.';
   }
 
   async loadSpeakerSettings() {

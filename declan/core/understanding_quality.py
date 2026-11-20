@@ -46,6 +46,8 @@ def summary(*, unmatched_reply, speaker_threshold, now=None, weeks=4):
             (start, now),
         ).fetchall()
         learned = dict(connection.execute("SELECT phrase, target FROM learned_intents"))
+        from declan.ai import general_chat
+        conversation = general_chat.week_summary(connection, now=now)
     for created_at, source, message, reply, outcome, speaker_match in rows:
         if source not in REQUEST_SOURCES or outcome in {"duplicate", "ignored"} or not isinstance(message, str):
             continue
@@ -73,6 +75,7 @@ def summary(*, unmatched_reply, speaker_threshold, now=None, weeks=4):
             {"phrase": phrase, "count": count, "learned": phrase in learned}
             for phrase, count in missed.most_common(TOP_PHRASES)
         ],
+        "conversation": conversation,
         "speaker": {
             "threshold": speaker_threshold,
             "samples": len(confidences),
