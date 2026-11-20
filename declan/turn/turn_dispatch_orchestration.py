@@ -13,6 +13,7 @@ from declan.music import music
 from declan.timers import timer_command_dispatch
 from declan.timers import timers
 from declan.turn import command_registry
+from declan.turn import compound_commands
 from declan.turn import guest_assignment_command
 from declan.turn import personality_policy
 from declan.turn import roast
@@ -50,7 +51,19 @@ class DispatchResult:
 
 
 def dispatch(phrase, *, source, origin_device, satellite, action_results,
-             scope, last_lights, last_device, last_information, services):
+             scope, last_lights, last_device, last_information, services,
+             split_compound=True):
+    if split_compound:
+        split = compound_commands.split_lighting_and_music(
+            phrase, parse_music=music.parse,
+            is_lighting=lambda text: lighting_intents.matches(text, services.parse_light_command),
+        )
+        if split is not None:
+            return _dispatch_compound(
+                split, source=source, origin_device=origin_device, satellite=satellite,
+                action_results=action_results, scope=scope, last_lights=last_lights,
+                last_device=last_device, last_information=last_information, services=services,
+            )
     build_opener = services.build_opener
     ProxyHandler = services.ProxyHandler
     NoRedirect = services.NoRedirect
@@ -161,3 +174,24 @@ def dispatch(phrase, *, source, origin_device, satellite, action_results,
     return DispatchResult(routine_reply, outcome, routine_status, routine_turn,
                           routine_voice_result, lighting_context, information_context,
                           status_target, light_result)
+
+
+def _dispatch_compound(split, **turn):
+    """Run a lighting + music pair as two independent commands, in spoken order (#300).
+
+    Each half is attempted even if the other fails; each keeps its own reply, so the
+    spoken result says which part worked.
+    """
+    first = dispatch(split.first, split_compound=False, **turn)
+    second = dispatch(split.second, split_compound=False, **turn)
+
+    def pick(field):
+        return getattr(first, field) if getattr(first, field) is not None else getattr(second, field)
+
+    return DispatchResult(
+        compound_commands.combined_reply(first.reply, second.reply),
+        compound_commands.combined_outcome(first.outcome, second.outcome),
+        pick("routine_status"), pick("routine_turn"), pick("routine_voice_result"),
+        pick("lighting_context"), pick("information_context"), pick("status_target"),
+        pick("light_result"),
+    )
