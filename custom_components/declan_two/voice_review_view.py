@@ -10,6 +10,30 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 _LOGGER = logging.getLogger(__name__)
 
 
+
+
+def safe_match_rates(value):
+    """HIS-11 counts only; None when VoicePipeline history was unavailable."""
+    def entry(item):
+        if not isinstance(item, dict):
+            return None
+        reviewed, kept, rate = item.get("reviewed"), item.get("kept"), item.get("rate")
+        if type(reviewed) is not int or type(kept) is not int or not 0 <= kept <= reviewed <= 100000:
+            return None
+        if rate is not None and (type(rate) not in (int, float) or not 0 <= rate <= 1):
+            return None
+        return {"reviewed": reviewed, "kept": kept, "rate": rate}
+    if not isinstance(value, dict) or not isinstance(value.get("speakers"), dict):
+        return None
+    speakers = {}
+    for name, item in list(value["speakers"].items())[:100]:
+        checked = entry(item)
+        if isinstance(name, str) and 0 < len(name) <= 80 and checked is not None:
+            speakers[name] = checked
+    minimum = value.get("minimum_reviews")
+    return {"speakers": speakers, "overall": entry(value.get("overall")),
+            "minimum_reviews": minimum if type(minimum) is int and 0 < minimum <= 100 else 5}
+
 class DeclanVoiceReviewView(HomeAssistantView):
     url = "/api/declan_two/voice-review"
     name = "api:declan_two:voice-review"
@@ -173,6 +197,7 @@ class DeclanVoiceReviewView(HomeAssistantView):
                     })
                 return web.json_response({
                     "profiles": profiles, "interactions": interactions,
+                    "match_rates": safe_match_rates(data.get("match_rates")),
                     "notice": "Read-only preview. Use the existing Declan app to review, correct or enrol recordings.",
                 }, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):

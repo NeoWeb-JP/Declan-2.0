@@ -1590,13 +1590,21 @@ class DeclanTwoNativePanel extends HTMLElement {
         const details = document.createElement('p');
         const avg = Number.isFinite(profile.avg_confidence) ? (profile.avg_confidence * 100).toFixed(1) + '%' : 'Not available';
         details.textContent = 'Average confidence: ' + avg + ' · Reference clips: ' + (profile.reference_clip_count ?? 'Unknown') + ' · Interactions: ' + (profile.interaction_count ?? 'Unknown');
-        card.append(name, details);
+        const match = document.createElement('p');
+        match.className = 'muted';
+        match.textContent = this.matchRateText(data.match_rates, data.match_rates?.speakers?.[profile.name]);
+        card.append(name, details, match);
         list.append(card);
       }
       if (!data.profiles.length) {
         const empty = document.createElement('p');
         empty.textContent = 'No enrolled speakers found.';
         list.append(empty);
+      } else if (data.match_rates?.overall) {
+        const overall = document.createElement('p');
+        overall.className = 'muted';
+        overall.textContent = 'All speakers — ' + this.matchRateText(data.match_rates, data.match_rates.overall);
+        list.append(overall);
       }
       this._voicesLoaded = true;
       status.textContent = 'Speaker profiles loaded. Review recordings in History & Voice Recognition.';
@@ -1605,6 +1613,17 @@ class DeclanTwoNativePanel extends HTMLElement {
     } finally {
       this._voicesPending = false;
     }
+  }
+
+  matchRateText(rates, entry) {
+    // HIS-11: reviewed attributions where the suggested speaker was kept.
+    if (!rates) return 'Match rate: not available (VoicePipeline history unreachable).';
+    const minimum = Number.isInteger(rates.minimum_reviews) ? rates.minimum_reviews : 5;
+    const reviewed = Number.isInteger(entry?.reviewed) ? entry.reviewed : 0;
+    if (!Number.isFinite(entry?.rate)) {
+      return 'Match rate: n/a (' + reviewed + ' reviewed; needs ' + minimum + ').';
+    }
+    return 'Match rate: ' + Math.round(entry.rate * 100) + '% (kept ' + entry.kept + ' of ' + reviewed + ' reviewed).';
   }
 
   async refreshPlaylists(category) {

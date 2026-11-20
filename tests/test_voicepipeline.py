@@ -49,7 +49,8 @@ class PipelineTests(TestCase):
             self.assertEqual(result['profiles'][1]['name'], 'Ed')
             self.assertNotIn('audio_url', result['interactions'][0])
             self.assertEqual(self.calls, [('GET', '/api/v1/speakers', None),
-                                          ('GET', '/api/v1/interactions/pending', None)])
+                                          ('GET', '/api/v1/interactions/pending', None),
+                                          ('GET', '/api/v1/interactions/history', None)])
             self.assertEqual(vp.manage({'operation': 'history'})['interactions'][0]['current_resolution_id'], 'r1')
 
     def test_assign_and_enrol_use_exact_names_and_one_write_without_transcribing(self):
