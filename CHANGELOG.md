@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Fix (data):** 2.13.0 and 2.13.1-rc1 stored the conversations and diagnostics databases inside the release folder (`declan/core/.data`) instead of the shared `.data`, so learned phrases, history, server settings, routines, custom responses and AI settings appeared reset, and changes made on 2.13 would be lost on the next update. Paths are fixed. On first start Declan merges what was done on 2.13 (learned phrases, history, AI spend) back into the shared database and keeps the release-local file as `*.merged-<timestamp>`. Settings changed on 2.13 are not merged automatically; the log lists them.
 - Settings: new **Music behaviour** card for reply-first playback and Music Assistant search, so neither needs `declan.env`. A saved value wins; until then the environment variable (or default) applies.
 - Music: reply-first playback is now on by default, so "play …" is answered as soon as Home Assistant accepts it and verified in the background. Set `DECLAN_MUSIC_REPLY_FIRST=0` to restore the slower verified-first reply.
 - Music: optional `DECLAN_MUSIC_ASSISTANT_SEARCH=1` hands "play X" to Music Assistant's own search on the right speaker or group, bypassing Declan's Spotify search (kept for switching back). "Play X upstairs/downstairs" now parses like "everywhere".

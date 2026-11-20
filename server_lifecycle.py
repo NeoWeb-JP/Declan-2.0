@@ -52,6 +52,9 @@ def main(*, description, argv, environ, history_store, timer_store, server_facto
     if args.assist_lan and len(environ.get("DECLAN_ASSIST_TOKEN", "")) < 32:
         parser.error("--assist-lan requires a DECLAN_ASSIST_TOKEN of at least 32 characters.")
     history_store.retention_seconds()  # Reject invalid retention before accepting requests.
+    repair = getattr(history_store, "repair_data_location", None)
+    if callable(repair):
+        repair(logger)  # Recover data 2.13.0/2.13.1-rc1 wrote inside the release folder.
     history_store.initialize()
     timer_store.initialize()
     # Assist LAN mode explicitly exposes the server to configured LAN clients;

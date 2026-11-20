@@ -12,7 +12,9 @@ from declan.core.database_schema_state import DatabaseSchemaState
 from declan.ai.action_evidence_wire import action_evidence_to_wire
 
 
-DATABASE = Path(__file__).resolve().parent / ".data" / "conversations.sqlite3"
+# Repository root .data (shared across releases), not this package's folder.
+APP = Path(__file__).resolve().parents[2]
+DATABASE = APP / ".data" / "conversations.sqlite3"
 SPEAKER_THRESHOLD = 0.75
 SCHEMA_STATE = DatabaseSchemaState()
 
@@ -44,6 +46,14 @@ def speaker_match(value):
                 else:
                     match["candidate"] = display_name
     return match
+
+
+def repair_data_location(logger=None):
+    """Merge data that 2.13.0/2.13.1-rc1 wrote to declan/core/.data back into DATABASE."""
+    from declan.core import data_location_repair
+    if DATABASE != APP / ".data" / "conversations.sqlite3":
+        return []  # Redirected (tests or a custom store): nothing to recover.
+    return data_location_repair.repair(APP, DATABASE, logger=logger)
 
 
 def initialize():
