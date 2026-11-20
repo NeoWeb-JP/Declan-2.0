@@ -146,7 +146,7 @@ def learned_intents():
         return dict(connection.execute("SELECT phrase, target FROM learned_intents ORDER BY phrase"))
 
 
-LEARNED_SOURCES = frozenset({"history", "recording", "retry", "edited", "imported"})
+LEARNED_SOURCES = frozenset({"history", "recording", "retry", "edited", "imported", "conversation"})
 
 
 def _record_provenance(connection, phrase, source):
@@ -223,7 +223,8 @@ def teach_phrase(phrase, target, *, automatic=False, source="recording"):
     """Save an explicit correction, or add a retry without overwriting user training."""
     if type(automatic) is not bool:
         raise ValueError("Automatic training must be enabled or disabled.")
-    source = "retry" if automatic else source
+    if automatic and source == "recording":
+        source = "retry"  # Automatic learning keeps its own provenance (retry or conversation).
     if source not in LEARNED_SOURCES:
         raise ValueError("Unknown training source.")
     if not isinstance(phrase, str) or not isinstance(target, str):

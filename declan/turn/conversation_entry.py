@@ -26,11 +26,12 @@ from declan.turn.turn_dispatch_orchestration import DispatchResult
 LOGGER = logging.getLogger(__name__)
 
 
-def _result_factory(reply, outcome, base=None):
+def _result_factory(reply, outcome, base=None, lighting_context=None):
     def field(name):
         return getattr(base, name) if base is not None else None
     return DispatchResult(reply, outcome, field("routine_status"), field("routine_turn"),
-                          field("routine_voice_result"), field("lighting_context"),
+                          field("routine_voice_result"),
+                          lighting_context if lighting_context is not None else field("lighting_context"),
                           field("information_context"), field("status_target"), field("light_result"))
 
 
@@ -109,10 +110,22 @@ def run(handler, body, *, message, session_id, source, scope, origin_device, sat
                                        reply.get("reply", "") if isinstance(reply, dict) else "", asked=True)
         return reply
 
-    return conversation_turn.execute(
+    agent_turn = conversation_turn.execute(
         decision, permitted, connection=connection,
         dispatch_command=lambda command: dispatch(history.normalize_phrase(command)),
         confirm_command=confirm_command, run_devices=run_devices, result_factory=_result_factory)
+    lesson = conversation_turn.learnable(
+        message, decision, agent_turn.command_result,
+        rooms=set(context["areas"]) | set(context["music_rooms"]),
+        vague=conversation_turn.prefers_agent(history.normalize_phrase(message), parse_music=music.parse))
+    if lesson:
+        try:
+            # Never overwrites something you taught; next time it's instant and free.
+            history.teach_phrase(*lesson, automatic=True, source="conversation")
+            LOGGER.info("Conversation agent learned a phrase")
+        except (ValueError, OSError, sqlite3.Error):
+            LOGGER.warning("Could not save a learned conversation phrase")
+    return agent_turn
 
 
 # Re-exported for tests and diagnostics.

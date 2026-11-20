@@ -81,7 +81,7 @@ class DeclanManagementView(HomeAssistantView):
                             source = item.get("source")
                             details[phrase] = {
                                 "trained_at": trained_at[:40] if isinstance(trained_at, str) else None,
-                                "source": source if source in {"history", "recording", "retry", "edited", "imported"} else None,
+                                "source": source if source in {"history", "recording", "retry", "edited", "imported", "conversation"} else None,
                             }
                     return web.json_response({"intents": safe, "details": details}, headers={"Cache-Control": "no-store"})
                 if operation == "import":
