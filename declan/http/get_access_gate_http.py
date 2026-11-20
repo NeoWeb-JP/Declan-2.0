@@ -20,7 +20,8 @@ def enforce_access(handler, *, ingress, token):
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )
         players_auth = (
-            handler.path in {"/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai"}
+            handler.path in {"/api/settings/media-players", "/api/settings/music-playlists", "/api/settings/ai",
+                             "/api/settings/music"}
             and len(token) >= 32
             and secrets.compare_digest(supplied.encode(), f"Bearer {token}".encode())
         )

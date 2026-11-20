@@ -5,6 +5,7 @@ POST_ROUTES = frozenset({
     "/api/tts", "/api/stt", "/api/updates", "/api/history/clear",
     "/api/history/intents", "/api/settings/import", "/api/settings/media-players",
     "/api/settings/music-playlists", "/api/settings/ai", "/api/voice-profiles",
+    "/api/settings/music",
     "/api/voicepipeline", "/api/native/spotify-credentials",
     "/api/native/settings-import", "/api/native/intents", "/api/native/routines",
     "/api/native/routine-responses",

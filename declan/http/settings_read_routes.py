@@ -5,6 +5,7 @@ ROUTES = frozenset({
     "/api/voicepipeline", "/api/voice-profiles", "/api/diagnostics", "/api/diagnostics/metrics",
     "/api/settings/spotify", "/api/settings/ai",
     "/api/settings/media-players", "/api/settings/music-playlists",
+    "/api/settings/music",
 })
 
 
@@ -46,6 +47,9 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
                                     "month_usage_micro_usd": usage_micro_usd})
         except (OSError, sqlite3.Error, ValueError):
             handler.send_json(503, {"error": "AI settings unavailable."})
+    elif path == "/api/settings/music":
+        from declan.music import music
+        handler.send_json(200, music.music_settings.listing(music.music_settings_path()))
     elif path == "/api/settings/media-players":
         handler.approved_player_settings()
     elif path == "/api/settings/music-playlists":

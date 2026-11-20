@@ -4,6 +4,7 @@ Called only after server.py's route, origin, content-type and payload gates.
 """
 ROUTES = frozenset({
     "/api/settings/media-players",
+    "/api/settings/music",
     "/api/settings/music-playlists",
     "/api/settings/spotify",
 })
@@ -17,6 +18,20 @@ def dispatch(handler, body, *, music, spotify_playlists,
              playlist_handler, opener_factory):
     if handler.path == "/api/settings/media-players":
         handler.approved_player_settings(body)
+        return
+    if handler.path == "/api/settings/music":
+        if not isinstance(body, dict) or set(body) != {"settings"}:
+            handler.send_json(400, {"error": "Send music settings."})
+            return
+        try:
+            result = music.music_settings.save(music.music_settings_path(), body["settings"])
+        except ValueError as error:
+            handler.send_json(400, {"error": str(error)})
+            return
+        except OSError:
+            handler.send_json(503, {"error": "Could not save music settings."})
+            return
+        handler.send_json(200, result)
         return
     if handler.path == "/api/settings/music-playlists":
         playlist_handler(

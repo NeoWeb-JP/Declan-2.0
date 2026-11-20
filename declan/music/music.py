@@ -16,6 +16,7 @@ from pathlib import Path
 from random import choices
 from tempfile import NamedTemporaryFile
 from declan.music import music_runtime_state
+from declan.music import music_settings
 from threading import Thread
 from time import monotonic, sleep, time
 from urllib.error import HTTPError
@@ -344,28 +345,32 @@ def parse(phrase):
     return room_key(room) if room else None, title, provider or "spotify"
 
 
+def music_settings_path():
+    return SPOTIFY_SETTINGS.with_name("music-settings.json")
+
+
 def reply_first_enabled():
     """Answer once Home Assistant accepts a play request (on by default).
 
     Playback is then verified in the background and a failure is announced on
-    the originating satellite. Set DECLAN_MUSIC_REPLY_FIRST to 0, false, no or
-    off to speak the reply only after verification instead: slower, but it never
-    claims more than was observed.
+    the originating satellite. Turn it off in Settings -> Music behaviour, or with
+    DECLAN_MUSIC_REPLY_FIRST=0 when nothing is saved there, to speak the reply
+    only after verification: slower, but it never claims more than was observed.
     """
-    value = os.environ.get("DECLAN_MUSIC_REPLY_FIRST", "").strip().lower()
-    return value not in {"0", "false", "no", "off"}
+    return music_settings.enabled(music_settings_path(), "reply_first")
 
 
 def music_assistant_search_enabled():
     """Let Music Assistant search for Spotify requests instead of Declan (opt-in).
 
-    With DECLAN_MUSIC_ASSISTANT_SEARCH=1, "play X" sends X (and "by" artist) to
-    Music Assistant's play_media on the resolved player, and Declan's own Spotify
+    When on (Settings -> Music behaviour, or DECLAN_MUSIC_ASSISTANT_SEARCH=1 when
+    nothing is saved there), "play X" sends X (and "by" artist) to Music
+    Assistant's play_media on the resolved player, and Declan's own Spotify
     search, search cache, curated playlists, saved links and disliked-list checks
     are bypassed. Room and speaker resolution, queue moves and playback
     verification are unchanged. Off by default; the Declan search code is kept.
     """
-    return os.environ.get("DECLAN_MUSIC_ASSISTANT_SEARCH", "").strip().lower() in {"1", "true", "yes", "on"}
+    return music_settings.enabled(music_settings_path(), "music_assistant_search")
 
 
 def music_assistant_media_type(title, artist):
