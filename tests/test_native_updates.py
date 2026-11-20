@@ -153,3 +153,12 @@ class NativeUpdaterTests(unittest.TestCase):
                         body["version"] = "1.2.3"
                     self.assertEqual((await view.post(request(admin, body)))[0], 503)
             asyncio.run(run())
+
+
+class HaEventLoopBlockingTests(unittest.TestCase):
+    def test_integration_keeps_disk_reads_and_wyoming_import_off_the_event_loop(self):
+        stt_source = (ROOT / "custom_components/declan_two/stt.py").read_text()
+        self.assertIn("async_add_executor_job(_load_wyoming_bridge)", stt_source)
+        self.assertEqual(stt_source.count("from .wyoming_speaker_stt import"), 1)
+        self.assertIn("async_add_executor_job(_integration_version)", VIEW)
+        self.assertNotIn("manifest = json.loads", VIEW)

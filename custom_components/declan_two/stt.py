@@ -31,12 +31,18 @@ def pcm_to_wav(raw: bytes, *, sample_rate: int = 16000) -> bytes:
         return buffer.getvalue()
 
 
+def _load_wyoming_bridge():
+    from .wyoming_speaker_stt import DeclanWyomingVoiceBridge
+
+    return DeclanWyomingVoiceBridge
+
+
 async def async_setup_entry(hass, entry, async_add_entities):
     """Expose the configured speech engines independently."""
     if entry.options.get("wyoming_bridge_enabled") and entry.options.get("wyoming_bridge_host"):
-        from .wyoming_speaker_stt import DeclanWyomingVoiceBridge
-
-        async_add_entities([DeclanWyomingVoiceBridge(entry)])
+        # Importing wyoming reads package metadata from disk; keep that off the event loop.
+        bridge = await hass.async_add_executor_job(_load_wyoming_bridge)
+        async_add_entities([bridge(entry)])
     if entry.options.get("openai_stt_enabled") and entry.options.get("openai_stt_api_key"):
         async_add_entities([DeclanOpenAISTT(hass, entry)])
 
@@ -132,8 +138,8 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
             if engine is self or isinstance(engine, DeclanOpenAISTT):
                 engine = None
         elif options.get('wyoming_bridge_enabled') and options.get('wyoming_bridge_host'):
-            from .wyoming_speaker_stt import DeclanWyomingVoiceBridge
-            engine = DeclanWyomingVoiceBridge(self.entry)
+            bridge = await self.hass.async_add_executor_job(_load_wyoming_bridge)
+            engine = bridge(self.entry)
         if engine is None:
             _LOGGER.warning('Declan local STT fallback is not available')
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)

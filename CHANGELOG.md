@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- Fix: the Home Assistant integration no longer reads `manifest.json` or imports the Wyoming client on the event loop, which removes the "blocking call" warnings from the HA log.
 - Updater: a failed install now records which stage failed (for example `install-dependencies`). The step appears in the service log and in the Updates panel; command output is never logged.
 - Fix: the voice dependency lock now includes the Python 3.11 `cffi` wheel hash, so staged installs succeed on Python 3.11 hosts (the 2.13.0 release failed hash verification there).
 - Documentation reorganised into a concise entry-point README, installation instructions, architecture overview, and configuration reference.
