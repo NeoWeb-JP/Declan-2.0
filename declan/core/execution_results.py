@@ -14,6 +14,7 @@ class Outcome(StrEnum):
     BUSY = "busy"
     MUSIC_FEEDBACK = "music_feedback"
     SEARCH_RESULT = "search_result"
+    CHAT_ANSWER = "chat_answer"
     TIMER_SET = "timer_set"
     TIMER_ADJUSTED = "timer_adjusted"
     TIMER_CANCELLED = "timer_cancelled"

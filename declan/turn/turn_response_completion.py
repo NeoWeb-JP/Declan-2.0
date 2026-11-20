@@ -1,27 +1,34 @@
 """Prepare and atomically finalize voice-turn responses using the per-request TurnServices."""
 
 import os
-from declan.ai import fallback_entity_authorization
-from declan.ai import guarded_fallback_dispatch
-from declan.core import diagnostics
-from declan.core import history
+
+from declan.ai import (
+    fallback_entity_authorization,
+    general_chat,
+    guarded_fallback_dispatch,
+)
+from declan.core import diagnostics, history
 from declan.ha import lighting_intents
 from declan.music import music
-from declan.turn import command_responses
-from declan.turn import conversation_persistence
-from declan.turn import personality_policy
-from declan.turn import response_composition
-from declan.turn import retry_learning
-from declan.turn import retry_training_persistence
-from declan.turn import routine_responses
-from declan.turn import session_turn_state
-from declan.turn import turn_atomic_finalization
-from declan.turn import turn_context_preparation
-from declan.turn import turn_finalization
-from declan.turn import turn_persistence_orchestration
-from declan.turn import turn_response_composition
-from declan.turn import turn_response_orchestration
-from declan.turn import turn_response_preparation
+from declan.turn import (
+    command_responses,
+    conversation_persistence,
+    personality_policy,
+    response_composition,
+    retry_learning,
+    retry_training_persistence,
+    routine_responses,
+    session_turn_state,
+    turn_atomic_finalization,
+    turn_context_preparation,
+    turn_finalization,
+    turn_persistence_orchestration,
+    turn_response_composition,
+    turn_response_orchestration,
+    turn_response_preparation,
+)
+
+
 def complete(handler, *, body, message, effective_message, session_id, phrase,
              source, scope, pending_retry, action_results, dispatch_result, services):
     guarded_openai_fallback_result = services.guarded_openai_fallback_result
@@ -52,6 +59,7 @@ def complete(handler, *, body, message, effective_message, session_id, phrase,
         personality_policy=personality_policy,
         chat_commands=CHAT_COMMANDS,
         information_context=information_context,
+        chat_handler=general_chat.answer,
     )
     routine_reply, outcome = response_preparation.reply, response_preparation.outcome
     guest_mode = response_preparation.guest_mode
