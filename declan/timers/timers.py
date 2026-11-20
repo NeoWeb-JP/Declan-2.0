@@ -18,6 +18,15 @@ from declan.core.execution_results import ExecutionResult, Outcome
 
 DATABASE = Path(__file__).resolve().parents[2] / ".data" / "timers.sqlite3"
 ALARM_INTERVAL = 30
+# A ringing alarm gives up after this long, so it can never repeat forever.
+ALARM_GIVE_UP_SECONDS = 10 * 60
+# While an alarm is ringing, these silence it (on top of "stop the timer").
+ALARM_STOP_PHRASES = frozenset({
+    "stop", "stop it", "stop that", "ok stop", "okay stop", "stop the alarm", "stop alarm",
+    "cancel the alarm", "cancel alarm", "turn off the alarm", "turn the alarm off", "alarm off",
+    "silence", "silence the alarm", "be quiet", "quiet", "shut up", "dismiss", "dismiss the alarm",
+    "thanks", "thank you", "ok", "okay", "got it",
+})
 MAX_SECONDS = 24 * 60 * 60
 SMALL_NUMBERS = dict(zip(
     "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split(),
@@ -161,8 +170,19 @@ def describe(timer, now):
     return f"{label}, expired and awaiting acknowledgement"
 
 
+def ringing():
+    """True while at least one timer has expired and its alarm is still sounding."""
+    try:
+        with database() as db:
+            return db.execute("SELECT 1 FROM timers WHERE deadline <= ? LIMIT 1", (time(),)).fetchone() is not None
+    except (OSError, sqlite3.Error):
+        return False
+
+
 def matches(phrase):
-    """Pure recognition of timer requests, including ambiguous timer commands."""
+    """Recognise timer requests; plain "stop" only while an alarm is ringing."""
+    if phrase in ALARM_STOP_PHRASES:
+        return ringing()
     creation_text = phrase.rpartition(" in ")[0] if phrase.startswith("set ") and " in " in phrase else phrase
     creation = re.fullmatch(r"set (?:a |an )?(?:(.+?) )?timer for (.+)", creation_text)
     duration_first = re.fullmatch(r"set (?:a |an )?(.+?) timer", creation_text) if not creation else None
@@ -175,6 +195,8 @@ def matches(phrase):
 
 def handle_result(phrase, opener, *, satellite=None, device=None, browser=False):
     """Typed timer provider outcome; None means the phrase did not match."""
+    if phrase in ALARM_STOP_PHRASES:
+        return _silence(satellite)
     creation_text = phrase
     destination = None
     if phrase.startswith("set "):
@@ -270,15 +292,30 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
                         else f"{label} is due now.", Outcome.TIMER_ADJUSTED)
             if removal is None:
                 return None
-            if removal[1] == "cancel" and expired:
-                return ExecutionResult(f"{timer['name']} has already expired. Say stop the {named_timer} to silence its alarm.", Outcome.UNRESOLVED)
-            if removal[1] != "cancel" and not expired:
-                return ExecutionResult(f"{timer['name']} is still running. Say cancel the {named_timer} to cancel it.", Outcome.UNRESOLVED)
+            # "Cancel" and "stop" mean the same to people: a running timer is
+            # cancelled and a ringing one is silenced, whichever word was used.
             db.execute("DELETE FROM timers WHERE id = ?", (timer["id"],))
             verb = "Cancelled" if not expired else "Stopped the alarm for"
             return ExecutionResult(f"{verb} {timer['name']}.", Outcome.TIMER_CANCELLED if not expired else Outcome.TIMER_STOPPED)
     except (OSError, ValueError, sqlite3.Error):
         return ExecutionResult("I couldn't complete that timer request.", Outcome.UNAVAILABLE)
+
+
+def _silence(satellite):
+    """Silence ringing alarms: this satellite's first, otherwise every ringing one."""
+    try:
+        with database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            due = db.execute("SELECT * FROM timers WHERE deadline <= ? ORDER BY deadline, id", (time(),)).fetchall()
+            if not due:
+                return ExecutionResult("No alarm is ringing.", Outcome.NO_TIMER)
+            mine = [timer for timer in due if satellite and timer["satellite"] == satellite]
+            stopped = mine or due
+            db.executemany("DELETE FROM timers WHERE id = ?", [(timer["id"],) for timer in stopped])
+    except (OSError, sqlite3.Error):
+        return ExecutionResult("I couldn't stop the alarm.", Outcome.UNAVAILABLE)
+    names = " and the ".join(timer_label(timer["name"]) for timer in stopped)
+    return ExecutionResult(f"Stopped the alarm for the {names}.", Outcome.TIMER_STOPPED)
 
 
 def stop_due(satellite):
@@ -293,6 +330,10 @@ def ring_due(opener):
     with database() as db:
         timer = db.execute("SELECT * FROM timers WHERE next_alarm <= ? ORDER BY next_alarm LIMIT 1", (now,)).fetchone()
         if timer is None:
+            return
+        if timer["deadline"] <= now - ALARM_GIVE_UP_SECONDS:
+            # Never ring forever: an alarm nobody stopped is dropped after ten minutes.
+            db.execute("DELETE FROM timers WHERE id = ? AND deadline = ?", (timer["id"], timer["deadline"]))
             return
         # Claim only if another poller/cancellation/adjustment has not changed it.
         changed = db.execute("UPDATE timers SET next_alarm = ? WHERE id = ? AND next_alarm = ? AND deadline = ?",

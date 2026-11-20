@@ -206,7 +206,8 @@ class SharedStateTests(TestCase):
         path = Path(self.enterContext(TemporaryDirectory())) / 'timers.sqlite3'
         self.enterContext(patch.object(timers, 'DATABASE', path))
         with timers.database() as db:
-            db.execute("INSERT INTO timers(name,satellite,room,deadline,next_alarm) VALUES ('Tea','assist_satellite.kitchen','Kitchen',0,0)")
+            due = timers.time() - 1
+            db.execute("INSERT INTO timers(name,satellite,room,deadline,next_alarm) VALUES ('Tea','assist_satellite.kitchen','Kitchen',?,?)", (due, due))
         with patch.object(timers, 'ha_json') as announce:
             with ThreadPoolExecutor(max_workers=4) as pool:
                 list(pool.map(lambda _: timers.ring_due(Mock()), range(4)))

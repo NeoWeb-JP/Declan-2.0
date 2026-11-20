@@ -20,8 +20,7 @@ class TimerCoreTypedTests(unittest.TestCase):
                     ("set tea timer for 5 minutes", Outcome.UNRESOLVED),
                     ("list timers", Outcome.TIMER_STATUS),
                     ("increase tea timer by 1 minute", Outcome.TIMER_ADJUSTED),
-                    ("stop tea timer", Outcome.UNRESOLVED),
-                    ("cancel tea timer", Outcome.TIMER_CANCELLED),
+                    ("stop tea timer", Outcome.TIMER_CANCELLED),
                     ("list timers", Outcome.NO_TIMER),
                     ("set tea timer for 1 second", Outcome.TIMER_SET)):
                 with self.subTest(phrase=phrase):
@@ -29,8 +28,7 @@ class TimerCoreTypedTests(unittest.TestCase):
                     self.assertIs(result.outcome, expected)
                     self.assertIs(model.call_args.args[1], expected)
             clock.return_value = 200
-            self.assertIs(timers.handle_result("cancel tea timer", Mock()).outcome, Outcome.UNRESOLVED)
-            self.assertIs(timers.handle_result("stop tea timer", Mock()).outcome, Outcome.TIMER_STOPPED)
+            self.assertIs(timers.handle_result("cancel tea timer", Mock()).outcome, Outcome.TIMER_STOPPED)
             self.assertTrue(all(isinstance(call.args[1], Outcome) for call in model.call_args_list))
 
     def test_unmatched_phrase_remains_none(self):

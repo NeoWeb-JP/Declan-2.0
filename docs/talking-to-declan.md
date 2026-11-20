@@ -18,7 +18,7 @@ A short guide for everyone in the house, including guests who have never used hi
 
 **Routines**: say the routine's name, for example "good night", "good morning" or "movie time". Homelab, camera and security routines ask you to say **yes** first.
 
-**Timers**: "set a timer for 10 minutes", "how much time is left on the timer", "cancel the timer"
+**Timers**: "set a timer for 10 minutes", "how much time is left on the timer", "cancel the timer". When a timer goes off, just say "stop" (or "stop the alarm", "okay", "thanks"). "Cancel" and "stop" both work for a running or a ringing timer, and an alarm nobody answers stops by itself after 10 minutes.
 
 **Finding out what's here** (always free, no AI):
 - "What can you do?"
