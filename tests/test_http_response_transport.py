@@ -42,6 +42,18 @@ class ResponseTransportTests(unittest.TestCase):
         self.assertIn(("Content-Type", "application/json"), handler.headers)
         self.assertIn(("Cache-Control", "no-store"), handler.headers)
 
+    def test_assist_posts_are_logged_and_quiet_reads_are_not(self):
+        with self.assertLogs(self.logger, level="INFO") as logs:
+            http_response_transport.send_body(
+                FakeHandler("/api/assist?debug=1", "POST"), 200, b"{}", "application/json", logger=self.logger)
+            http_response_transport.send_body(
+                FakeHandler("/api/history", "GET"), 200, b"{}", "application/json", logger=self.logger)
+            http_response_transport.send_body(
+                FakeHandler("/api/settings/ai", "GET"), 403, b"{}", "application/json", logger=self.logger)
+        self.assertEqual([record.getMessage() for record in logs.records],
+                         ["HTTP 200 POST /api/assist", "HTTP 403 GET /api/settings/ai"])
+        self.assertEqual(logs.records[1].levelname, "WARNING")
+
     def test_query_parameters_not_logged(self):
         handler = FakeHandler("/api/chat?token=private", command="POST")
         with patch.object(http_response_transport.diagnostics, "ACTIVE", SimpleNamespace(get=lambda: None)):

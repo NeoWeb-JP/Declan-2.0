@@ -51,6 +51,22 @@ class FallbackDispatchTests(unittest.TestCase):
         self.assertEqual((result.reply, result.status_target), ("device", "speaker"))
         lights.assert_not_called()
 
+    def test_device_dispatch_gets_room_context_and_typed_music(self):
+        music = SimpleNamespace(parse="parse", parse_feedback="parse_feedback", feedback_result="feedback",
+                                parse_control="parse_control", control_result="control", play_result="play")
+        args: tuple[Any, ...] = ("pause the music", "assist", None, None, "media_player.kitchen", "kitchen-show",
+                "kitchen", [], None, None, None)
+        with patch.object(stage.information_command_dispatch, "dispatch_information", return_value=None), patch.object(
+            stage.device_command_dispatch, "dispatch_device", return_value=None
+        ) as device, patch.object(stage.lighting_result_dispatch, "dispatch_lighting_response", return_value=None):
+            stage.dispatch(*args, **{**self.kwargs, "music": music, "search_media_result": "search"})
+        kwargs = device.call_args.kwargs
+        self.assertEqual((kwargs["last_device"], kwargs["origin_device"], kwargs["satellite"]),
+                         ("media_player.kitchen", "kitchen-show", "kitchen"))
+        self.assertEqual((kwargs["parse_music"], kwargs["play"], kwargs["control"], kwargs["feedback"]),
+                         ("parse", "play", "control", "feedback"))
+        self.assertEqual(kwargs["search_media"], "search")
+
     def test_no_match_falls_through(self):
         with patch.object(stage.information_command_dispatch, "dispatch_information", return_value=None), patch.object(
             stage.device_command_dispatch, "dispatch_device", return_value=None

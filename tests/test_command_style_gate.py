@@ -104,11 +104,45 @@ class PreflightTests(unittest.TestCase):
                 self.assertEqual(sent, [])
                 record.assert_not_called()
 
-    def test_gate_runs_after_cancel_and_confirmation_in_preflight(self):
-        source = (ROOT / "declan/turn/turn_preflight.py").read_text()
-        body = source.split("def resolve(", 1)[1]
-        self.assertLess(body.index("cancel_phrases"), body.index("_ignored_by_command_style("))
-        self.assertLess(body.index("confirmation_reply is not None"), body.index("_ignored_by_command_style("))
+    def resolve(self, message="stop", *, pending=None, confirmation_reply=None, agent_asked=False):
+        """Run preflight with its collaborators stubbed; return (result, gate mock, sent)."""
+        handler = SimpleNamespace(sent=[], log_error=Mock())
+        handler.send_json = lambda status, payload: handler.sent.append((status, payload))
+        cancellation = SimpleNamespace(to_wire=lambda: {"reply": "Cancelled."})
+        with patch.object(turn_preflight.learned_intent_resolution, "resolve", return_value=(message, message)), \
+                patch.object(turn_preflight.session_context_access, "consume_retry_context", return_value=pending), \
+                patch.object(turn_preflight.retry_cancellation_access, "cancel_pending_retry", return_value=cancellation), \
+                patch.object(turn_preflight.sensitive_confirmation_resolution, "resolve_confirmation",
+                             return_value=("s1", message, message, confirmation_reply)), \
+                patch.object(turn_preflight, "_agent_asked", return_value=agent_asked), \
+                patch.object(turn_preflight, "_ignored_by_command_style", return_value=False) as gate:
+            result = turn_preflight.resolve(
+                handler, {}, message=message, session_id="s1", scope="kitchen", source="assist",
+                satellite="kitchen", origin_device=None, sessions={}, lock=Mock(), now=0,
+                preprocess=Mock(), normalize=lambda text: text, learned_intent=Mock(), retry_window=30,
+                consume_retry=Mock(), cancel_phrases={"stop"}, converse=Mock(), record=Mock(),
+                cancel_retry=Mock(), confirm=Mock(), evaluate=Mock(), confirmation_response=Mock(),
+                guest_commands={}, confirmations=Mock(), diagnostic_id=None, resolve_confirmation=Mock())
+        return result, gate, handler.sent
+
+    def test_cancel_is_answered_before_the_style_gate(self):
+        result, gate, sent = self.resolve("stop", pending={"text": "x"})
+        self.assertIsNone(result)
+        self.assertEqual(sent, [(200, {"reply": "Cancelled."})])
+        gate.assert_not_called()
+
+    def test_confirmation_reply_is_answered_before_the_style_gate(self):
+        result, gate, sent = self.resolve("yes", confirmation_reply={"reply": "Done."})
+        self.assertIsNone(result)
+        self.assertEqual(sent, [(200, {"reply": "Done."})])
+        gate.assert_not_called()
+
+    def test_answer_to_the_agent_bypasses_the_gate(self):
+        result, gate, _ = self.resolve("the pendant", agent_asked=True)
+        self.assertEqual(result.phrase, "the pendant")
+        self.assertTrue(gate.call_args.kwargs["pending_retry"])
+        _, gate, _ = self.resolve("the pendant", agent_asked=False)
+        self.assertFalse(gate.call_args.kwargs["pending_retry"])
 
 
 class SettingsTests(unittest.TestCase):
