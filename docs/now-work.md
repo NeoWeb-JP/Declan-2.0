@@ -22,15 +22,27 @@
 - Quiet hours are 23:00–07:00 in HA's timezone. PCM speech is 20% of normal, without changing player volume; music/Sexy Time playback stays exempt. Guarded unsolicited overnight speech allows only safety categories, with approved outputs in HA integration Options. #123 is accepted on the owner's testing confirmation; this review did not independently audit installed direct-TTS callers.
 - Spotify categories use a **25-playlist** limit, preserve favourites/exclusions and use approved Music Assistant outputs.
 
-## Remaining NOW implementation
+## NOW status, 20 November 2026
 
-| Criterion | Remaining work |
+[#12](https://github.com/NeoWeb-JP/Declan-2.0/issues/12) closed on 20 Nov. Every NOW criterion is implemented and merged; household acceptance runs through #779. Follow-ups are tracked in #802.
+
+| Criterion | Status |
 | --- | --- |
-| HIS-11 | Per-speaker match rate. Definition agreed 20 Nov (D1): of the recordings VoicePipeline attributed to a speaker that you then reviewed, the % where you kept that speaker; n/a under 5 reviews. Implemented in #810. |
-| REL-01 | Local TTS fallback after the primary provider and cached alternatives fail, kept as written (D2). Implemented in #811 (`local_tts` integration option, own cache identity). |
-| VOI-12 (new) | Weekly "not understood" rate and top missed phrases. Summary implemented in #808; the owner sets the target. |
-| DEV-01 (new) | "Howzit Declan" wake word and multi-room Spotify on every satellite and EchoLocal Echo Show, with a device inventory. |
+| HIS-11 | Per-speaker match rate (D1: of reviewed recordings VoicePipeline attributed to a speaker, the % kept; n/a under 5 reviews). Merged in #810. |
+| REL-01 | Local TTS fallback after the primary provider and cached alternatives fail (D2). Merged in #811 (`local_tts` option, own cache identity). |
+| REL-08 | Re-scoped (D3) to Declan-managed data and met. VoicePipeline's own storage is a documented limitation; live deletion acceptance is a #779 check. |
+| VOI-12 (new) | Weekly "not understood" rate and top missed phrases. Merged in #808; the owner sets the target. |
+| DEV-01 (new) | "Howzit Declan" wake word and multi-room Spotify on every satellite. Met: one wake word per satellite; music and wake word work on all of them. |
 
-REL-08 was re-scoped on 20 Nov (D3) to Declan-managed data and is met. VoicePipeline's own storage is a documented limitation, and live deletion acceptance is a #779 check. #17 was closed on 19 Nov; its open items and the engineering follow-ups are tracked in #802. #98's all-time phrase manager is implemented in #809. #12 stays open until #810 and #811 are merged and retested live.
+### DEV-01 device inventory
+
+| Room | Device |
+| --- | --- |
+| Kitchen | Guition 10.1 inch (Echo Show 8 Gen 1 and 2) |
+| Lounge | Guition 10.1 inch (Echo Show 8 Gen 1 and 2) |
+| Master Bedroom | Guition 10.1 inch (Echo Show 8 Gen 1 and 2) |
+| Utility Room | Sunton 7 inch (Echo Show 5 Gen 1) |
+
+#17 was closed on 19 Nov. #98's all-time phrase manager and provenance are implemented in #809. Still open in #802: latency targets and speed work once live stage timings are available; the remaining `as_legacy_*` result APIs and source-text tests (D5); the parked Echo Show dashboard.
 
 Historical implementation notes and earlier product decisions are available in Git history. They must not override the current issue register. Homelab operations, predictive heating/EV optimisation and the all-time phrase manager remain deferred.

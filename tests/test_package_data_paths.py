@@ -30,14 +30,11 @@ class PackageDataPathTests(unittest.TestCase):
                 self.assertTrue((directory / "__init__.py").is_file(), directory)
 
 
-class TransitionalAliasTests(unittest.TestCase):
-    def test_old_updater_can_still_stage_this_release(self):
-        """A pre-move updater checks for root voice_audio_crypto.py and imports _aesgcm from it."""
-        self.assertTrue((ROOT / "voice_audio_crypto.py").is_file())
-        import voice_audio_crypto
-        from declan.voice import voice_audio_crypto as real
-        for name in ("_aesgcm", "_key", "encrypt", "decrypt", "MAGIC"):
-            self.assertIs(getattr(voice_audio_crypto, name), getattr(real, name))
+class TransitionalAliasRemovedTests(unittest.TestCase):
+    def test_root_crypto_alias_is_gone_and_the_updater_checks_the_package(self):
+        """Installs now run the post-move updater, which checks declan/voice/."""
+        self.assertFalse((ROOT / "voice_audio_crypto.py").exists())
+        self.assertTrue((ROOT / "declan" / "voice" / "voice_audio_crypto.py").is_file())
 
 
 if __name__ == "__main__":
