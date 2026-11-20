@@ -14,7 +14,8 @@ from typing import Any
 
 from declan.core.execution_results import ExecutionResult, Outcome, parse_outcome
 
-DATABASE = Path(__file__).resolve().parent / '.data' / 'diagnostics.sqlite3'
+# Repository root .data (shared across releases), not this package's folder.
+DATABASE = Path(__file__).resolve().parents[2] / '.data' / 'diagnostics.sqlite3'
 ACTIVE: ContextVar[dict[str, Any] | None] = ContextVar('declan_request_trace', default=None)
 RETENTION = 7 * 86400
 
