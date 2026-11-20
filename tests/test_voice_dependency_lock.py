@@ -30,6 +30,18 @@ class VoiceLockTests(unittest.TestCase):
             self.assertEqual(target.read_text(), 'old lock\\n')
             self.assertIn(hashlib.sha256(b'pycparser-2.23-py3-none-any.whl').hexdigest(), text)
 
+    def test_production_lock_covers_python_311_and_312_cffi_wheels(self):
+        """cffi ships one wheel per Python version; the Proxmox host runs Python 3.11."""
+        text = (Path(__file__).resolve().parents[1] / 'requirements-web-voice.txt').read_text()
+        block = text.split('cffi==2.1.1', 1)[1].split('cryptography==', 1)[0]
+        hashes = [part for part in block.replace(chr(92), ' ').split() if part.startswith('--hash=sha256:')]
+        self.assertEqual(len(hashes), 2)
+        # cp311 manylinux2014 x86_64 digest as published by PyPI and confirmed on the host.
+        self.assertIn('--hash=sha256:34e261f78cb6ceaaa36f42f2613f4380d94d9c759a9c73c769ee6e0247364632', hashes)
+        for line in text.splitlines():
+            if line and not line.startswith(('#', ' ')) and '==' in line:
+                self.assertTrue(line.endswith(chr(92)) or '--hash=sha256:' in line, line)
+
     def test_missing_required_wheel_does_not_write_candidate(self):
         with tempfile.TemporaryDirectory() as temp:
             target = Path(temp) / 'requirements-web-voice.txt'

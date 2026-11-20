@@ -18,7 +18,7 @@ On the target Linux/Python environment, run `python generate_voice_dependency_lo
 
 The `Verify voice encryption dependency lock` GitHub Actions workflow downloads the wheels on Linux/Python 3.12, generates the candidate, and installs it with `--require-hashes` in a fresh virtual environment. The candidate is uploaded as a short-lived workflow artifact for manual review. **The artifact is not automatically committed or deployed.** Compare its platform and Python version with the actual Declan host before using it; regenerate on the target host if they differ. Once reviewed, update `requirements-web-voice.txt` through a separate PR and rerun deployment/UAT checks.
 
-The production lock was updated using wheel SHA-256 hashes from successful GitHub Actions run `44214576610` (Linux/Python 3.12). This does not establish compatibility with a different host architecture or Python version. Before enabling encryption, verify the staged backend venv imports `AESGCM`, configure `DECLAN_VOICE_AUDIO_KEY` securely, migrate local plaintext samples while the service is stopped, and complete runtime acceptance tests.
+The production lock was updated using wheel SHA-256 hashes from successful GitHub Actions run `44214576610` (Linux/Python 3.12). The Python 3.11 `cffi` wheel hash was added after the Proxmox host's staged install rejected the 3.12-only lock; it matches the digest PyPI publishes. This does not establish compatibility with a different host architecture or other Python versions. Before enabling encryption, verify the staged backend venv imports `AESGCM`, configure `DECLAN_VOICE_AUDIO_KEY` securely, migrate local plaintext samples while the service is stopped, and complete runtime acceptance tests.
 
 ## Read-only readiness check
 
