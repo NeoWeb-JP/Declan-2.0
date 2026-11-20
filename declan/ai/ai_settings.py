@@ -8,7 +8,7 @@ from declan.ai.ai_pricing import RATES, model_profile, require_available
 DEFAULTS = {
     "enabled": False,
     "model": "gpt-5-mini",
-    "monthly_budget_usd": "5.00",
+    "monthly_budget_usd": "20.00",
     "request_ceiling_usd": "0.05",
     "max_actions": 3,
     "allowed_domains": ["light", "switch", "fan", "cover"],

@@ -14,7 +14,7 @@ SERVICES = {
     "fan": frozenset(("turn_on", "turn_off")),
     "cover": frozenset(("open_cover", "close_cover")),
     "script": frozenset(("turn_on",)),
-    "media_player": frozenset(("media_stop", "media_pause", "media_play")),
+    "media_player": frozenset(("media_stop", "media_pause", "media_play", "turn_on", "turn_off")),
 }
 MAX_ACTIONS = 8
 
