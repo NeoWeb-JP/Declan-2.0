@@ -43,6 +43,11 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "Which lights are in here?" or "what lights are in the kitchen?"
 - "What routines are there?", "what rooms do you know?", "where can you play music?"
 
+**Braai**:
+- "Braai time" (or "we're having a braai"): Braai playlist in the room you're in, garden lights on, a rain check, and some smoke-related abuse
+- Timers in one go: "boerewors 12 minutes, chops 8 minutes"; then "how long on the chops?"
+- "Braai's over" (the music keeps playing until you stop it)
+
 **Intercom** (spoken on the satellites, starting "Message from the lounge: …"; not during quiet hours, 23:00 to 07:00):
 - "Tell the kitchen dinner's ready", "tell the master bedroom that breakfast is ready"
 - "Announce to everyone: leaving in five minutes", "tell everyone the taxi is here"

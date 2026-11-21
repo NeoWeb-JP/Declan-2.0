@@ -4,6 +4,11 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Braai master (FUT-43, #834).**
+  - "Braai time" plays the Braai playlist in the room you're in, turns on the garden lights and checks for rain, opening with braai sass: your three lines plus the approved extras, rested and topped up like the rest.
+  - Each part is an ordinary command, so a failed part is reported and the rest still runs.
+  - "Boerewors 12 minutes, chops 8 minutes" sets both timers; "how long on the chops?" asks the chops timer.
+  - "Braai's over" gets a closing line and leaves the music alone.
 - **Clearer failures (FUT-24, #834).** When a request fails as unavailable or failed, Declan checks what's actually down before saying so:
   - **Home Assistant not answering:** "Home Assistant isn't answering, boet, so nothing in the house will work until it's back."
   - **Declan's HA token rejected:** he says so.
