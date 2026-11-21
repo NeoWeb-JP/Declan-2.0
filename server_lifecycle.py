@@ -109,6 +109,13 @@ def main(*, description, argv, environ, history_store, timer_store, server_facto
                         except Exception:
                             logging.exception("Entrance themes could not be checked.")
                     background("entrance-themes", check_entrances)
+                    def check_sunrise():
+                        try:
+                            timer_store.sunrise_due(opener, music_module=music_module, ha_connect=ha_connect,
+                                                    music_inventory=music_inventory)
+                        except Exception:
+                            logging.exception("Sunrise wake-ups could not be checked.")
+                    background("sunrise", check_sunrise)
                 if clock() >= next_prune:
                     def prune_history():
                         try:
