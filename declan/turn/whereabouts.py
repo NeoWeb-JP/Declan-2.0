@@ -46,6 +46,8 @@ _QUESTION = re.compile(rf"where(?: is|'s| are|'re) (?:the )?{_ITEM}")
 _LIST = re.compile(r"what (?:have (?:i|we) told you about|things do you know where they are|are you keeping track of)|"
                    r"(?:list|what are) the things (?:you know|i've told you about)")
 _FORGET = re.compile(rf"forget (?:about |where )?{_ARTICLE}{_ITEM}(?: is| are)?")
+# "I put milk on the shopping list" belongs to the lists feature (FUT-27).
+_LIST_PLACE = re.compile(r"\b(?:list|to-?do|shopping)\b")
 # Things that look like statements but are commands or chatter.
 _NOT_ITEMS = frozenset({"lights", "light", "music", "tv", "television", "it", "that", "this", "he", "she", "they",
                         "dinner", "food", "the time", "heating", "fan", "everyone", "everybody", "nobody", "someone"})
@@ -113,7 +115,7 @@ def match(text):
         return ("forget", forget["item"].strip(), True)
     for pattern in _EXPLICIT_SAVE:
         found = pattern.fullmatch(text)
-        if found and _item_ok(found["item"]):
+        if found and _item_ok(found["item"]) and not _LIST_PLACE.search(found["place"]):
             return ("save", (found["item"].strip(), found["place"].strip()), True)
     for pattern in _PERSONAL_QUESTIONS:
         personal = pattern.fullmatch(text)
@@ -124,7 +126,7 @@ def match(text):
         # "Where is Peru?" falls through when nothing is filed under that name.
         return ("find", (question["item"].strip(), False), True)
     bare = _BARE_SAVE.fullmatch(text)
-    if bare and _item_ok(bare["item"]):
+    if bare and _item_ok(bare["item"]) and not _LIST_PLACE.search(bare["place"]):
         return ("save", (bare["item"].strip(), bare["place"].strip()), False)
     return None
 

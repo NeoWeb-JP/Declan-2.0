@@ -4,6 +4,12 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Shopping and to-do lists (FUT-27, #834).**
+  - "Add milk and eggs to the shopping list", "what's on the shopping list?", "take milk off the list", "add call the plumber to my to-do list".
+  - Uses Home Assistant's own to-do lists (the one with "shopping" or "grocer" in its name, and the one with "to-do", "tasks" or "chores"), so items show on everyone's phone in the HA app. "The list" means the shopping list.
+  - Long lists are summarised (first six, then "and 3 more").
+  - Ticking off marks the item completed in HA.
+  - "I put milk on the shopping list" goes to the list, not to "where did I put".
 - **More music controls (FUT-28, #834).**
   - "What song is this?" / "who sings this?"
   - "Play Jolene next" / "queue Thunderstruck by AC/DC" adds it after the current track.
