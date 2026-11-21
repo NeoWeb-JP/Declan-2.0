@@ -49,4 +49,6 @@ jobs:
       - name: Check native Home Assistant panel JavaScript syntax
         run: node --check custom_components/declan_two/frontend/panel.js
       - run: npm ci
+      - name: Audit npm dependencies (blocks on high or critical)
+        run: npm audit --audit-level=high
       - run: npm test

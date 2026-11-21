@@ -53,6 +53,22 @@ class WebSpeechTests(TestCase):
                 web_stt.transcribe_result("https://ha.local", "token", b"\0\1")
             socket.close.assert_called_once_with(timeout=0)
 
+    def test_websocket_endpoint_normalises_trailing_slash_and_proxy_prefix(self):
+        websocket = SimpleNamespace(create_connection=Mock(return_value=Mock()),
+                                    WebSocketException=type("WebSocketFailure", (Exception,), {}))
+        cases = {
+            "https://ha.local": "wss://ha.local/api/websocket",
+            "https://ha.local/": "wss://ha.local/api/websocket",
+            "http://ha.local:8123/": "ws://ha.local:8123/api/websocket",
+            "https://ha.local/base": "wss://ha.local/base/api/websocket",
+            "https://ha.local/base/": "wss://ha.local/base/api/websocket",
+        }
+        for url, endpoint in cases.items():
+            with self.subTest(url=url), patch.dict("sys.modules", {"websocket": websocket}), \
+                 patch.object(web_stt, "run_stt_result", return_value=TranscriptionResult.from_text("Hi")):
+                web_stt.transcribe_result(url, "token", b"\0\1")
+                self.assertEqual(websocket.create_connection.call_args.args[0], endpoint)
+
     def test_reports_home_assistant_pipeline_error_code(self):
         socket = Mock()
         socket.recv.side_effect = map(json.dumps, [

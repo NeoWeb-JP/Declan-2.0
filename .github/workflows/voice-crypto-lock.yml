@@ -1,6 +1,14 @@
 name: Verify voice encryption dependency lock
 
 on:
+  # Re-verify on main too, so a change that reaches main by any route
+  # (direct push, merge queue, admin merge) is still checked.
+  push:
+    branches: [main]
+    paths:
+      - "requirements-web-voice.txt"
+      - "generate_voice_dependency_lock.py"
+      - ".github/workflows/voice-crypto-lock.yml"
   pull_request:
     branches: [main]
   workflow_dispatch:
