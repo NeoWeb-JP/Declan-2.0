@@ -5,7 +5,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 CHOICES = {"guest_tone": frozenset({"home", "polite"})}
-KEYS = frozenset({"guest_tone", "shelve_days", "fresh_lines"})
+KEYS = frozenset({"guest_tone", "shelve_days", "fresh_lines", "christmas", "wifi_name", "wifi_password"})
 SOURCES = frozenset({"saved", "environment", "default"})
 # hass.data key holding the last guest tone read from the backend, for the TTS
 # catalogue fallback. Missing means "home", the owner's default.
@@ -20,7 +20,11 @@ def valid_settings(settings, *, complete=True):
         return False
     return (settings["guest_tone"] in CHOICES["guest_tone"]
             and ("shelve_days" not in settings or (type(settings["shelve_days"]) is int and 0 <= settings["shelve_days"] <= 30))
-            and ("fresh_lines" not in settings or type(settings["fresh_lines"]) is bool))
+            and ("fresh_lines" not in settings or type(settings["fresh_lines"]) is bool)
+            and ("christmas" not in settings or settings["christmas"] in {"auto", "on", "off"})
+            and all(name not in settings or (isinstance(settings[name], str) and len(settings[name]) <= 63
+                                             and all(" " <= ch <= "~" for ch in settings[name]))
+                    for name in ("wifi_name", "wifi_password")))
 
 
 def valid_delete(body):

@@ -485,7 +485,7 @@ class DeclanTwoNativePanel extends HTMLElement {
               </div>
             </details>
             <details class="settings-section settings-section--household">
-              <summary><span class="settings-section-icon" aria-hidden="true">⌂</span><span class="settings-section-title">Household<small>How Declan talks when guests are over</small></span></summary>
+              <summary><span class="settings-section-icon" aria-hidden="true">⌂</span><span class="settings-section-title">Household<small>Guests, fresh sass, Christmas and the guest Wi-Fi</small></span></summary>
               <div class="settings-section-content">
                 <form class="household-form">
                   <label>Guest tone<select name="guest_tone">
@@ -497,6 +497,15 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <p class="muted">Once Declan has said a sass line, roast or response, he won't use it again for this many days. 0 turns this off.</p>
                   <label class="household-toggle"><input type="checkbox" name="fresh_lines"> Write new lines when a category runs low</label>
                   <p class="muted">Declan asks the AI for a batch of short, rude, South African lines in the background, never while you wait. It has its own small monthly budget. Delete any you don't like below.</p>
+                  <label>Christmas mode<select name="christmas">
+                    <option value="auto">Automatic: 1 December to 2 January (default)</option>
+                    <option value="on">On</option>
+                    <option value="off">Off</option>
+                  </select></label>
+                  <p class="muted">Christmas lines, Christmas music for "play some music" (add playlists to the Christmas category), cooking timers, "how many sleeps till Christmas?", and a quieter Boxing Day. Saying "Christmas mode on" or "off" changes this too.</p>
+                  <label>Guest Wi-Fi name<input name="wifi_name" type="text" maxlength="63" autocomplete="off"></label>
+                  <label>Guest Wi-Fi password<input name="wifi_password" type="text" maxlength="63" autocomplete="off" spellcheck="false"></label>
+                  <p class="muted">When anyone asks "what's the Wi-Fi password?" Declan reads these out (and they appear in History). Use a guest network. Leave empty to keep it secret.</p>
                   <button type="submit">Save household settings</button>
                 </form>
                 <p class="household-status muted" role="status" aria-live="polite">Open Settings to load household settings.</p>
@@ -2361,6 +2370,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       form.elements.namedItem('guest_tone').value = response.settings.guest_tone;
       form.elements.namedItem('shelve_days').value = String(response.settings.shelve_days ?? 3);
       form.elements.namedItem('fresh_lines').checked = response.settings.fresh_lines !== false;
+      form.elements.namedItem('christmas').value = response.settings.christmas || 'auto';
+      form.elements.namedItem('wifi_name').value = response.settings.wifi_name || '';
+      form.elements.namedItem('wifi_password').value = response.settings.wifi_password || '';
       this.renderFreshLines(response.generated);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
@@ -2382,7 +2394,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (!Number.isInteger(days) || days < 0 || days > 30) { status.textContent = 'Rest days must be a whole number from 0 to 30.'; return; }
       const response = await this._hass.callApi('POST', 'declan_two/household', {settings: {
         guest_tone: form.elements.namedItem('guest_tone').value, shelve_days: days,
-        fresh_lines: form.elements.namedItem('fresh_lines').checked}});
+        fresh_lines: form.elements.namedItem('fresh_lines').checked,
+        christmas: form.elements.namedItem('christmas').value,
+        wifi_name: form.elements.namedItem('wifi_name').value.trim(),
+        wifi_password: form.elements.namedItem('wifi_password').value}});
       form.elements.namedItem('guest_tone').value = response.settings.guest_tone;
       status.textContent = 'Saved. It applies to Declan\'s next reply.';
     } catch {

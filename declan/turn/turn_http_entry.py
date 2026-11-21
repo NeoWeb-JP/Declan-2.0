@@ -42,9 +42,13 @@ def handle_post(handler, *, services):
     from declan.music import music
     agent_on = _conversation_enabled(general_chat)
     help_request = local_help.match(effective_message)
+    from declan.turn import christmas
+    christmas_request = christmas.match(effective_message) if help_request is None else None
     if help_request is not None:
         dispatch_result = _local_help(handler, body, help_request, origin_device=origin_device,
                                       satellite=satellite, services=services, conversation_on=agent_on)
+    elif christmas_request is not None:
+        dispatch_result = _christmas(christmas_request)
     else:
         dispatch_result = None
     if dispatch_result is not None:
@@ -102,6 +106,20 @@ def _conversation_enabled(general_chat):
         return general_chat.enabled()
     except (OSError, ValueError):
         return False
+
+
+def _christmas(request):
+    """FUT-59: Christmas mode, the countdown and the guest Wi-Fi, answered locally."""
+    from declan.core.execution_results import Outcome
+    from declan.turn import christmas, conversation_entry
+    try:
+        reply = christmas.answer(request)
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        LOGGER.warning("Christmas request failed (%s)", type(error).__name__)
+        return conversation_entry._result_factory("I couldn't change Christmas mode just now.", Outcome.FAILED)
+    from declan.ha import household_language
+    outcome = Outcome.CONFIRMED if request[0] == "mode" and request[1] != "status" else Outcome.CHAT_ANSWER
+    return conversation_entry._result_factory(household_language.render(reply), outcome)
 
 
 def _local_help(handler, body, request, *, origin_device, satellite, services, conversation_on):

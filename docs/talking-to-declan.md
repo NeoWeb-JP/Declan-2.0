@@ -38,6 +38,14 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "Which lights are in here?" or "what lights are in the kitchen?"
 - "What routines are there?", "what rooms do you know?", "where can you play music?"
 
+**Christmas** (on by itself from 1 December to 2 January, or say "Christmas mode on/off"):
+- "Play some music" plays from your Christmas playlists, and Declan's sass goes festive
+- "How many sleeps till Christmas?"
+- Cooking timers in one go: "set a turkey timer for 3 hours and a roast potatoes timer for 50 minutes", or "turkey 3 hours, roast potatoes 50 minutes"
+- "Christmas morning" runs your Christmas Morning script (example in `home_assistant/christmas_morning.script.yaml`)
+- "What's the Wi-Fi password?" reads out the guest Wi-Fi, if you've set it in Settings → Household
+- On Boxing Day music starts at 20% at most
+
 ## Conversation: when you don't know the words
 
 With **Conversation** on (Settings → AI Intelligence), you don't need the exact phrases or device names:

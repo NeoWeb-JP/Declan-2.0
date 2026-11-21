@@ -296,6 +296,14 @@ LINES = {
          "That concludes the lighting audit. Refreshingly little paperwork.",
          "The lights have given a statement. All very official."),
     ),
+    "guest_on": (
+        ("Guests. Lovely. Hide the good whisky, my bru.",
+         "Visitors in the house. I'll be on my worst behaviour.",
+         "New people to roast. Lekker."),
+        ("Welcome. The staff are on their best behaviour.",
+         "Guests are in charge. The help will cope.",
+         "Make yourselves at home. Ask me if you're lost."),
+    ),
     "greeting": (
         ("What have we decided is my problem today, my bru?",
          "I was enjoying the quiet, but do go on.",
@@ -330,6 +338,9 @@ def choose_line(category, guest_mode):
     from declan.turn import command_responses
     from declan.turn.household_settings import guest_lines
     guest = guest_lines(guest_mode != "off")
+    from declan.turn import christmas
+    if seasonal := christmas.seasonal(category):
+        return household_language.render(christmas.pick(seasonal, polite=guest))
     custom = command_responses.selected(category, guest)
     if custom is not None:
         return household_language.render(custom)

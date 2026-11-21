@@ -12,16 +12,28 @@ this many days before Declan uses it again (0 turns resting off).
 fresh_lines: when a category runs low on rested lines, Declan writes new ones
 in the background with the AI, within a small monthly budget.
 
+christmas: "auto" (1 December to 2 January), "on" or "off" (FUT-59). Saying
+"Christmas mode on/off" saves "on"/"off".
+
+wifi_name / wifi_password: the guest Wi-Fi Declan reads out when asked
+(empty until set; the password is stored here in plain text, so use a guest
+network).
+
 A value saved in Settings wins, then the environment variable, then the default.
 """
 import json
 import os
+import re
 from pathlib import Path
 
 GUEST_TONES = ("home", "polite")
+CHRISTMAS = ("auto", "on", "off")
 ENVIRONMENT = {"guest_tone": "DECLAN_GUEST_TONE", "shelve_days": "DECLAN_SHELVE_DAYS",
-               "fresh_lines": "DECLAN_FRESH_LINES"}
-DEFAULTS: dict[str, object] = {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True}
+               "fresh_lines": "DECLAN_FRESH_LINES", "christmas": "DECLAN_CHRISTMAS_MODE",
+               "wifi_name": "DECLAN_WIFI_NAME", "wifi_password": "DECLAN_WIFI_PASSWORD"}
+DEFAULTS: dict[str, object] = {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True,
+                               "christmas": "auto", "wifi_name": "", "wifi_password": ""}
+_WIFI_TEXT = re.compile(r"[ -~]{0,63}")
 MAX_SHELVE_DAYS = 30
 PATH = Path(__file__).resolve().parents[2] / ".data" / "household-settings.json"
 _ON = frozenset({"1", "true", "yes", "on"})
@@ -35,19 +47,26 @@ def _valid(key, value):
         return type(value) is int and 0 <= value <= MAX_SHELVE_DAYS
     if key == "fresh_lines":
         return type(value) is bool
+    if key == "christmas":
+        return isinstance(value, str) and value in CHRISTMAS
+    if key in {"wifi_name", "wifi_password"}:
+        return isinstance(value, str) and bool(_WIFI_TEXT.fullmatch(value))
     return False
 
 
 def _from_environment(key):
+    if key in {"wifi_name", "wifi_password"}:
+        value = os.environ.get(ENVIRONMENT[key], "")
+        return value if value and _valid(key, value) else None
     raw = os.environ.get(ENVIRONMENT[key], "").strip().lower()
-    if key == "guest_tone":
+    if key in {"guest_tone", "christmas"}:
         return raw if _valid(key, raw) else None
     if key == "shelve_days":
         try:
-            value = int(raw)
+            days = int(raw)
         except ValueError:
             return None
-        return value if _valid(key, value) else None
+        return days if _valid(key, days) else None
     return True if raw in _ON else False if raw in _OFF else None
 
 
@@ -78,8 +97,8 @@ def save(payload, path=None):
     path = Path(PATH if path is None else path)
     if (not isinstance(payload, dict) or "guest_tone" not in payload or not set(payload) <= set(DEFAULTS)
             or not all(_valid(key, value) for key, value in payload.items())):
-        raise ValueError("Choose a guest tone (home or polite), shelve days from 0 to 30, "
-                         "and fresh lines on or off.")
+        raise ValueError("Choose a guest tone (home or polite), shelve days from 0 to 30, fresh lines on or off, "
+                         "Christmas mode auto, on or off, and a Wi-Fi name and password of up to 63 plain characters.")
     kept = {key: value for key, value in _saved(path).items() if key in DEFAULTS and _valid(key, value)}
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")

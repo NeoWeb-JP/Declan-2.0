@@ -29,8 +29,10 @@ class TemporarySettings(unittest.TestCase):
 class SettingsTests(TemporarySettings):
     def test_default_is_home_then_environment_then_saved(self):
         self.assertEqual(household_settings.listing(),
-                         {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True},
-                          "sources": dict.fromkeys(("guest_tone", "shelve_days", "fresh_lines"), "default")})
+                         {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True,
+                                       "christmas": "auto", "wifi_name": "", "wifi_password": ""},
+                          "sources": dict.fromkeys(("guest_tone", "shelve_days", "fresh_lines", "christmas",
+                                                    "wifi_name", "wifi_password"), "default")})
         with patch.dict(os.environ, {"DECLAN_GUEST_TONE": " Polite "}):
             self.assertEqual(household_settings.guest_tone(), "polite")
             self.assertEqual(household_settings.listing()["sources"]["guest_tone"], "environment")
@@ -143,8 +145,10 @@ class ViewAndPanelTests(unittest.IsolatedAsyncioTestCase):
     async def test_view_validates_relays_and_remembers_the_tone(self):
         module, session = load_view()
         response = MagicMock(status=200)
-        sources = dict.fromkeys(("guest_tone", "shelve_days", "fresh_lines"), "saved")
-        response.json = AsyncMock(return_value={"settings": {"guest_tone": "polite", "shelve_days": 3, "fresh_lines": True},
+        sources = dict.fromkeys(("guest_tone", "shelve_days", "fresh_lines", "christmas", "wifi_name",
+                                 "wifi_password"), "saved")
+        rest = {"christmas": "auto", "wifi_name": "", "wifi_password": ""}
+        response.json = AsyncMock(return_value={"settings": {"guest_tone": "polite", "shelve_days": 3, "fresh_lines": True, **rest},
                                                 "sources": sources, "generated": None})
         context = MagicMock()
         context.__aenter__ = AsyncMock(return_value=response)
@@ -172,10 +176,10 @@ class ViewAndPanelTests(unittest.IsolatedAsyncioTestCase):
         result = await view.post(request(admin, {"settings": {"guest_tone": "polite"}}))
         self.assertEqual(result["status"], 200)
         self.assertEqual(module.guest_tone(hass), "polite")
-        response.json.return_value = {"settings": {"guest_tone": "nope", "shelve_days": 3, "fresh_lines": True},
+        response.json.return_value = {"settings": {"guest_tone": "nope", "shelve_days": 3, "fresh_lines": True, **rest},
                                       "sources": sources}
         self.assertEqual((await view.get(request(admin, None)))["status"], 502)
-        response.json.return_value = {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True},
+        response.json.return_value = {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True, **rest},
                                       "sources": sources,
                                       "generated": {"lines": [{"key": "roast:home", "line": "Eish.", "created": 1.0}],
                                                     "spent_micro_usd": 10, "budget_micro_usd": 1000000}}
@@ -188,7 +192,7 @@ class ViewAndPanelTests(unittest.IsolatedAsyncioTestCase):
         response.json.return_value = {"deleted": True}
         deleted = await view.post(request(admin, {"delete_line": {"key": "roast:home", "line": "Eish."}}))
         self.assertEqual(deleted["payload"], {"deleted": True})
-        response.json.return_value = {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True},
+        response.json.return_value = {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True, **rest},
                                       "sources": sources}
         await module.refresh(hass, entry)
         self.assertEqual(module.guest_tone(hass), "home")

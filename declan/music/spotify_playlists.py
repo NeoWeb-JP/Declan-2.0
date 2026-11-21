@@ -9,7 +9,7 @@ from threading import Thread
 from declan.music.playlist_refresh_state import PlaylistRefreshState
 
 CATEGORIES = ("country", "braai", "romantic", "sexy_time", "rock", "afrikaans",
-              "80s", "90s", "work_focus", "adhd_focus", "massage")
+              "80s", "90s", "work_focus", "adhd_focus", "massage", "christmas")
 CAPACITY = 25
 URI = re.compile(r"(?:spotify(?::|://)playlist[:/]|https://open\.spotify\.com/playlist/)([A-Za-z0-9]{22})(?:\?[^#]*)?\Z")
 RUNTIME = PlaylistRefreshState()

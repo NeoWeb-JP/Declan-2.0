@@ -4,6 +4,16 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Christmas mode (FUT-59, #834).** On automatically from 1 December to 2 January, or say "Christmas mode on/off" (Settings → Household → Christmas mode: automatic, on or off). While it's on:
+  - About half of Declan's everyday sass is Christmas sass (lights, timers, greetings, good morning/night, dinner, guests arriving). These lines rest and get topped up like the rest.
+  - "Play some music" plays from a new **Christmas** playlist category, when it has playlists.
+  - On Boxing Day music starts no louder than 20%, and good morning gets the hangover lines.
+- **Always available:**
+  - "How many sleeps till Christmas?"
+  - Several cooking timers in one sentence: "set a turkey timer for 3 hours and a roast potatoes timer for 50 minutes", or "turkey 3 hours, roast potatoes 50 minutes".
+  - "What's the Wi-Fi password?" reads out the guest Wi-Fi from Settings → Household (empty, and so secret, until you set it).
+- **New example script:** `home_assistant/christmas_morning.script.yaml`.
+- **Guests arriving:** "Mike and Kathy are in charge" now gets its own sass.
 - **Fresh sass every day (FUT-61, #834).** Once Declan says a sass line, roast or routine response, it rests for **3 days** before he uses it again, and that's remembered across restarts. If everything in a category is resting, he uses the line that has rested longest. When a category runs low, he writes a batch of new lines in the background: short, rude, South African, and checked so they never claim anything happened, mention numbers, or repeat existing lines. It has its own monthly budget ($1 by default, `DECLAN_FRESH_LINES_BUDGET_USD`) on top of the main AI ledger, needs the AI model and key to be set up, and never slows a reply. Settings → Household: rest days (0 turns it off), fresh lines on/off, and the list of lines Declan wrote, with Delete.
 - **Guest Mode keeps the sass (FUT-60, #834).** Guests now hear exactly the same lines as the household: roasts, swearing and innuendo included. The old polite guest lines are still there: Settings → **Household** → Guest tone → Polite (or `DECLAN_GUEST_TONE=polite`). This only changes wording: sensitive routines still ask for confirmation and private answers stay private. Needs the updated HA integration for the new Settings card.
 - **Sexy Time stays in its room.** Declan now tells the Sexy Time script which satellite heard the request. The updated `home_assistant/sexy_time.script.yaml` keeps the master bedroom's own lights, and in any other room dims that room's lights (pink where they can) and puts them back afterwards. **Manual step:** paste the new YAML into the Sexy Time script in Home Assistant; until then it keeps using the bedroom.
