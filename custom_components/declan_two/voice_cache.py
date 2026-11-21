@@ -7,15 +7,19 @@ Do not include secrets or personal speaker profiles in the cache metadata.
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
+from contextlib import asynccontextmanager
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
 import tempfile
 import shutil
-from time import time
-from typing import Awaitable, Callable
+from time import monotonic, time
+from typing import AsyncIterator, Awaitable, Callable
+
+# The running size total is trusted for this long, then recounted from disk so
+# files removed outside this class (manual clean-up, restore) are noticed.
+USAGE_RESCAN_SECONDS = 300
 
 
 class VoiceCache:
@@ -24,7 +28,12 @@ class VoiceCache:
     def __init__(self, directory: str | Path, *, max_bytes=256*1024*1024,
                  min_free_bytes=512*1024*1024) -> None:
         self.directory = Path(directory)
-        self._locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+        # Per-identity locks coalesce identical requests. Each entry is
+        # [lock, holders] and is dropped when its last holder leaves, so the
+        # map stays as small as the number of in-flight phrases.
+        self._locks: dict[str, list] = {}
+        self._used_bytes: int | None = None
+        self._used_counted_at = 0.0
         self.hits = 0
         self.misses = 0
         self.max_bytes = max_bytes
@@ -32,16 +41,53 @@ class VoiceCache:
         self.skipped_writes = 0
         self._write_lock = asyncio.Lock()
 
+    @asynccontextmanager
+    async def _identity_lock(self, identity: str) -> AsyncIterator[None]:
+        entry = self._locks.get(identity)
+        if entry is None:
+            entry = self._locks[identity] = [asyncio.Lock(), 0]
+        entry[1] += 1
+        try:
+            async with entry[0]:
+                yield
+        finally:
+            entry[1] -= 1
+            if entry[1] == 0 and self._locks.get(identity) is entry:
+                del self._locks[identity]
+
+    def _count_used(self) -> int:
+        return sum(p.stat().st_size for p in self.directory.rglob('*') if p.is_file())
+
+    @staticmethod
+    def _size(path: Path) -> int:
+        try:
+            return path.stat().st_size
+        except FileNotFoundError:
+            return 0
+
+    def _forget_removed(self, removed_bytes: int) -> None:
+        if self._used_bytes is not None:
+            self._used_bytes = max(0, self._used_bytes - removed_bytes)
+
     async def _save(self, path, audio, metadata):
-        """Bound all new writes, including concurrent different phrases."""
+        """Bound all new writes, including concurrent different phrases.
+
+        Usage is a running total (recounted every USAGE_RESCAN_SECONDS), so a
+        write no longer stats every cached file while holding the write lock.
+        """
         async with self._write_lock:
             def write():
                 self.directory.mkdir(parents=True, exist_ok=True)
-                used = sum(p.stat().st_size for p in self.directory.rglob('*') if p.is_file())
+                now = monotonic()
+                if self._used_bytes is None or now - self._used_counted_at >= USAGE_RESCAN_SECONDS:
+                    self._used_bytes = self._count_used()
+                    self._used_counted_at = now
+                used = self._used_bytes
                 sidecar = path.with_suffix(path.suffix+'.json')
                 encoded = json.dumps(metadata, ensure_ascii=False).encode('utf-8')
+                replaced = self._size(path) + self._size(sidecar)
                 required = len(audio)+len(encoded)
-                if used+required > self.max_bytes or shutil.disk_usage(self.directory).free-required < self.min_free_bytes:
+                if used-replaced+required > self.max_bytes or shutil.disk_usage(self.directory).free-required < self.min_free_bytes:
                     return False
                 path.parent.mkdir(parents=True, exist_ok=True)
                 for target, content in [(path, audio), (sidecar, encoded)]:
@@ -55,6 +101,7 @@ class VoiceCache:
                     finally:
                         if os.path.exists(tmp):
                             os.unlink(tmp)
+                self._used_bytes = used - replaced + required
                 return True
             if not await asyncio.to_thread(write):
                 self.skipped_writes += 1
@@ -165,7 +212,7 @@ class VoiceCache:
                        model=model, language=language, settings=settings,
                        extension=extension)
         path = self.path_for(key, extension)
-        async with self._locks[key]:
+        async with self._identity_lock(key):
             try:
                 audio = await asyncio.to_thread(path.read_bytes)
                 if audio:
@@ -198,7 +245,7 @@ class VoiceCache:
             text=text, provider=provider, voice_id=voice_id, model=model,
             language=language, settings=settings, extension="wav"
         )
-        async with self._locks[identity]:
+        async with self._identity_lock(identity):
             for ext in ("mp3", "wav", "ogg", "flac"):
                 key = self.key(
                     text=text, provider=provider, voice_id=voice_id,
@@ -268,7 +315,7 @@ class VoiceCache:
             language=language, settings=settings, extension=extension,
         )
         path = self.path_for(key, extension)
-        async with self._locks[identity]:
+        async with self._identity_lock(identity):
             metadata=dict(text=text,provider=provider,voice_id=voice_id,kind=kind,created=time())
             if parts is not None:
                 metadata.update(parts=parts,gap_ms=gap_ms)
@@ -279,8 +326,12 @@ class VoiceCache:
                         old_key=self.key(text=text,provider=provider,voice_id=voice_id,model=model,
                                          language=language,settings=settings,extension=ext)
                         old_path=self.path_for(old_key,ext)
+                        old_sidecar=old_path.with_suffix('.'+ext+'.json')
+                        removed=self._size(old_path)+self._size(old_sidecar)
                         old_path.unlink(missing_ok=True)
-                        old_path.with_suffix('.'+ext+'.json').unlink(missing_ok=True)
-                await asyncio.to_thread(remove_older_formats)
+                        old_sidecar.unlink(missing_ok=True)
+                        self._forget_removed(removed)
+                async with self._write_lock:
+                    await asyncio.to_thread(remove_older_formats)
             self.misses += 1
             return saved

@@ -1,5 +1,10 @@
 name: Home Assistant Hassfest validation
 
+# Hassfest validates only the integration package (manifest, services,
+# translations, structure). custom_components/declan_two does not import the
+# backend (declan/, server.py), so backend-only changes cannot affect it and
+# are covered by the regression and quality workflows instead.
+
 on:
   push:
     branches: [main]

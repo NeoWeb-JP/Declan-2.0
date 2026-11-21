@@ -49,7 +49,7 @@ def transcribe_result(url, token, audio, *, pipeline=None) -> TranscriptionResul
 
     address = urlsplit(url)
     endpoint = urlunsplit(("wss" if address.scheme == "https" else "ws", address.netloc,
-                           address.path + "/api/websocket", "", ""))
+                           address.path.rstrip("/") + "/api/websocket", "", ""))
     try:
         socket = websocket.create_connection(endpoint, timeout=5, redirect_limit=0)
         try:

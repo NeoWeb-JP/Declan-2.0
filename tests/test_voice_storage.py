@@ -8,6 +8,7 @@ import sys
 from tempfile import TemporaryDirectory
 from types import ModuleType, SimpleNamespace
 from unittest import IsolatedAsyncioTestCase, TestCase
+import unittest.mock
 from unittest.mock import AsyncMock
 
 
@@ -71,6 +72,63 @@ class VoiceCacheTests(IsolatedAsyncioTestCase):
             if limits.get("min_free_bytes", 0) == 10**20:
                 self.assertFalse((await cache.snapshot())["storage_available"])
             self.assertIsNone(await cache.find_cached_audio(text="Hello", **IDENTITY))
+
+    async def test_identity_locks_are_released_after_use_and_still_coalesce(self):
+        generate = AsyncMock(return_value=("mp3", b"audio"))
+        for index in range(100):
+            await self.cache.get_or_generate_audio(text=f"Phrase {index}", **IDENTITY, generate=generate)
+        await self.cache.store_audio(text="Stored", **IDENTITY, extension="wav", audio=b"x")
+        self.assertEqual(self.cache._locks, {})
+        skipped = cache_module.VoiceCache(self.directory, max_bytes=1, min_free_bytes=0)
+        for index in range(10):
+            await skipped.get_or_generate_audio(text=f"Skipped {index}", **IDENTITY, generate=generate)
+        self.assertEqual((skipped.skipped_writes, skipped._locks), (10, {}))
+        gate = asyncio.Event()
+
+        async def slow():
+            await gate.wait()
+            return "mp3", b"slow"
+        slow_generate = AsyncMock(side_effect=slow)
+        tasks = [asyncio.create_task(self.cache.get_or_generate_audio(
+            text="Same", **IDENTITY, generate=slow_generate)) for _ in range(3)]
+        await asyncio.sleep(0)
+        self.assertEqual(len(self.cache._locks), 1)
+        gate.set()
+        await asyncio.gather(*tasks)
+        slow_generate.assert_awaited_once()
+        self.assertEqual(self.cache._locks, {})
+        with self.assertRaises(TimeoutError):
+            await self.cache.get_or_generate_audio(text="Fails", **IDENTITY,
+                                                   generate=AsyncMock(side_effect=TimeoutError))
+        self.assertEqual(self.cache._locks, {})
+
+    async def test_writes_use_running_size_total_instead_of_rescanning(self):
+        generate = AsyncMock(return_value=("mp3", b"audio"))
+        await self.cache.get_or_generate_audio(text="First", **IDENTITY, generate=generate)
+        with unittest.mock.patch.object(self.cache, "_count_used", side_effect=AssertionError("rescanned")):
+            for index in range(5):
+                await self.cache.get_or_generate_audio(text=f"More {index}", **IDENTITY, generate=generate)
+            await self.cache.store_audio(text="More 0", **IDENTITY, extension="wav", audio=b"replacement")
+            await self.cache.store_audio(text="More 0", **IDENTITY, extension="wav", audio=b"again")
+        on_disk = sum(p.stat().st_size for p in self.directory.rglob("*") if p.is_file())
+        self.assertEqual(self.cache._used_bytes, on_disk)
+        self.assertEqual((await self.cache.snapshot())["bytes"], on_disk)
+
+    async def test_size_limit_uses_running_total_and_rescans_after_interval(self):
+        generate = AsyncMock(return_value=("mp3", b"a" * 100))
+        cache = cache_module.VoiceCache(self.directory, max_bytes=600, min_free_bytes=0)
+        stored = 0
+        for index in range(10):
+            stored += not (await cache.get_or_generate_audio(text=f"Line {index}", **IDENTITY, generate=generate))[2]
+        written = len(list(self.directory.rglob("*.mp3")))
+        self.assertLess(written, 10)
+        self.assertEqual(cache.skipped_writes, 10 - written)
+        for path in self.directory.rglob("*"):
+            if path.is_file():
+                path.unlink()
+        cache._used_counted_at -= cache_module.USAGE_RESCAN_SECONDS
+        await cache.get_or_generate_audio(text="After clean-up", **IDENTITY, generate=generate)
+        self.assertEqual(len(list(self.directory.rglob("*.mp3"))), 1)
 
     async def test_replacing_format_removes_old_audio_and_keeps_sentence_metadata(self):
         await self.cache.store_audio(text="Hello", **IDENTITY, extension="mp3", audio=b"old")
