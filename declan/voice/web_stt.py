@@ -65,6 +65,15 @@ def run_stt(socket, token, audio, pipeline):
     return run_stt_result(socket, token, audio, pipeline).text
 
 
+def _fields(value) -> dict:
+    """An optional Assist object: missing is empty, any other shape is invalid."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("Invalid Assist message")
+    return value
+
+
 def run_stt_result(socket, token, audio, pipeline) -> TranscriptionResult:
     deadline = monotonic() + 25
 
@@ -89,25 +98,31 @@ def run_stt_result(socket, token, audio, pipeline) -> TranscriptionResult:
         run["pipeline"] = pipeline
     socket.send(json.dumps(run))
     handler = None
+    audio_sent = False
     while True:
         message = receive()
         if message.get("id") != 1:
             continue
         if message.get("type") == "result" and not message.get("success"):
-            raise AssistSpeechError((message.get("error") or {}).get("code"))
-        event = message.get("event") or {}
-        kind, data = event.get("type"), event.get("data") or {}
+            error = message.get("error")
+            raise AssistSpeechError(error.get("code") if isinstance(error, dict) else None)
+        event = _fields(message.get("event"))
+        kind, data = event.get("type"), _fields(event.get("data"))
         if kind == "run-start":
-            handler = (data.get("runner_data") or {}).get("stt_binary_handler_id")
+            handler = _fields(data.get("runner_data")).get("stt_binary_handler_id")
         elif kind == "stt-start":
+            # Send the recording once, even if Home Assistant repeats the event.
+            if audio_sent:
+                continue
             if type(handler) is not int or not 0 <= handler <= 255:
                 raise ValueError("Home Assistant did not provide an audio channel")
             prefix = bytes([handler])
             for offset in range(0, len(audio), 4096):
                 socket.send_binary(prefix + audio[offset:offset + 4096])
             socket.send_binary(prefix)
+            audio_sent = True
         elif kind == "stt-end":
-            text = (data.get("stt_output") or {}).get("text")
+            text = _fields(data.get("stt_output")).get("text")
             return TranscriptionResult.from_text(text)
         elif kind == "error":
             raise AssistSpeechError(data.get("code"))
