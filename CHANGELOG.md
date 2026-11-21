@@ -4,6 +4,13 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Reminders (FUT-26, #834).**
+  - "Remind me at six to put the bins out", "remind me in 20 minutes to check the oven", "remind Edd tomorrow at 8 to call the plumber".
+  - They ring on the satellite you asked from, saying "Reminder: put the bins out." every 30 seconds until someone says "stop", for up to 10 minutes, exactly like timers. They survive restarts.
+  - "What reminders do I have?", "cancel the bins reminder", "cancel my reminders".
+  - Up to a week ahead. "At six" means the next six o'clock.
+  - Optional: `DECLAN_REMINDER_NOTIFY=notify.mobile_app_jaco,…` also sends the first ring to phones.
+- Documented the environment variables added for FUT-59 to FUT-61.
 - **Shopping and to-do lists (FUT-27, #834).**
   - "Add milk and eggs to the shopping list", "what's on the shopping list?", "take milk off the list", "add call the plumber to my to-do list".
   - Uses Home Assistant's own to-do lists (the one with "shopping" or "grocer" in its name, and the one with "to-do", "tasks" or "chores"), so items show on everyone's phone in the HA app. "The list" means the shopping list.
