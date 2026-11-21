@@ -523,6 +523,11 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <button type="submit">Save household settings</button>
                 </form>
                 <p class="household-status muted" role="status" aria-live="polite">Open Settings to load household settings.</p>
+                <details class="whereabouts"><summary>Where things are</summary>
+                  <p class="muted">What people told Declan ("the spare key is in the hall drawer"). Ask "where's the spare key?". Guests can't see or add these.</p>
+                  <p class="whereabouts-status muted" role="status" aria-live="polite"></p>
+                  <div class="fresh-lines-list whereabouts-list" aria-label="Where things are"></div>
+                </details>
                 <details class="fresh-lines"><summary>Lines Declan wrote</summary>
                   <p class="fresh-lines-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list" aria-label="Lines Declan wrote"></div>
@@ -2468,6 +2473,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       form.elements.namedItem('wifi_name').value = response.settings.wifi_name || '';
       form.elements.namedItem('wifi_password').value = response.settings.wifi_password || '';
       this.renderFreshLines(response.generated);
+      this.renderWhereabouts(response.whereabouts);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
       status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
@@ -2515,6 +2521,29 @@ class DeclanTwoNativePanel extends HTMLElement {
       text.append(where);
       const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete';
       remove.addEventListener('click', () => { void this.deleteFreshLine(row, item); });
+      item.append(text, remove);
+      list.append(item);
+    }
+  }
+
+  renderWhereabouts(rows) {
+    const list = this.shadowRoot.querySelector('.whereabouts-list');
+    const status = this.shadowRoot.querySelector('.whereabouts-status');
+    list.replaceChildren();
+    if (!Array.isArray(rows)) { status.textContent = 'Could not read where things are.'; return; }
+    status.textContent = rows.length ? `${rows.length} things.` : 'Nothing yet.';
+    for (const row of rows) {
+      const item = document.createElement('div'); item.className = 'fresh-line';
+      const text = document.createElement('span'); text.textContent = `${row.item}: ${row.place}`;
+      const when = document.createElement('small'); when.textContent = new Date(row.saved_at * 1000).toLocaleString();
+      text.append(when);
+      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Forget';
+      remove.addEventListener('click', async () => {
+        try {
+          await this._hass.callApi('POST', 'declan_two/household', {forget_item: row.item});
+          item.remove(); status.textContent = `Forgot ${row.item}.`;
+        } catch { status.textContent = 'Could not forget that.'; }
+      });
       item.append(text, remove);
       list.append(item);
     }

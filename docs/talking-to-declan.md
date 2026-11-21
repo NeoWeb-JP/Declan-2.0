@@ -38,6 +38,11 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "Which lights are in here?" or "what lights are in the kitchen?"
 - "What routines are there?", "what rooms do you know?", "where can you play music?"
 
+**Where did I put…?** (local and free; guests just get cheek):
+- "The spare car key is in the hall drawer", "I put the passports in the safe", "I've moved the passports to the safe"
+- "Where's the spare car key?", "where did I leave my glasses?", "have you seen my phone?"
+- "What have I told you about?", "forget the car key". The list is also in Settings → Household → Where things are.
+
 **Christmas** (on by itself from 1 December to 2 January, or say "Christmas mode on/off"):
 - "Play some music" plays from your Christmas playlists, and Declan's sass goes festive
 - "How many sleeps till Christmas?"

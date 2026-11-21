@@ -33,6 +33,19 @@ def valid_delete(body):
             and all(isinstance(target[name], str) and 0 < len(target[name]) <= 400 for name in ("key", "line")))
 
 
+def valid_forget(body):
+    return (isinstance(body, dict) and set(body) == {"forget_item"} and isinstance(body["forget_item"], str)
+            and 0 < len(body["forget_item"]) <= 80)
+
+
+def valid_whereabouts(value):
+    if value is None:
+        return True
+    return (isinstance(value, list) and len(value) <= 500
+            and all(isinstance(row, dict) and isinstance(row.get("item"), str) and isinstance(row.get("place"), str)
+                    and isinstance(row.get("saved_at"), (int, float)) for row in value))
+
+
 def valid_generated(value):
     """Generated lines listing, or None when the backend couldn't read it."""
     if value is None:
@@ -84,7 +97,7 @@ class DeclanHouseholdView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
-        if valid_delete(body):
+        if valid_delete(body) or valid_forget(body):
             return await self._relay(request, body)
         if not isinstance(body, dict) or set(body) != {"settings"} or not valid_settings(body["settings"], complete=False):
             return web.json_response({"error": "Invalid settings"}, status=400)
@@ -109,6 +122,10 @@ class DeclanHouseholdView(HomeAssistantView):
                     return web.json_response({"error": "Invalid settings" if response.status == 400 else "Backend unavailable"},
                                              status=400 if response.status == 400 else 502)
                 data = await response.json(content_type="application/json")
+                if body is not None and "forget_item" in body:
+                    if not isinstance(data, dict) or type(data.get("forgotten")) is not bool:
+                        raise ValueError("Invalid response")
+                    return web.json_response({"forgotten": data["forgotten"]}, headers={"Cache-Control": "no-store"})
                 if body is not None and "delete_line" in body:
                     if not isinstance(data, dict) or type(data.get("deleted")) is not bool:
                         raise ValueError("Invalid response")
@@ -116,12 +133,14 @@ class DeclanHouseholdView(HomeAssistantView):
                 sources = data.get("sources") if isinstance(data, dict) else None
                 if (not valid_settings(data.get("settings")) or not isinstance(sources, dict)
                         or set(sources) != KEYS or not set(sources.values()) <= SOURCES
-                        or not valid_generated(data.get("generated"))):
+                        or not valid_generated(data.get("generated"))
+                        or not valid_whereabouts(data.get("whereabouts"))):
                     raise ValueError("Invalid response")
                 remember(hass, data["settings"])
                 payload = {"settings": data["settings"], "sources": sources}
-                if "generated" in data:
-                    payload["generated"] = data["generated"]
+                for extra in ("generated", "whereabouts"):
+                    if extra in data:
+                        payload[extra] = data[extra]
                 return web.json_response(payload, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError, AttributeError):
             return web.json_response({"error": "Backend unavailable"}, status=502)
