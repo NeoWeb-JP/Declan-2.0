@@ -13,6 +13,10 @@ from declan.core.execution_results import ExecutionResult, Outcome
 
 
 class MappedRoutineOutcomeTests(unittest.TestCase):
+    def setUp(self):
+        # The morning briefing (FUT-29) has its own tests; keep these to the routine call.
+        self.enterContext(patch("declan.ha.briefing.for_good_morning", return_value=""))
+
     def test_custom_routine_validates_correlated_required_step_evidence(self):
         for remote, steps, expected in (
                 ("success", [{"target": "light", "status": "confirmed"}], Outcome.REPORTED_SUCCESS),

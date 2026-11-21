@@ -1,4 +1,4 @@
-"""Admin-only household settings proxy (FUT-60, FUT-61, FUT-42, FUT-44, FUT-46, FUT-31). Never expose backend tokens to the panel."""
+"""Admin-only household settings proxy (FUT-60, FUT-61, FUT-42, FUT-44, FUT-46, FUT-31, FUT-29). Never expose backend tokens to the panel."""
 import re
 
 import aiohttp
@@ -96,7 +96,13 @@ def valid_themes(value):
                     and type(row.get("home")) is bool for row in value["people"]))
 
 
-HOUSE_INFO_KEYS = frozenset({"car_name", "car_battery", "car_in_sunrise"})
+HOUSE_INFO_KEYS = frozenset({"car_name", "car_battery", "car_in_sunrise", "briefing", "calendars", "bins",
+                             "briefing_in_good_morning"})
+BRIEFING_ITEMS = frozenset({"weather", "calendar", "car", "bins"})
+
+
+def _items(value):
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def _valid_house_value(key, value):
@@ -104,13 +110,20 @@ def _valid_house_value(key, value):
         return isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 '\-]{0,29}", value))
     if key == "car_battery":
         return isinstance(value, str) and (value == "" or bool(re.fullmatch(r"sensor\.[a-z0-9_]{1,100}", value)))
-    if key == "car_in_sunrise":
+    if key in {"car_in_sunrise", "briefing_in_good_morning"}:
         return type(value) is bool
+    if key == "briefing":
+        return isinstance(value, str) and len(value) <= 60 and set(_items(value)) <= BRIEFING_ITEMS
+    if key == "calendars":
+        return isinstance(value, str) and len(value) <= 600 and all(
+            re.fullmatch(r"calendar\.[a-z0-9_]{1,100}", item) for item in _items(value))
+    if key == "bins":
+        return isinstance(value, str) and (value == "" or bool(re.fullmatch(r"(?:calendar|sensor)\.[a-z0-9_]{1,100}", value)))
     return False
 
 
 def valid_house_info_change(body):
-    """#834 P2: {"save_house_info": {car_name?, car_battery?, car_in_sunrise?}}."""
+    """#834 P2: {"save_house_info": {...}} with any of HOUSE_INFO_KEYS (car FUT-31, briefing FUT-29)."""
     target = body.get("save_house_info") if isinstance(body, dict) and set(body) == {"save_house_info"} else None
     return (isinstance(target, dict) and bool(target) and set(target) <= HOUSE_INFO_KEYS
             and all(_valid_house_value(key, value) for key, value in target.items()))

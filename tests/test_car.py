@@ -205,8 +205,9 @@ class ControlTests(CarTestCase):
 
 class SettingsTests(CarTestCase):
     def test_listing_validation_and_environment(self):
-        self.assertEqual(house_info.listing()["sources"], {"car_name": "saved", "car_battery": "saved",
-                                                           "car_in_sunrise": "default"})
+        sources = house_info.listing()["sources"]
+        self.assertEqual({key: sources[key] for key in ("car_name", "car_battery", "car_in_sunrise")},
+                         {"car_name": "saved", "car_battery": "saved", "car_in_sunrise": "default"})
         with self.assertRaises(ValueError):
             house_info.save({"car_battery": "light.kitchen"})
         with self.assertRaises(ValueError):
@@ -214,8 +215,9 @@ class SettingsTests(CarTestCase):
         os.remove(house_info.PATH)
         with patch.dict(os.environ, {"DECLAN_CAR_BATTERY_ENTITY": "sensor.from_env", "DECLAN_CAR_NAME": "",
                                      "DECLAN_CAR_IN_SUNRISE": "off"}):
-            self.assertEqual(house_info.listing()["settings"], {"car_name": "the car", "car_battery": "sensor.from_env",
-                                                                "car_in_sunrise": False})
+            settings = house_info.listing()["settings"]
+            self.assertEqual({key: settings[key] for key in ("car_name", "car_battery", "car_in_sunrise")},
+                             {"car_name": "the car", "car_battery": "sensor.from_env", "car_in_sunrise": False})
 
     def test_router(self):
         self.assertEqual(house_questions.match("is the car plugged in"), ("car", ("ask", "plugged")))

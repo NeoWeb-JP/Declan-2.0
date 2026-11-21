@@ -71,6 +71,11 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "Find my phone", "I can't find my phone": with more than one phone in the house, Declan asks whose (he can't tell voices apart reliably yet)
 - It rings even on silent on Android. An iPhone on silent only rings if critical alerts are allowed for the Home Assistant app (iPhone Settings → Notifications → Home Assistant → Critical Alerts)
 
+**Morning briefing** (Settings → Household → Morning briefing):
+- "What's my day look like?", "morning briefing", "brief me"
+- About 15 seconds: today's weather, the bins if they go out today or tomorrow, today's calendar and the car. Anything missing is skipped
+- Also said after Good Morning (switch it off in Settings). Guests only get the weather and bins
+
 **Sunrise wake-up** (ask from the bedroom satellite; one per room):
 - "Wake me at 6:30 with the sunrise": the dimmable lights brighten over the 15 minutes before 6:30, warming to daylight, then Declan says good morning and quiet music fades in
 - Add "on weekdays", "at weekends" or "every day"; "... and play Afrikaans" picks the music; "... without music"

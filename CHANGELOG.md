@@ -4,6 +4,12 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Morning briefing (FUT-29, #834).**
+  - "What's my day look like?", "morning briefing", "brief me": today's weather (high, low, chance of rain), the bins if a collection is today or tomorrow, today's calendar (three events, then "and N more") and the car's charge.
+  - Capped at about 45 words (roughly 15 seconds). A missing, empty or unanswering source is skipped silently.
+  - Added after a successful Good Morning routine (switchable). Never on the first wake word of the day.
+  - Guest mode: weather and bins only.
+  - Settings → Household → Morning briefing: what to include, which calendars (empty means all except the bins), the bin calendar or sensor, and the Good Morning switch.
 - **Find my phone (FUT-33, #834).**
   - "Ring Edd's phone", "find my phone", "I can't find my phone", "Edd can't find his phone".
   - The phone comes from the person's device tracker in Home Assistant, and the notification goes through that phone's companion-app notify service (`device_tracker.edd_iphone` → `notify.mobile_app_edd_iphone`).

@@ -6,14 +6,15 @@ One place for the read-mostly household features, so the turn entry only asks
 - FUT-30 who's home (``declan.ha.presence``)
 - FUT-31 car questions and charging (``declan.ha.car``)
 - FUT-33 find my phone (``declan.ha.find_phone``)
+- FUT-29 morning briefing (``declan.ha.briefing``)
 
 Each feature module has ``match(phrase)`` and ``result(request, connection, ...)``.
 ``result`` returns None when the request turned out not to be for it (for
 example "is the washing in?" isn't a person), so the rest of Declan answers.
 """
-from declan.ha import car, find_phone, ha_reads, presence
+from declan.ha import briefing, car, find_phone, ha_reads, presence
 
-FEATURES = (("car", car), ("phone", find_phone), ("presence", presence))
+FEATURES = (("briefing", briefing), ("car", car), ("phone", find_phone), ("presence", presence))
 
 
 def match(phrase):
@@ -33,7 +34,7 @@ def result(request, services, *, origin=None):
         connection = services.ha_device_connection()
     except (OSError, ValueError, TypeError, AttributeError):
         connection = None
-    if name in {"presence", "car"}:
+    if name in {"presence", "car", "briefing"}:
         return module.result(payload, connection, guest=ha_reads.guest(services))
     if name == "phone":
         return module.result(payload, connection)

@@ -568,6 +568,22 @@ class DeclanTwoNativePanel extends HTMLElement {
                   </form>
                   <p class="house-info-status muted" role="status" aria-live="polite"></p>
                 </details>
+                <details class="house-info"><summary>Morning briefing</summary>
+                  <p class="muted">"What's my day look like?" (and after Good Morning, if ticked): the weather, bins when they go out today or tomorrow, today's calendar and the car, in about 15 seconds. Guests only get the weather and bins. Anything missing or not answering is skipped.</p>
+                  <form class="house-info-form briefing-form">
+                    <fieldset><legend>Include</legend>
+                      <label class="household-toggle"><input type="checkbox" name="briefing_weather"> Weather</label>
+                      <label class="household-toggle"><input type="checkbox" name="briefing_bins"> Bins</label>
+                      <label class="household-toggle"><input type="checkbox" name="briefing_calendar"> Calendar</label>
+                      <label class="household-toggle"><input type="checkbox" name="briefing_car"> Car</label>
+                    </fieldset>
+                    <label>Calendars<input name="calendars" type="text" maxlength="600" autocomplete="off" spellcheck="false" placeholder="Empty: all calendars, e.g. calendar.family, calendar.work"></label>
+                    <label>Bin collections<input name="bins" type="text" maxlength="110" autocomplete="off" spellcheck="false" placeholder="calendar.bins or sensor.recycling"></label>
+                    <label class="household-toggle"><input type="checkbox" name="briefing_in_good_morning"> Add the briefing after Good Morning</label>
+                    <button type="submit">Save briefing</button>
+                  </form>
+                  <p class="briefing-status muted" role="status" aria-live="polite"></p>
+                </details>
                 <details class="fresh-lines"><summary>Lines Declan wrote</summary>
                   <p class="fresh-lines-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list" aria-label="Lines Declan wrote"></div>
@@ -660,8 +676,11 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.household-form', 'submit', event => {
         event.preventDefault(); void this.saveHousehold();
       });
-      this.bindPanelEvent('.house-info-form', 'submit', event => {
+      this.bindPanelEvent('.house-info-form:not(.briefing-form)', 'submit', event => {
         event.preventDefault(); void this.saveHouseInfo();
+      });
+      this.bindPanelEvent('.briefing-form', 'submit', event => {
+        event.preventDefault(); void this.saveBriefing();
       });
       this.bindPanelEvent('.theme-satellite-form', 'submit', event => {
         event.preventDefault(); void this.saveThemeSatellite();
@@ -2674,7 +2693,8 @@ class DeclanTwoNativePanel extends HTMLElement {
   }
 
   renderHouseInfo(info) {
-    const form = this.shadowRoot.querySelector('.house-info-form');
+    this.renderBriefing(info);
+    const form = this.shadowRoot.querySelector('.house-info-form:not(.briefing-form)');
     const status = this.shadowRoot.querySelector('.house-info-status');
     if (!info || !info.settings) { status.textContent = 'Could not read the car settings.'; return; }
     for (const [key, value] of Object.entries(info.settings)) {
@@ -2685,8 +2705,36 @@ class DeclanTwoNativePanel extends HTMLElement {
     status.textContent = info.settings.car_battery ? '' : 'No battery sensor yet: Declan can only say whether the car is plugged in and charging.';
   }
 
+  renderBriefing(info) {
+    const form = this.shadowRoot.querySelector('.briefing-form');
+    const status = this.shadowRoot.querySelector('.briefing-status');
+    if (!info || !info.settings || typeof info.settings.briefing !== 'string') { status.textContent = 'Could not read the briefing settings.'; return; }
+    const items = info.settings.briefing.split(',').map(item => item.trim());
+    for (const item of ['weather', 'bins', 'calendar', 'car']) form.elements.namedItem(`briefing_${item}`).checked = items.includes(item);
+    form.elements.namedItem('calendars').value = info.settings.calendars || '';
+    form.elements.namedItem('bins').value = info.settings.bins || '';
+    form.elements.namedItem('briefing_in_good_morning').checked = info.settings.briefing_in_good_morning === true;
+    status.textContent = '';
+  }
+
+  async saveBriefing() {
+    const form = this.shadowRoot.querySelector('.briefing-form');
+    const status = this.shadowRoot.querySelector('.briefing-status');
+    const briefing = ['weather', 'calendar', 'car', 'bins'].filter(item => form.elements.namedItem(`briefing_${item}`).checked).join(',');
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/household', {save_house_info: {
+        briefing, calendars: form.elements.namedItem('calendars').value.trim(),
+        bins: form.elements.namedItem('bins').value.trim(),
+        briefing_in_good_morning: form.elements.namedItem('briefing_in_good_morning').checked}});
+      this.renderHouseInfo(response.house_info);
+      status.textContent = 'Saved.';
+    } catch {
+      status.textContent = 'Could not save that. Calendars must be calendar entities separated by commas; bins a calendar or sensor entity.';
+    }
+  }
+
   async saveHouseInfo() {
-    const form = this.shadowRoot.querySelector('.house-info-form');
+    const form = this.shadowRoot.querySelector('.house-info-form:not(.briefing-form)');
     const status = this.shadowRoot.querySelector('.house-info-status');
     const values = {};
     for (const key of ['car_name', 'car_battery', 'car_in_sunrise']) {
