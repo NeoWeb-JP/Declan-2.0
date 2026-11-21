@@ -143,7 +143,7 @@ def seasonal(category, *, today=None, coin=None):
         return "boxing_day"
     if name is None:
         return None
-    return name if (coin if coin is not None else _RANDOM.random()) < SEASONAL_SHARE else None
+    return name if (coin if coin is not None else _RANDOM.random()) < SEASONAL_SHARE else None  # nosec B311 - variety only
 
 
 def pick(name, *, polite=False):
