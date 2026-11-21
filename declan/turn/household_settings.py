@@ -30,9 +30,9 @@ GUEST_TONES = ("home", "polite")
 CHRISTMAS = ("auto", "on", "off")
 ENVIRONMENT = {"guest_tone": "DECLAN_GUEST_TONE", "shelve_days": "DECLAN_SHELVE_DAYS",
                "fresh_lines": "DECLAN_FRESH_LINES", "christmas": "DECLAN_CHRISTMAS_MODE",
-               "wifi_name": "DECLAN_WIFI_NAME", "wifi_password": "DECLAN_WIFI_PASSWORD"}
+               "wifi_name": "DECLAN_WIFI_NAME", "wifi_password": "DECLAN_WIFI_PASSWORD"}  # nosec B105 - variable names
 DEFAULTS: dict[str, object] = {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True,
-                               "christmas": "auto", "wifi_name": "", "wifi_password": ""}
+                               "christmas": "auto", "wifi_name": "", "wifi_password": ""}  # nosec B105 - empty default
 _WIFI_TEXT = re.compile(r"[ -~]{0,63}")
 MAX_SHELVE_DAYS = 30
 PATH = Path(__file__).resolve().parents[2] / ".data" / "household-settings.json"
