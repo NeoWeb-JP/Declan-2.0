@@ -4,6 +4,10 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Spotify and Music Assistant reliability (FUT-67, #834).** New mock-based tests (`tests/test_music_reliability.py`) cover simultaneous requests, timeouts, rate limits, dropped connections and offline players. Two problems found and fixed:
+  - **One dropped poll lost the result.** After sending a play request, Declan polls the player to see whether music started. A single dropped connection while polling ended the whole check, so music that did start was reported as "couldn't verify". A failed poll is now just skipped, within the same time limit, and the play request is still never re-sent.
+  - **Offline speakers sounded unconfigured.** A room whose Music Assistant speaker exists but is offline got "No approved Music Assistant player is configured", which sent you to Settings. It now says "The Music Assistant player in the kitchen is unavailable."
+  - Already safe, now under test: a second simultaneous request gets "busy" and never starts a second stream; a timed-out play request is never sent twice; a rate limit is reported once with no retry; the music lock is released after any error.
 - **Entrance themes (FUT-46, #834).**
   - When someone gets home (their phone, from HA's `person` entities), their clip plays once on the entrance satellite: a short media-source:// clip from Home Assistant's Media, announced without the chime, never Spotify.
   - A real arrival means away for at least 10 minutes, with no theme in the last 30 minutes. First sight of a person and HA restarts never count.
