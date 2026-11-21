@@ -1,0 +1,89 @@
+alias: Declan - Good Night - Shared Local Routine
+mode: single
+fields:
+  request_id:
+    selector:
+      text: {}
+  routine_id:
+    selector:
+      text: {}
+sequence:
+  - alias: Turn off all household lights
+    action: light.turn_off
+    target:
+      entity_id: all
+    continue_on_error: true
+  - alias: Allow lights to respond
+    delay:
+      seconds: 3
+  - alias: Retry any lights still on
+    repeat:
+      count: 3
+      sequence:
+        - variables:
+            remaining_lights: >-
+              {{ states.light | selectattr('state', 'eq', 'on')
+                 | map(attribute='entity_id') | list }}
+        - if:
+            - condition: template
+              value_template: "{{ remaining_lights | count > 0 }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ remaining_lights }}"
+              continue_on_error: true
+            - delay:
+                seconds: 2
+  - alias: Read household bedtime status
+    variables:
+      battery_state: "{{ states('sensor.vr3ukzkxzmj747298_battery') }}"
+      cable_state: "{{ states('binary_sensor.psl_157946_cable_status') }}"
+      hive_state: "{{ states('climate.home') }}"
+      hive_temperature: "{{ state_attr('climate.home', 'current_temperature') }}"
+      hive_target: "{{ state_attr('climate.home', 'temperature') }}"
+      hive_action: "{{ state_attr('climate.home', 'hvac_action') }}"
+  - alias: Verify lights and prepare bedtime facts
+    variables:
+      lights: "{{ states.light | list }}"
+      lights_still_on: >-
+        {{ states.light | selectattr('state', 'eq', 'on')
+           | map(attribute='name') | list }}
+      lights_unverified: >-
+        {{ states.light | rejectattr('state', 'in', ['on', 'off'])
+           | map(attribute='name') | list }}
+  - variables:
+      declan_local_result:
+        schema_version: 1
+        request_id: "{{ request_id | default('') }}"
+        routine_id: "{{ routine_id | default('') }}"
+        outcome: >-
+          {{ 'success' if lights and not lights_still_on and not lights_unverified
+             else 'partial' if lights | selectattr('state', 'eq', 'off') | list
+             else 'failed' if lights_still_on else 'unknown' }}
+        guest_mode: "{{ states('input_boolean.guest_mode') }}"
+        bedtime:
+          battery_percent: >-
+            {{ battery_state | float | round(0) | int
+               if is_state('input_boolean.guest_mode', 'off')
+               and is_number(battery_state) and 0 <= battery_state | float < 50
+               and cable_state == 'off' else none }}
+          indoor_temperature: >-
+            {{ hive_temperature | float | round(1)
+               if is_state('input_boolean.guest_mode', 'off')
+               and is_number(hive_temperature) and hive_temperature | float < 16
+               and (hive_state == 'off' or
+                 (hive_state == 'heat' and hive_action == 'idle'
+                  and is_number(hive_target) and hive_target | float <= hive_temperature | float))
+               else none }}
+        steps: >-
+          {% set observed = namespace(steps=[]) %}
+          {% for light in lights[:200] %}
+            {% set observed.steps = observed.steps + [dict(
+              target=light.name, entity_id=light.entity_id, action='turn_off',
+              required=true,
+              status='confirmed' if light.state == 'off' else 'failed' if light.state == 'on' else 'unverified',
+              detail=light.state)] %}
+          {% endfor %}
+          {{ observed.steps }}
+  - stop: Routine finished
+    response_variable: declan_local_result

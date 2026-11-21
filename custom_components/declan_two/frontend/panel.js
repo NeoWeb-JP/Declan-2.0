@@ -95,6 +95,13 @@ class DeclanTwoNativePanel extends HTMLElement {
         .audit-routine-actions label, .audit-stale-label { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:4px 0; }
         .audit-routine-actions input[type="checkbox"], .audit-stale-label input { margin:0; width:18px; height:18px; }
         .audit-results { overflow-wrap:anywhere; }
+        .script-sync { margin:0 0 18px; padding:12px 14px; border:1px solid #28495b; border-radius:12px; background:#0d1f2b; }
+        .script-sync-row { display:grid; gap:8px; padding:10px 0; border-top:1px solid #1d3a4a; min-width:0; }
+        .script-sync-row:first-of-type { border-top:0; }
+        .script-sync-state { font-weight:650; }
+        .script-sync-state.ok { color:#8fe3a8; } .script-sync-state.warn { color:#ffd27a; }
+        .script-sync-actions { display:flex; flex-wrap:wrap; gap:8px; }
+        .script-sync pre { max-height:260px; overflow:auto; margin:0; padding:8px; background:#081822; border-radius:8px; font-size:.78rem; white-space:pre; }
         .audit-routine > summary { line-height:1.4; }
         .audit-routine-id, .audit-routine-meta { display:block; margin:2px 0 0 1.1em; font-weight:400; }
         .audit-routine-id { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.8rem; color:#8fb7c9; }
@@ -371,6 +378,13 @@ class DeclanTwoNativePanel extends HTMLElement {
         <section class="card panel" id="panel-audit" role="region" aria-label="Home Assistant Audit" hidden>
           <h2>Home Assistant Audit</h2>
           <p class="muted">Read-only snapshot of loaded scripts, automations and entities. No routines are run or changed. Finished traces do not verify device success. Retained traces may describe older configuration.</p>
+          <div class="script-sync">
+            <h3>Declan scripts</h3>
+            <p class="muted">The scripts Declan relies on, compared with the versions that came with this Declan release. Home Assistant is the master copy. "Apply in Home Assistant" backs up scripts.yaml first.</p>
+            <button type="button" class="script-sync-refresh">Check scripts</button>
+            <p class="script-sync-status muted" role="status" aria-live="polite"></p>
+            <div class="script-sync-list"></div>
+          </div>
           <button type="button" class="audit-refresh">Refresh audit</button>
           <div class="audit-toolbar"><label>Show <select class="audit-review-filter"><option value="unreviewed">Unreviewed routines</option><option value="all">All routines</option><option value="reviewed">Reviewed</option></select></label>
           <label class="audit-stale-label"><input type="checkbox" class="audit-show-stale"> Show stale entity records</label></div>
@@ -688,6 +702,7 @@ class DeclanTwoNativePanel extends HTMLElement {
 
       this.bindPanelEvent('.history-refresh', 'click', () => this.loadHistory());
       this.bindPanelEvent('.audit-refresh', 'click', () => this.loadHAAudit());
+      this.bindPanelEvent('.script-sync-refresh', 'click', () => this.loadScriptSync());
       this.bindPanelEvent('.audit-search', 'input', () => this.renderHAAudit());
       this.bindPanelEvent('.audit-search-clear', 'click', () => {
         this.shadowRoot.querySelector('.audit-search').value = '';
@@ -765,7 +780,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'conversations' && !this._timelineLoaded) void this.loadTimeline();
     if (name === 'conversations') void this.loadUnderstanding();
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
-    if (name === 'audit') void this.loadHAAudit();
+    if (name === 'audit') { void this.loadHAAudit(); void this.loadScriptSync(); }
     if (name === 'responses' && !this._responseRoutinesLoaded) void this.loadResponseRoutines();
     if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadChatSettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); void this.loadCommandStyle(); void this.loadHousehold(); void this.loadLearnedIntents(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
@@ -1127,6 +1142,85 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (item.stale || typeof path !== 'string' || !/^\/config\/(script|automation)\/edit\/[^/?#]+$/.test(path)) return;
     window.history.pushState({from:window.location.pathname + window.location.search}, '', path);
     window.dispatchEvent(new CustomEvent('location-changed', {detail:{replace:false}}));
+  }
+
+  async loadScriptSync() {
+    if (!this._hass) return;
+    const status = this.shadowRoot.querySelector('.script-sync-status');
+    const list = this.shadowRoot.querySelector('.script-sync-list');
+    status.textContent = 'Checking Declan scripts…';
+    try {
+      const data = await this._hass.callApi('GET', 'declan_two/script-sync');
+      this.renderScriptSync(Array.isArray(data.scripts) ? data.scripts : []);
+    } catch {
+      list.replaceChildren();
+      status.textContent = 'Could not compare scripts. Update the Declan integration if this persists.';
+    }
+  }
+
+  renderScriptSync(rows) {
+    const status = this.shadowRoot.querySelector('.script-sync-status');
+    const list = this.shadowRoot.querySelector('.script-sync-list');
+    const labels = {
+      in_sync: ['In sync', 'ok'],
+      ha_changed: ['Changed in Home Assistant: send this YAML to update the repo', 'warn'],
+      repo_changed: ['Updated by Declan: apply it in Home Assistant', 'warn'],
+      both_changed: ['Changed in both: Home Assistant wins', 'warn'],
+      different: ['Different from the repo: Home Assistant wins', 'warn'],
+      missing: ['Not in Home Assistant yet', 'warn'],
+    };
+    list.replaceChildren();
+    const waiting = rows.filter(row => row.state !== 'in_sync').length;
+    status.textContent = rows.length ? (waiting ? `${waiting} of ${rows.length} scripts need attention.` : `All ${rows.length} scripts are in sync.`) : 'No Declan scripts to compare.';
+    for (const row of rows) {
+      const item = document.createElement('div'); item.className = 'script-sync-row';
+      const title = document.createElement('strong'); title.textContent = `${row.alias} (${row.entity_id})`;
+      const [text, tone] = labels[row.state] || [row.state, 'warn'];
+      const state = document.createElement('span'); state.className = `script-sync-state ${tone}`; state.textContent = text;
+      const actions = document.createElement('div'); actions.className = 'script-sync-actions';
+      if (['repo_changed', 'missing', 'different', 'both_changed'].includes(row.state)) {
+        const apply = document.createElement('button'); apply.type = 'button'; apply.textContent = 'Apply in Home Assistant';
+        apply.addEventListener('click', () => { void this.scriptSyncAction(row, 'apply', apply); });
+        actions.append(apply);
+      }
+      if (['ha_changed', 'different', 'both_changed'].includes(row.state)) {
+        const keep = document.createElement('button'); keep.type = 'button'; keep.textContent = "Keep Home Assistant's version";
+        keep.addEventListener('click', () => { void this.scriptSyncAction(row, 'keep_ha', keep); });
+        const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy Home Assistant YAML';
+        copy.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(row.ha_yaml); status.textContent = `Copied ${row.entity_id}. Paste it to Claude to update the repo.`; }
+          catch { status.textContent = 'Could not copy. Select the YAML below instead.'; }
+        });
+        actions.append(copy, keep);
+      }
+      item.append(title, state, actions);
+      if (row.diff) {
+        const details = document.createElement('details'); const summary = document.createElement('summary');
+        summary.textContent = 'Differences (repo → Home Assistant)';
+        const pre = document.createElement('pre'); pre.textContent = row.diff;
+        details.append(summary, pre); item.append(details);
+      }
+      list.append(item);
+    }
+  }
+
+  async scriptSyncAction(row, action, button) {
+    const status = this.shadowRoot.querySelector('.script-sync-status');
+    if (action === 'apply' && !window.confirm(`Replace ${row.entity_id} in Home Assistant with the Declan version? scripts.yaml is backed up first.`)) return;
+    button.disabled = true;
+    try {
+      const result = await this._hass.callApi('POST', 'declan_two/script-sync', {action, file: row.file});
+      status.textContent = action === 'apply'
+        ? `Applied ${row.entity_id}.` + (result.backup ? ` Backup: ${result.backup}` : '')
+        : `Kept Home Assistant's version of ${row.entity_id}.`;
+      await this.loadScriptSync();
+    } catch {
+      status.textContent = action === 'apply'
+        ? 'Could not apply it. If scripts.yaml was changed, its backup sits next to it. Check the Home Assistant log.'
+        : 'Could not save that choice.';
+    } finally {
+      button.disabled = false;
+    }
   }
 
   async downloadAuditYaml(item, button) {

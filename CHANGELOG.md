@@ -4,6 +4,14 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **HA script sync (FUT-62, #834).** The HA Audit page has a new **Declan scripts** block. It compares each script Declan relies on (Sexy Time, Good Night, Good Morning, Movie Time, Dinner, Christmas Morning) with the version that came with this release. Home Assistant is the master copy, and formatting-only differences count as in sync. Each script shows one of these:
+  - **In sync.**
+  - **Changed in Home Assistant:** copy the YAML so the repo can be updated, or keep HA's version.
+  - **Updated by Declan:** **Apply in Home Assistant** asks first, backs up `scripts.yaml`, reloads scripts and checks the result.
+  - **Changed in both / Different:** HA wins, with a diff.
+  - **Not in Home Assistant yet.**
+
+  Scripts defined outside `scripts.yaml` (for example in packages) are never overwritten. The integration ships the scripts in `custom_components/declan_two/declan_scripts/`, which a test keeps identical to `home_assistant/`.
 - **Christmas mode (FUT-59, #834).** On automatically from 1 December to 2 January, or say "Christmas mode on/off" (Settings → Household → Christmas mode: automatic, on or off). While it's on:
   - About half of Declan's everyday sass is Christmas sass (lights, timers, greetings, good morning/night, dinner, guests arriving). These lines rest and get topped up like the rest.
   - "Play some music" plays from a new **Christmas** playlist category, when it has playlists.
