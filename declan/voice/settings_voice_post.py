@@ -73,6 +73,16 @@ def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,
                 return
             handler.send_json(200, {"deleted": removed})
             return
+        if isinstance(body, dict) and set(body) == {"forget_item"} and isinstance(body["forget_item"], str):
+            # FUT-42: remove one "where did I put" entry from Settings -> Household.
+            from declan.turn import whereabouts
+            try:
+                removed = whereabouts.forget(body["forget_item"])
+            except (OSError, sqlite3.Error):
+                handler.send_json(503, {"error": "Could not forget that."})
+                return
+            handler.send_json(200, {"forgotten": removed is not None})
+            return
         if not isinstance(body, dict) or set(body) != {"settings"}:
             handler.send_json(400, {"error": "Send household settings."})
             return

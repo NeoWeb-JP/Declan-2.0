@@ -1,5 +1,6 @@
 """Orchestrate an HTTP conversation turn using the per-request TurnServices."""
 import logging
+import sqlite3
 
 from declan.http import post_ingress_orchestration
 from declan.turn import (
@@ -42,13 +43,17 @@ def handle_post(handler, *, services):
     from declan.music import music
     agent_on = _conversation_enabled(general_chat)
     help_request = local_help.match(effective_message)
-    from declan.turn import christmas
+    from declan.turn import christmas, whereabouts
     christmas_request = christmas.match(effective_message) if help_request is None else None
+    where_request = whereabouts.match(effective_message) if help_request is None and christmas_request is None else None
     if help_request is not None:
         dispatch_result = _local_help(handler, body, help_request, origin_device=origin_device,
                                       satellite=satellite, services=services, conversation_on=agent_on)
     elif christmas_request is not None:
         dispatch_result = _christmas(christmas_request)
+    elif where_request is not None and where_request[2]:
+        # FUT-42: "I put the passports in the safe", "where did I leave my glasses?"
+        dispatch_result = _whereabouts(where_request, services)
     else:
         dispatch_result = None
     if dispatch_result is not None:
@@ -57,6 +62,9 @@ def handle_post(handler, *, services):
         dispatch_result = None  # "play something": let the agent choose, not Spotify's literal search.
     else:
         dispatch_result = dispatch(phrase)
+    if (where_request is not None and not where_request[2] and conversation_turn.needs_agent(dispatch_result)):
+        # FUT-42: a bare "the key is in the drawer" only once nothing else understood it.
+        dispatch_result = _whereabouts(where_request, services) or dispatch_result
     if (help_request is None and not agent_on and conversation_turn.needs_agent(dispatch_result)
             and conversation_turn.needs_conversation(effective_message, services.CHAT_COMMANDS)):
         # The device planner cannot answer "where is Peru?"; say how to turn answers on
@@ -106,6 +114,27 @@ def _conversation_enabled(general_chat):
         return general_chat.enabled()
     except (OSError, ValueError):
         return False
+
+
+def _whereabouts(request, services):
+    """FUT-42: where things are, answered locally; None lets the rest of Declan answer."""
+    from declan.core.execution_results import Outcome
+    from declan.turn import conversation_entry, whereabouts
+    try:
+        guest = services.read_guest_mode() != "off"
+    except (OSError, ValueError, TypeError, AttributeError):
+        guest = True  # unknown Guest Mode keeps household whereabouts private
+    try:
+        reply = whereabouts.answer(request, guest=guest)
+    except ValueError as error:
+        return conversation_entry._result_factory(str(error), Outcome.UNAVAILABLE)
+    except (OSError, sqlite3.Error) as error:
+        LOGGER.warning("Whereabouts unavailable (%s)", type(error).__name__)
+        return conversation_entry._result_factory("I couldn't check my notes just now.", Outcome.FAILED)
+    if reply is None:
+        return None
+    from declan.ha import household_language
+    return conversation_entry._result_factory(household_language.render(reply), Outcome.CHAT_ANSWER)
 
 
 def _christmas(request):

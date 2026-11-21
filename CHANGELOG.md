@@ -4,6 +4,14 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **"Where did I put…?" (FUT-42, #834).** Tell Declan where something is ("the spare car key is in the hall drawer", "I've moved the passports to the safe"), then ask: "where's the spare car key?" gets "Lucky for you, one of us pays attention. In the hall drawer, since Tuesday."
+  - Local only, shared by the household, survives restarts.
+  - Near misses and plurals match ("car keys" finds "spare car key").
+  - Moving something says where it was before; asking twice in a day gets the lost-property line.
+  - **Guests** get your lines ("Wouldn't you like to know.") and never a location; they can't save things either.
+  - A bare "the key is in the drawer" is only filed when nothing else understood the sentence, so "the lights are on in the kitchen" is never filed.
+  - "Where is Peru?" still goes to general chat.
+  - Settings → Household → **Where things are** lists everything, with Forget.
 - **HA script sync (FUT-62, #834).** The HA Audit page has a new **Declan scripts** block. It compares each script Declan relies on (Sexy Time, Good Night, Good Morning, Movie Time, Dinner, Christmas Morning) with the version that came with this release. Home Assistant is the master copy, and formatting-only differences count as in sync. Each script shows one of these:
   - **In sync.**
   - **Changed in Home Assistant:** copy the YAML so the repo can be updated, or keep HA's version.
