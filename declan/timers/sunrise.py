@@ -212,6 +212,8 @@ def _when(row, now=None):
 
 def active(*, now=None, path=None):
     """True while a sunrise is ramping, waking someone or snoozed: "stop" and "snooze" are for it."""
+    if not Path(PATH if path is None else path).exists():
+        return False  # no sunrise has ever been set; don't create the file just to look
     try:
         return any(row["stage"] in ACTIVE for row in rows(path=path))
     except (OSError, sqlite3.Error):
