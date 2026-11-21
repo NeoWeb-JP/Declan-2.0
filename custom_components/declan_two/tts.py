@@ -134,16 +134,27 @@ class DeclanVoiceManager(TextToSpeechEntity):
                 text=message, **identity, generate=generate,
             )
             return await self._night_speech((extension, audio))
-        except (HomeAssistantError, ValueError, OSError, TimeoutError) as err:
+        except Exception as err:  # noqa: BLE001 - any primary fault must reach REL-01 fallbacks
+            # CancelledError is a BaseException and still propagates.
             _LOGGER.warning("Declan 2.0 TTS provider failed: %s", type(err).__name__)
-            if cache_enabled and config.get("category_fallback", True):
+        return await self._fallback_speech(message, language, config, provider, cache_enabled, identity)
+
+    async def _fallback_speech(self, message, language, config, provider, cache_enabled, identity):
+        """REL-01 steps after the primary voice failed; any fault ends in a clean error."""
+        if cache_enabled and config.get("category_fallback", True):
+            try:
                 alternate = await self._cached_alternative(message, identity)
                 if alternate is not None:
                     return await self._night_speech(alternate)
-            local = await self._local_fallback(message, language, config, provider, cache_enabled)
-            if local is not None:
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Declan 2.0 cached alternative unavailable: %s", type(err).__name__)
+        local = await self._local_fallback(message, language, config, provider, cache_enabled)
+        if local is not None:
+            try:
                 return await self._night_speech(local)
-            raise HomeAssistantError("Declan 2.0 could not generate speech") from None
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Declan 2.0 local TTS audio could not be prepared: %s", type(err).__name__)
+        raise HomeAssistantError("Declan 2.0 could not generate speech") from None
 
     async def _local_fallback(self, message, language, config, primary, cache_enabled):
         """REL-01: speak with the local TTS entity when everything else failed."""
@@ -174,7 +185,7 @@ class DeclanVoiceManager(TextToSpeechEntity):
                     text=message, **identity, generate=generate,
                 )
                 result = (extension, audio)
-        except (HomeAssistantError, ValueError, OSError, TimeoutError) as err:
+        except Exception as err:  # noqa: BLE001 - third-party provider boundary
             _LOGGER.warning("Declan 2.0 local TTS fallback failed: %s", type(err).__name__)
             return None
         _LOGGER.info("Declan 2.0 spoke with the local TTS fallback")

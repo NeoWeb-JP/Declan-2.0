@@ -16,6 +16,9 @@ import tempfile
 import shutil
 from time import monotonic, time
 from typing import AsyncIterator, Awaitable, Callable
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 # The running size total is trusted for this long, then recounted from disk so
 # files removed outside this class (manual clean-up, restore) are noticed.
@@ -65,6 +68,19 @@ class VoiceCache:
         except FileNotFoundError:
             return 0
 
+    @staticmethod
+    async def _read(path: Path) -> bytes | None:
+        """Cached bytes, or None for a miss. An unreadable entry is a miss too,
+        so a damaged cache file never blocks the primary voice."""
+        try:
+            return await asyncio.to_thread(path.read_bytes)
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            _LOGGER.warning("Declan voice cache entry unreadable (%s); treating as a miss",
+                            type(error).__name__)
+            return None
+
     def _forget_removed(self, removed_bytes: int) -> None:
         if self._used_bytes is not None:
             self._used_bytes = max(0, self._used_bytes - removed_bytes)
@@ -103,7 +119,14 @@ class VoiceCache:
                             os.unlink(tmp)
                 self._used_bytes = used - replaced + required
                 return True
-            if not await asyncio.to_thread(write):
+            try:
+                saved = await asyncio.to_thread(write)
+            except OSError as error:
+                # Never lose generated (possibly paid) audio over a cache fault.
+                _LOGGER.warning("Declan voice cache write failed (%s); audio not cached",
+                                type(error).__name__)
+                saved = False
+            if not saved:
                 self.skipped_writes += 1
                 return False
             return True
@@ -213,13 +236,10 @@ class VoiceCache:
                        extension=extension)
         path = self.path_for(key, extension)
         async with self._identity_lock(key):
-            try:
-                audio = await asyncio.to_thread(path.read_bytes)
-                if audio:
-                    self.hits += 1
-                    return audio, True
-            except FileNotFoundError:
-                pass
+            audio = await self._read(path)
+            if audio:
+                self.hits += 1
+                return audio, True
 
             # Never cache failed or empty generations.
             audio = await generate()
@@ -253,13 +273,10 @@ class VoiceCache:
                     extension=ext
                 )
                 path = self.path_for(key, ext)
-                try:
-                    audio = await asyncio.to_thread(path.read_bytes)
-                    if audio:
-                        self.hits += 1
-                        return ext, audio, True
-                except FileNotFoundError:
-                    pass
+                audio = await self._read(path)
+                if audio:
+                    self.hits += 1
+                    return ext, audio, True
 
             ext, audio = await generate()
             if ext not in {"mp3", "wav", "ogg", "flac"}:
@@ -287,10 +304,7 @@ class VoiceCache:
                 text=text, provider=provider, voice_id=voice_id, model=model,
                 language=language, settings=settings, extension=ext,
             )
-            try:
-                audio = await asyncio.to_thread(self.path_for(key, ext).read_bytes)
-            except FileNotFoundError:
-                continue
+            audio = await self._read(self.path_for(key, ext))
             if audio:
                 self.hits += 1
                 return ext, audio
