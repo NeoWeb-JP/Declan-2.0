@@ -4,6 +4,11 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Find my phone (FUT-33, #834).**
+  - "Ring Edd's phone", "find my phone", "I can't find my phone", "Edd can't find his phone".
+  - The phone comes from the person's device tracker in Home Assistant, and the notification goes through that phone's companion-app notify service (`device_tracker.edd_iphone` → `notify.mobile_app_edd_iphone`).
+  - It's sent loud: the alarm stream on Android, a critical alert on iPhone. For an iPhone, Declan reminds you that critical alerts must be allowed for the Home Assistant app.
+  - "My phone" with more than one phone in the house: Declan asks whose, because voice recognition isn't reliable enough yet.
 - **Car questions and charging (FUT-31, #834).**
   - "Is the car charged?", "is the car plugged in?", "is the car charging?", from the Pod Point integration (found automatically) and the car's battery sensor.
   - "Start charging the car" and "stop charging the car" always ask for a spoken yes. Starting turns on the Pod Point's "charging allowed" switch, which overrides its schedule until stopped; stopping hands control back to the schedule. Guests can ask but not change charging.
