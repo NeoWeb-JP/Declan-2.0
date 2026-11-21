@@ -56,6 +56,13 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 
 **Entrance themes** (nothing to say): when someone gets home, their clip plays once on the entrance satellite. Set the satellite and each person's clip in Settings → Household → Entrance themes. Not during quiet hours, Guest mode or while music is playing in that room.
 
+**Sunrise wake-up** (ask from the bedroom satellite; one per room):
+- "Wake me at 6:30 with the sunrise": the dimmable lights brighten over the 15 minutes before 6:30, warming to daylight, then Declan says good morning and quiet music fades in
+- Add "on weekdays", "at weekends" or "every day"; "... and play Afrikaans" picks the music; "... without music"
+- While it's running: "stop" turns its lights off and pauses the music; "snooze" pauses the music for 9 minutes
+- "When's my sunrise?", "skip tomorrow's sunrise", "cancel the sunrise"
+- If music is already playing in another room, it's left alone and Declan says so. Lights already on are left alone too
+
 **Intercom** (spoken on the satellites, starting "Message from the lounge: …"; not during quiet hours, 23:00 to 07:00):
 - "Tell the kitchen dinner's ready", "tell the master bedroom that breakfast is ready"
 - "Announce to everyone: leaving in five minutes", "tell everyone the taxi is here"

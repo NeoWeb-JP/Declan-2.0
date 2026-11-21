@@ -184,8 +184,12 @@ def ringing():
 
 def matches(phrase):
     """Recognise timer requests; plain "stop" only while an alarm is ringing."""
+    from declan.timers import sunrise
     if phrase in ALARM_STOP_PHRASES:
-        return ringing()
+        return ringing() or sunrise.active()  # FUT-45: "stop" ends a running sunrise too
+    sunrise_request = sunrise.parse(phrase)
+    if sunrise_request is not None:
+        return sunrise_request[0] != "snooze" or sunrise.active()
     from declan.timers import reminders
     if reminders.parse(phrase) is not None:  # FUT-26
         return True
@@ -201,8 +205,18 @@ def matches(phrase):
 
 def handle_result(phrase, opener, *, satellite=None, device=None, browser=False):
     """Typed timer provider outcome; None means the phrase did not match."""
+    from declan.timers import sunrise
     if phrase in ALARM_STOP_PHRASES:
-        return _silence(satellite)
+        ended = sunrise.stop(satellite, opener=opener) if sunrise.active() else None
+        if not ringing():
+            return ended or _silence(satellite)
+        silenced = _silence(satellite)
+        if ended is None:
+            return silenced
+        return ExecutionResult(f"{ended.reply} {silenced.reply}", Outcome.TIMER_STOPPED)
+    sunrise_request = sunrise.parse(phrase)
+    if sunrise_request is not None:  # FUT-45
+        return sunrise.command(sunrise_request, opener, satellite=satellite, device=device, browser=browser)
     from declan.timers import reminders
     reminder = reminders.parse(phrase)
     if reminder is not None:
@@ -404,6 +418,14 @@ def _notify_phones(opener, message):
                         data={"title": "Declan", "message": message}, timeout=5)
             except (OSError, ValueError):
                 pass
+
+
+def sunrise_due(opener, *, music_module=None, ha_connect=None, music_inventory=None):
+    """FUT-45: move sunrise wake-ups along (lights, good morning, music fade)."""
+    from declan.timers import sunrise
+    music = (sunrise.MusicAssistant(music_module, ha_connect, music_inventory)
+             if music_module is not None and ha_connect is not None and music_inventory is not None else None)
+    sunrise.due(opener, music=music)
 
 
 def ring_due(opener):

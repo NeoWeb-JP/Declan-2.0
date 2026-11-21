@@ -14,6 +14,12 @@ This file records significant repository changes. Historical releases are availa
   - Set it by voice ("my usual for the lounge in the evening is lamps to 40% and play chill music") or in Settings → Household → The usual, where you can also edit and forget them.
   - Each step is an ordinary command said in that room, so a failed step is reported and the rest still run. No usual yet: "You haven't told me the usual for the lounge yet."
   - Per room, not per person. Guests can ask for the usual but can't set or forget one. Stored locally; nothing goes to the AI except the sass top-ups.
+- **Sunrise wake-up (FUT-45, #834).**
+  - "Wake me at 6:30 with the sunrise" (optionally on weekdays, at weekends or every day): the room's dimmable lights that are off brighten from 1% to full over 15 minutes, warming from 2200 K to 4000 K where supported, reaching full at 6:30.
+  - At 6:30 Declan says good morning on the satellite, and music starts at 5% and fades up to 25% over five minutes. "... and play Afrikaans" picks the music; "... without music" skips it.
+  - "Stop" turns off the lights it brightened and pauses the music; "snooze" pauses the music for 9 minutes. "When's my sunrise?", "skip tomorrow's sunrise", "cancel the sunrise".
+  - Music already playing in another room is left alone and mentioned, so the household's single Spotify stream isn't hijacked.
+  - Stored and worked out from the clock, so it carries on after a restart. A morning missed by more than 30 minutes is skipped rather than switching lights on late.
 - **Braai master (FUT-43, #834).**
   - "Braai time" plays the Braai playlist in the room you're in, turns on the garden lights and checks for rain, opening with braai sass: your three lines plus the approved extras, rested and topped up like the rest.
   - Each part is an ordinary command, so a failed part is reported and the rest still runs.
