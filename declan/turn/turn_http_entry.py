@@ -46,6 +46,10 @@ def handle_post(handler, *, services):
     from declan.turn import christmas, whereabouts
     christmas_request = christmas.match(effective_message) if help_request is None else None
     where_request = whereabouts.match(effective_message) if help_request is None and christmas_request is None else None
+    from declan.turn import braai
+    braai_request = braai.match(effective_message) if help_request is None else None
+    if braai_request is None and (rewritten := braai.how_long(effective_message)):
+        phrase = rewritten  # FUT-43: "how long on the chops?" asks the chops timer
     from declan.ha import intercom, todo_lists
     list_request = (todo_lists.match(effective_message)
                     if help_request is None and christmas_request is None and where_request is None else None)
@@ -55,6 +59,11 @@ def handle_post(handler, *, services):
     if help_request is not None:
         dispatch_result = _local_help(handler, body, help_request, origin_device=origin_device,
                                       satellite=satellite, services=services, conversation_on=agent_on)
+    elif braai_request is not None:
+        # FUT-43: braai time = Braai music, garden lights and a rain check, with braai sass.
+        from declan.turn import conversation_entry
+        reply, outcome = braai.run(braai_request, dispatch)
+        dispatch_result = conversation_entry._result_factory(reply, outcome)
     elif christmas_request is not None:
         dispatch_result = _christmas(christmas_request)
     elif list_request is not None:
