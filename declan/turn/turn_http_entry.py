@@ -58,6 +58,10 @@ def handle_post(handler, *, services):
     intercom_request = (intercom.match(effective_message)
                         if help_request is None and christmas_request is None and where_request is None
                         and list_request is None else None)
+    from declan.turn import house_questions
+    house_request = (house_questions.match(effective_message)
+                     if help_request is None and usual_request is None and braai_request is None
+                     and christmas_request is None and list_request is None else None)
     if help_request is not None:
         dispatch_result = _local_help(handler, body, help_request, origin_device=origin_device,
                                       satellite=satellite, services=services, conversation_on=agent_on)
@@ -74,6 +78,10 @@ def handle_post(handler, *, services):
     elif list_request is not None:
         # FUT-27: shopping and to-do lists live in Home Assistant's own to-do lists.
         dispatch_result = _todo(list_request, services)
+    elif house_request is not None and (house_result := _house_question(
+            house_request, services, origin_device or satellite)) is not None:
+        # #834 P2: who's home and other household questions, straight from Home Assistant.
+        dispatch_result = house_result
     elif intercom_request is not None and (intercom_result := _intercom(
             intercom_request, services, origin_device or satellite)) is not None:
         # FUT-25: "tell the kitchen dinner's ready"; None means it wasn't for a room ("tell me a joke").
@@ -165,6 +173,20 @@ def _intercom(request, services, origin):
     from declan.turn import conversation_entry
     result = intercom.result(request, services.ha_device_connection(), origin=origin)
     return None if result is None else conversation_entry._result_factory(result.reply, result.outcome)
+
+
+def _house_question(request, services, origin):
+    """#834 P2 household questions; None lets the rest of Declan answer."""
+    from declan.turn import conversation_entry, house_questions
+    try:
+        result = house_questions.result(request, services, origin=origin)
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        LOGGER.warning("Household question failed (%s)", type(error).__name__)
+        return None
+    if result is None:
+        return None
+    from declan.ha import household_language
+    return conversation_entry._result_factory(household_language.render(result.reply), result.outcome)
 
 
 def _todo(request, services):
