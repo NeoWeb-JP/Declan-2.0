@@ -4,6 +4,12 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Intercom (FUT-25, #834).**
+  - "Tell the kitchen dinner's ready", "announce to everyone: leaving in five minutes", "announce upstairs: bedtime".
+  - The message is spoken on that room's satellites (or every satellite except yours, or the ones on HA's upstairs/downstairs floors) with the pre-announce chime: "Message from the lounge: dinner's ready."
+  - Unreachable satellites are named in the reply.
+  - Not during quiet hours (23:00 to 07:00).
+  - "Tell me a joke" and "announce dinner" still go where they did.
 - **Reminders (FUT-26, #834).**
   - "Remind me at six to put the bins out", "remind me in 20 minutes to check the oven", "remind Edd tomorrow at 8 to call the plumber".
   - They ring on the satellite you asked from, saying "Reminder: put the bins out." every 30 seconds until someone says "stop", for up to 10 minutes, exactly like timers. They survive restarts.
