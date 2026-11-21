@@ -1,19 +1,42 @@
-"""Admin-only household settings proxy (FUT-60). Never expose backend tokens to the panel."""
+"""Admin-only household settings proxy (FUT-60, FUT-61). Never expose backend tokens to the panel."""
 import aiohttp
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 CHOICES = {"guest_tone": frozenset({"home", "polite"})}
+KEYS = frozenset({"guest_tone", "shelve_days", "fresh_lines"})
 SOURCES = frozenset({"saved", "environment", "default"})
 # hass.data key holding the last guest tone read from the backend, for the TTS
 # catalogue fallback. Missing means "home", the owner's default.
 DATA_KEY = "declan_two_household"
 
 
-def valid_settings(settings):
-    return (isinstance(settings, dict) and set(settings) == set(CHOICES)
-            and all(settings[key] in choices for key, choices in CHOICES.items()))
+def valid_settings(settings, *, complete=True):
+    """Every key in a backend reply; a save may leave out the FUT-61 keys."""
+    if not isinstance(settings, dict) or not set(settings) <= KEYS or "guest_tone" not in settings:
+        return False
+    if complete and set(settings) != KEYS:
+        return False
+    return (settings["guest_tone"] in CHOICES["guest_tone"]
+            and ("shelve_days" not in settings or (type(settings["shelve_days"]) is int and 0 <= settings["shelve_days"] <= 30))
+            and ("fresh_lines" not in settings or type(settings["fresh_lines"]) is bool))
+
+
+def valid_delete(body):
+    target = body.get("delete_line") if isinstance(body, dict) and set(body) == {"delete_line"} else None
+    return (isinstance(target, dict) and set(target) == {"key", "line"}
+            and all(isinstance(target[name], str) and 0 < len(target[name]) <= 400 for name in ("key", "line")))
+
+
+def valid_generated(value):
+    """Generated lines listing, or None when the backend couldn't read it."""
+    if value is None:
+        return True
+    return (isinstance(value, dict) and isinstance(value.get("lines"), list) and len(value["lines"]) <= 5000
+            and all(isinstance(row, dict) and isinstance(row.get("key"), str) and isinstance(row.get("line"), str)
+                    and isinstance(row.get("created"), (int, float)) for row in value["lines"])
+            and all(type(value.get(name)) is int for name in ("spent_micro_usd", "budget_micro_usd")))
 
 
 def remember(hass, settings):
@@ -21,7 +44,7 @@ def remember(hass, settings):
 
 
 def guest_tone(hass):
-    stored = getattr(hass, "data", {}).get(DATA_KEY, {})
+    stored = getattr(hass, "data", {}).get(DATA_KEY, {})  # guest_tone only
     tone = stored.get("guest_tone") if isinstance(stored, dict) else None
     return tone if tone in CHOICES["guest_tone"] else "home"
 
@@ -51,13 +74,15 @@ class DeclanHouseholdView(HomeAssistantView):
         return await self._relay(request)
 
     async def post(self, request):
-        if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= 1024:
+        if request.content_type != "application/json" or request.content_length is None or not 0 < request.content_length <= 2048:
             return web.json_response({"error": "Invalid content"}, status=400)
         try:
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
-        if not isinstance(body, dict) or set(body) != {"settings"} or not valid_settings(body["settings"]):
+        if valid_delete(body):
+            return await self._relay(request, body)
+        if not isinstance(body, dict) or set(body) != {"settings"} or not valid_settings(body["settings"], complete=False):
             return web.json_response({"error": "Invalid settings"}, status=400)
         return await self._relay(request, body)
 
@@ -80,12 +105,19 @@ class DeclanHouseholdView(HomeAssistantView):
                     return web.json_response({"error": "Invalid settings" if response.status == 400 else "Backend unavailable"},
                                              status=400 if response.status == 400 else 502)
                 data = await response.json(content_type="application/json")
+                if body is not None and "delete_line" in body:
+                    if not isinstance(data, dict) or type(data.get("deleted")) is not bool:
+                        raise ValueError("Invalid response")
+                    return web.json_response({"deleted": data["deleted"]}, headers={"Cache-Control": "no-store"})
                 sources = data.get("sources") if isinstance(data, dict) else None
                 if (not valid_settings(data.get("settings")) or not isinstance(sources, dict)
-                        or set(sources) != set(CHOICES) or not set(sources.values()) <= SOURCES):
+                        or set(sources) != KEYS or not set(sources.values()) <= SOURCES
+                        or not valid_generated(data.get("generated"))):
                     raise ValueError("Invalid response")
                 remember(hass, data["settings"])
-                return web.json_response({"settings": data["settings"], "sources": sources},
-                                         headers={"Cache-Control": "no-store"})
+                payload = {"settings": data["settings"], "sources": sources}
+                if "generated" in data:
+                    payload["generated"] = data["generated"]
+                return web.json_response(payload, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError, AttributeError):
             return web.json_response({"error": "Backend unavailable"}, status=502)

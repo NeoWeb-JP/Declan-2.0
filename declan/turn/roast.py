@@ -1,8 +1,6 @@
 """On-demand, light-hearted roasts; never change household state."""
 import re
-from random import SystemRandom
 
-_RANDOM = SystemRandom()
 _NAME = re.compile(r"[a-z][a-z '\\-]{0,39}", re.I)
 _REQUEST = re.compile(r"(?:please )?roast(?: (?:me|myself|[a-z][a-z '\\-]{0,39}))?", re.I)
 
@@ -38,7 +36,11 @@ def target(phrase):
 
 def respond(name, *, guest):
     """Guest Mode keeps the roast playful; Home Mode is cheekier."""
-    line = _RANDOM.choice(GUEST if guest else HOME)
+    from declan.turn import line_freshness
+    line = line_freshness.pick("roast:" + ("guest" if guest else "home"), GUEST if guest else HOME,
+                               topic=line_freshness.TOPICS["roast"], polite=guest)
+    if "{name}" not in line:
+        line = "{name}, " + line[:1].lower() + line[1:]
     if name == "you":
         return line.format(name="My bru")
     return line.format(name=name)

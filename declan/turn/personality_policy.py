@@ -9,8 +9,9 @@ from declan.ai.action_evidence_buffer import evidence_value
 from declan.core.execution_results import Outcome, parse_outcome
 from declan.turn.routine_action_evidence import RoutineActionStatus
 from declan.turn.household_settings import guest_lines
+from declan.turn.line_freshness import topic_for
 
-ROTATION = ResponseRotationState(window=3)
+ROTATION = ResponseRotationState(window=3, namespace="policy")
 _SAVAGE = (
     "Another heroic achievement in avoiding the light switch.",
     "There you go, you absolute muppet.",
@@ -215,7 +216,7 @@ def movie_request_reply(action, *, guest=False, visitor_present=False):
     prefix = {"start": "Movie setup requested.", "end": "Movie shutdown requested.", "toggle": "Movie Time requested."}[action]
     mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = (_MOVIE_GUEST if mode == "guest" else _MOVIE_HOME)[action]
-    chosen = household_language.render(ROTATION.choose((mode, "movie", action), lines))
+    chosen = household_language.render(ROTATION.choose((mode, "movie", action), lines, topic=topic_for("movie", action), polite=mode == "guest"))
     return prefix + " " + chosen
 
 
@@ -223,7 +224,7 @@ def morning_request_reply(*, guest=False, visitor_present=False):
     """Greet an accepted morning request without claiming light verification."""
     mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = _MORNING_GUEST if mode == "guest" else _MORNING_HOME
-    chosen = household_language.render(ROTATION.choose((mode, "morning"), lines))
+    chosen = household_language.render(ROTATION.choose((mode, "morning"), lines, topic=topic_for("morning"), polite=mode == "guest"))
     return "Good morning. " + chosen
 
 
@@ -231,7 +232,7 @@ def night_request_reply(*, guest=False, visitor_present=False):
     """Acknowledge bedtime without claiming the household has shut down."""
     mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = _NIGHT_GUEST if mode == "guest" else _NIGHT_HOME
-    chosen = household_language.render(ROTATION.choose((mode, "night"), lines))
+    chosen = household_language.render(ROTATION.choose((mode, "night"), lines, topic=topic_for("night"), polite=mode == "guest"))
     return "Good night. " + chosen
 
 
@@ -240,7 +241,7 @@ def sexy_request_reply(action, *, guest=False, visitor_present=False):
     action = "end" if action == "end" else "start"
     mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = (_SEXY_GUEST if mode == "guest" else _SEXY_HOME)[action]
-    chosen = household_language.render(ROTATION.choose((mode, "sexy", action), lines))
+    chosen = household_language.render(ROTATION.choose((mode, "sexy", action), lines, topic=topic_for("sexy", action), polite=mode == "guest"))
     return chosen
 
 
@@ -307,6 +308,8 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
     else:
         lines = _DINNER_HOME if category == "dinner" else _SAVAGE
         key = ("home", category)
-    chosen = household_language.render(ROTATION.choose(key, lines))
+    chosen = household_language.render(ROTATION.choose(
+        key, lines, topic=topic_for("dinner" if category == "dinner" else category, "general"),
+        polite=key[0] == "guest"))
     return (reply.rstrip() + " " if reply.strip() else "") + chosen
 

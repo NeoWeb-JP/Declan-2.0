@@ -268,6 +268,12 @@ class DeclanTwoNativePanel extends HTMLElement {
         .household-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
         .household-form select { max-width:100%; min-height:40px; }
         .household-form button { justify-self:start; min-height:44px; }
+        .household-form .household-toggle { display:flex; align-items:center; gap:10px; }
+        .household-form input[type=number] { max-width:8rem; min-height:40px; }
+        .fresh-lines-list { display:grid; gap:8px; margin-top:10px; min-width:0; }
+        .fresh-line { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 10px; border:1px solid rgba(145,227,255,.18); border-radius:10px; }
+        .fresh-line small { display:block; color:#8fb3c4; }
+        .fresh-line span { overflow-wrap:anywhere; }
         .speaker-settings-form { display:grid; gap:10px; min-width:0; margin-top:14px; }
         .speaker-settings-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
         .speaker-settings-form input { max-width:140px; min-height:40px; }
@@ -487,9 +493,17 @@ class DeclanTwoNativePanel extends HTMLElement {
                     <option value="polite">Polite guest lines</option>
                   </select></label>
                   <p class="muted">Applies while Guest Mode is on or visitors are present. It only changes Declan's wording: sensitive routines still ask for confirmation and private answers stay private.</p>
+                  <label>Rest used lines for (days)<input name="shelve_days" type="number" min="0" max="30" step="1" inputmode="numeric"></label>
+                  <p class="muted">Once Declan has said a sass line, roast or response, he won't use it again for this many days. 0 turns this off.</p>
+                  <label class="household-toggle"><input type="checkbox" name="fresh_lines"> Write new lines when a category runs low</label>
+                  <p class="muted">Declan asks the AI for a batch of short, rude, South African lines in the background, never while you wait. It has its own small monthly budget. Delete any you don't like below.</p>
                   <button type="submit">Save household settings</button>
                 </form>
                 <p class="household-status muted" role="status" aria-live="polite">Open Settings to load household settings.</p>
+                <details class="fresh-lines"><summary>Lines Declan wrote</summary>
+                  <p class="fresh-lines-status muted" role="status" aria-live="polite"></p>
+                  <div class="fresh-lines-list" aria-label="Lines Declan wrote"></div>
+                </details>
               </div>
             </details>
             <details class="settings-section">
@@ -2345,6 +2359,9 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const response = await this._hass.callApi('GET', 'declan_two/household');
       form.elements.namedItem('guest_tone').value = response.settings.guest_tone;
+      form.elements.namedItem('shelve_days').value = String(response.settings.shelve_days ?? 3);
+      form.elements.namedItem('fresh_lines').checked = response.settings.fresh_lines !== false;
+      this.renderFreshLines(response.generated);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
       status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
@@ -2361,11 +2378,47 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (!this._householdLoaded) { status.textContent = 'Load settings before saving.'; return; }
     status.textContent = 'Saving…';
     try {
-      const response = await this._hass.callApi('POST', 'declan_two/household', {settings: {guest_tone: form.elements.namedItem('guest_tone').value}});
+      const days = Number(form.elements.namedItem('shelve_days').value);
+      if (!Number.isInteger(days) || days < 0 || days > 30) { status.textContent = 'Rest days must be a whole number from 0 to 30.'; return; }
+      const response = await this._hass.callApi('POST', 'declan_two/household', {settings: {
+        guest_tone: form.elements.namedItem('guest_tone').value, shelve_days: days,
+        fresh_lines: form.elements.namedItem('fresh_lines').checked}});
       form.elements.namedItem('guest_tone').value = response.settings.guest_tone;
       status.textContent = 'Saved. It applies to Declan\'s next reply.';
     } catch {
       status.textContent = 'Could not save household settings.';
+    }
+  }
+
+  renderFreshLines(generated) {
+    const list = this.shadowRoot.querySelector('.fresh-lines-list');
+    const status = this.shadowRoot.querySelector('.fresh-lines-status');
+    list.replaceChildren();
+    if (!generated) { status.textContent = 'Could not read the lines Declan wrote.'; return; }
+    const spent = '$' + (generated.spent_micro_usd / 1e6).toFixed(2) + ' of $' + (generated.budget_micro_usd / 1e6).toFixed(2);
+    status.textContent = generated.lines.length
+      ? `${generated.lines.length} lines written. ${spent} spent this month.`
+      : `None yet. They appear when a category runs low. ${spent} spent this month.`;
+    for (const row of generated.lines.slice(0, 300)) {
+      const item = document.createElement('div'); item.className = 'fresh-line';
+      const text = document.createElement('span'); text.textContent = row.line;
+      const where = document.createElement('small'); where.textContent = row.key.replace(/^(personality|policy|library|roast):/, '').replaceAll(':', ' · ');
+      text.append(where);
+      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete';
+      remove.addEventListener('click', () => { void this.deleteFreshLine(row, item); });
+      item.append(text, remove);
+      list.append(item);
+    }
+  }
+
+  async deleteFreshLine(row, item) {
+    const status = this.shadowRoot.querySelector('.fresh-lines-status');
+    try {
+      await this._hass.callApi('POST', 'declan_two/household', {delete_line: {key: row.key, line: row.line}});
+      item.remove();
+      status.textContent = 'Deleted. Declan won\'t use it again.';
+    } catch {
+      status.textContent = 'Could not delete that line.';
     }
   }
 
