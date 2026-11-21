@@ -60,8 +60,13 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
         from declan.ai import general_chat
         handler.send_json(200, general_chat.listing())
     elif path == "/api/settings/household":
-        from declan.turn import household_settings
-        handler.send_json(200, household_settings.listing())
+        from declan.turn import household_settings, line_freshness
+        payload = household_settings.listing()
+        try:
+            payload["generated"] = line_freshness.listing()
+        except (OSError, ValueError, sqlite3.Error):
+            payload["generated"] = None
+        handler.send_json(200, payload)
     elif path == "/api/settings/speaker":
         from declan.voice import speaker_settings
         handler.send_json(200, speaker_settings.listing())

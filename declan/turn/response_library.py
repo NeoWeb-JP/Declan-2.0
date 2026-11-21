@@ -1,17 +1,12 @@
 """Shared response validation, persistence and selection, independent of routing."""
 import hashlib
 import json
-from random import SystemRandom
-from threading import Lock
 
 from declan.core import history
 
 PHASES = ("requested", "completed", "failure")
 MODES = ("sass", "guest")
 ACTIONS = ("default", "start", "end", "toggle")
-_random = SystemRandom()
-_lock = Lock()
-_recent: dict = {}
 
 
 def validate(profile):
@@ -90,13 +85,14 @@ def select(item, phase, guest, action="default", *, defaults):
     lines = section[action] or (section["default"] if action != "default" else [])
     if not lines:
         return ""
-    key = (str(history.DATABASE), item['entity_id'], phase, mode, action)
-    with _lock:
-        previous = _recent.get(key)
-        line = _random.choice([line for line in lines if line != previous] or lines)
-        if len(_recent) > 4000:
-            _recent.clear()
-        _recent[key] = line
-    return line
+    # FUT-61: used lines rest for days; a low pool is topped up in Declan's voice.
+    from declan.turn import line_freshness
+    name = str(item.get("name") or item["entity_id"])
+    if phase == "failure":
+        topic = f"after the {name} request could not be completed (never suggest it worked)"
+    else:
+        topic = f"after {name} ({action})" if action != "default" else f"after {name}"
+    key = ":".join(("library", item["entity_id"], phase, mode, action))
+    return line_freshness.pick(key, lines, topic=topic, polite=mode == "guest")
 
 

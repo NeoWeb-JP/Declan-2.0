@@ -19,11 +19,12 @@ class RoastTests(unittest.TestCase):
             self.assertIsNone(roast.target(phrase))
 
     def test_guest_mode_uses_only_guest_lines(self):
-        with patch.object(roast._RANDOM, "choice", side_effect=lambda lines: lines[0]) as choose:
+        # Roasts are picked through line_freshness (FUT-61), keyed by tone.
+        with patch("declan.turn.line_freshness.pick", side_effect=lambda key, lines, **kwargs: lines[0]) as choose:
             self.assertIn("Edd", roast.respond("Edd", guest=True))
-            self.assertIs(choose.call_args.args[0], roast.GUEST)
+            self.assertEqual(choose.call_args.args[:2], ("roast:guest", roast.GUEST))
             self.assertIn("Edd", roast.respond("Edd", guest=False))
-            self.assertIs(choose.call_args.args[0], roast.HOME)
+            self.assertEqual(choose.call_args.args[:2], ("roast:home", roast.HOME))
 
     # Pinned to the optional polite guest tone (FUT-60).
     @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")

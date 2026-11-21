@@ -322,7 +322,7 @@ LINES = {
     ),
 }
 
-ROTATION = ResponseRotationState(window=2)
+ROTATION = ResponseRotationState(window=2, namespace="personality")
 
 
 def choose_line(category, guest_mode):
@@ -335,7 +335,8 @@ def choose_line(category, guest_mode):
         return household_language.render(custom)
     key = category, guest
     lines = LINES[category][guest]
-    return household_language.render(ROTATION.choose(key, lines))
+    from declan.turn.line_freshness import topic_for
+    return household_language.render(ROTATION.choose(key, lines, topic=topic_for(category), polite=guest))
 
 
 def add_sass(reply, category, guest_mode):

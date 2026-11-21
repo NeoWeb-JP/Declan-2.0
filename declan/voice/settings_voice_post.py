@@ -1,4 +1,5 @@
 """Settings, media and voice management POST dispatch."""
+import sqlite3
 from declan.http import operational_post_routes
 from declan.ai import ai_settings_post
 from declan.music import media_settings_post
@@ -58,7 +59,20 @@ def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,
         except OSError:
             handler.send_json(503, {"error": "Could not save the command style."})
     elif path == "/api/settings/household":
-        from declan.turn import household_settings
+        from declan.turn import household_settings, line_freshness
+        if isinstance(body, dict) and set(body) == {"delete_line"} and isinstance(body["delete_line"], dict):
+            # FUT-61: remove one generated line from Settings -> Household.
+            target = body["delete_line"]
+            try:
+                removed = line_freshness.delete(target.get("key"), target.get("line"))
+            except ValueError as error:
+                handler.send_json(400, {"error": str(error)})
+                return
+            except (OSError, sqlite3.Error):
+                handler.send_json(503, {"error": "Could not delete the line."})
+                return
+            handler.send_json(200, {"deleted": removed})
+            return
         if not isinstance(body, dict) or set(body) != {"settings"}:
             handler.send_json(400, {"error": "Send household settings."})
             return

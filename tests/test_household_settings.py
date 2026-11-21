@@ -29,12 +29,14 @@ class TemporarySettings(unittest.TestCase):
 class SettingsTests(TemporarySettings):
     def test_default_is_home_then_environment_then_saved(self):
         self.assertEqual(household_settings.listing(),
-                         {"settings": {"guest_tone": "home"}, "sources": {"guest_tone": "default"}})
+                         {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True},
+                          "sources": dict.fromkeys(("guest_tone", "shelve_days", "fresh_lines"), "default")})
         with patch.dict(os.environ, {"DECLAN_GUEST_TONE": " Polite "}):
             self.assertEqual(household_settings.guest_tone(), "polite")
-            self.assertEqual(household_settings.listing()["sources"], {"guest_tone": "environment"})
+            self.assertEqual(household_settings.listing()["sources"]["guest_tone"], "environment")
             saved = household_settings.save({"guest_tone": "home"})
-        self.assertEqual(saved, {"settings": {"guest_tone": "home"}, "sources": {"guest_tone": "saved"}})
+        self.assertEqual(saved["settings"]["guest_tone"], "home")
+        self.assertEqual(saved["sources"]["guest_tone"], "saved")
 
     def test_invalid_payloads_and_files_are_rejected(self):
         for payload in (None, {}, {"guest_tone": "rude"}, {"guest_tone": "home", "x": 1}, {"guest_tone": 1}):
@@ -106,7 +108,7 @@ class RouteTests(TemporarySettings):
         settings_read_routes.dispatch(handler, voicepipeline=None, voice_profiles=None, diagnostics=None,
                                       history=None, ai_budget=None, ai_settings=None, ai_credentials=None,
                                       spotify_playlists=None)
-        self.assertEqual(handler.sent[-1][1]["settings"], {"guest_tone": "home"})
+        self.assertEqual(handler.sent[-1][1]["settings"]["guest_tone"], "home")
         names = ("spotify_save", "ai_replace_key", "ai_save", "ai_configured", "music", "spotify_playlists",
                  "playlist_handler", "opener_factory", "voice_manage", "pipeline_error", "profiles_manage",
                  "preview", "apply")
@@ -141,8 +143,9 @@ class ViewAndPanelTests(unittest.IsolatedAsyncioTestCase):
     async def test_view_validates_relays_and_remembers_the_tone(self):
         module, session = load_view()
         response = MagicMock(status=200)
-        response.json = AsyncMock(return_value={"settings": {"guest_tone": "polite"},
-                                                "sources": {"guest_tone": "saved"}})
+        sources = dict.fromkeys(("guest_tone", "shelve_days", "fresh_lines"), "saved")
+        response.json = AsyncMock(return_value={"settings": {"guest_tone": "polite", "shelve_days": 3, "fresh_lines": True},
+                                                "sources": sources, "generated": None})
         context = MagicMock()
         context.__aenter__ = AsyncMock(return_value=response)
         context.__aexit__ = AsyncMock(return_value=False)
@@ -169,16 +172,32 @@ class ViewAndPanelTests(unittest.IsolatedAsyncioTestCase):
         result = await view.post(request(admin, {"settings": {"guest_tone": "polite"}}))
         self.assertEqual(result["status"], 200)
         self.assertEqual(module.guest_tone(hass), "polite")
-        response.json.return_value = {"settings": {"guest_tone": "nope"}, "sources": {"guest_tone": "saved"}}
+        response.json.return_value = {"settings": {"guest_tone": "nope", "shelve_days": 3, "fresh_lines": True},
+                                      "sources": sources}
         self.assertEqual((await view.get(request(admin, None)))["status"], 502)
-        response.json.return_value = {"settings": {"guest_tone": "home"}, "sources": {"guest_tone": "default"}}
+        response.json.return_value = {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True},
+                                      "sources": sources,
+                                      "generated": {"lines": [{"key": "roast:home", "line": "Eish.", "created": 1.0}],
+                                                    "spent_micro_usd": 10, "budget_micro_usd": 1000000}}
+        self.assertEqual(len((await view.get(request(admin, None)))["payload"]["generated"]["lines"]), 1)
+        # Saving only some keys (an older panel) is allowed; bad values are not.
+        for body in ({"settings": {"guest_tone": "home", "shelve_days": 31}},
+                     {"settings": {"guest_tone": "home", "fresh_lines": "yes"}},
+                     {"delete_line": {"key": "roast:home"}}):
+            self.assertEqual((await view.post(request(admin, body)))["status"], 400)
+        response.json.return_value = {"deleted": True}
+        deleted = await view.post(request(admin, {"delete_line": {"key": "roast:home", "line": "Eish."}}))
+        self.assertEqual(deleted["payload"], {"deleted": True})
+        response.json.return_value = {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True},
+                                      "sources": sources}
         await module.refresh(hass, entry)
         self.assertEqual(module.guest_tone(hass), "home")
 
     def test_panel_and_integration_are_wired(self):
         js = (ROOT / "custom_components/declan_two/frontend/panel.js").read_text()
         for needle in ("declan_two/household", "loadHousehold()", "saveHousehold()", 'class="household-form"',
-                       'name="guest_tone"', "settings-section--household"):
+                       'name="guest_tone"', "settings-section--household", 'name="shelve_days"',
+                       'name="fresh_lines"', "renderFreshLines(", "delete_line"):
             self.assertIn(needle, js)
         init = (ROOT / "custom_components/declan_two/__init__.py").read_text()
         self.assertIn("DeclanHouseholdView()", init)
