@@ -83,6 +83,19 @@ def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,
                 return
             handler.send_json(200, {"forgotten": removed is not None})
             return
+        if isinstance(body, dict) and set(body) == {"save_satellite"}:
+            # FUT-32: override what a satellite can do, in Settings -> Household -> Satellites.
+            from declan.ha import satellites
+            target = body["save_satellite"] if isinstance(body["save_satellite"], dict) else {}
+            try:
+                saved = satellites.save(target.get("entity_id"),
+                                        {key: value for key, value in target.items() if key != "entity_id"})
+                handler.send_json(200, {"saved": True, "overrides": saved})
+            except ValueError as error:
+                handler.send_json(400, {"error": str(error)})
+            except OSError:
+                handler.send_json(503, {"error": "Could not save that."})
+            return
         if isinstance(body, dict) and set(body) == {"save_house_info"}:
             # #834 P2: the car's name and battery sensor (FUT-31) in Settings -> Household.
             from declan.ha import house_info

@@ -584,6 +584,11 @@ class DeclanTwoNativePanel extends HTMLElement {
                   </form>
                   <p class="briefing-status muted" role="status" aria-live="polite"></p>
                 </details>
+                <details class="satellites"><summary>Satellites</summary>
+                  <p class="muted">What each satellite can do. Declan reads this from Home Assistant; change it here if Home Assistant gets it wrong. Features check this list instead of assuming every satellite is the same. "Show pictures" can't be detected, so switch it on for satellites with a screen.</p>
+                  <p class="satellites-status muted" role="status" aria-live="polite"></p>
+                  <div class="fresh-lines-list satellites-list" aria-label="Satellites"></div>
+                </details>
                 <details class="fresh-lines"><summary>Lines Declan wrote</summary>
                   <p class="fresh-lines-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list" aria-label="Lines Declan wrote"></div>
@@ -2545,6 +2550,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.renderUsuals(response.usuals);
       this.renderThemes(response.themes);
       this.renderHouseInfo(response.house_info);
+      this.renderSatellites(response.satellites);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
       status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
@@ -2703,6 +2709,43 @@ class DeclanTwoNativePanel extends HTMLElement {
       if (field.type === 'checkbox') field.checked = value === true; else field.value = value;
     }
     status.textContent = info.settings.car_battery ? '' : 'No battery sensor yet: Declan can only say whether the car is plugged in and charging.';
+  }
+
+  renderSatellites(rows) {
+    const list = this.shadowRoot.querySelector('.satellites-list');
+    const status = this.shadowRoot.querySelector('.satellites-status');
+    list.replaceChildren();
+    if (!Array.isArray(rows)) { status.textContent = 'Could not ask Home Assistant about the satellites.'; return; }
+    status.textContent = rows.length ? '' : 'No Assist satellites in Home Assistant.';
+    const labels = {audio: 'Play audio', announce: 'Announcements', reply: 'Listen for a reply', screen: 'Show pictures'};
+    for (const row of rows) {
+      const item = document.createElement('form'); item.className = 'fresh-line satellite-row';
+      const name = document.createElement('strong'); name.textContent = row.area || row.name || row.entity_id;
+      item.append(name);
+      const selects = {};
+      for (const [key, label] of Object.entries(labels)) {
+        const wrap = document.createElement('label'); wrap.textContent = label;
+        const select = document.createElement('select');
+        const detected = row.detected[key] ? 'yes' : 'no';
+        for (const [value, text] of [['auto', `Automatic (${detected})`], ['on', 'Yes'], ['off', 'No']]) {
+          const option = document.createElement('option'); option.value = value; option.textContent = text; select.append(option);
+        }
+        select.value = key in row.overrides ? (row.overrides[key] ? 'on' : 'off') : 'auto';
+        selects[key] = select; wrap.append(select); item.append(wrap);
+      }
+      const save = document.createElement('button'); save.type = 'submit'; save.textContent = 'Save';
+      item.append(save);
+      item.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const change = {entity_id: row.entity_id};
+        for (const [key, select] of Object.entries(selects)) change[key] = select.value === 'auto' ? null : select.value === 'on';
+        try {
+          await this._hass.callApi('POST', 'declan_two/household', {save_satellite: change});
+          status.textContent = `Saved ${name.textContent}.`;
+        } catch { status.textContent = `Could not save ${name.textContent}.`; }
+      });
+      list.append(item);
+    }
   }
 
   renderBriefing(info) {

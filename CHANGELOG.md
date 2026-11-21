@@ -4,6 +4,11 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Satellite capability registry (FUT-32, #834).**
+  - Declan knows what each Assist satellite can do: play audio (a media player on its device or in its room), take announcements and listen for a reply (the satellite's ANNOUNCE and START_CONVERSATION features), and show pictures (set in Settings, since HA can't tell).
+  - Settings → Household → Satellites lists them; each capability is Automatic (what HA says), Yes or No.
+  - "What can the satellites do?" / "what can this satellite do?"
+  - The intercom (FUT-25) now skips a satellite that can't take announcements and says so. This is a prerequisite for two-way intercom (FUT-34) and cameras on screens (FUT-36).
 - **Camera questions from Frigate (FUT-41, #834).**
   - "Was someone at the front door?", "is anyone in the garden?", "is a pet in the garden?", "is there a car on the drive?", "when did a car last arrive?"
   - Read-only, from the Frigate integration's own entities: `binary_sensor.<camera or zone>_<object>_occupancy` (there now?) and `image.<camera or zone>_<object>` (time of the last detection). No AI, no extra cost.

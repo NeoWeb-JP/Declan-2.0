@@ -79,7 +79,7 @@ def handle_post(handler, *, services):
         # FUT-27: shopping and to-do lists live in Home Assistant's own to-do lists.
         dispatch_result = _todo(list_request, services)
     elif house_request is not None and (house_result := _house_question(
-            house_request, services, origin_device or satellite)) is not None:
+            house_request, services, satellite or origin_device)) is not None:
         # #834 P2: who's home and other household questions, straight from Home Assistant.
         dispatch_result = house_result
     elif intercom_request is not None and (intercom_result := _intercom(

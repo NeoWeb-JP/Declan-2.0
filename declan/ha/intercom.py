@@ -105,6 +105,16 @@ def resolve(request, rows):
     return (f"the {target}", chosen, message)
 
 
+def _unable_to_announce(connection, targets):
+    """FUT-32: satellites the registry says can't take announcements. Unknown counts as able."""
+    from declan.ha import satellites
+    try:
+        registry = satellites.from_connection(connection)
+    except (OSError, ValueError, TypeError):
+        return []
+    return [row for row in targets if satellites.can(registry, row["entity_id"], "announce") is False]
+
+
 def result(request, connection, *, origin=None, quiet=None):
     if connection is None:
         return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
@@ -127,6 +137,11 @@ def result(request, connection, *, origin=None, quiet=None):
         source = f"Message from the {here['area'].casefold()}: " if here and here["area"] else "Message: "
         spoken = source + message.rstrip(".!?") + "."
         failed = []
+        unable = _unable_to_announce(connection, targets)
+        if unable and len(unable) == len(targets):
+            names = ", ".join(row["area"] or row["entity_id"] for row in unable)
+            return ExecutionResult(f"{names} can't take announcements.", Outcome.UNRESOLVED)
+        targets = [row for row in targets if row not in unable]
         for row in targets:
             if row["state"] in {"unavailable", "unknown"}:
                 failed.append(row["area"] or row["entity_id"])
@@ -144,7 +159,9 @@ def result(request, connection, *, origin=None, quiet=None):
             return ExecutionResult(f"I couldn't reach {', '.join(failed)}.", Outcome.UNAVAILABLE)
         where = "everyone" if label == "everyone" else label
         tail = f" I couldn't reach {', '.join(failed)}." if failed else ""
-        return ExecutionResult(f"Told {where}.{tail}", Outcome.PARTIAL if failed else Outcome.CONFIRMED)
+        if unable:
+            tail += f" {', '.join(row['area'] or row['entity_id'] for row in unable)} can't take announcements."
+        return ExecutionResult(f"Told {where}.{tail}", Outcome.PARTIAL if failed or unable else Outcome.CONFIRMED)
     except HTTPError as error:
         error.close()
         return ExecutionResult("Home Assistant wouldn't list the satellites.", Outcome.UNAVAILABLE)

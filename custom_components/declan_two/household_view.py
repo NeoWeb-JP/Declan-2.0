@@ -1,4 +1,4 @@
-"""Admin-only household settings proxy (FUT-60, FUT-61, FUT-42, FUT-44, FUT-46, FUT-31, FUT-29). Never expose backend tokens to the panel."""
+"""Admin-only household settings proxy (FUT-60, FUT-61, FUT-42, FUT-44, FUT-46, FUT-31, FUT-29, FUT-32). Never expose backend tokens to the panel."""
 import re
 
 import aiohttp
@@ -139,6 +139,33 @@ def valid_house_info(value):
             and isinstance(sources, dict) and set(sources) == HOUSE_INFO_KEYS and set(sources.values()) <= SOURCES)
 
 
+SATELLITE_CAPABILITIES = frozenset({"audio", "announce", "reply", "screen"})
+
+
+def valid_satellite_change(body):
+    """FUT-32: {"save_satellite": {entity_id, audio?, announce?, reply?, screen?}}; null clears an override."""
+    target = body.get("save_satellite") if isinstance(body, dict) and set(body) == {"save_satellite"} else None
+    return (isinstance(target, dict) and isinstance(target.get("entity_id"), str)
+            and bool(re.fullmatch(r"assist_satellite\.[a-z0-9_]{1,80}", target["entity_id"]))
+            and set(target) - {"entity_id"} <= SATELLITE_CAPABILITIES
+            and all(value is None or type(value) is bool for key, value in target.items() if key != "entity_id"))
+
+
+def valid_satellites(value):
+    if value is None:
+        return True
+
+    def flags(item, partial):
+        return (isinstance(item, dict) and (set(item) <= SATELLITE_CAPABILITIES if partial
+                                            else set(item) == SATELLITE_CAPABILITIES)
+                and all(type(flag) is bool for flag in item.values()))
+    return (isinstance(value, list) and len(value) <= 40
+            and all(isinstance(row, dict) and isinstance(row.get("entity_id"), str) and isinstance(row.get("area"), str)
+                    and isinstance(row.get("name"), str) and isinstance(row.get("state"), str)
+                    and flags(row.get("detected"), False) and flags(row.get("capabilities"), False)
+                    and flags(row.get("overrides"), True) for row in value))
+
+
 def valid_whereabouts(value):
     if value is None:
         return True
@@ -199,7 +226,7 @@ class DeclanHouseholdView(HomeAssistantView):
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
         if (valid_delete(body) or valid_forget(body) or valid_usual_change(body) or valid_theme_change(body)
-                or valid_house_info_change(body)):
+                or valid_house_info_change(body) or valid_satellite_change(body)):
             return await self._relay(request, body)
         if not isinstance(body, dict) or set(body) != {"settings"} or not valid_settings(body["settings"], complete=False):
             return web.json_response({"error": "Invalid settings"}, status=400)
@@ -234,6 +261,13 @@ class DeclanHouseholdView(HomeAssistantView):
                             isinstance(step, str) for step in steps):
                         raise ValueError("Invalid response")
                     return web.json_response({"saved": True, "steps": steps}, headers={"Cache-Control": "no-store"})
+                if body is not None and "save_satellite" in body:
+                    overrides = data.get("overrides") if isinstance(data, dict) else None
+                    if data.get("saved") is not True or not isinstance(overrides, dict) or not set(
+                            overrides) <= SATELLITE_CAPABILITIES:
+                        raise ValueError("Invalid response")
+                    return web.json_response({"saved": True, "overrides": overrides},
+                                             headers={"Cache-Control": "no-store"})
                 if body is not None and "save_house_info" in body:
                     if not isinstance(data, dict) or data.get("saved") is not True or not valid_house_info(
                             data.get("house_info")) or data.get("house_info") is None:
@@ -260,11 +294,12 @@ class DeclanHouseholdView(HomeAssistantView):
                         or not valid_whereabouts(data.get("whereabouts"))
                         or not valid_usuals(data.get("usuals"))
                         or not valid_themes(data.get("themes"))
-                        or not valid_house_info(data.get("house_info"))):
+                        or not valid_house_info(data.get("house_info"))
+                        or not valid_satellites(data.get("satellites"))):
                     raise ValueError("Invalid response")
                 remember(hass, data["settings"])
                 payload = {"settings": data["settings"], "sources": sources}
-                for extra in ("generated", "whereabouts", "usuals", "themes", "house_info"):
+                for extra in ("generated", "whereabouts", "usuals", "themes", "house_info", "satellites"):
                     if extra in data:
                         payload[extra] = data[extra]
                 return web.json_response(payload, headers={"Cache-Control": "no-store"})
