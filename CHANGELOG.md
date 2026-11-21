@@ -4,6 +4,12 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Clearer failures (FUT-24, #834).** When a request fails as unavailable or failed, Declan checks what's actually down before saying so:
+  - **Home Assistant not answering:** "Home Assistant isn't answering, boet, so nothing in the house will work until it's back."
+  - **Declan's HA token rejected:** he says so.
+  - **Every Music Assistant player unavailable,** for a music failure: "Music Assistant's having a tantrum, my bru. The speakers aren't answering, but your lights still work."
+
+  Otherwise the original, specific reply stands. A check that can't run blames nothing, and checks are cached for 30 seconds.
 - **Intercom (FUT-25, #834).**
   - "Tell the kitchen dinner's ready", "announce to everyone: leaving in five minutes", "announce upstairs: bedtime".
   - The message is spoken on that room's satellites (or every satellite except yours, or the ones on HA's upstairs/downstairs floors) with the pre-announce chime: "Message from the lounge: dinner's ready."
