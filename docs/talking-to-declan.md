@@ -76,6 +76,12 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - About 15 seconds: today's weather, the bins if they go out today or tomorrow, today's calendar and the car. Anything missing is skipped
 - Also said after Good Morning (switch it off in Settings). Guests only get the weather and bins
 
+**Cameras** (read from Frigate; nothing is sent to the AI; guests just get cheek):
+- "Was someone at the front door?", "has anyone been at the door today?"
+- "Is anyone in the garden?", "is a pet in the garden?", "is there a car on the drive?"
+- "When did a car last arrive?", "when was the last visitor?"
+- Unknown people are just "someone": no faces or names. If a camera is offline, Declan says so rather than "nobody"
+
 **Sunrise wake-up** (ask from the bedroom satellite; one per room):
 - "Wake me at 6:30 with the sunrise": the dimmable lights brighten over the 15 minutes before 6:30, warming to daylight, then Declan says good morning and quiet music fades in
 - Add "on weekdays", "at weekends" or "every day"; "... and play Afrikaans" picks the music; "... without music"

@@ -4,6 +4,12 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Camera questions from Frigate (FUT-41, #834).**
+  - "Was someone at the front door?", "is anyone in the garden?", "is a pet in the garden?", "is there a car on the drive?", "when did a car last arrive?"
+  - Read-only, from the Frigate integration's own entities: `binary_sensor.<camera or zone>_<object>_occupancy` (there now?) and `image.<camera or zone>_<object>` (time of the last detection). No AI, no extra cost.
+  - Answers say which camera and roughly when ("about 25 minutes ago", "yesterday at 18:30"). Unknown people are "someone": no faces or names. "Camera offline" and "nothing seen" get different answers.
+  - Spoken places match cameras and zones loosely ("the door" finds `front_door`). Pets means dogs or cats.
+  - Hidden in Guest mode.
 - **Morning briefing (FUT-29, #834).**
   - "What's my day look like?", "morning briefing", "brief me": today's weather (high, low, chance of rain), the bins if a collection is today or tomorrow, today's calendar (three events, then "and N more") and the car's charge.
   - Capped at about 45 words (roughly 15 seconds). A missing, empty or unanswering source is skipped silently.
