@@ -1,4 +1,4 @@
-"""Admin-only household settings proxy (FUT-60, FUT-61). Never expose backend tokens to the panel."""
+"""Admin-only household settings proxy (FUT-60, FUT-61, FUT-42, FUT-44). Never expose backend tokens to the panel."""
 import aiohttp
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -36,6 +36,36 @@ def valid_delete(body):
 def valid_forget(body):
     return (isinstance(body, dict) and set(body) == {"forget_item"} and isinstance(body["forget_item"], str)
             and 0 < len(body["forget_item"]) <= 80)
+
+
+USUAL_WINDOWS = frozenset({"morning", "afternoon", "evening", "night", "any"})
+
+
+def _usual_room(value):
+    return isinstance(value, str) and 0 < len(value) <= 40
+
+
+def valid_usual_change(body):
+    """FUT-44: {"save_usual": {room, window, steps}} or {"forget_usual": {room, window}}."""
+    if not isinstance(body, dict) or len(body) != 1 or not set(body) <= {"save_usual", "forget_usual"}:
+        return False
+    target = next(iter(body.values()))
+    if not isinstance(target, dict) or not _usual_room(target.get("room")) or target.get("window") not in USUAL_WINDOWS:
+        return False
+    if "forget_usual" in body:
+        return set(target) == {"room", "window"}
+    steps = target.get("steps")
+    return (set(target) == {"room", "window", "steps"} and isinstance(steps, list) and 0 < len(steps) <= 5
+            and all(isinstance(step, str) and 0 < len(step) <= 80 for step in steps))
+
+
+def valid_usuals(value):
+    if value is None:
+        return True
+    return (isinstance(value, list) and len(value) <= 100
+            and all(isinstance(row, dict) and _usual_room(row.get("room")) and row.get("window") in USUAL_WINDOWS
+                    and isinstance(row.get("steps"), list) and all(isinstance(step, str) for step in row["steps"])
+                    and isinstance(row.get("saved_at"), (int, float)) for row in value))
 
 
 def valid_whereabouts(value):
@@ -97,7 +127,7 @@ class DeclanHouseholdView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
-        if valid_delete(body) or valid_forget(body):
+        if valid_delete(body) or valid_forget(body) or valid_usual_change(body):
             return await self._relay(request, body)
         if not isinstance(body, dict) or set(body) != {"settings"} or not valid_settings(body["settings"], complete=False):
             return web.json_response({"error": "Invalid settings"}, status=400)
@@ -126,6 +156,16 @@ class DeclanHouseholdView(HomeAssistantView):
                     if not isinstance(data, dict) or type(data.get("forgotten")) is not bool:
                         raise ValueError("Invalid response")
                     return web.json_response({"forgotten": data["forgotten"]}, headers={"Cache-Control": "no-store"})
+                if body is not None and "save_usual" in body:
+                    steps = data.get("steps") if isinstance(data, dict) else None
+                    if data.get("saved") is not True or not isinstance(steps, list) or not all(
+                            isinstance(step, str) for step in steps):
+                        raise ValueError("Invalid response")
+                    return web.json_response({"saved": True, "steps": steps}, headers={"Cache-Control": "no-store"})
+                if body is not None and "forget_usual" in body:
+                    if not isinstance(data, dict) or type(data.get("forgotten")) is not bool:
+                        raise ValueError("Invalid response")
+                    return web.json_response({"forgotten": data["forgotten"]}, headers={"Cache-Control": "no-store"})
                 if body is not None and "delete_line" in body:
                     if not isinstance(data, dict) or type(data.get("deleted")) is not bool:
                         raise ValueError("Invalid response")
@@ -134,11 +174,12 @@ class DeclanHouseholdView(HomeAssistantView):
                 if (not valid_settings(data.get("settings")) or not isinstance(sources, dict)
                         or set(sources) != KEYS or not set(sources.values()) <= SOURCES
                         or not valid_generated(data.get("generated"))
-                        or not valid_whereabouts(data.get("whereabouts"))):
+                        or not valid_whereabouts(data.get("whereabouts"))
+                        or not valid_usuals(data.get("usuals"))):
                     raise ValueError("Invalid response")
                 remember(hass, data["settings"])
                 payload = {"settings": data["settings"], "sources": sources}
-                for extra in ("generated", "whereabouts"):
+                for extra in ("generated", "whereabouts", "usuals"):
                     if extra in data:
                         payload[extra] = data[extra]
                 return web.json_response(payload, headers={"Cache-Control": "no-store"})

@@ -76,6 +76,11 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
             payload["whereabouts"] = whereabouts.listing()
         except (OSError, sqlite3.Error):
             payload["whereabouts"] = None
+        from declan.turn import usual
+        try:
+            payload["usuals"] = usual.listing()
+        except (OSError, ValueError, sqlite3.Error):
+            payload["usuals"] = None
         handler.send_json(200, payload)
     elif path == "/api/settings/speaker":
         from declan.voice import speaker_settings

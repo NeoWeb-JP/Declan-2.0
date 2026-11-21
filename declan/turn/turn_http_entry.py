@@ -46,8 +46,10 @@ def handle_post(handler, *, services):
     from declan.turn import christmas, whereabouts
     christmas_request = christmas.match(effective_message) if help_request is None else None
     where_request = whereabouts.match(effective_message) if help_request is None and christmas_request is None else None
+    from declan.turn import usual
+    usual_request = usual.match(effective_message) if help_request is None else None
     from declan.turn import braai
-    braai_request = braai.match(effective_message) if help_request is None else None
+    braai_request = braai.match(effective_message) if help_request is None and usual_request is None else None
     if braai_request is None and (rewritten := braai.how_long(effective_message)):
         phrase = rewritten  # FUT-43: "how long on the chops?" asks the chops timer
     from declan.ha import intercom, todo_lists
@@ -59,6 +61,9 @@ def handle_post(handler, *, services):
     if help_request is not None:
         dispatch_result = _local_help(handler, body, help_request, origin_device=origin_device,
                                       satellite=satellite, services=services, conversation_on=agent_on)
+    elif usual_request is not None:
+        # FUT-44: "the usual" for the room that heard you and the time of day.
+        dispatch_result = _usual(usual_request, dispatch, services, origin_device or satellite)
     elif braai_request is not None:
         # FUT-43: braai time = Braai music, garden lights and a rain check, with braai sass.
         from declan.turn import conversation_entry
@@ -188,6 +193,42 @@ def _whereabouts(request, services):
         return None
     from declan.ha import household_language
     return conversation_entry._result_factory(household_language.render(reply), Outcome.CHAT_ANSWER)
+
+
+def _here(services, origin):
+    """The Home Assistant area of the satellite or device that heard you, or None."""
+    if not origin:
+        return None
+    try:
+        areas = services.read_ha_areas(services.ha_device_connection(), origin)
+    except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
+        LOGGER.warning("Could not read the satellite's room (%s)", type(error).__name__)
+        return None
+    return next(iter(areas), None) if isinstance(areas, dict) else None
+
+
+def _usual(request, dispatch, services, origin):
+    """FUT-44: run, set, ask about or forget the usual for a room."""
+    from declan.core.execution_results import Outcome
+    from declan.turn import conversation_entry, usual
+    here = _here(services, origin)
+    try:
+        if request[0] == "run":
+            reply, outcome = usual.run(here, dispatch)
+            return conversation_entry._result_factory(reply, outcome)
+        try:
+            guest = services.read_guest_mode() != "off"
+        except (OSError, ValueError, TypeError, AttributeError):
+            guest = True  # unknown Guest Mode can't change the household's usuals
+        reply = usual.answer(request, here=here, guest=guest)
+    except ValueError as error:
+        return conversation_entry._result_factory(str(error), Outcome.UNRESOLVED)
+    except (OSError, sqlite3.Error) as error:
+        LOGGER.warning("The usual is unavailable (%s)", type(error).__name__)
+        return conversation_entry._result_factory("I couldn't check the usual just now.", Outcome.FAILED)
+    outcome = Outcome.CONFIRMED if request[0] in {"set", "forget"} and not reply.startswith(
+        ("Nice try", "Which room", "There wasn't")) else Outcome.CHAT_ANSWER
+    return conversation_entry._result_factory(reply, outcome)
 
 
 def _christmas(request):

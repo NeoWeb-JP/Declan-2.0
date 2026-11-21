@@ -4,6 +4,11 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **"The usual" (FUT-44, #834).**
+  - "The usual" runs the usual for the room that heard you and the time of day (morning, afternoon, evening, night), or that room's "any time" usual.
+  - Set it by voice ("my usual for the lounge in the evening is lamps to 40% and play chill music") or in Settings → Household → The usual, where you can also edit and forget them.
+  - Each step is an ordinary command said in that room, so a failed step is reported and the rest still run. No usual yet: "You haven't told me the usual for the lounge yet."
+  - Per room, not per person. Guests can ask for the usual but can't set or forget one. Stored locally; nothing goes to the AI except the sass top-ups.
 - **Braai master (FUT-43, #834).**
   - "Braai time" plays the Braai playlist in the room you're in, turns on the garden lights and checks for rain, opening with braai sass: your three lines plus the approved extras, rested and topped up like the rest.
   - Each part is an ordinary command, so a failed part is reported and the rest still runs.
