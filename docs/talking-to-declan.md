@@ -43,6 +43,11 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "Which lights are in here?" or "what lights are in the kitchen?"
 - "What routines are there?", "what rooms do you know?", "where can you play music?"
 
+**Reminders** (ring on the satellite you asked, every 30 seconds until you say "stop"):
+- "Remind me at six to put the bins out", "remind me in 20 minutes to check the oven"
+- "Remind Edd tomorrow at 8 to call the plumber" (it rings in the room you asked from)
+- "What reminders do I have?", "cancel the bins reminder", "cancel my reminders"
+
 **Shopping and to-do lists** (Home Assistant's own lists, so they're on your phones too):
 - "Add milk and eggs to the shopping list", "put bread on the list"
 - "What's on the shopping list?", "what do we need?"

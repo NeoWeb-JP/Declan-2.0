@@ -156,6 +156,9 @@ def timer_name(text):
 
 
 def timer_label(name):
+    from declan.timers import reminders
+    if reminders.is_reminder(name):
+        return reminders.label(name)
     return name if name.endswith(" timer") else name + " timer"
 
 
@@ -183,6 +186,9 @@ def matches(phrase):
     """Recognise timer requests; plain "stop" only while an alarm is ringing."""
     if phrase in ALARM_STOP_PHRASES:
         return ringing()
+    from declan.timers import reminders
+    if reminders.parse(phrase) is not None:  # FUT-26
+        return True
     creation_text = phrase.rpartition(" in ")[0] if phrase.startswith("set ") and " in " in phrase else phrase
     creation = re.fullmatch(r"set (?:a |an )?(?:(.+?) )?timer for (.+)", creation_text)
     duration_first = re.fullmatch(r"set (?:a |an )?(.+?) timer", creation_text) if not creation else None
@@ -197,6 +203,10 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
     """Typed timer provider outcome; None means the phrase did not match."""
     if phrase in ALARM_STOP_PHRASES:
         return _silence(satellite)
+    from declan.timers import reminders
+    reminder = reminders.parse(phrase)
+    if reminder is not None:
+        return _reminder_result(reminder, opener, satellite, device, browser)
     creation_text = phrase
     destination = None
     if phrase.startswith("set "):
@@ -301,6 +311,66 @@ def handle_result(phrase, opener, *, satellite=None, device=None, browser=False)
         return ExecutionResult("I couldn't complete that timer request.", Outcome.UNAVAILABLE)
 
 
+def _when(deadline, now):
+    from datetime import datetime
+    moment, today = datetime.fromtimestamp(deadline).astimezone(), datetime.fromtimestamp(now).astimezone()
+    if deadline - now < 3600:
+        return "in " + format_duration(max(60, round((deadline - now) / 60) * 60))
+    day = "" if moment.date() == today.date() else ("tomorrow " if (moment.date() - today.date()).days == 1
+                                                    else f"on {moment:%A} ")
+    return f"{day}at {moment:%H:%M}"
+
+
+def _reminder_result(request, opener, satellite, device, browser):
+    """FUT-26: set, list or cancel reminders, stored as timers that speak their message."""
+    from declan.timers import reminders
+    now = time()
+    try:
+        if request[0] == "set":
+            _, name, deadline = request
+            if deadline is None:
+                return ExecutionResult("When should I remind you? Say \"at six\" or \"in 20 minutes\".", Outcome.UNRESOLVED)
+            if deadline - now > reminders.MAX_SECONDS:
+                return ExecutionResult("I can only remind you up to a week ahead.", Outcome.UNRESOLVED)
+            output = resolve_output(opener, satellite, device, browser=browser)
+            if output is None:
+                return ExecutionResult("I couldn't tell which room to remind you in. Ask me from a satellite.", Outcome.UNAVAILABLE)
+            with database() as db:
+                db.execute("BEGIN IMMEDIATE")
+                if db.execute("SELECT count(*) FROM timers").fetchone()[0] >= 32:
+                    return ExecutionResult("There are already 32 timers and reminders. Cancel one first.", Outcome.UNAVAILABLE)
+                db.execute("INSERT INTO timers(name,satellite,room,deadline,next_alarm) VALUES (?,?,?,?,?) "
+                           "ON CONFLICT(name COLLATE NOCASE, room COLLATE NOCASE) DO UPDATE SET deadline = excluded.deadline, "
+                           "next_alarm = excluded.next_alarm, satellite = excluded.satellite, last_alarm_ok = NULL",
+                           (name, *output, deadline, deadline))
+            return ExecutionResult(f"I'll remind you {_when(deadline, now)}: {name.removeprefix(reminders.PREFIX)}.",
+                                   Outcome.TIMER_SET)
+        with database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = [row for row in db.execute("SELECT * FROM timers ORDER BY deadline, id").fetchall()
+                    if reminders.is_reminder(row["name"])]
+            if request[0] == "list":
+                upcoming = [row for row in rows if row["deadline"] > now]
+                if not upcoming:
+                    return ExecutionResult("No reminders. You'll have to remember things yourself.", Outcome.TIMER_STATUS)
+                parts = [f"{row['name'].removeprefix(reminders.PREFIX)} {_when(row['deadline'], now)}" for row in upcoming[:6]]
+                count = f"{len(upcoming)} reminders" if len(upcoming) > 1 else "One reminder"
+                return ExecutionResult(f"{count}: " + "; ".join(parts) + ".", Outcome.TIMER_STATUS)
+            target = request[1]
+            chosen = rows if target is None else [row for row in rows if target.casefold() in row["name"].casefold()]
+            if not chosen:
+                return ExecutionResult("I couldn't find that reminder." if target else "There are no reminders.", Outcome.NO_TIMER)
+            if target is not None and len(chosen) > 1:
+                options = "; ".join(row["name"].removeprefix(reminders.PREFIX) for row in chosen)
+                return ExecutionResult(f"Which reminder? {options}.", Outcome.UNRESOLVED)
+            db.executemany("DELETE FROM timers WHERE id = ?", [(row["id"],) for row in chosen])
+        if target is None:
+            return ExecutionResult(f"Cancelled {len(chosen)} reminder{'s' if len(chosen) != 1 else ''}.", Outcome.TIMER_CANCELLED)
+        return ExecutionResult(f"Cancelled the {reminders.label(chosen[0]['name'])}.", Outcome.TIMER_CANCELLED)
+    except (OSError, ValueError, sqlite3.Error):
+        return ExecutionResult("I couldn't complete that reminder request.", Outcome.UNAVAILABLE)
+
+
 def _silence(satellite):
     """Silence ringing alarms: this satellite's first, otherwise every ringing one."""
     try:
@@ -322,6 +392,18 @@ def stop_due(satellite):
     """Acknowledge expired alarms on one satellite without cancelling running timers."""
     with database() as db:
         db.execute("DELETE FROM timers WHERE satellite = ? AND deadline <= ?", (satellite, time()))
+
+
+def _notify_phones(opener, message):
+    """Optional: DECLAN_REMINDER_NOTIFY lists notify services (notify.mobile_app_x, ...)."""
+    for service in os.environ.get("DECLAN_REMINDER_NOTIFY", "").split(","):
+        service = service.strip()
+        if re.fullmatch(r"notify\.[a-z0-9_]{1,80}", service):
+            try:
+                ha_json(opener, "/api/services/notify/" + service.split(".", 1)[1],
+                        data={"title": "Declan", "message": message}, timeout=5)
+            except (OSError, ValueError):
+                pass
 
 
 def ring_due(opener):
@@ -346,13 +428,21 @@ def ring_due(opener):
     media = os.environ.get("DECLAN_TIMER_ALARM_MEDIA_ID", "").strip()
     target = {"entity_id": timer["satellite"]}
     try:
-        if media.startswith("media-source://"):
+        from declan.timers import reminders
+        if media.startswith("media-source://") and not reminders.is_reminder(timer["name"]):
             try:
                 ha_json(opener, "/api/services/assist_satellite/announce",
                         data={**target, "media_id": media, "preannounce": False}, timeout=7)
             except ValueError:
                 media = ""
-        if not media.startswith("media-source://"):
+        if reminders.is_reminder(timer["name"]):
+            # FUT-26: a reminder speaks its message instead of the alarm sound.
+            message = reminders.spoken(timer["name"])
+            ha_json(opener, "/api/services/assist_satellite/announce",
+                    data={**target, "message": message, "preannounce": True}, timeout=7)
+            if timer["last_alarm_ok"] is None:
+                _notify_phones(opener, message)
+        elif not media.startswith("media-source://"):
             ha_json(opener, "/api/services/assist_satellite/announce",
                     data={**target, "message": f"Your {timer_label(timer['name'])} is up.", "preannounce": True},
                     timeout=7)
