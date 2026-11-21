@@ -48,6 +48,12 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - Timers in one go: "boerewors 12 minutes, chops 8 minutes"; then "how long on the chops?"
 - "Braai's over" (the music keeps playing until you stop it)
 
+**The usual** (per room and time of day; morning 5am, afternoon noon, evening 5pm, night 10pm):
+- "The usual" (or "the usual, Declan", "same as usual"): runs that room's usual for now, or its "any time" usual
+- "My usual for the lounge in the evening is lamps to 40% and play chill music"; "the usual for here is kitchen lights on" (no time = any time)
+- "What's the usual?", "what are the usuals?", "forget the usual for the lounge in the evening"
+- Also in Settings → Household → The usual. Guests can ask for it but not change it.
+
 **Intercom** (spoken on the satellites, starting "Message from the lounge: …"; not during quiet hours, 23:00 to 07:00):
 - "Tell the kitchen dinner's ready", "tell the master bedroom that breakfast is ready"
 - "Announce to everyone: leaving in five minutes", "tell everyone the taxi is here"

@@ -83,6 +83,22 @@ def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,
                 return
             handler.send_json(200, {"forgotten": removed is not None})
             return
+        if isinstance(body, dict) and len(body) == 1 and set(body) <= {"save_usual", "forget_usual"}:
+            # FUT-44: add, change or forget "the usual" for a room in Settings -> Household.
+            from declan.turn import usual
+            target = next(iter(body.values()))
+            target = target if isinstance(target, dict) else {}
+            try:
+                if "save_usual" in body:
+                    steps = usual.save(target.get("room"), target.get("window"), target.get("steps"))
+                    handler.send_json(200, {"saved": True, "steps": steps})
+                else:
+                    handler.send_json(200, {"forgotten": usual.forget(target.get("room"), target.get("window"))})
+            except ValueError as error:
+                handler.send_json(400, {"error": str(error)})
+            except (OSError, sqlite3.Error):
+                handler.send_json(503, {"error": "Could not change the usual."})
+            return
         if not isinstance(body, dict) or set(body) != {"settings"}:
             handler.send_json(400, {"error": "Send household settings."})
             return

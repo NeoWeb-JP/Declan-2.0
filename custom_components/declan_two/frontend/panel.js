@@ -532,6 +532,23 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <p class="whereabouts-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list whereabouts-list" aria-label="Where things are"></div>
                 </details>
+                <details class="usuals"><summary>The usual</summary>
+                  <p class="muted">Say "the usual" and Declan runs that room's usual for the time of day, or its "any time" usual. Each step is something you'd say to Declan, like "lamps to 40%" or "play chill music". You can also say "my usual for the lounge in the evening is lamps to 40% and play chill music". Guests can ask for the usual but not change it.</p>
+                  <form class="usual-form">
+                    <label>Room<input name="room" type="text" maxlength="40" autocomplete="off" required placeholder="lounge"></label>
+                    <label>When<select name="window">
+                      <option value="any">Any time</option>
+                      <option value="morning">Morning (5am to noon)</option>
+                      <option value="afternoon">Afternoon (noon to 5pm)</option>
+                      <option value="evening">Evening (5pm to 10pm)</option>
+                      <option value="night">Night (10pm to 5am)</option>
+                    </select></label>
+                    <label>Steps, one per line (up to 5)<textarea name="steps" rows="3" maxlength="420" required placeholder="lamps to 40%&#10;play chill music"></textarea></label>
+                    <button type="submit">Save the usual</button>
+                  </form>
+                  <p class="usuals-status muted" role="status" aria-live="polite"></p>
+                  <div class="fresh-lines-list usuals-list" aria-label="The usual"></div>
+                </details>
                 <details class="fresh-lines"><summary>Lines Declan wrote</summary>
                   <p class="fresh-lines-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list" aria-label="Lines Declan wrote"></div>
@@ -623,6 +640,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
       this.bindPanelEvent('.household-form', 'submit', event => {
         event.preventDefault(); void this.saveHousehold();
+      });
+      this.bindPanelEvent('.usual-form', 'submit', event => {
+        event.preventDefault(); void this.saveUsual();
       });
       this.bindPanelEvent('.command-style-form', 'submit', event => {
         event.preventDefault(); void this.saveCommandStyle();
@@ -2478,6 +2498,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       form.elements.namedItem('wifi_password').value = response.settings.wifi_password || '';
       this.renderFreshLines(response.generated);
       this.renderWhereabouts(response.whereabouts);
+      this.renderUsuals(response.usuals);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
       status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
@@ -2550,6 +2571,58 @@ class DeclanTwoNativePanel extends HTMLElement {
       });
       item.append(text, remove);
       list.append(item);
+    }
+  }
+
+  renderUsuals(rows) {
+    const list = this.shadowRoot.querySelector('.usuals-list');
+    const status = this.shadowRoot.querySelector('.usuals-status');
+    const labels = {any: 'any time', morning: 'morning', afternoon: 'afternoon', evening: 'evening', night: 'night'};
+    list.replaceChildren();
+    if (!Array.isArray(rows)) { status.textContent = 'Could not read the usuals.'; return; }
+    status.textContent = rows.length ? `${rows.length} usual${rows.length === 1 ? '' : 's'}.` : 'None yet.';
+    for (const row of rows) {
+      const item = document.createElement('div'); item.className = 'fresh-line';
+      const text = document.createElement('span');
+      text.textContent = `${row.room}, ${labels[row.window] || row.window}: ${row.steps.join(', ')}`;
+      const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = 'Edit';
+      edit.addEventListener('click', () => {
+        const form = this.shadowRoot.querySelector('.usual-form');
+        form.elements.namedItem('room').value = row.room;
+        form.elements.namedItem('window').value = row.window;
+        form.elements.namedItem('steps').value = row.steps.join('\n');
+        form.elements.namedItem('room').focus();
+      });
+      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Forget';
+      remove.addEventListener('click', async () => {
+        try {
+          await this._hass.callApi('POST', 'declan_two/household', {forget_usual: {room: row.room, window: row.window}});
+          item.remove(); status.textContent = `Forgot the usual for the ${row.room}.`;
+        } catch { status.textContent = 'Could not forget that usual.'; }
+      });
+      item.append(text, edit, remove);
+      list.append(item);
+    }
+  }
+
+  async saveUsual() {
+    const form = this.shadowRoot.querySelector('.usual-form');
+    const status = this.shadowRoot.querySelector('.usuals-status');
+    const room = form.elements.namedItem('room').value.trim().toLowerCase();
+    const when = form.elements.namedItem('window').value;
+    const steps = form.elements.namedItem('steps').value.split('\n').map((step) => step.trim()).filter(Boolean);
+    if (!room || !steps.length) { status.textContent = 'Enter a room and at least one step.'; return; }
+    if (steps.length > 5 || steps.some((step) => step.length > 80)) {
+      status.textContent = 'Up to 5 steps, each under 80 characters.'; return;
+    }
+    try {
+      await this._hass.callApi('POST', 'declan_two/household', {save_usual: {room, window: when, steps}});
+      form.reset();
+      const response = await this._hass.callApi('GET', 'declan_two/household');
+      this.renderUsuals(response.usuals);
+      status.textContent = `Saved the usual for the ${room}.`;
+    } catch {
+      status.textContent = 'Could not save that usual. Check each step is short and the room name is simple.';
     }
   }
 
