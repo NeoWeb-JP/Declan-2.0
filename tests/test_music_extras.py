@@ -38,7 +38,8 @@ class Base(unittest.TestCase):
     def run_command(self, phrase, origin="dev-k", **kwargs):
         command = music_extras.parse(phrase)
         assert command is not None, phrase
-        reader = lambda connection: ha_inventory.InventoryResult(tuple(self.inventory))
+        def reader(connection):
+            return ha_inventory.InventoryResult(tuple(self.inventory))
         return music_extras.result(command, ("http://ha", {}, None), reader, origin=origin, **kwargs)
 
 
@@ -146,7 +147,10 @@ class SettingsTests(Base):
         from declan.music import media_settings_post
         self.run_command("don't play this artist again")
         handler = SimpleNamespace(path="/api/settings/music", sent=[])
-        handler.send_json = lambda status, payload: handler.sent.append((status, payload))
+        def send_json(status, payload):
+            handler.sent.append((status, payload))
+
+        handler.send_json = send_json
         settings_read_routes.dispatch(handler, voicepipeline=None, voice_profiles=None, diagnostics=None,
                                       history=None, ai_budget=None, ai_settings=None, ai_credentials=None,
                                       spotify_playlists=None)
