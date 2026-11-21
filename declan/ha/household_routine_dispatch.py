@@ -83,7 +83,7 @@ def guest_assignment_result(operation, connection, *, entities, sass, request_fa
         request("/api/services/input_boolean/turn_on", {"entity_id": guest_mode_entity})
         if read_state(guest_mode_entity) != "on":
             return ExecutionResult("I updated the guest register, but couldn't verify Guest Mode is on.", Outcome.PARTIAL)
-        return ExecutionResult(f"{names} are in charge. Guest Mode is on.", Outcome.CONFIRMED)
+        return ExecutionResult(sass(f"{names} are in charge. Guest Mode is on.", "guest_on", "off"), Outcome.CONFIRMED)
 
     if operation == "clear":
         request("/api/services/input_text/set_value", {"entity_id": guest_register_entity, "value": ""})

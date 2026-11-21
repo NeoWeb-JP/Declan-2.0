@@ -54,6 +54,14 @@ def dispatch(phrase, *, source, origin_device, satellite, action_results,
              scope, last_lights, last_device, last_information, services,
              split_compound=True):
     if split_compound:
+        from declan.timers.timers import duration_seconds
+        timer_commands = compound_commands.split_timers(phrase, duration_seconds=duration_seconds)
+        if timer_commands:
+            return _dispatch_many(
+                timer_commands, source=source, origin_device=origin_device, satellite=satellite,
+                action_results=action_results, scope=scope, last_lights=last_lights,
+                last_device=last_device, last_information=last_information, services=services,
+            )
         split = compound_commands.split_lighting_and_music(
             phrase, parse_music=music.parse,
             is_lighting=lambda text: lighting_intents.matches(text, services.parse_light_command),
@@ -174,6 +182,23 @@ def dispatch(phrase, *, source, origin_device, satellite, action_results,
     return DispatchResult(routine_reply, outcome, routine_status, routine_turn,
                           routine_voice_result, lighting_context, information_context,
                           status_target, light_result)
+
+
+def _dispatch_many(commands, **turn):
+    """Several independent commands (FUT-59 cooking timers), each with its own reply, in order."""
+    results = [dispatch(command, split_compound=False, **turn) for command in commands]
+    reply, outcome = results[0].reply, results[0].outcome
+    for result in results[1:]:
+        reply = compound_commands.combined_reply(reply, result.reply)
+        outcome = compound_commands.combined_outcome(outcome, result.outcome)
+
+    def pick(field):
+        return next((getattr(result, field) for result in results if getattr(result, field) is not None), None)
+
+    return DispatchResult(
+        reply, outcome, pick("routine_status"), pick("routine_turn"), pick("routine_voice_result"),
+        pick("lighting_context"), pick("information_context"), pick("status_target"), pick("light_result"),
+    )
 
 
 def _dispatch_compound(split, **turn):

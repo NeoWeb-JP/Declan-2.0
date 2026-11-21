@@ -43,6 +43,10 @@ _RANDOM = SystemRandom()
 _RUNNING: set[str] = set()
 _RUNNING_LOCK = threading.Lock()
 _DB_LOCK = threading.Lock()
+# Lines picked in the last few seconds, so a reply is never decorated twice
+# (generated and Christmas lines aren't in the built-in lists decorate checks).
+_RECENT: list[tuple[float, str]] = []
+_RECENT_SECONDS = 30
 
 # Words that would make a line claim something happened, or report a value it
 # can't know. Sass is appended to a reply that already says what happened.
@@ -65,6 +69,7 @@ TOPICS = {
     "good_night": "saying good night", "night": "starting the bedtime routine",
     "greeting": "greeting someone who said hello",
     "guest_cleared": "guest mode has just been switched off",
+    "guest_on": "guests have just been put in charge of the house",
     "guest_inactive": "someone asked to end guest mode when it wasn't on",
     "lights_off": "after turning the lights off", "lights_on": "after turning the lights on",
     "lights_status": "after saying which lights are on",
@@ -161,6 +166,7 @@ def pick(key, lines, *, topic=None, polite=False, random=None, now=None, path=No
                 chosen = random.choice([line for line in pool if last.get(line, 0) == oldest])  # nosec B311 - line variety, not security randomness
             db.execute("INSERT INTO used VALUES (?, ?) ON CONFLICT(line) DO UPDATE SET last_used = ?",
                        (chosen, now, now))
+            _remember(chosen)
             low = len(rested) - 1 < LOW_WATER
     except (sqlite3.Error, OSError, ValueError) as error:
         LOGGER.warning("Line freshness unavailable (%s); picking at random", type(error).__name__)
@@ -168,6 +174,20 @@ def pick(key, lines, *, topic=None, polite=False, random=None, now=None, path=No
     if low and fresh and topic:
         (start or _start_top_up)(key, topic, pool, polite, path)
     return chosen
+
+
+def _remember(line):
+    clock = time()
+    with _RUNNING_LOCK:
+        _RECENT[:] = [(at, text) for at, text in _RECENT[-50:] if clock - at < _RECENT_SECONDS]
+        _RECENT.append((clock, line))
+
+
+def recently_picked():
+    """Lines picked in the last few seconds (any category)."""
+    clock = time()
+    with _RUNNING_LOCK:
+        return [text for at, text in _RECENT if clock - at < _RECENT_SECONDS]
 
 
 def _start_top_up(key, topic, examples, polite, path):

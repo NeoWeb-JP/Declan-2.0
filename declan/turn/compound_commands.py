@@ -84,3 +84,60 @@ def combined_outcome(first, second):
 def combined_reply(first, second):
     parts = [part.strip() for part in (first, second) if isinstance(part, str) and part.strip()]
     return " ".join(parts) if parts else None
+
+
+# FUT-59: several cooking timers in one sentence ("set a turkey timer for 3 hours
+# and a roast potatoes timer for 50 minutes", "turkey 3 hours, roast potatoes 50
+# minutes"). Only split when every piece is a named timer with a valid duration.
+_TIMER_LEAD = re.compile(r"^(?:(?:please )?(?:set|start) (?:(?:the|some|two|three|four) )?(?:timers?|alarms?)?\s*(?:for|:)?\s*|"
+                         r"timers?\s*(?:for|:)\s*|set\s+)")
+_TIMER_JOIN = re.compile(r"\s*,\s*(?:and\s+)?|\s+and\s+|\s*;\s*")
+_DURATION = r"(?P<duration>(?:(?:a|an|one|half an?)\s+)?[\w -]+?\s+(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)(?:\s+and\s+[\w -]+?\s+(?:minutes?|mins?|seconds?|secs?))?)"
+_TIMER_FORMS = (
+    re.compile(rf"(?:(?:a|an|the)\s+)?(?P<name>[a-z][a-z' ]{{0,40}}?)\s+timer\s+for\s+{_DURATION}"),
+    re.compile(rf"(?:(?:a|an)\s+)?timer\s+for\s+{_DURATION}\s+(?:for|called|on)\s+(?:the\s+)?(?P<name>[a-z][a-z' ]{{0,40}})"),
+    re.compile(rf"{_DURATION}\s+(?:for|on)\s+(?:the\s+)?(?P<name>[a-z][a-z' ]{{0,40}})"),
+)
+_NAME = re.compile(r"(?:the\s+)?([a-z][a-z' ]{0,40})")
+
+
+def _timer_piece(text, duration_seconds):
+    def usable(name, duration):
+        name = name.strip()
+        return (name and not name.startswith(("timer", "a timer")) and duration_seconds(name) is None
+                and duration_seconds(duration) is not None)
+    for form in _TIMER_FORMS:
+        found = form.fullmatch(text)
+        if found and usable(found["name"], found["duration"]):
+            return found["name"].strip(), found["duration"].strip()
+    # "turkey 3 hours", "roast potatoes for 50 minutes": try each split point.
+    words = text.split()
+    for cut in range(1, len(words)):
+        name, duration = " ".join(words[:cut]), " ".join(words[cut:])
+        duration = duration.removeprefix("for ")
+        named = _NAME.fullmatch(name)
+        if named and usable(named[1], duration):
+            return named[1].strip(), duration
+    return None
+
+
+def split_timers(phrase, *, duration_seconds):
+    """Return one "set a <name> timer for <duration>" command per timer, or None."""
+    if not isinstance(phrase, str) or len(phrase) > 512 or not re.search(r"\b(?:hours?|minutes?|mins?|seconds?|secs?|hrs?)\b", phrase):
+        return None
+    text = _TIMER_LEAD.sub("", phrase.strip().casefold())
+    pieces = [piece.strip() for piece in _TIMER_JOIN.split(text) if piece.strip()]
+    timers: list[tuple[str, str]] = []
+    for piece in pieces:
+        parsed = _timer_piece(piece, duration_seconds)
+        if parsed:
+            timers.append(parsed)
+            continue
+        # "1 hour and 30 minutes" was split at its "and": rejoin it to the previous timer.
+        if timers and duration_seconds(timers[-1][1] + " and " + piece) is not None:
+            timers[-1] = (timers[-1][0], timers[-1][1] + " and " + piece)
+            continue
+        return None
+    if len(timers) < 2 or len(timers) > 6:
+        return None
+    return [f"set a {name} timer for {duration}" for name, duration in timers]

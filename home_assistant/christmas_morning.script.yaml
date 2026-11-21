@@ -1,0 +1,56 @@
+# Example for FUT-59. Say "Christmas morning" to run it.
+# Replace light.christmas_tree and media_player.lounge with your own entities,
+# and the playlist with one from your Christmas category.
+alias: Declan - Christmas Morning
+mode: single
+fields:
+  request_id:
+    selector:
+      text: {}
+  routine_id:
+    selector:
+      text: {}
+sequence:
+  - alias: Christmas tree lights on
+    action: light.turn_on
+    target:
+      entity_id: light.christmas_tree
+    continue_on_error: true
+  - alias: Christmas music in the lounge, not too loud
+    action: media_player.volume_set
+    target:
+      entity_id: media_player.lounge
+    data:
+      volume_level: 0.25
+    continue_on_error: true
+  - action: music_assistant.play_media
+    target:
+      entity_id: media_player.lounge
+    data:
+      media_id: https://open.spotify.com/playlist/37i9dQZF1DX0Yxoavh5qJV
+      media_type: playlist
+    continue_on_error: true
+  - wait_template: "{{ is_state('light.christmas_tree', 'on') }}"
+    timeout: "00:00:03"
+    continue_on_timeout: true
+  - variables:
+      tree_on: "{{ is_state('light.christmas_tree', 'on') }}"
+      declan_local_result:
+        schema_version: 1
+        request_id: "{{ request_id | default('') }}"
+        routine_id: "{{ routine_id | default('') }}"
+        outcome: "{{ 'success' if tree_on else 'unknown' }}"
+        guest_mode: "{{ states('input_boolean.guest_mode') }}"
+        steps:
+          - target: Christmas tree lights
+            entity_id: light.christmas_tree
+            action: turn_on
+            required: true
+            status: "{{ 'confirmed' if tree_on else 'unverified' }}"
+          - target: Christmas music
+            entity_id: media_player.lounge
+            action: request_playback
+            required: false
+            status: requested
+  - stop: Routine finished
+    response_variable: declan_local_result

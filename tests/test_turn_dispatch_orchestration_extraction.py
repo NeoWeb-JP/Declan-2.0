@@ -21,6 +21,8 @@ class TurnDispatchExtractionTests(unittest.TestCase):
         self.r.configured_guest_mode_entity.return_value = "guest"
         # Single commands: the #300 lighting + music splitter keeps the phrase whole.
         self.r.compound_commands.split_lighting_and_music.return_value = None
+        # ...and the FUT-59 cooking-timer splitter does too.
+        self.r.compound_commands.split_timers.return_value = None
 
     def dispatch(self):
         return turn_dispatch_orchestration.dispatch(

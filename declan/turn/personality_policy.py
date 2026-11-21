@@ -224,6 +224,9 @@ def morning_request_reply(*, guest=False, visitor_present=False):
     """Greet an accepted morning request without claiming light verification."""
     mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = _MORNING_GUEST if mode == "guest" else _MORNING_HOME
+    from declan.turn import christmas
+    if seasonal := christmas.seasonal("morning"):
+        return "Good morning. " + household_language.render(christmas.pick(seasonal, polite=mode == "guest"))
     chosen = household_language.render(ROTATION.choose((mode, "morning"), lines, topic=topic_for("morning"), polite=mode == "guest"))
     return "Good morning. " + chosen
 
@@ -232,6 +235,9 @@ def night_request_reply(*, guest=False, visitor_present=False):
     """Acknowledge bedtime without claiming the household has shut down."""
     mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = _NIGHT_GUEST if mode == "guest" else _NIGHT_HOME
+    from declan.turn import christmas
+    if seasonal := christmas.seasonal("night"):
+        return "Good night. " + household_language.render(christmas.pick(seasonal, polite=mode == "guest"))
     chosen = household_language.render(ROTATION.choose((mode, "night"), lines, topic=topic_for("night"), polite=mode == "guest"))
     return "Good night. " + chosen
 
@@ -298,9 +304,14 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
         return reply
     # Replies can arrive pre-decorated from a handler. Do not append a second
     # roast, including when the handler used a different personality category.
+    from declan.turn import christmas, line_freshness
     if any(household_language.render(line) in reply
-           for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST)):
+           for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST, *line_freshness.recently_picked())):
         return reply
+    seasonal = christmas.seasonal("dinner" if category == "dinner" else "general")
+    if seasonal:
+        return (reply.rstrip() + " " if reply.strip() else "") + household_language.render(
+            christmas.pick(seasonal, polite=guest_lines(guest or visitor_present is not False)))
     lines: tuple[str, ...]
     if guest_lines(guest or visitor_present is not False):
         lines = _DINNER_GUEST if category == "dinner" else _GUEST

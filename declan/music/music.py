@@ -382,6 +382,10 @@ def start_volume():
     DECLAN_MUSIC_START_VOLUME when nothing is saved there (default 30); 0 is off.
     """
     percent, _ = music_settings.start_volume(music_settings_path())
+    from declan.turn import christmas
+    if christmas.boxing_day():
+        # FUT-59: Boxing Day starts quieter (hangovers); never louder than the setting.
+        percent = min(percent, 20) if percent else 20
     return percent / 100 if percent else None
 
 
@@ -837,7 +841,15 @@ def generic_selection(weights):
         uri, kind, name = choices(favourites, weights=[weights[item[0]] for item in favourites])[0]  # nosec B311 - weighted playlist selection, not security randomness
         return uri.replace("spotify://", "https://open.spotify.com/", 1), kind, name
     from declan.music import spotify_playlists
+    from declan.turn import christmas
     catalogue = spotify_playlists.listing()["categories"]
+    if christmas.active():
+        # FUT-59: in Christmas mode "play some music" means Christmas music, if any is curated.
+        festive = [uri for uri in catalogue.get("christmas", {}).get("playlists", [])
+                   if weights.get(media_key(uri), 1) > 0]
+        if festive:
+            uri = choices(festive)[0]  # nosec B311 - playlist variety, not security randomness
+            return uri.replace("spotify://", "https://open.spotify.com/", 1), "playlist", "Christmas music"
     pool = [(category, uri) for category in GENERIC_CATEGORIES
             for uri in catalogue.get(category, {}).get("playlists", [])
             if weights.get(media_key(uri), 1) > 0]
