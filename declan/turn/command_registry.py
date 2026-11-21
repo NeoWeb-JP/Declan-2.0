@@ -139,10 +139,11 @@ def registry(deps):
         return HandledCommand("music_play", music_execution_result(result))
 
     def music_extra(context, command):
-        extra = deps.extra
-        assert extra is not None  # only registered when configured
-        result = extra(command, deps.connection(), deps.music_inventory,
-                            origin=context.origin_device or context.satellite)
+        music_handler = deps.extra
+        if music_handler is None:
+            raise ValueError("Music extras handler is not configured")
+        result = music_handler(command, deps.connection(), deps.music_inventory,
+                               origin=context.origin_device or context.satellite)
         return HandledCommand("music_extra", music_execution_result(result))
 
     def media_search(context, phrase):
