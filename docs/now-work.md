@@ -43,6 +43,6 @@
 | Master Bedroom | Guition 10.1 inch (Echo Show 8 Gen 1 and 2) |
 | Utility Room | Sunton 7 inch (Echo Show 5 Gen 1) |
 
-#17 was closed on 19 Nov. #98's all-time phrase manager and provenance are implemented in #809. Still open in #802: latency targets and speed work once live stage timings are available; the remaining `as_legacy_*` result APIs and source-text tests (D5); the parked Echo Show dashboard.
+#17 was closed on 19 Nov. #98's all-time phrase manager and provenance are implemented in #809. The D5 refactor is complete (#824, #831, #832). Future work, including latency targets (FUT-14) and the parked Echo Show dashboard, is tracked in the FUTURE register #834.
 
-Historical implementation notes and earlier product decisions are available in Git history. They must not override the current issue register. Homelab operations, predictive heating/EV optimisation and the all-time phrase manager remain deferred.
+Historical implementation notes and earlier product decisions are available in Git history. They must not override the current issue register. Homelab operations and predictive heating/EV optimisation remain deferred and are listed in #834.

@@ -4,6 +4,12 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+Nothing yet.
+
+## 2.13.1 (20 November 2026)
+
+Includes everything from 2.13.1-rc1 to rc5.
+
 - **Fix: a ringing timer couldn't be stopped.** Plain "stop" only silenced an alarm after it had verified music stopping on that device, so with nothing playing the alarm kept repeating every 30 seconds. "Cancel the timer" on a ringing timer was refused ("say stop…"), and "stop the timer" on a running one was refused ("say cancel…"). Now, while an alarm is ringing, "stop", "stop the alarm", "okay", "thanks" and similar silence it straight away. If nothing is ringing on that satellite, they silence whichever alarm is ringing. "Cancel" and "stop" mean the same for a timer. An alarm nobody answers gives up after 10 minutes instead of ringing forever. Running timers are never cancelled by a plain "stop".
 - Tests (D5, #802): the backend tests that grepped Python source for call order or wiring now check behaviour instead. Covered: dispatch stages and their dependencies, AI fallback wiring, the Assist-token access gate, cancel and confirmation running before the command-style gate, answers to the agent bypassing that gate, verified-only routine personality, HTTP event logging and repairing data before the history store starts. Ten source-text files or tests are gone. The `test_native_*` contracts that check the HA integration and panel against the backend stay, because they need a Home Assistant runtime to test behaviourally.
 - **Fix: music and lighting stage timings were never recorded.** The `music_playback`, `music_control` and `lighting` timers sat on old reply/outcome wrapper functions that the live request path no longer called, so diagnostics showed no time for those stages. They are now on the functions actually used.
