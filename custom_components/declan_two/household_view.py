@@ -1,4 +1,6 @@
-"""Admin-only household settings proxy (FUT-60, FUT-61, FUT-42, FUT-44). Never expose backend tokens to the panel."""
+"""Admin-only household settings proxy (FUT-60, FUT-61, FUT-42, FUT-44, FUT-46). Never expose backend tokens to the panel."""
+import re
+
 import aiohttp
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -68,6 +70,32 @@ def valid_usuals(value):
                     and isinstance(row.get("saved_at"), (int, float)) for row in value))
 
 
+def valid_theme_change(body):
+    """FUT-46: {"save_theme": {person, media_id, enabled}}, {"theme_satellite": str} or {"try_theme": person}."""
+    if not isinstance(body, dict) or len(body) != 1:
+        return False
+    if "theme_satellite" in body:
+        value = body["theme_satellite"]
+        return isinstance(value, str) and (value == "" or bool(re.fullmatch(r"assist_satellite\.[a-z0-9_]{1,80}", value)))
+    if "try_theme" in body:
+        return isinstance(body["try_theme"], str) and bool(re.fullmatch(r"person\.[a-z0-9_]{1,80}", body["try_theme"]))
+    target = body.get("save_theme")
+    return (isinstance(target, dict) and set(target) == {"person", "media_id", "enabled"}
+            and isinstance(target["person"], str) and bool(re.fullmatch(r"person\.[a-z0-9_]{1,80}", target["person"]))
+            and isinstance(target["media_id"], str) and len(target["media_id"]) <= 300
+            and type(target["enabled"]) is bool)
+
+
+def valid_themes(value):
+    if value is None:
+        return True
+    return (isinstance(value, dict) and isinstance(value.get("satellite"), str)
+            and isinstance(value.get("people"), list) and len(value["people"]) <= 50
+            and all(isinstance(row, dict) and isinstance(row.get("person"), str) and isinstance(row.get("name"), str)
+                    and isinstance(row.get("media_id"), str) and type(row.get("enabled")) is bool
+                    and type(row.get("home")) is bool for row in value["people"]))
+
+
 def valid_whereabouts(value):
     if value is None:
         return True
@@ -127,7 +155,7 @@ class DeclanHouseholdView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
-        if valid_delete(body) or valid_forget(body) or valid_usual_change(body):
+        if valid_delete(body) or valid_forget(body) or valid_usual_change(body) or valid_theme_change(body):
             return await self._relay(request, body)
         if not isinstance(body, dict) or set(body) != {"settings"} or not valid_settings(body["settings"], complete=False):
             return web.json_response({"error": "Invalid settings"}, status=400)
@@ -162,6 +190,11 @@ class DeclanHouseholdView(HomeAssistantView):
                             isinstance(step, str) for step in steps):
                         raise ValueError("Invalid response")
                     return web.json_response({"saved": True, "steps": steps}, headers={"Cache-Control": "no-store"})
+                if body is not None and set(body) & {"save_theme", "theme_satellite", "try_theme"}:
+                    if not isinstance(data, dict) or not (data.get("saved") is True or data.get("played") is True):
+                        raise ValueError("Invalid response")
+                    reply = {key: data[key] for key in ("saved", "played", "satellite", "theme") if key in data}
+                    return web.json_response(reply, headers={"Cache-Control": "no-store"})
                 if body is not None and "forget_usual" in body:
                     if not isinstance(data, dict) or type(data.get("forgotten")) is not bool:
                         raise ValueError("Invalid response")
@@ -175,11 +208,12 @@ class DeclanHouseholdView(HomeAssistantView):
                         or set(sources) != KEYS or not set(sources.values()) <= SOURCES
                         or not valid_generated(data.get("generated"))
                         or not valid_whereabouts(data.get("whereabouts"))
-                        or not valid_usuals(data.get("usuals"))):
+                        or not valid_usuals(data.get("usuals"))
+                        or not valid_themes(data.get("themes"))):
                     raise ValueError("Invalid response")
                 remember(hass, data["settings"])
                 payload = {"settings": data["settings"], "sources": sources}
-                for extra in ("generated", "whereabouts", "usuals"):
+                for extra in ("generated", "whereabouts", "usuals", "themes"):
                     if extra in data:
                         payload[extra] = data[extra]
                 return web.json_response(payload, headers={"Cache-Control": "no-store"})

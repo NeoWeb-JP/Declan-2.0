@@ -549,6 +549,15 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <p class="usuals-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list usuals-list" aria-label="The usual"></div>
                 </details>
+                <details class="themes"><summary>Entrance themes</summary>
+                  <p class="muted">When someone gets home (their phone, from Home Assistant's People), their clip plays once on the entrance satellite. Upload a short clip (about 10 seconds) to Home Assistant's Media, then paste its media-source:// ID, e.g. media-source://media_source/local/themes/jaco.mp3. Never during quiet hours (23:00 to 07:00), in Guest mode, or while music is playing in that room.</p>
+                  <form class="theme-satellite-form">
+                    <label>Entrance satellite<input name="satellite" type="text" maxlength="100" autocomplete="off" placeholder="assist_satellite.hallway"></label>
+                    <button type="submit">Save satellite</button>
+                  </form>
+                  <p class="themes-status muted" role="status" aria-live="polite"></p>
+                  <div class="fresh-lines-list themes-list" aria-label="Entrance themes"></div>
+                </details>
                 <details class="fresh-lines"><summary>Lines Declan wrote</summary>
                   <p class="fresh-lines-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list" aria-label="Lines Declan wrote"></div>
@@ -640,6 +649,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
       this.bindPanelEvent('.household-form', 'submit', event => {
         event.preventDefault(); void this.saveHousehold();
+      });
+      this.bindPanelEvent('.theme-satellite-form', 'submit', event => {
+        event.preventDefault(); void this.saveThemeSatellite();
       });
       this.bindPanelEvent('.usual-form', 'submit', event => {
         event.preventDefault(); void this.saveUsual();
@@ -2499,6 +2511,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.renderFreshLines(response.generated);
       this.renderWhereabouts(response.whereabouts);
       this.renderUsuals(response.usuals);
+      this.renderThemes(response.themes);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
       status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
@@ -2603,6 +2616,57 @@ class DeclanTwoNativePanel extends HTMLElement {
       item.append(text, edit, remove);
       list.append(item);
     }
+  }
+
+  renderThemes(themes) {
+    const list = this.shadowRoot.querySelector('.themes-list');
+    const status = this.shadowRoot.querySelector('.themes-status');
+    list.replaceChildren();
+    if (!themes || !Array.isArray(themes.people)) { status.textContent = 'Could not read the entrance themes.'; return; }
+    this.shadowRoot.querySelector('.theme-satellite-form').elements.namedItem('satellite').value = themes.satellite || '';
+    status.textContent = themes.people.length
+      ? (themes.satellite ? '' : 'Choose the entrance satellite so themes can play.')
+      : 'Nobody yet. People from Home Assistant appear here within a few seconds of Declan starting.';
+    for (const row of themes.people) {
+      const item = document.createElement('form'); item.className = 'fresh-line theme-row';
+      const name = document.createElement('span'); name.textContent = row.name;
+      const on = document.createElement('label');
+      const box = document.createElement('input'); box.type = 'checkbox'; box.checked = row.enabled;
+      on.append(box, ' On');
+      const media = document.createElement('input'); media.type = 'text'; media.maxLength = 300;
+      media.value = row.media_id; media.placeholder = 'media-source://media_source/local/themes/clip.mp3';
+      media.setAttribute('aria-label', `${row.name}'s theme clip`);
+      const save = document.createElement('button'); save.type = 'submit'; save.textContent = 'Save';
+      const test = document.createElement('button'); test.type = 'button'; test.textContent = 'Try it';
+      item.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        try {
+          await this._hass.callApi('POST', 'declan_two/household',
+            {save_theme: {person: row.person, media_id: media.value.trim(), enabled: box.checked}});
+          status.textContent = `Saved ${row.name}'s theme.`;
+        } catch {
+          status.textContent = `Could not save ${row.name}'s theme. Use a media-source:// clip, and add one before switching it on.`;
+        }
+      });
+      test.addEventListener('click', async () => {
+        try {
+          await this._hass.callApi('POST', 'declan_two/household', {try_theme: row.person});
+          status.textContent = `Playing ${row.name}'s theme.`;
+        } catch { status.textContent = 'Could not play it. Save the clip and the entrance satellite first.'; }
+      });
+      item.append(name, on, media, save, test);
+      list.append(item);
+    }
+  }
+
+  async saveThemeSatellite() {
+    const form = this.shadowRoot.querySelector('.theme-satellite-form');
+    const status = this.shadowRoot.querySelector('.themes-status');
+    const satellite = form.elements.namedItem('satellite').value.trim();
+    try {
+      await this._hass.callApi('POST', 'declan_two/household', {theme_satellite: satellite});
+      status.textContent = satellite ? `Themes will play on ${satellite}.` : 'Entrance themes are off.';
+    } catch { status.textContent = 'Could not save that. Use an assist_satellite entity, like assist_satellite.hallway.'; }
   }
 
   async saveUsual() {

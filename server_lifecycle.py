@@ -102,6 +102,13 @@ def main(*, description, argv, environ, history_store, timer_store, server_facto
                         except Exception:
                             logging.exception("Blocked music could not be checked.")
                     background("blocked-music", check_music)
+                    def check_entrances():
+                        try:
+                            from declan.ha import entrance_themes
+                            entrance_themes.due_with_opener(opener)
+                        except Exception:
+                            logging.exception("Entrance themes could not be checked.")
+                    background("entrance-themes", check_entrances)
                 if clock() >= next_prune:
                     def prune_history():
                         try:

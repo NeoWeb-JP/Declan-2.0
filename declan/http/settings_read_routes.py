@@ -81,6 +81,11 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
             payload["usuals"] = usual.listing()
         except (OSError, ValueError, sqlite3.Error):
             payload["usuals"] = None
+        from declan.ha import entrance_themes
+        try:
+            payload["themes"] = entrance_themes.listing()
+        except (OSError, ValueError, sqlite3.Error):
+            payload["themes"] = None
         handler.send_json(200, payload)
     elif path == "/api/settings/speaker":
         from declan.voice import speaker_settings
