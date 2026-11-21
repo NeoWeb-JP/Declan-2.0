@@ -530,8 +530,8 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         """FUT-63: a new or renamed area, device or entity is heard without waiting ten minutes."""
         provider = import_module("custom_components.declan_two.stt")
         entity = provider.DeclanOpenAISTT.__new__(provider.DeclanOpenAISTT)
-        listeners = {}
-        removers = []
+        listeners: dict = {}
+        removers: list = []
         entity.hass = SimpleNamespace(bus=SimpleNamespace(
             async_listen=lambda event, handler: listeners.setdefault(event, handler) and "remove-" + event))
         entity.async_on_remove = removers.append
