@@ -41,6 +41,14 @@ def _mapped_sensitive(name):
         return True
 
 
+def _car_control(phrase):
+    from declan.ha import car
+    try:
+        return car.is_control(phrase)
+    except (OSError, ValueError):
+        return True
+
+
 def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_phrases=None):
     if phrase in guest_commands and guest_commands[phrase] != "check":
         return "guest"
@@ -48,6 +56,9 @@ def sensitive_group(phrase, routine, guest_commands, sexy_commands=None, dinner_
         return "custom:sexy_time" if _mapped_sensitive("sexy_time") else "sexy"
     if dinner_phrases and phrase in dinner_phrases:
         return "custom:dinner" if _mapped_sensitive("dinner") else "dinner"
+    if isinstance(phrase, str) and _car_control(phrase):
+        # FUT-31: starting or stopping the Pod Point always asks for a spoken yes.
+        return "custom:car_charging"
     if routine:
         group = routine[0][0]
         if group.startswith("custom:"):

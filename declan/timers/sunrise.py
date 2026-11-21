@@ -19,7 +19,9 @@ fades in on that room's speaker.
   minutes past the wake time, that morning is skipped instead of switching
   lights on late.
 
-The car charge summary (Pod Point) waits for FUT-31.
+With the car's battery sensor set (Settings -> Household -> Car, FUT-31) and
+"Mention the car at sunrise" on, the good morning includes one line about the
+car ("The Peugeot's at 64% and charging."). Never in Guest mode.
 """
 import json
 import re
@@ -417,12 +419,26 @@ class MusicAssistant:
                                       origin=satellite)
 
 
+def _car_line(ha):
+    """FUT-31: one sentence about the car, when it's set up and wanted."""
+    from declan.ha import car, house_info
+    try:
+        if not house_info.get("car_in_sunrise"):
+            return None
+    except (OSError, ValueError, KeyError):
+        return None
+    return car.summary(fetch=lambda template: ha("/api/template", {"template": template}))
+
+
 def _wake(row, now, ha, music, path=None):
     """Full brightness, good morning, and music fading in if it won't hijack another room."""
     if not _update(row, path=path, stage="awake", fade_from=now, next_step=now + STEP_SECONDS):
         return
     _brighten(ha, row, 1.0, 2)
     words = [_line("wake")]
+    car_line = _car_line(ha)
+    if car_line:
+        words.append(car_line)
     player = None
     if row["music"] and music is not None:
         try:

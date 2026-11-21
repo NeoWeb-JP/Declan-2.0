@@ -558,6 +558,16 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <p class="themes-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list themes-list" aria-label="Entrance themes"></div>
                 </details>
+                <details class="house-info"><summary>Car</summary>
+                  <p class="muted">For "is the car charged?", "is it plugged in?", "start charging the car" and a line about the car in the sunrise wake-up. The Pod Point charger is found automatically. Starting or stopping charging always asks for a spoken yes, and guests can't do it.</p>
+                  <form class="house-info-form">
+                    <label>Car name<input name="car_name" type="text" maxlength="30" autocomplete="off" placeholder="the car"></label>
+                    <label>Car battery sensor<input name="car_battery" type="text" maxlength="110" autocomplete="off" spellcheck="false" placeholder="sensor.car_battery"></label>
+                    <label class="household-toggle"><input type="checkbox" name="car_in_sunrise"> Mention the car at sunrise wake-up</label>
+                    <button type="submit">Save car</button>
+                  </form>
+                  <p class="house-info-status muted" role="status" aria-live="polite"></p>
+                </details>
                 <details class="fresh-lines"><summary>Lines Declan wrote</summary>
                   <p class="fresh-lines-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list" aria-label="Lines Declan wrote"></div>
@@ -649,6 +659,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
       this.bindPanelEvent('.household-form', 'submit', event => {
         event.preventDefault(); void this.saveHousehold();
+      });
+      this.bindPanelEvent('.house-info-form', 'submit', event => {
+        event.preventDefault(); void this.saveHouseInfo();
       });
       this.bindPanelEvent('.theme-satellite-form', 'submit', event => {
         event.preventDefault(); void this.saveThemeSatellite();
@@ -2512,6 +2525,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.renderWhereabouts(response.whereabouts);
       this.renderUsuals(response.usuals);
       this.renderThemes(response.themes);
+      this.renderHouseInfo(response.house_info);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
       status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
@@ -2656,6 +2670,36 @@ class DeclanTwoNativePanel extends HTMLElement {
       });
       item.append(name, on, media, save, test);
       list.append(item);
+    }
+  }
+
+  renderHouseInfo(info) {
+    const form = this.shadowRoot.querySelector('.house-info-form');
+    const status = this.shadowRoot.querySelector('.house-info-status');
+    if (!info || !info.settings) { status.textContent = 'Could not read the car settings.'; return; }
+    for (const [key, value] of Object.entries(info.settings)) {
+      const field = form.elements.namedItem(key);
+      if (!field) continue;
+      if (field.type === 'checkbox') field.checked = value === true; else field.value = value;
+    }
+    status.textContent = info.settings.car_battery ? '' : 'No battery sensor yet: Declan can only say whether the car is plugged in and charging.';
+  }
+
+  async saveHouseInfo() {
+    const form = this.shadowRoot.querySelector('.house-info-form');
+    const status = this.shadowRoot.querySelector('.house-info-status');
+    const values = {};
+    for (const key of ['car_name', 'car_battery', 'car_in_sunrise']) {
+      const field = form.elements.namedItem(key);
+      if (field) values[key] = field.type === 'checkbox' ? field.checked : field.value.trim();
+    }
+    if (!values.car_name) values.car_name = 'the car';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/household', {save_house_info: values});
+      this.renderHouseInfo(response.house_info);
+      status.textContent = 'Saved.';
+    } catch {
+      status.textContent = 'Could not save that. Use a name of up to 30 letters, and a sensor entity like sensor.car_battery (or leave it empty).';
     }
   }
 

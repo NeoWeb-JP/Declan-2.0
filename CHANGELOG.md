@@ -4,6 +4,11 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Car questions and charging (FUT-31, #834).**
+  - "Is the car charged?", "is the car plugged in?", "is the car charging?", from the Pod Point integration (found automatically) and the car's battery sensor.
+  - "Start charging the car" and "stop charging the car" always ask for a spoken yes. Starting turns on the Pod Point's "charging allowed" switch, which overrides its schedule until stopped; stopping hands control back to the schedule. Guests can ask but not change charging.
+  - A sensor that isn't reporting is said plainly; with no battery sensor, Declan answers from the charger alone.
+  - Settings → Household → Car: the car's name ("the Peugeot"), its battery sensor, and whether the sunrise wake-up mentions the car (FUT-45's car line, never in Guest mode).
 - **Who's home (FUT-30, #834).**
   - "Is Edd home?", "is Jaco back yet?", "has Edd left?", "who's home?", "is anyone in?", answered from Home Assistant's `person` entities (phones), never from voice recognition.
   - Only home or out; zone names are never said. A phone that isn't reporting gets "I can't tell", not a guess. A name that isn't a person ("is the washing in?") is left to the rest of Declan.
