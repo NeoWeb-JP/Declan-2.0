@@ -37,6 +37,9 @@ class DeclanMusicSettingsView(HomeAssistantView):
             body = await request.json()
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
+        if (isinstance(body, dict) and set(body) == {"unblock_artist"} and isinstance(body["unblock_artist"], str)
+                and 0 < len(body["unblock_artist"]) <= 200):
+            return await self._relay(request, body)
         if (not isinstance(body, dict) or "settings" not in body or not set(body) <= {"settings", "start_volume"}
                 or not valid_settings(body["settings"])
                 or ("start_volume" in body and not valid_percent(body["start_volume"]))):
@@ -62,6 +65,10 @@ class DeclanMusicSettingsView(HomeAssistantView):
                     return web.json_response({"error": "Invalid settings" if response.status == 400 else "Backend unavailable"},
                                              status=400 if response.status == 400 else 502)
                 data = await response.json(content_type="application/json")
+                if body is not None and "unblock_artist" in body:
+                    if not isinstance(data, dict) or type(data.get("unblocked")) is not bool:
+                        raise ValueError("Invalid response")
+                    return web.json_response({"unblocked": data["unblocked"]}, headers={"Cache-Control": "no-store"})
                 sources = data.get("sources") if isinstance(data, dict) else None
                 if (not valid_settings(data.get("settings")) or not isinstance(sources, dict)
                         or set(sources) != KEYS or not set(sources.values()) <= SOURCES):
@@ -69,6 +76,9 @@ class DeclanMusicSettingsView(HomeAssistantView):
                 payload = {"settings": data["settings"], "sources": sources}
                 if valid_start_volume(data.get("start_volume")):
                     payload["start_volume"] = data["start_volume"]
+                artists = data.get("blocked_artists")
+                if isinstance(artists, list) and len(artists) <= 1000 and all(isinstance(name, str) for name in artists):
+                    payload["blocked_artists"] = artists
                 return web.json_response(payload, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError, AttributeError):
             return web.json_response({"error": "Backend unavailable"}, status=502)

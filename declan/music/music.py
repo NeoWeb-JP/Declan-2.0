@@ -186,9 +186,11 @@ def skip_blocked_tracks(connection, read_inventory):
     if connection is None or not PREFERENCES.exists() or not RUNTIME.handoff.acquire(blocking=False):
         return
     try:
+        from declan.music import music_extras
         with preference_db() as db:
             blocked = {uri for (uri,) in db.execute("SELECT uri FROM preferences WHERE weight = 0")}
-        if not blocked:
+        artists = music_extras.blocked_artists()
+        if not blocked and not artists:
             return
         inventory_result = ha_inventory.InventoryResult.coerce(read_inventory(connection))
         inventory, error = inventory_result.inventory, inventory_result.error
@@ -202,7 +204,8 @@ def skip_blocked_tracks(connection, read_inventory):
                                  (attrs.get("media_playlist_id"), attrs.get("media_content_id"))
                                  if isinstance(value, str) and
                                  media_key(value).startswith("spotify://playlist/")), None)
-            if player.get("state") == "playing" and (track in blocked or playlist_uri in blocked) and RUNTIME.allow_blacklist_skip(entity, now):
+            banned = track in blocked or playlist_uri in blocked or music_extras.is_blocked(attrs, artists)
+            if player.get("state") == "playing" and banned and RUNTIME.allow_blacklist_skip(entity, now):
                 request(connection, "/api/services/media_player/media_next_track", {"entity_id": entity}, timeout=2)
     except HTTPError as error:
         error.close()
@@ -1007,6 +1010,9 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             location = 'on ' + (label if isinstance(label, str) and label.strip() else destination)
         else:
             destination = destinations.get(room)
+        if destination is not None:
+            from declan.music import music_extras
+            music_extras.cancel_sleep(destination)  # FUT-28: new music cancels a sleep timer
         if destination is None:
             return ExecutionResult(f"No approved Music Assistant player is configured for {room}, or its registration is missing.", Outcome.UNRESOLVED)
         if player_availability_result(destination, players.get(destination, {}).get("state")).status is PlayerAvailability.UNAVAILABLE:

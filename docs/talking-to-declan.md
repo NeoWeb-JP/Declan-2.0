@@ -28,6 +28,11 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "Pause", "resume", "next song", "stop the music"
 - "Turn it up", "quieter", "set the volume to 30 percent"
 - "Move the music to the bedroom"
+- "What song is this?", "who sings this?"
+- "Play Jolene next", "queue Thunderstruck by AC/DC"
+- "Play something similar", "more like this"
+- "Don't play this artist again" (unblock in Settings → Music behaviour)
+- "Stop the music in 30 minutes" (fades out at the end), "cancel the sleep timer"
 
 **Routines**: say the routine's name, for example "good night", "good morning" or "movie time". Homelab, camera and security routines ask you to say **yes** first.
 

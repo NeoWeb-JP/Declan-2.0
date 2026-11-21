@@ -7,6 +7,7 @@ from declan.turn import information_result_response
 from declan.ha import device_command_dispatch
 from declan.ha import device_result_response
 from declan.ha import lighting_result_dispatch
+from declan.music import music_extras
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ def dispatch(phrase, source, opener, last_information, last_device,
             parse_music=music.parse, play=music.play_result,
             music_inventory=read_music_inventory_result, areas=read_ha_areas,
             search_media=search_media_result,
+            parse_extra=music_extras.parse, extra=music_extras.result,
         )
         if device_dispatch is not None:
             device_response = device_result_response.device_response(device_dispatch)

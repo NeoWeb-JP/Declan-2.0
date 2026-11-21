@@ -496,6 +496,10 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <button class="music-save" type="submit">Save music settings</button>
                 </form>
                 <p class="music-settings-status muted" role="status" aria-live="polite">Open Settings to load music settings.</p>
+                <details class="blocked-artists"><summary>Blocked artists</summary>
+                  <p class="muted">Artists blocked by saying "don't play this artist again". Declan skips them whenever they come up.</p>
+                  <div class="fresh-lines-list blocked-artists-list" aria-label="Blocked artists"></div>
+                </details>
               </div>
             </details>
             <details class="settings-section settings-section--household">
@@ -2680,12 +2684,30 @@ class DeclanTwoNativePanel extends HTMLElement {
       const response = await this._hass.callApi('GET', 'declan_two/music-settings');
       for (const key of ['reply_first', 'music_assistant_search']) form.elements.namedItem(key).checked = response.settings[key] === true;
       this.showMusicStartVolume(form, response);
+      this.renderBlockedArtists(response.blocked_artists);
       this._musicSettingsLoaded = true;
       status.textContent = this.musicSettingsSummary(response);
     } catch (error) {
       this._musicSettingsLoaded = false;
       const detail = error?.message ? ': ' + String(error.message).slice(0, 180) : '';
       status.textContent = 'Could not load music settings' + detail + '. Changes are not saved.';
+    }
+  }
+
+  renderBlockedArtists(artists) {
+    const list = this.shadowRoot.querySelector('.blocked-artists-list');
+    list.replaceChildren();
+    if (!Array.isArray(artists)) return;
+    if (!artists.length) { const none = document.createElement('p'); none.className = 'muted'; none.textContent = 'None.'; list.append(none); return; }
+    for (const name of artists) {
+      const item = document.createElement('div'); item.className = 'fresh-line';
+      const text = document.createElement('span'); text.textContent = name;
+      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Unblock';
+      remove.addEventListener('click', async () => {
+        try { await this._hass.callApi('POST', 'declan_two/music-settings', {unblock_artist: name}); item.remove(); }
+        catch { remove.textContent = 'Could not unblock'; }
+      });
+      item.append(text, remove); list.append(item);
     }
   }
 
