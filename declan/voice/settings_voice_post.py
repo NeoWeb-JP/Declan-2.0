@@ -83,6 +83,29 @@ def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,
                 return
             handler.send_json(200, {"forgotten": removed is not None})
             return
+        if isinstance(body, dict) and len(body) == 1 and set(body) <= {"save_theme", "theme_satellite", "try_theme"}:
+            # FUT-46: entrance themes in Settings -> Household.
+            from declan.ha import entrance_themes
+            value = next(iter(body.values()))
+            try:
+                if "save_theme" in body:
+                    value = value if isinstance(value, dict) else {}
+                    handler.send_json(200, {"saved": True, "theme": entrance_themes.save_theme(
+                        value.get("person"), value.get("media_id"), value.get("enabled"))})
+                elif "theme_satellite" in body:
+                    handler.send_json(200, {"saved": True, "satellite": entrance_themes.save_satellite(value)})
+                else:
+                    from urllib.request import ProxyHandler, build_opener
+                    from declan.timers import timers
+                    opener = build_opener(ProxyHandler({}))
+                    entrance_themes.try_theme(
+                        value, lambda api, data=None: timers.ha_json(opener, api, data=data, timeout=7))
+                    handler.send_json(200, {"played": True})
+            except ValueError as error:
+                handler.send_json(400, {"error": str(error)})
+            except (OSError, sqlite3.Error):
+                handler.send_json(503, {"error": "Could not change the entrance themes."})
+            return
         if isinstance(body, dict) and len(body) == 1 and set(body) <= {"save_usual", "forget_usual"}:
             # FUT-44: add, change or forget "the usual" for a room in Settings -> Household.
             from declan.turn import usual

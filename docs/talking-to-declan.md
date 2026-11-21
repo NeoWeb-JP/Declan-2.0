@@ -54,6 +54,8 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "What's the usual?", "what are the usuals?", "forget the usual for the lounge in the evening"
 - Also in Settings → Household → The usual. Guests can ask for it but not change it.
 
+**Entrance themes** (nothing to say): when someone gets home, their clip plays once on the entrance satellite. Set the satellite and each person's clip in Settings → Household → Entrance themes. Not during quiet hours, Guest mode or while music is playing in that room.
+
 **Intercom** (spoken on the satellites, starting "Message from the lounge: …"; not during quiet hours, 23:00 to 07:00):
 - "Tell the kitchen dinner's ready", "tell the master bedroom that breakfast is ready"
 - "Announce to everyone: leaving in five minutes", "tell everyone the taxi is here"

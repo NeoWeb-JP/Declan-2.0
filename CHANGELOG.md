@@ -4,6 +4,11 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Entrance themes (FUT-46, #834).**
+  - When someone gets home (their phone, from HA's `person` entities), their clip plays once on the entrance satellite: a short media-source:// clip from Home Assistant's Media, announced without the chime, never Spotify.
+  - A real arrival means away for at least 10 minutes, with no theme in the last 30 minutes. First sight of a person and HA restarts never count.
+  - Never during quiet hours (23:00 to 07:00), in Guest mode (or if Guest mode can't be read), or while music is playing in the entrance room; a skipped arrival isn't played later.
+  - Settings → Household → Entrance themes: the entrance satellite (or `DECLAN_ENTRANCE_SATELLITE`), and per person a clip, on/off, and a "Try it" button.
 - **"The usual" (FUT-44, #834).**
   - "The usual" runs the usual for the room that heard you and the time of day (morning, afternoon, evening, night), or that room's "any time" usual.
   - Set it by voice ("my usual for the lounge in the evening is lamps to 40% and play chill music") or in Settings → Household → The usual, where you can also edit and forget them.
