@@ -119,8 +119,10 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
             if not text:
                 raise ValueError('Cloud transcription was empty')
             return stt.SpeechResult(transcript_for_ha(text, SpeakerMetadata(None, level.snapshot())), stt.SpeechResultState.SUCCESS)
-        except (aiohttp.ClientError, TimeoutError, ValueError, KeyError):
-            _LOGGER.warning("Declan OpenAI STT request could not complete")
+        except Exception as error:  # noqa: BLE001 - any cloud fault must reach the local fallback
+            # CancelledError is a BaseException and still propagates. Log the
+            # failure type only: never the audio, transcript or API key.
+            _LOGGER.warning("Declan OpenAI STT request could not complete (%s)", type(error).__name__)
             if raw and len(raw) <= MAX_AUDIO_BYTES and level.snapshot() is not None:
                 return await self._fallback(metadata, bytes(raw), level.snapshot())
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
@@ -149,24 +151,33 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
         return terms
 
     async def _fallback(self, metadata, raw, capture):
-        """Replay bounded PCM once to the configured local provider."""
+        """Replay bounded PCM once to the configured local provider.
+
+        The local engine may be any third-party STT entity, so any fault it
+        raises ends in a clean ERROR result. Cancellation still propagates.
+        """
         try:
             return await self._run_fallback(metadata, raw, capture)
-        except (OSError, TimeoutError, ValueError, AttributeError, aiohttp.ClientError):
-            _LOGGER.warning('Declan local STT fallback could not complete')
+        except Exception as error:  # noqa: BLE001 - third-party provider boundary
+            _LOGGER.warning('Declan local STT fallback could not complete (%s)', type(error).__name__)
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
 
-    async def _run_fallback(self, metadata, raw, capture):
+    async def _local_engine(self):
+        """The configured stt.* entity, else the Wyoming bridge when configured."""
         options = self.entry.options
-        engine = None
-        entity_id = options.get('local_stt_entity', '').strip()
+        entity_id = (options.get('local_stt_entity') or '').strip()
         if entity_id:
             engine = stt.async_get_speech_to_text_entity(self.hass, entity_id)
-            if engine is self or isinstance(engine, DeclanOpenAISTT):
-                engine = None
-        elif options.get('wyoming_bridge_enabled') and options.get('wyoming_bridge_host'):
+            if engine is not None and engine is not self and not isinstance(engine, DeclanOpenAISTT):
+                return engine
+            _LOGGER.warning('Declan local STT entity %s is unavailable', entity_id)
+        if options.get('wyoming_bridge_enabled') and options.get('wyoming_bridge_host'):
             bridge = await self.hass.async_add_executor_job(_load_wyoming_bridge)
-            engine = bridge(self.entry)
+            return bridge(self.entry)
+        return None
+
+    async def _run_fallback(self, metadata, raw, capture):
+        engine = await self._local_engine()
         if engine is None:
             _LOGGER.warning('Declan local STT fallback is not available')
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
@@ -179,12 +190,15 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
                 if not engine.check_metadata(metadata):
                     return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
                 result = await engine.async_process_audio_stream(metadata, replay())
-            if result.result == stt.SpeechResultState.SUCCESS and isinstance(result.text, str) and result.text.strip():
+            if (result is not None and result.result == stt.SpeechResultState.SUCCESS
+                    and isinstance(result.text, str) and result.text.strip()):
                 speaker_metadata = metadata_from_transcript(result.text)
                 text = transcript_for_ha(
                     result.text, SpeakerMetadata(speaker_metadata.speaker, capture),
                 )
                 return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
-        except (OSError, TimeoutError, ValueError, aiohttp.ClientError):
-            _LOGGER.warning('Declan local STT fallback could not complete')
+        except TimeoutError:
+            _LOGGER.warning('Declan local STT fallback timed out')
+        else:
+            _LOGGER.warning('Declan local STT fallback returned no text')
         return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
