@@ -46,9 +46,12 @@ def handle_post(handler, *, services):
     from declan.turn import christmas, whereabouts
     christmas_request = christmas.match(effective_message) if help_request is None else None
     where_request = whereabouts.match(effective_message) if help_request is None and christmas_request is None else None
-    from declan.ha import todo_lists
+    from declan.ha import intercom, todo_lists
     list_request = (todo_lists.match(effective_message)
                     if help_request is None and christmas_request is None and where_request is None else None)
+    intercom_request = (intercom.match(effective_message)
+                        if help_request is None and christmas_request is None and where_request is None
+                        and list_request is None else None)
     if help_request is not None:
         dispatch_result = _local_help(handler, body, help_request, origin_device=origin_device,
                                       satellite=satellite, services=services, conversation_on=agent_on)
@@ -57,6 +60,10 @@ def handle_post(handler, *, services):
     elif list_request is not None:
         # FUT-27: shopping and to-do lists live in Home Assistant's own to-do lists.
         dispatch_result = _todo(list_request, services)
+    elif intercom_request is not None and (intercom_result := _intercom(
+            intercom_request, services, origin_device or satellite)) is not None:
+        # FUT-25: "tell the kitchen dinner's ready"; None means it wasn't for a room ("tell me a joke").
+        dispatch_result = intercom_result
     elif where_request is not None and where_request[2]:
         # FUT-42: "I put the passports in the safe", "where did I leave my glasses?"
         dispatch_result = _whereabouts(where_request, services)
@@ -120,6 +127,13 @@ def _conversation_enabled(general_chat):
         return general_chat.enabled()
     except (OSError, ValueError):
         return False
+
+
+def _intercom(request, services, origin):
+    from declan.ha import intercom
+    from declan.turn import conversation_entry
+    result = intercom.result(request, services.ha_device_connection(), origin=origin)
+    return None if result is None else conversation_entry._result_factory(result.reply, result.outcome)
 
 
 def _todo(request, services):
