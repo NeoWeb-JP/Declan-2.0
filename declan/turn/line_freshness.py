@@ -155,16 +155,16 @@ def pick(key, lines, *, topic=None, polite=False, random=None, now=None, path=No
                 f"SELECT line, last_used FROM used WHERE line IN ({','.join('?' * len(pool))})", pool))  # nosec B608 - placeholders only
             rested = [line for line in pool if now - last.get(line, 0) >= shelve * DAY]
             if rested:
-                chosen = random.choice(rested)
+                chosen = random.choice(rested)  # nosec B311 - line variety, not security randomness
             else:
                 oldest = min(last.get(line, 0) for line in pool)
-                chosen = random.choice([line for line in pool if last.get(line, 0) == oldest])
+                chosen = random.choice([line for line in pool if last.get(line, 0) == oldest])  # nosec B311 - line variety, not security randomness
             db.execute("INSERT INTO used VALUES (?, ?) ON CONFLICT(line) DO UPDATE SET last_used = ?",
                        (chosen, now, now))
             low = len(rested) - 1 < LOW_WATER
     except (sqlite3.Error, OSError, ValueError) as error:
         LOGGER.warning("Line freshness unavailable (%s); picking at random", type(error).__name__)
-        return random.choice(choices) if choices else ""
+        return random.choice(choices) if choices else ""  # nosec B311 - line variety, not security randomness
     if low and fresh and topic:
         (start or _start_top_up)(key, topic, pool, polite, path)
     return chosen
