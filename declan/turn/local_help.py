@@ -52,9 +52,15 @@ def _friendly(row):
     return str(attributes.get("friendly_name") or row["entity_id"].split(".", 1)[1].replace("_", " "))
 
 
-def answer(request, *, rows, context, conversation_on):
+GUEST_HELP = ("Easy. Say \"lights on\" or \"lights off\", \"play some music\", \"louder\" or \"quieter\", "
+              "and \"stop\". I'll do it in the room you're in.")
+
+
+def answer(request, *, rows, context, conversation_on, guest=False):
     """Spoken answer for a matched help request."""
     kind, room = request
+    if kind == "help" and guest:
+        return GUEST_HELP + (" Or just tell me what you want." if conversation_on else "")
     music_rooms = sorted(r for r in context["music_rooms"] if r not in {"upstairs", "downstairs"})
     routines = sorted(context["routines"])
     if kind == "help":

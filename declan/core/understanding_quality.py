@@ -55,7 +55,7 @@ def summary(*, unmatched_reply, speaker_threshold, now=None, weeks=4):
         if not 0 <= index < weeks:
             continue
         counts[index][0] += 1
-        if reply == unmatched_reply:
+        if isinstance(reply, str) and reply.startswith(unmatched_reply):  # Guest Mode adds a hint
             counts[index][1] += 1
             phrase = history.normalize_phrase(message)
             if 0 < len(phrase) <= 120:

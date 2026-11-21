@@ -33,6 +33,9 @@ GUEST_COMMANDS = {
     "clear the guests in charge": "clear",
 }
 UNMATCHED_REPLY = "I didn't catch what you wanted me to do. Could you say it another way?"
+# FUT-60: in Guest Mode a miss ends with a hint instead of a dead end. It is
+# appended to UNMATCHED_REPLY, so retries and the Understanding card still count it.
+GUEST_HINT = ' Try "lights on", "play some music", "louder" or "stop".'
 NAME_PATTERN = re.compile(r"my name is ([^\W\d_][\w '\u2019-]{0,39})", re.I)
 CHAT_COMMANDS = {
     "what's my name": "recall_name", "what is my name": "recall_name",

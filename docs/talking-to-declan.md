@@ -2,6 +2,18 @@
 
 A short guide for everyone in the house, including guests who have never used him. Say the wake word, then speak normally.
 
+## Guests: the five things to know
+
+Say "Howzit Declan", then any of these. He does it in the room you're in, no device names needed:
+
+- "Lights on" / "lights off"
+- "Play some music" (or "put some music on")
+- "Louder" / "quieter"
+- "Stop"
+- "What can you do?"
+
+Fair warning: Declan is rude and South African, guests included. If he doesn't understand, he tells you what to try.
+
 ## Things you can just say
 
 **Lights**
@@ -12,6 +24,7 @@ A short guide for everyone in the house, including guests who have never used hi
 
 **Music**
 - "Play jazz", "play country music in the kitchen", "play the Beatles everywhere"
+- "Play some music" or "put some music on": a favourite, or a playlist from one of your categories
 - "Pause", "resume", "next song", "stop the music"
 - "Turn it up", "quieter", "set the volume to 30 percent"
 - "Move the music to the bedroom"
@@ -52,7 +65,8 @@ How it behaves:
 | Voice command style | Voice & learning | Optional: only act on requests that start with "can you…", or that end with "my bru" |
 | Recognised-speaker threshold | Voice & learning | How confident voice recognition must be before Declan treats you as you |
 | Music behaviour | Music behaviour | Reply before music starts; let Music Assistant search |
+| Guest tone | Household | Full sass with guests (default), or the polite guest lines |
 
 ## When Declan doesn't understand
 
-He says "say it another way" and keeps listening. Rephrase it, and he'll learn the first phrase. To fix a phrase for good, open **History**, find it, and use **Teach Declan**. **History → Understanding** lists the phrases he missed most this week.
+He says "say it another way" and keeps listening. In Guest Mode he adds a few things to try. Rephrase it, and he'll learn the first phrase. To fix a phrase for good, open **History**, find it, and use **Teach Declan**. **History → Understanding** lists the phrases he missed most this week.

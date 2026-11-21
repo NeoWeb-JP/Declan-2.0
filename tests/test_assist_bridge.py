@@ -182,7 +182,9 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
                                                               async_unload_platforms=AsyncMock(return_value=True)),
                                bus=SimpleNamespace(async_listen=Mock()), data={},
                                services=SimpleNamespace(async_register=Mock(), async_remove=Mock(),
-                                                        async_call=AsyncMock()))
+                                                        async_call=AsyncMock()),
+                               # The household settings refresh is best effort; close it unawaited here.
+                               async_create_background_task=lambda work, name, **kwargs: work.close())
         self.entry.options = {"tts_enabled": True, "primary_tts": "tts.example",
                               "overnight_announcement_outputs": "media_player.kitchen"}
         self.assertTrue(await self.component.async_setup_entry(hass, self.entry))

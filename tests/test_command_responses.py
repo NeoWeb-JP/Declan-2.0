@@ -78,6 +78,8 @@ class CommandResponseTests(TestCase):
         with patch.object(history, "SCHEMA_STATE", DatabaseSchemaState()):
             self.assertEqual(commands.snapshot(self.row)["profile"], state["profile"])
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_guest_unknown_and_empty_lists_never_use_home_banter(self):
         self.save(["Private home line"], ["Guest line"])
         self.assertEqual(personality.add_sass("Study is on.", "lights_on", "on"), "Guest line Study is on.")
@@ -87,6 +89,8 @@ class CommandResponseTests(TestCase):
         self.assertEqual(commands.selected("lights_off", False), None)
         self.assertEqual(commands.selected("not_a_category", False), None)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_failure_addition_cannot_remove_real_error_or_change_outcome(self):
         self.save(["Success line"], ["Guest line"], ["Oh dear."])
         self.assertEqual(commands.failure("lights_on", "HA rejected the light.", guest=False),

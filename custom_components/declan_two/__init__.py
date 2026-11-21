@@ -18,6 +18,7 @@ from .music_settings_view import DeclanMusicSettingsView
 from .speaker_settings_view import DeclanSpeakerSettingsView
 from .command_style_view import DeclanCommandStyleView
 from .chat_settings_view import DeclanChatSettingsView
+from .household_view import DeclanHouseholdView, refresh as refresh_household
 from .ai_locations_view import DeclanAILocationsView
 from .voice_review_view import DeclanVoiceReviewView
 from .updates_view import DeclanUpdatesView
@@ -45,6 +46,7 @@ async def async_setup(hass, config):
     hass.http.register_view(DeclanSpeakerSettingsView())
     hass.http.register_view(DeclanCommandStyleView())
     hass.http.register_view(DeclanChatSettingsView())
+    hass.http.register_view(DeclanHouseholdView())
     hass.http.register_view(DeclanAILocationsView())
     hass.http.register_view(DeclanVoiceReviewView())
     hass.http.register_view(DeclanUpdatesView())
@@ -103,6 +105,8 @@ async def _forward_assist_history(hass, entry, data):
 
 async def async_setup_entry(hass, entry):
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Guest tone for the TTS catalogue fallback (FUT-60); best effort, defaults to Home.
+    hass.async_create_background_task(refresh_household(hass, entry), "declan_two household settings")
 
     # Central gate for unsolicited speech. Home Assistant automations can
     # invoke declan_two.announce, but never bypass the overnight allowlist.

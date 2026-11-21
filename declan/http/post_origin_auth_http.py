@@ -4,7 +4,7 @@ import secrets
 
 BEARER_ALLOWED_PATHS = frozenset({
     "/api/voicepipeline", "/api/settings/ai", "/api/settings/media-players",
-    "/api/settings/music-playlists", "/api/settings/music", "/api/settings/speaker", "/api/settings/command-style", "/api/settings/chat", "/api/chat", "/api/stt",
+    "/api/settings/music-playlists", "/api/settings/music", "/api/settings/speaker", "/api/settings/command-style", "/api/settings/chat", "/api/settings/household", "/api/chat", "/api/stt",
     "/api/native/spotify-credentials", "/api/native/settings-import",
     "/api/native/intents", "/api/native/routines",
     "/api/native/routine-responses", "/api/updates",

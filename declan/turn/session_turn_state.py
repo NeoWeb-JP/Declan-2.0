@@ -32,7 +32,9 @@ def update_turn(session, reply, *, message, phrase, outcome, scope,
         session["failed_light_phrase"] = {
             "text": message, "scope": scope, "actions": actions,
         }
-    needs_retry = (reply["reply"] == unmatched_reply and valid_retry_scope(scope)
+    # A Guest Mode hint may follow the unmatched reply (FUT-60).
+    needs_retry = (isinstance(reply["reply"], str) and reply["reply"].startswith(unmatched_reply)
+                   and valid_retry_scope(scope)
                    and valid_retry_phrase(message) and finite_number(now))
     # Never advertise a listening follow-up without a usable pending retry.
     reply["continue_conversation"] = needs_retry

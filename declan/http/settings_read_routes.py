@@ -8,6 +8,7 @@ ROUTES = frozenset({
     "/api/settings/music", "/api/settings/speaker",
     "/api/settings/command-style",
     "/api/settings/chat",
+    "/api/settings/household",
 })
 
 
@@ -58,6 +59,9 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
     elif path == "/api/settings/chat":
         from declan.ai import general_chat
         handler.send_json(200, general_chat.listing())
+    elif path == "/api/settings/household":
+        from declan.turn import household_settings
+        handler.send_json(200, household_settings.listing())
     elif path == "/api/settings/speaker":
         from declan.voice import speaker_settings
         handler.send_json(200, speaker_settings.listing())

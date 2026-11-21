@@ -110,7 +110,12 @@ def _local_help(handler, body, request, *, origin_device, satellite, services, c
     try:
         _, rows, context = conversation_entry.house_context(
             handler, body, origin_device=origin_device, satellite=satellite, services=services)
-        reply = local_help.answer(request, rows=rows, context=context, conversation_on=conversation_on)
+        try:
+            guest = services.read_guest_mode() != "off"
+        except (OSError, ValueError, TypeError, AttributeError):
+            guest = False
+        reply = local_help.answer(request, rows=rows, context=context, conversation_on=conversation_on,
+                                  guest=guest)
     except (OSError, ValueError, TypeError, KeyError) as error:
         LOGGER.warning("Local help failed (%s)", type(error).__name__)
         return None

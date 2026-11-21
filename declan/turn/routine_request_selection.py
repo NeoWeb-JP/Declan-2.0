@@ -92,6 +92,11 @@ def select_routine_result(phrase, origin, *, connect, discovery_module, movie_pa
             elif phrase in sexy_commands or "sexy time" in discovery_module.phrases(item):
                 parameters = {"operation": sexy_commands.get(phrase, "start"),
                               "_declan_background": True, "_declan_reply_category": "sexy"}
+                # FUT-60: Sexy Time only affects the room it was started in.
+                # Scripts that declare an "origin" field get the satellite or
+                # device that heard the request and resolve its area in HA.
+                if isinstance(origin, str) and origin.strip():
+                    parameters["origin"] = origin.strip()
                 if "requested_action" in item.get("fields", []):
                     parameters["requested_action"] = parameters["operation"]
             if is_house_status:

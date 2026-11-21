@@ -10,6 +10,7 @@ ROUTES = frozenset({
     "/api/voicepipeline", "/api/voice-profiles",
     "/api/settings/import", "/api/native/settings-import",
     "/api/settings/speaker", "/api/settings/command-style", "/api/settings/chat",
+    "/api/settings/household",
 })
 
 
@@ -56,6 +57,17 @@ def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,
             handler.send_json(400, {"error": str(error)})
         except OSError:
             handler.send_json(503, {"error": "Could not save the command style."})
+    elif path == "/api/settings/household":
+        from declan.turn import household_settings
+        if not isinstance(body, dict) or set(body) != {"settings"}:
+            handler.send_json(400, {"error": "Send household settings."})
+            return
+        try:
+            handler.send_json(200, household_settings.save(body["settings"]))
+        except ValueError as error:
+            handler.send_json(400, {"error": str(error)})
+        except OSError:
+            handler.send_json(503, {"error": "Could not save the household settings."})
     elif path == "/api/settings/chat":
         from declan.ai import general_chat
         if not isinstance(body, dict) or set(body) != {"settings"}:

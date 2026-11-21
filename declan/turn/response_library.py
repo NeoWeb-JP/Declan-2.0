@@ -77,8 +77,13 @@ def save(item, profile, expected, defaults):
 
 
 def select(item, phase, guest, action="default", *, defaults):
-    """Small lists and empty lists are valid; never leak sass into Guest Mode."""
-    mode = "guest" if guest else "sass"
+    """Small lists and empty lists are valid.
+
+    Guest lines are used only when Guest Mode is on and Settings -> Household
+    -> Guest tone is "polite"; otherwise guests hear the Home sass (FUT-60).
+    """
+    from declan.turn.household_settings import guest_lines
+    mode = "guest" if guest_lines(guest) else "sass"
     profile = snapshot(item, defaults)["profile"]
     section = profile[phase][mode]
     action = action if action in ACTIONS else "default"

@@ -54,12 +54,16 @@ class RoutineResponsesTests(TestCase):
     def save(self, profile):
         return responses.save(self.item, profile, responses.snapshot(self.item)['expected'])
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_existing_lines_visible_and_selected_in_correct_mode(self):
         state = responses.snapshot(self.item)
         for mode, lines in [('sass', personality_policy._MORNING_HOME), ('guest', personality_policy._MORNING_GUEST)]:
             self.assertEqual(state['profile']['requested'][mode]['default'], ['Good morning. ' + line for line in lines])
             self.assertIn(responses.select(self.item, 'requested', mode == 'guest'), state['profile']['requested'][mode]['default'])
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_edits_additions_and_deletions_persist_across_selection(self):
         profile = responses.snapshot(self.item)['profile']
         profile['requested']['sass']['default'] = ['Edited response', 'Added response']
@@ -81,6 +85,8 @@ class RoutineResponsesTests(TestCase):
         self.save(profile)
         self.assertEqual([responses.select(self.item, 'requested', False) for _ in range(4)], ['Only line'] * 4)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_directional_and_failure_lists_are_isolated(self):
         profile = responses.snapshot(self.item)['profile']
         profile['requested']['sass']['start'] = ['Starting']
@@ -93,6 +99,8 @@ class RoutineResponsesTests(TestCase):
         self.assertEqual(responses.render(selection, 'partial', 'Partial detail.'), 'Partial detail.')
         self.assertEqual(responses.render(selection, 'confirmation_prompt', 'Confirm?'), 'Confirm?')
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_unknown_presence_is_passed_as_guest_and_other_scripts_stay_independent(self):
         profile = responses.snapshot(self.item)['profile']
         profile['requested']['sass']['default'] = ['Home only']
