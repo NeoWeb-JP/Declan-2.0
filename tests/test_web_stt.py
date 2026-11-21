@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from unittest import TestCase
 from unittest.mock import Mock, patch
 from types import SimpleNamespace
@@ -133,7 +134,7 @@ class WebSpeechRobustnessTests(TestCase):
     def test_malformed_messages_are_reported_as_invalid_not_attribute_errors(self):
         start = {"id": 1, "type": "event", "event": {"type": "run-start",
                                                      "data": {"runner_data": {"stt_binary_handler_id": 3}}}}
-        cases = {
+        cases: dict[str, list[Any]] = {
             "event is a list": [{"id": 1, "type": "event", "event": ["stt-end"]}],
             "data is a string": [{"id": 1, "type": "event", "event": {"type": "stt-end", "data": "x"}}],
             "stt_output is a list": [{"id": 1, "type": "event",
@@ -157,7 +158,7 @@ class WebSpeechRobustnessTests(TestCase):
                     run_stt_result(socket, "token", b"\0\1", None)
                 if name == "result error is a string":
                     self.assertIsInstance(caught.exception, AssistSpeechError)
-                    self.assertEqual(caught.exception.code, "unknown")
+                    self.assertEqual(getattr(caught.exception, "code", None), "unknown")
                 socket.send_binary.assert_not_called()
         # A well-formed run is unaffected by the stricter shape checks.
         socket = self.socket_with(start, {"id": 1, "type": "event", "event": {"type": "stt-start"}},
