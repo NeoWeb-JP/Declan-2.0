@@ -105,6 +105,7 @@ def handle_post(handler, *, services):
             dispatch_result = agent_turn.dispatch_result
     if dispatch_result is None:
         dispatch_result = dispatch(phrase)
+    dispatch_result = _explain_failure(dispatch_result, services)
     response = turn_response_completion.complete(
         handler, body=body, message=message, effective_message=effective_message,
         session_id=session_id, phrase=phrase, source=source, scope=scope,
@@ -127,6 +128,22 @@ def _conversation_enabled(general_chat):
         return general_chat.enabled()
     except (OSError, ValueError):
         return False
+
+
+def _explain_failure(dispatch_result, services):
+    """FUT-24: say what is actually down, only after checking it."""
+    from declan.core.execution_results import Outcome
+    if dispatch_result is None or dispatch_result.outcome not in {Outcome.UNAVAILABLE, Outcome.FAILED}:
+        return dispatch_result
+    from declan.ha import service_health
+    from declan.turn import conversation_entry
+    try:
+        better = service_health.explain(dispatch_result.reply, services.ha_device_connection())
+    except (OSError, ValueError, TypeError, AttributeError):
+        better = None
+    if not better:
+        return dispatch_result
+    return conversation_entry._result_factory(better, dispatch_result.outcome, base=dispatch_result)
 
 
 def _intercom(request, services, origin):
