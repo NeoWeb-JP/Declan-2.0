@@ -526,6 +526,27 @@ class AssistBridgeTests(IsolatedAsyncioTestCase):
         self.assertIs(first, second)
         entity.hass.states.async_all.assert_called_once()
 
+    async def test_vocabulary_refreshes_when_rooms_or_devices_change(self):
+        """FUT-63: a new or renamed area, device or entity is heard without waiting ten minutes."""
+        provider = import_module("custom_components.declan_two.stt")
+        entity = provider.DeclanOpenAISTT.__new__(provider.DeclanOpenAISTT)
+        listeners = {}
+        removers = []
+        entity.hass = SimpleNamespace(bus=SimpleNamespace(
+            async_listen=lambda event, handler: listeners.setdefault(event, handler) and "remove-" + event))
+        entity.async_on_remove = removers.append
+        core = SimpleNamespace(callback=lambda function: function)
+        with patch.dict("sys.modules", {"homeassistant.core": core}):
+            await entity.async_added_to_hass()
+        self.assertEqual(set(listeners), set(provider.VOCABULARY_EVENTS))
+        self.assertEqual(len(removers), 3)
+        entity._vocabulary_cache = (0.0, ["Old Kitchen"])
+        listeners["area_registry_updated"](SimpleNamespace(data={"action": "update"}))
+        self.assertIsNone(entity._vocabulary_cache)
+        entity._vocabulary_cache = (0.0, ["Old Kitchen"])
+        listeners["entity_registry_updated"](SimpleNamespace(data={"action": "create"}))
+        self.assertIsNone(entity._vocabulary_cache)
+
     async def test_automatic_vocabulary_option_persists(self):
         flow = self.config.DeclanTwoConfigFlow.async_get_options_flow(self.entry)
         flow.config_entry = SimpleNamespace(options={})
