@@ -90,6 +90,8 @@ class Dependencies:
     music_inventory: Callable
     areas: Callable
     search_media: Callable | None = None
+    parse_extra: Callable | None = None  # FUT-28 music controls
+    extra: Callable | None = None
 
 
 def registry(deps):
@@ -136,6 +138,13 @@ def registry(deps):
         )
         return HandledCommand("music_play", music_execution_result(result))
 
+    def music_extra(context, command):
+        extra = deps.extra
+        assert extra is not None  # only registered when configured
+        result = extra(command, deps.connection(), deps.music_inventory,
+                            origin=context.origin_device or context.satellite)
+        return HandledCommand("music_extra", music_execution_result(result))
+
     def media_search(context, phrase):
         search = deps.search_media
         if search is None:
@@ -146,6 +155,9 @@ def registry(deps):
     return HandlerRegistry((
         Handler("device_status", 10, lambda context: deps.parse_status(context.phrase, context.last_device), status),
         Handler("music_feedback", 20, lambda context: deps.parse_feedback(context.phrase), feedback),
+        *([Handler("music_extra", 25, lambda context: deps.parse_extra(context.phrase) if deps.parse_extra else None,
+                   music_extra)]
+          if deps.parse_extra is not None and deps.extra is not None else []),
         Handler("music_control", 30, lambda context: deps.parse_control(context.phrase), control),
         Handler("music_play", 40, lambda context: deps.parse_music(context.phrase), play),
         *([Handler("media_search", 50, lambda context: context.phrase if re.fullmatch(

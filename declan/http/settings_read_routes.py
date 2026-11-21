@@ -51,8 +51,13 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
         except (OSError, sqlite3.Error, ValueError):
             handler.send_json(503, {"error": "AI settings unavailable."})
     elif path == "/api/settings/music":
-        from declan.music import music
-        handler.send_json(200, music.music_settings.listing(music.music_settings_path()))
+        from declan.music import music, music_extras
+        payload = music.music_settings.listing(music.music_settings_path())
+        try:
+            payload["blocked_artists"] = sorted(music_extras.blocked_artists().values(), key=str.casefold)
+        except (OSError, sqlite3.Error):
+            payload["blocked_artists"] = None
+        handler.send_json(200, payload)
     elif path == "/api/settings/command-style":
         from declan.turn import command_style
         handler.send_json(200, command_style.listing())

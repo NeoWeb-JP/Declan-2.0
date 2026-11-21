@@ -4,6 +4,13 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **More music controls (FUT-28, #834).**
+  - "What song is this?" / "who sings this?"
+  - "Play Jolene next" / "queue Thunderstruck by AC/DC" adds it after the current track.
+  - "Play something similar" / "more like this" starts Music Assistant radio from the current track.
+  - "Don't play this artist again" skips them now and whenever they come up. Settings → Music behaviour → Blocked artists has Unblock.
+  - Sleep timer: "stop the music in 30 minutes" fades out over the last 30 seconds, stops, then puts the volume back. "Cancel the sleep timer" stops it, and new music in that room cancels it too. A Declan restart cancels sleep timers.
+  - Commands act on the room you're in when music is playing there, else on the single active player. Replies only report what Home Assistant accepted.
 - **"Where did I put…?" (FUT-42, #834).** Tell Declan where something is ("the spare car key is in the hall drawer", "I've moved the passports to the safe"), then ask: "where's the spare car key?" gets "Lucky for you, one of us pays attention. In the hall drawer, since Tuesday."
   - Local only, shared by the household, survives restarts.
   - Near misses and plurals match ("car keys" finds "spare car key").

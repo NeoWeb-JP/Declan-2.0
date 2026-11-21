@@ -14,7 +14,8 @@ class DeviceCommandDispatchTests(unittest.TestCase):
         self.deps = {name: Mock() for name in (
             "parse_status", "describe_status", "connection", "inventory", "decorate",
             "guest_mode_entity", "parse_feedback", "feedback", "parse_control",
-            "control", "parse_music", "play", "music_inventory", "areas", "search_media")}
+            "control", "parse_music", "play", "music_inventory", "areas", "search_media",
+            "parse_extra", "extra")}
 
     def dispatch(self, **overrides):
         request = dict(phrase="music please", source="assist", last_device="speaker",

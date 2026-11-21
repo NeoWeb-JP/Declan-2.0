@@ -19,6 +19,18 @@ def dispatch(handler, body, *, music, spotify_playlists,
     if handler.path == "/api/settings/media-players":
         handler.approved_player_settings(body)
         return
+    if handler.path == "/api/settings/music" and isinstance(body, dict) and set(body) == {"unblock_artist"}:
+        # FUT-28: unblock an artist blocked with "don't play this artist again".
+        from declan.music import music_extras
+        name = body["unblock_artist"]
+        if not isinstance(name, str) or not 0 < len(name) <= 200:
+            handler.send_json(400, {"error": "Send the artist to unblock."})
+            return
+        try:
+            handler.send_json(200, {"unblocked": music_extras.unblock_artist(name)})
+        except OSError:
+            handler.send_json(503, {"error": "Could not unblock the artist."})
+        return
     if handler.path == "/api/settings/music":
         if not isinstance(body, dict) or "settings" not in body or not set(body) <= {"settings", "start_volume"}:
             handler.send_json(400, {"error": "Send music settings."})
