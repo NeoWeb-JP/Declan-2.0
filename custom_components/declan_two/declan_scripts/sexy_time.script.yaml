@@ -1,0 +1,177 @@
+alias: Declan - Sexy Time Controller
+description: >-
+  Set or restore the mood lights in the room where Sexy Time was asked for, set
+  the starting volume, and stop that room's music on end. The master bedroom
+  keeps its own lights; any other room gets a generic dim, warm/pink mood that
+  is restored afterwards (FUT-60).
+mode: queued
+max: 5
+fields:
+  music_player:
+    name: Music player resolved by Declan
+    description: Optional Music Assistant player. Declan manages its volume and playback when supplied.
+    selector:
+      entity:
+        domain: media_player
+  operation:
+    name: Operation
+    default: start
+    selector:
+      select:
+        options: [start, end]
+  origin:
+    name: Where the request came from
+    description: >-
+      Satellite device or entity that heard the request, sent by Declan. Its
+      Home Assistant area decides the room. Empty means the master bedroom.
+    selector:
+      text:
+sequence:
+  - variables:
+      op: "{{ operation | default('start') }}"
+      origin_area: >-
+        {% set source = origin | default('', true) %}
+        {{ (area_name(source) if source else '') or '' }}
+      room: "{{ origin_area if origin_area else 'Master Bedroom' }}"
+      tailored: "{{ room | lower in ['master bedroom', 'bedroom'] }}"
+      room_lights: >-
+        {{ area_entities(room) | select('match', 'light\\.') | list }}
+      colour_lights: >-
+        {% set result = namespace(lights=[]) %}
+        {% for entity in area_entities(room) | select('match', 'light\\.') %}
+          {% set modes = state_attr(entity, 'supported_color_modes') or [] %}
+          {% if modes | select('in', ['hs', 'rgb', 'rgbw', 'rgbww', 'xy']) | list | count > 0 %}
+            {% set result.lights = result.lights + [entity] %}
+          {% endif %}
+        {% endfor %}
+        {{ result.lights }}
+      mood_scene: "declan_mood_{{ room | slugify }}"
+      room_players: >-
+        {% set result = namespace(players=[]) %}
+        {% set rooms = ['bedroom', 'master bedroom'] if tailored else [room | lower] %}
+        {% for entity in integration_entities('music_assistant') %}
+          {% if entity.startswith('media_player.')
+             and area_name(entity) | default('', true) | lower in rooms
+             and states(entity) not in ['unknown', 'unavailable'] %}
+            {% set result.players = result.players + [entity] %}
+          {% endif %}
+        {% endfor %}
+        {{ result.players }}
+  - variables:
+      player: >-
+        {% set requested = music_player | default('', true) %}
+        {{ requested if requested in room_players
+           else room_players[0] if room_players | count == 1 else '' }}
+      managed_music: "{{ music_player | default('', true) != '' }}"
+  - if: "{{ op not in ['start', 'end'] }}"
+    then:
+      - stop: Unknown Sexy Time operation.
+        error: true
+  - choose:
+      # The master bedroom keeps its own hand-picked lights.
+      - conditions: "{{ tailored }}"
+        sequence:
+          - action: light.turn_on
+            target:
+              entity_id:
+                - light.master_bedroom_fairy_lights
+                - light.master_bedroom_queen_lamp
+          - action: "light.turn_{{ 'off' if op == 'start' else 'on' }}"
+            target:
+              entity_id: light.master_bedroom_bedroom_lamp
+          - choose:
+              - conditions: "{{ op == 'start' }}"
+                sequence:
+                  - action: light.turn_on
+                    target:
+                      entity_id: light.master_bedroom_main_light
+                    data:
+                      brightness_pct: 50
+                      rgb_color: [255, 0, 255]
+            default:
+              - action: light.turn_on
+                target:
+                  entity_id: light.master_bedroom_main_light
+                data:
+                  brightness_pct: 50
+                  color_temp_kelvin: 3000
+      # Any other room: remember its lights, dim them, then put them back.
+      - conditions: "{{ room_lights | count > 0 and op == 'start' }}"
+        sequence:
+          - action: scene.create
+            data:
+              scene_id: "{{ mood_scene }}"
+              snapshot_entities: "{{ room_lights }}"
+          - action: light.turn_on
+            target:
+              entity_id: "{{ room_lights }}"
+            data:
+              brightness_pct: 30
+          - if: "{{ colour_lights | count > 0 }}"
+            then:
+              - action: light.turn_on
+                target:
+                  entity_id: "{{ colour_lights }}"
+                data:
+                  brightness_pct: 30
+                  rgb_color: [255, 0, 255]
+      - conditions: "{{ room_lights | count > 0 and op == 'end' }}"
+        sequence:
+          - if: "{{ states('scene.' ~ mood_scene) not in ['unknown', 'unavailable'] }}"
+            then:
+              - action: scene.turn_on
+                target:
+                  entity_id: "scene.{{ mood_scene }}"
+            else:
+              - action: light.turn_on
+                target:
+                  entity_id: "{{ room_lights }}"
+                data:
+                  brightness_pct: 50
+  - if: "{{ not managed_music and player != '' }}"
+    then:
+      - if: "{{ op == 'start' }}"
+        then:
+          - action: media_player.volume_set
+            target:
+              entity_id: "{{ player }}"
+            data:
+              volume_level: 0.2
+            continue_on_error: true
+        else:
+          - action: media_player.media_stop
+            target:
+              entity_id: "{{ player }}"
+            continue_on_error: true
+  - wait_template: >-
+      {% if tailored %}
+        {{ is_state('light.master_bedroom_fairy_lights', 'on')
+           and is_state('light.master_bedroom_queen_lamp', 'on')
+           and is_state('light.master_bedroom_main_light', 'on')
+           and is_state('light.master_bedroom_bedroom_lamp', 'off' if op == 'start' else 'on') }}
+      {% else %}
+        {{ room_lights | count > 0 and (op == 'end' or room_lights | select('is_state', 'on') | list | count == room_lights | count) }}
+      {% endif %}
+    timeout: "00:00:03"
+    continue_on_timeout: true
+  - variables:
+      result:
+        operation: "{{ op }}"
+        room: "{{ room }}"
+        lighting_ok: >-
+          {% if tailored %}
+            {{ is_state('light.master_bedroom_fairy_lights', 'on')
+               and is_state('light.master_bedroom_queen_lamp', 'on')
+               and is_state('light.master_bedroom_main_light', 'on')
+               and is_state('light.master_bedroom_bedroom_lamp', 'off' if op == 'start' else 'on') }}
+          {% else %}
+            {{ room_lights | count > 0 and (op == 'end' or room_lights | select('is_state', 'on') | list | count == room_lights | count) }}
+          {% endif %}
+        music_stopped: "{{ op == 'end' and states(player) in ['idle', 'off', 'standby'] }}"
+  - if: "{{ result.lighting_ok and tailored }}"
+    then:
+      - action: "input_boolean.turn_{{ 'on' if op == 'start' else 'off' }}"
+        target:
+          entity_id: input_boolean.declan_sexy_time_active
+  - stop: Mood routine complete.
+    response_variable: result
