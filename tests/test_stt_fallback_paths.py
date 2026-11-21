@@ -3,6 +3,7 @@ local provider must end in a clean ERROR result rather than an exception."""
 import asyncio
 from importlib import import_module
 from types import SimpleNamespace
+from typing import Any
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -18,6 +19,11 @@ class STTFallbackPathTests(IsolatedAsyncioTestCase):
     # re-running that suite's tests in this module.
     setUp = bridge_harness.AssistBridgeTests.setUp
     _hass_with_executor = staticmethod(bridge_harness.AssistBridgeTests._hass_with_executor)
+    # Set by the borrowed setUp.
+    entry: Any
+    session: Any
+    request: Any
+    response: Any
 
     def _provider(self):
         return import_module("custom_components.declan_two.stt")
