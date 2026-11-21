@@ -8,6 +8,7 @@ from declan.ha import household_language
 from declan.ai.action_evidence_buffer import evidence_value
 from declan.core.execution_results import Outcome, parse_outcome
 from declan.turn.routine_action_evidence import RoutineActionStatus
+from declan.turn.household_settings import guest_lines
 
 ROTATION = ResponseRotationState(window=3)
 _SAVAGE = (
@@ -202,7 +203,7 @@ def dinner_music_feedback(steps, *, guest=False, visitor_present=False):
         status = None
     if status in {RoutineActionStatus.REQUESTED, RoutineActionStatus.ALREADY_REQUESTED}:
         prefix = "I've requested the music." if status is RoutineActionStatus.REQUESTED else "The music request is already in progress."
-        if guest or visitor_present is not False:
+        if guest_lines(guest or visitor_present is not False):
             return prefix + " Spotify works on its own timetable and doesn't like to be hurried. Who knows when it'll join the party."
         return prefix + " Spotify works on its own bloody timetable and doesn't like to be hurried, so God knows when it'll join the party."
     return "The lights are set, but I couldn't confirm the music request."
@@ -212,7 +213,7 @@ def movie_request_reply(action, *, guest=False, visitor_present=False):
     """Add cinema sass to an accepted request, without claiming completion."""
     action = action if action in _MOVIE_HOME else "toggle"
     prefix = {"start": "Movie setup requested.", "end": "Movie shutdown requested.", "toggle": "Movie Time requested."}[action]
-    mode = "guest" if guest or visitor_present is not False else "home"
+    mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = (_MOVIE_GUEST if mode == "guest" else _MOVIE_HOME)[action]
     chosen = household_language.render(ROTATION.choose((mode, "movie", action), lines))
     return prefix + " " + chosen
@@ -220,7 +221,7 @@ def movie_request_reply(action, *, guest=False, visitor_present=False):
 
 def morning_request_reply(*, guest=False, visitor_present=False):
     """Greet an accepted morning request without claiming light verification."""
-    mode = "guest" if guest or visitor_present is not False else "home"
+    mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = _MORNING_GUEST if mode == "guest" else _MORNING_HOME
     chosen = household_language.render(ROTATION.choose((mode, "morning"), lines))
     return "Good morning. " + chosen
@@ -228,7 +229,7 @@ def morning_request_reply(*, guest=False, visitor_present=False):
 
 def night_request_reply(*, guest=False, visitor_present=False):
     """Acknowledge bedtime without claiming the household has shut down."""
-    mode = "guest" if guest or visitor_present is not False else "home"
+    mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = _NIGHT_GUEST if mode == "guest" else _NIGHT_HOME
     chosen = household_language.render(ROTATION.choose((mode, "night"), lines))
     return "Good night. " + chosen
@@ -237,15 +238,19 @@ def night_request_reply(*, guest=False, visitor_present=False):
 def sexy_request_reply(action, *, guest=False, visitor_present=False):
     """Acknowledge the request without claiming music or devices are ready."""
     action = "end" if action == "end" else "start"
-    mode = "guest" if guest or visitor_present is not False else "home"
+    mode = "guest" if guest_lines(guest or visitor_present is not False) else "home"
     lines = (_SEXY_GUEST if mode == "guest" else _SEXY_HOME)[action]
     chosen = household_language.render(ROTATION.choose((mode, "sexy", action), lines))
     return chosen
 
 
 def response_guest_mode(guest_mode, visitor_present):
-    """Keep Guest Mode authority independent of the privacy-preserving persona."""
-    return "on" if guest_mode != "off" or visitor_present is not False else "off"
+    """Keep Guest Mode authority independent of the response persona.
+
+    The persona only switches to guest wording when Settings -> Household ->
+    Guest tone is "polite"; the default keeps Declan's Home lines (FUT-60).
+    """
+    return "on" if guest_lines(guest_mode != "off" or visitor_present is not False) else "off"
 
 
 def quiet_hours(now=None):
@@ -280,8 +285,9 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
              safety=False, already_decorated=False, category="general"):
     """Append a varied roast to a *verified* ordinary Home response only.
 
-    Guest authority and visitor presence are independent signals. Unknown
-    visitor state should be treated as private, not as permission to roast.
+    Guest authority and visitor presence are independent signals. With the
+    polite guest tone, unknown visitor state is treated as private; with the
+    default Home tone guests hear the same roasts as the household (FUT-60).
     """
     if not isinstance(reply, str) or (not reply.strip() and category != "dinner"):
         return reply
@@ -295,7 +301,7 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
            for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST)):
         return reply
     lines: tuple[str, ...]
-    if guest or visitor_present is not False:
+    if guest_lines(guest or visitor_present is not False):
         lines = _DINNER_GUEST if category == "dinner" else _GUEST
         key = ("guest", category)
     else:

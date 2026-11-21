@@ -1,6 +1,7 @@
 """Personality policy regression tests."""
 from datetime import datetime
 import unittest
+from unittest.mock import patch
 
 from declan.turn import personality_policy as p
 from declan.ha import household_language
@@ -18,6 +19,8 @@ class PersonalityPolicyTests(unittest.TestCase):
                 self.assertNotIn("is playing", reply)
                 self.assertNotIn("completed", reply)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_sexy_guest_and_unknown_visitor_replies_remain_private(self):
         for options in ({"guest": True}, {"visitor_present": True}, {"visitor_present": None}):
             for action in ("start", "end"):
@@ -40,6 +43,8 @@ class PersonalityPolicyTests(unittest.TestCase):
             self.assertNotIn("completed", reply)
             self.assertNotIn("lights are off", reply)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_night_guest_and_unknown_presence_keep_household_details_private(self):
         for options in ({"guest": True, "visitor_present": False}, {"visitor_present": True},
                         {"visitor_present": None}):
@@ -58,6 +63,8 @@ class PersonalityPolicyTests(unittest.TestCase):
             self.assertNotIn("completed", reply)
             self.assertNotIn("lights are", reply)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_morning_guest_and_unknown_presence_replies_keep_household_details_private(self):
         for options in ({"guest": True, "visitor_present": False}, {"visitor_present": True},
                         {"visitor_present": None}):
@@ -78,6 +85,8 @@ class PersonalityPolicyTests(unittest.TestCase):
                 self.assertNotIn("completed", reply)
                 self.assertNotRegex(reply, r"\baudit\b")
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_movie_guest_and_unknown_visitor_fallbacks_are_playful_and_private(self):
         for options in ({"guest": True, "visitor_present": False}, {"visitor_present": True},
                         {"visitor_present": None}):
@@ -106,6 +115,8 @@ class PersonalityPolicyTests(unittest.TestCase):
         self.assertTrue(all("Routine finished" not in reply and "Sorted." not in reply for reply in replies))
         self.assertEqual(p.decorate(replies[0], category="general", visitor_present=False), replies[0])
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_dinner_guest_lines_are_still_food_specific_and_privacy_safe(self):
         for options in ({"guest": True}, {"visitor_present": True}, {"visitor_present": None}):
             reply = p.decorate("", category="dinner", **options)
@@ -118,6 +129,8 @@ class PersonalityPolicyTests(unittest.TestCase):
             self.assertEqual(p.decorate("Dinner could not be confirmed.", category="dinner", outcome=outcome),
                              "Dinner could not be confirmed.")
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_optional_dinner_music_is_reported_as_requested_not_playing(self):
         step = {"target": "dinner_music", "action": "request_playback", "required": False, "status": "requested"}
         note = p.dinner_music_feedback([step], visitor_present=False)
@@ -139,6 +152,8 @@ class PersonalityPolicyTests(unittest.TestCase):
         guest = p.decorate("All done.", guest=True)
         self.assertEqual(p.decorate(guest, visitor_present=False), guest)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_guest_mode_authority_and_visitor_presence_are_independent(self):
         self.assertEqual(p.response_guest_mode("on", False), "on")
         self.assertEqual(p.response_guest_mode("on", None), "on")
@@ -146,6 +161,8 @@ class PersonalityPolicyTests(unittest.TestCase):
         self.assertEqual(p.response_guest_mode("off", None), "on")
         self.assertEqual(p.response_guest_mode("off", False), "off")
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_guest_and_visitors_do_not_get_home_roasts(self):
         for options in ({"guest": True, "visitor_present": False},
                         {"visitor_present": True}, {"visitor_present": None}):

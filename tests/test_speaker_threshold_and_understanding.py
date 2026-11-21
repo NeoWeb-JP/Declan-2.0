@@ -140,6 +140,13 @@ class UnderstandingSummaryTests(unittest.TestCase):
         self.assertEqual(result["speaker"], {"threshold": 0.85, "samples": 3, "median_confidence": 0.4,
                                              "highest_confidence": 0.9, "recognised_share": 0.3333})
 
+    def test_guest_mode_hint_still_counts_as_not_understood(self):
+        from declan.turn.command_vocabulary import GUEST_HINT
+        self.add(1, "flibber the lounge", UNMATCHED_REPLY + GUEST_HINT)
+        self.add(1, "lights on")
+        result = self.summary()
+        self.assertEqual(result["weeks"][0], {"turns": 2, "not_understood": 1, "rate": 0.5})
+
     def test_empty_history(self):
         result = self.summary()
         self.assertEqual(len(result["weeks"]), 4)

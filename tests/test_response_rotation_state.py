@@ -46,6 +46,8 @@ class ResponseRotationTests(unittest.TestCase):
         first.choose("music", ("a", "b"))
         self.assertNotIn("music", second.recent)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_builtin_personality_exhausted_category_does_not_raise(self):
         state = ResponseRotationState(window=2, random=FirstChoice())
         with patch.object(personality, "ROTATION", state), \
@@ -56,6 +58,8 @@ class ResponseRotationTests(unittest.TestCase):
             self.assertEqual(set(results), {"one", "two"})
             self.assertEqual(personality.choose_line("test_short", "on"), "quiet")
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_policy_home_and_guest_outputs_stay_independent(self):
         state = ResponseRotationState(window=3, random=FirstChoice())
         with patch.object(personality_policy, "ROTATION", state):

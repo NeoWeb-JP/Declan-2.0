@@ -19,6 +19,7 @@ from .voice_cache import VoiceCache
 from .voice_cache_location import select_cache_directory
 from .voice_defaults import DEFAULT_PROVIDER
 from .guest_mode_policy import DEFAULT_GUEST_MODE_ENTITY, guest_safe
+from .household_view import guest_tone
 from .voice_catalog_fallback import category_alternatives, load_catalogue
 from .voice_provider import generate_from_existing_tts
 from .voice_text import spoken_text
@@ -187,7 +188,8 @@ class DeclanVoiceManager(TextToSpeechEntity):
         except (OSError, ValueError):
             return None
 
-        guest = guest_safe(self.hass, self._entry.options.get(
+        # Guest wording only with the optional polite guest tone (FUT-60).
+        guest = guest_tone(self.hass) == "polite" and guest_safe(self.hass, self._entry.options.get(
             "guest_mode_entity", DEFAULT_GUEST_MODE_ENTITY))
         alternatives = list(category_alternatives(message, catalogue, guest=guest))
         random.shuffle(alternatives)

@@ -25,6 +25,8 @@ class RoastTests(unittest.TestCase):
             self.assertIn("Edd", roast.respond("Edd", guest=False))
             self.assertIs(choose.call_args.args[0], roast.HOME)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_guest_policy_does_not_toggle_guest_mode(self):
         with patch.object(server, "read_guest_mode", return_value="on"):
             mode = server.personality_policy.response_guest_mode(server.read_guest_mode(), False)

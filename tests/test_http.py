@@ -121,6 +121,8 @@ class APITests(TestCase):
         self.assertEqual(status, 200, result)
         return json.loads(result)
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_routine_response_editor_reads_saves_and_rejects_stale_edits_without_execution(self):
         item = {"entity_id": "script.good_morning", "name": "Declan - Good Morning", "safe": False}
         headers = {"Origin": self.origin, "Content-Type": "application/json"}
@@ -227,6 +229,8 @@ class APITests(TestCase):
             self.assertEqual(reply["outcome"], "unverified")
             self.assertEqual(reply["reply"], "Request not confirmed.")
 
+    # Pinned to the optional polite guest tone (FUT-60).
+    @patch("declan.turn.household_settings.guest_tone", new=lambda path=None: "polite")
     def test_night_receipt_returns_bedtime_sass_even_with_guest_mode_on(self):
         # Exercise receipt speech when the configured voice policy allows dispatch.
         self.enterContext(patch.dict(server.os.environ, {"DECLAN_SENSITIVE_ROUTINES": "guest"}))

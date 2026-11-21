@@ -327,8 +327,9 @@ ROTATION = ResponseRotationState(window=2)
 
 def choose_line(category, guest_mode):
     """Keep the last two lines per category and tone out of the draw."""
-    guest = guest_mode != "off"
     from declan.turn import command_responses
+    from declan.turn.household_settings import guest_lines
+    guest = guest_lines(guest_mode != "off")
     custom = command_responses.selected(category, guest)
     if custom is not None:
         return household_language.render(custom)

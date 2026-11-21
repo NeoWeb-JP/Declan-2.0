@@ -311,7 +311,23 @@ def spotify_search(opener, title, artist, types):
     return collected
 
 
+# FUT-60: "play some music" with no title picks something good: a favourite,
+# else a curated category, instead of searching Spotify for "some music".
+GENERIC_TITLE = "something good"
+_GENERIC_TITLES = frozenset({"some music", "something", "something good", "anything", "some tunes",
+                             "tunes", "some songs", "a song", "something nice", "something decent"})
+_PUT_ON = re.compile(r"(?:put|chuck|stick|throw) (?:on )?(?:some |a bit of )?(?:music|tunes|songs)(?: on)?"
+                     r"(?P<where> in (?:the )?.+| everywhere| upstairs| downstairs)?")
+# Curated categories a generic request may pick from (never mood/focus lists).
+GENERIC_CATEGORIES = ("country", "braai", "rock", "afrikaans", "80s", "90s")
+
+
 def parse(phrase):
+    put_on = _PUT_ON.fullmatch(phrase)
+    if put_on:
+        phrase = "play some music" + (put_on["where"] or "")
+    if phrase in {"music please", "some music please", "some music"}:
+        phrase = "play some music"
     phrase = re.sub(r" on (spotify|radio|tunein)( in (?:the )?(?:bedroom|master bedroom|kitchen|everywhere)|"
                     r" (?:everywhere|upstairs|downstairs))$",
                     r"\2 on \1", phrase)
@@ -337,6 +353,8 @@ def parse(phrase):
             provider = "radio"
     if title in {"music", "the music", "this", "this music"}:
         title = None
+    if title in _GENERIC_TITLES and (provider or "spotify") == "spotify":
+        title = GENERIC_TITLE
     return room_key(room) if room else None, title, provider or "spotify"
 
 
@@ -812,12 +830,31 @@ def search_cache_key(title, artist):
     return "|".join((" ".join(title.casefold().split()), " ".join(artist.casefold().split()), market))
 
 
+def generic_selection(weights):
+    """A favourite if there are any, else a playlist from a random curated category."""
+    favourites = [(uri, uri.split("/")[-2], "a favourite") for uri, weight in weights.items() if weight > 1]
+    if favourites:
+        uri, kind, name = choices(favourites, weights=[weights[item[0]] for item in favourites])[0]  # nosec B311 - weighted playlist selection, not security randomness
+        return uri.replace("spotify://", "https://open.spotify.com/", 1), kind, name
+    from declan.music import spotify_playlists
+    catalogue = spotify_playlists.listing()["categories"]
+    pool = [(category, uri) for category in GENERIC_CATEGORIES
+            for uri in catalogue.get(category, {}).get("playlists", [])
+            if weights.get(media_key(uri), 1) > 0]
+    if not pool:
+        return None
+    category, uri = choices(pool)[0]  # nosec B311 - playlist variety, not security randomness
+    return uri.replace("spotify://", "https://open.spotify.com/", 1), "playlist", category.replace("_", " ") + " music"
+
+
 def search_media(connection, destination, title, artist, provider):
     if provider == "spotify":
         with preference_db() as db:
             weights = dict(db.execute("SELECT uri, weight FROM preferences"))
             recent = [uri for (uri,) in db.execute(
                 "SELECT uri FROM recent_playlists WHERE category = ? ORDER BY id DESC LIMIT 3", (title,))]
+        if title == GENERIC_TITLE:
+            return generic_selection(weights)
         if title in {"my favourites", "our favourites", "my favorites", "our favorites"}:
             options = [(uri, uri.split("/")[-2], "a favourite") for uri, weight in weights.items() if weight > 1]
             if not options:
@@ -978,7 +1015,8 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         artist = ""
         if title and provider == "spotify" and " by " in title:
             title, _, artist = title.rpartition(" by ")
-        ma_search = provider == "spotify" and bool(title) and music_assistant_search_enabled()
+        ma_search = (provider == "spotify" and bool(title) and title != GENERIC_TITLE
+                     and music_assistant_search_enabled())
         saved = saved_spotify_selection(title, artist) if title and provider == "spotify" and not ma_search else None
         if saved and PREFERENCES.exists():
             with preference_db() as db:

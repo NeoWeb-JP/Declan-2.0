@@ -264,6 +264,10 @@ class DeclanTwoNativePanel extends HTMLElement {
         .command-style-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
         .command-style-form select { max-width:100%; min-height:40px; }
         .command-style-form button { justify-self:start; min-height:44px; }
+        .household-form { display:grid; gap:10px; min-width:0; }
+        .household-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
+        .household-form select { max-width:100%; min-height:40px; }
+        .household-form button { justify-self:start; min-height:44px; }
         .speaker-settings-form { display:grid; gap:10px; min-width:0; margin-top:14px; }
         .speaker-settings-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
         .speaker-settings-form input { max-width:140px; min-height:40px; }
@@ -474,6 +478,20 @@ class DeclanTwoNativePanel extends HTMLElement {
                 <p class="music-settings-status muted" role="status" aria-live="polite">Open Settings to load music settings.</p>
               </div>
             </details>
+            <details class="settings-section settings-section--household">
+              <summary><span class="settings-section-icon" aria-hidden="true">⌂</span><span class="settings-section-title">Household<small>How Declan talks when guests are over</small></span></summary>
+              <div class="settings-section-content">
+                <form class="household-form">
+                  <label>Guest tone<select name="guest_tone">
+                    <option value="home">Same as the household: full sass (default)</option>
+                    <option value="polite">Polite guest lines</option>
+                  </select></label>
+                  <p class="muted">Applies while Guest Mode is on or visitors are present. It only changes Declan's wording: sensitive routines still ask for confirmation and private answers stay private.</p>
+                  <button type="submit">Save household settings</button>
+                </form>
+                <p class="household-status muted" role="status" aria-live="polite">Open Settings to load household settings.</p>
+              </div>
+            </details>
             <details class="settings-section">
               <summary><span class="settings-section-icon" aria-hidden="true">♫</span><span class="settings-section-title">Spotify integration<small>Connection status and API credentials</small></span></summary>
               <div class="settings-section-content">
@@ -557,6 +575,9 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.mic-start', 'click', () => this.startMicrophone());
       this.bindPanelEvent('.mic-stop', 'click', () => this._micFollowUp ? this.cancelMicrophone() : this.stopMicrophone());
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
+      this.bindPanelEvent('.household-form', 'submit', event => {
+        event.preventDefault(); void this.saveHousehold();
+      });
       this.bindPanelEvent('.command-style-form', 'submit', event => {
         event.preventDefault(); void this.saveCommandStyle();
       });
@@ -723,7 +744,7 @@ class DeclanTwoNativePanel extends HTMLElement {
     if (name === 'players' && !this._playersLoaded) void this.loadPlayers();
     if (name === 'audit') void this.loadHAAudit();
     if (name === 'responses' && !this._responseRoutinesLoaded) void this.loadResponseRoutines();
-    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadChatSettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); void this.loadCommandStyle(); void this.loadLearnedIntents(); if (!this._voicesLoaded) void this.loadVoices(); }
+    if (name === 'settings') { void this.loadSettingsStatus(); void this.loadAISettings(); void this.loadChatSettings(); void this.loadMusicSettings(); void this.loadSpeakerSettings(); void this.loadCommandStyle(); void this.loadHousehold(); void this.loadLearnedIntents(); if (!this._voicesLoaded) void this.loadVoices(); }
     if (name === 'updates') void this.openUpdatesPage();
     else this.stopUpdatePolling();
 
@@ -2313,6 +2334,38 @@ class DeclanTwoNativePanel extends HTMLElement {
     } catch {
       this._commandStyleLoaded = false;
       status.textContent = 'Could not load the command style. Changes are not saved.';
+    }
+  }
+
+  async loadHousehold() {
+    if (!this._hass) return;
+    const form = this.shadowRoot.querySelector('.household-form');
+    const status = this.shadowRoot.querySelector('.household-status');
+    status.textContent = 'Loading household settings…';
+    try {
+      const response = await this._hass.callApi('GET', 'declan_two/household');
+      form.elements.namedItem('guest_tone').value = response.settings.guest_tone;
+      this._householdLoaded = true;
+      const source = response.sources.guest_tone;
+      status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
+        ? 'From declan.env until saved here.' : 'Default.';
+    } catch {
+      this._householdLoaded = false;
+      status.textContent = 'Could not load household settings. Changes are not saved. Update the Declan integration if this persists.';
+    }
+  }
+
+  async saveHousehold() {
+    const form = this.shadowRoot.querySelector('.household-form');
+    const status = this.shadowRoot.querySelector('.household-status');
+    if (!this._householdLoaded) { status.textContent = 'Load settings before saving.'; return; }
+    status.textContent = 'Saving…';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/household', {settings: {guest_tone: form.elements.namedItem('guest_tone').value}});
+      form.elements.namedItem('guest_tone').value = response.settings.guest_tone;
+      status.textContent = 'Saved. It applies to Declan\'s next reply.';
+    } catch {
+      status.textContent = 'Could not save household settings.';
     }
   }
 

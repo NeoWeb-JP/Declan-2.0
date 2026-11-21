@@ -31,6 +31,9 @@ def compose_turn_result(message, session_id, routine_reply, *,
         parse_light_command=parse_light_command,
         render_failure=render_failure, composition=composition,
     )
+    from declan.turn.command_vocabulary import GUEST_HINT, UNMATCHED_REPLY
+    if guest_mode != "off" and reply.get("reply") == UNMATCHED_REPLY:
+        reply["reply"] = UNMATCHED_REPLY + GUEST_HINT
     return TurnResponse(reply, outcome, routine_status)
 
 
