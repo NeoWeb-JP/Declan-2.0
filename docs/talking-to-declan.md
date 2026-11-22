@@ -56,6 +56,11 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 
 **Entrance themes** (nothing to say): when someone gets home, their clip plays once on the entrance satellite. Set the satellite and each person's clip in Settings → Household → Entrance themes. Not during quiet hours, Guest mode or while music is playing in that room.
 
+**Who's home** (from Home Assistant's People, so it's their phones, not their voices; guests just get cheek):
+- "Is Edd home?", "is Jaco back yet?", "has Edd left?"
+- "Who's home?", "is anyone in?", "is everyone home?"
+- Only home or out: Declan never says where someone is. A phone that isn't reporting gets "I can't tell".
+
 **Sunrise wake-up** (ask from the bedroom satellite; one per room):
 - "Wake me at 6:30 with the sunrise": the dimmable lights brighten over the 15 minutes before 6:30, warming to daylight, then Declan says good morning and quiet music fades in
 - Add "on weekdays", "at weekends" or "every day"; "... and play Afrikaans" picks the music; "... without music"
