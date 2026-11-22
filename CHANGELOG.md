@@ -4,6 +4,10 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Behaviour under request load (FUT-64, #834).** Found by new load tests (`tests/test_request_load.py`):
+  - **A burst waited a second.** The backend queued only 5 waiting connections (socketserver's default), so in a burst the rest were dropped and the client retried a second later. It now queues 64. A 20-request burst against 4 busy workers is answered in milliseconds, down from about 1 second.
+  - **A slow client could stall everyone.** When all workers were busy, Declan read a refused client's request before answering 503, 0.2 seconds per read with no overall limit. A client dripping bytes could hold up the accept loop for minutes (5 seconds in the test). That's now capped at 0.25 seconds in total.
+  - **Voice turns keep their room.** A quarter of the workers (4 of 16) are kept for voice turns (`POST /api/assist`, `/api/chat`, `/api/stt`, `/api/tts`), so panel polling or a burst of settings requests can't take every worker while a satellite is waiting.
 - **Speech vocabulary follows Home Assistant changes (FUT-63, #834).** With "Use my Home Assistant names as vocabulary" on, adding, renaming or removing a room, device or entity clears the OpenAI transcription's cached names immediately (HA's area, device and entity registry events), so the next utterance uses the new names. The ten-minute cache stays as a backstop, which also covers changes to which entities are exposed to Assist.
 - **Who's home (FUT-30, #834).**
   - "Is Edd home?", "is Jaco back yet?", "has Edd left?", "who's home?", "is anyone in?", answered from Home Assistant's `person` entities (phones), never from voice recognition.
