@@ -272,8 +272,8 @@ class DeclanTwoNativePanel extends HTMLElement {
         .command-style-form select { max-width:100%; min-height:40px; }
         .command-style-form button { justify-self:start; min-height:44px; }
         .household-form { display:grid; gap:10px; min-width:0; }
-        .household-form label { display:grid; gap:7px; color:#c7e6f3; font-weight:600; }
-        .household-form select { max-width:100%; min-height:40px; }
+        .household-form label { display:grid; gap:7px; min-width:0; color:#c7e6f3; font-weight:600; }
+        .household-form select { width:100%; max-width:100%; min-height:40px; }
         .household-form button { justify-self:start; min-height:44px; }
         .household-form .household-toggle { display:flex; align-items:center; gap:10px; }
         .household-form input[type=number] { max-width:8rem; min-height:40px; }
@@ -313,6 +313,41 @@ class DeclanTwoNativePanel extends HTMLElement {
         .ai-key-section { margin:0; }
         .ai-key-form { min-width:0; }
         @media(max-width:520px) { .ai-domain-grid { grid-template-columns:1fr; } .ai-settings-form .ai-save { width:100%; } }
+        /* Form baseline: every text field, number, date, search and dropdown gets the theme and never
+           grows wider than its card. :where() keeps specificity at zero, so section styles still win. */
+        :where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), select, textarea) {
+          box-sizing:border-box; max-width:100%; min-width:0; min-height:44px; padding:10px 12px;
+          border:1px solid #315568; border-radius:9px; background:#102635; color:#e7f7ff;
+          font:inherit; font-weight:400; color-scheme:dark;
+        }
+        :where(input, select, textarea):focus-visible { outline:2px solid #91e3ff; outline-offset:2px; }
+        :where(input, textarea)::placeholder { color:#a1ccdf; opacity:1; }
+        :where(select) { text-overflow:ellipsis; }
+        /* Grid and flex items default to their content's width; a long option would widen the whole card. */
+        :where(label, form, fieldset, details) { min-width:0; }
+        .settings-section-content > *, .settings-subsection > * { min-width:0; max-width:100%; }
+        /* Long IDs (media-source://..., entity IDs) wrap instead of running off the card. */
+        .settings-section-content p, .settings-section-content label, .panel p { overflow-wrap:anywhere; }
+        .panel a, .settings-section a { color:#91e3ff; text-underline-offset:3px; }
+        .panel a:visited, .settings-section a:visited { color:#b9a8ff; }
+        /* iOS draws date fields at a fixed native width and ignores width:100% unless the native look is off. */
+        input[type=date] { -webkit-appearance:none; appearance:none; display:block; width:100%; text-align:left; }
+        input[type=date]::-webkit-date-and-time-value { text-align:left; }
+        input[type=search] { -webkit-appearance:none; appearance:none; }
+        /* A label wrapping a long dropdown must not size itself to the longest option. */
+        .update-controls > label { display:grid; gap:7px; flex:1 1 100%; min-width:0; color:#c7e6f3; font-weight:600; }
+        .update-controls > label > select { width:100%; }
+        .chat-settings-form .ai-field { max-width:100%; }
+        .chat-settings-form .ai-field input { width:100%; max-width:240px; }
+        .command-style-form, .speaker-settings-form { display:grid; gap:10px; min-width:0; }
+        .command-style-form label, .speaker-settings-form label { display:grid; gap:7px; min-width:0; color:#c7e6f3; font-weight:600; }
+        .command-style-form select { width:100%; }
+        .speaker-settings-form input { width:100%; max-width:160px; }
+        .command-style-form .muted, .speaker-settings-form .muted { margin:0; line-height:1.55; overflow-wrap:anywhere; }
+        .command-style-form button, .speaker-settings-form button { justify-self:start; min-height:44px; }
+        .intents-search { max-width:100%; }
+        .intents-search input { width:100%; max-width:420px; }
+        @media(max-width:520px) { .command-style-form button, .speaker-settings-form button { width:100%; } }
 </style>
       <div class="wrap">
         <header>

@@ -127,6 +127,10 @@ This file records significant repository changes. Historical releases are availa
 - **Guest Mode keeps the sass (FUT-60, #834).** Guests now hear exactly the same lines as the household: roasts, swearing and innuendo included. The old polite guest lines are still there: Settings → **Household** → Guest tone → Polite (or `DECLAN_GUEST_TONE=polite`). This only changes wording: sensitive routines still ask for confirmation and private answers stay private. Needs the updated HA integration for the new Settings card.
 - **Sexy Time stays in its room.** Declan now tells the Sexy Time script which satellite heard the request. The updated `home_assistant/sexy_time.script.yaml` keeps the master bedroom's own lights, and in any other room dims that room's lights (pink where they can) and puts them back afterwards. **Manual step:** paste the new YAML into the Sexy Time script in Home Assistant; until then it keeps using the bedroom.
 - **Easier for people who've never used Declan.** "Play some music", "put some music on" or "play something" now plays a favourite, or a playlist from one of your categories, instead of searching Spotify for the words "some music" (with Conversation on, the agent still chooses). In Guest Mode, a misunderstood request ends with a hint ("Try 'lights on', 'play some music', 'louder' or 'stop'") and "what can you do?" gives a five-item guest answer. Hinted misses still open the rephrase window and still count on History → Understanding.
+- **Settings fit on a phone again.**
+  - Every text box, number, date, search box and dropdown in the panel now uses the dark theme. The black native boxes are gone: conversation budget, speaker threshold, voice command style, learned-phrase search.
+  - Nothing is wider than its card any more. Long dropdown options and long IDs used to push whole sections off the right edge: the Responses picker, voice command style, Household (guest tone, Christmas mode, entrance themes), and the AI model's "stop using on" date on iPhone.
+  - Links in the panel are readable on the dark background.
 
 ## 2.13.1 (20 November 2026)
 
