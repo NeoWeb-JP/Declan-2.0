@@ -19,6 +19,43 @@ class NativePanelContractTests(unittest.TestCase):
         self.assertIn('async_register_panel', source)
         self.assertIn('hass.data.get(DATA_KEY)', source)
 
+    def test_module_url_changes_when_the_panel_changes(self):
+        """A cached old panel.js must not survive an upgrade (seen 22 Nov 2026)."""
+        import hashlib
+        import importlib.util
+        import sys
+        import tempfile
+        from types import ModuleType
+        source = (INTEGRATION / "native_panel.py").read_text()
+        self.assertIn('module_url=f"{ASSET_PATH}/panel.js?v={version}"', source)
+        self.assertIn("async_add_executor_job(panel_version)", source)
+        stubs = {name: ModuleType(name) for name in (
+            "homeassistant", "homeassistant.components", "homeassistant.components.frontend",
+            "homeassistant.components.panel_custom", "homeassistant.components.http")}
+        setattr(stubs["homeassistant.components"], "frontend", stubs["homeassistant.components.frontend"])
+        setattr(stubs["homeassistant.components"], "panel_custom", stubs["homeassistant.components.panel_custom"])
+        setattr(stubs["homeassistant.components.http"], "StaticPathConfig", object)
+        saved = {name: sys.modules.get(name) for name in stubs}
+        sys.modules.update(stubs)
+        try:
+            spec = importlib.util.spec_from_file_location("native_panel_under_test", INTEGRATION / "native_panel.py")
+            assert spec is not None and spec.loader is not None
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            for name, value in saved.items():
+                if value is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = value
+        panel = (INTEGRATION / "frontend" / "panel.js").read_bytes()
+        self.assertEqual(module.panel_version(), hashlib.sha256(panel).hexdigest()[:12])
+        with tempfile.TemporaryDirectory() as folder:
+            changed = Path(folder) / "panel.js"
+            changed.write_bytes(panel + b"\n")
+            self.assertNotEqual(module.panel_version(changed), module.panel_version())
+            self.assertEqual(module.panel_version(Path(folder) / "missing.js"), "0")
+
     def test_integration_registers_panel_without_retiring_ingress(self):
         source = (INTEGRATION / "__init__.py").read_text()
         self.assertIn('await async_register_native_panel(hass)', source)
