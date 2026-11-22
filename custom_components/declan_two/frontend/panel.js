@@ -593,6 +593,37 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <p class="themes-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list themes-list" aria-label="Entrance themes"></div>
                 </details>
+                <details class="house-info"><summary>Car</summary>
+                  <p class="muted">For "is the car charged?", "is it plugged in?", "start charging the car" and a line about the car in the sunrise wake-up. The Pod Point charger is found automatically. Starting or stopping charging always asks for a spoken yes, and guests can't do it.</p>
+                  <form class="house-info-form">
+                    <label>Car name<input name="car_name" type="text" maxlength="30" autocomplete="off" placeholder="the car"></label>
+                    <label>Car battery sensor<input name="car_battery" type="text" maxlength="110" autocomplete="off" spellcheck="false" placeholder="sensor.car_battery"></label>
+                    <label class="household-toggle"><input type="checkbox" name="car_in_sunrise"> Mention the car at sunrise wake-up</label>
+                    <button type="submit">Save car</button>
+                  </form>
+                  <p class="house-info-status muted" role="status" aria-live="polite"></p>
+                </details>
+                <details class="house-info"><summary>Morning briefing</summary>
+                  <p class="muted">"What's my day look like?" (and after Good Morning, if ticked): the weather, bins when they go out today or tomorrow, today's calendar and the car, in about 15 seconds. Guests only get the weather and bins. Anything missing or not answering is skipped.</p>
+                  <form class="house-info-form briefing-form">
+                    <fieldset><legend>Include</legend>
+                      <label class="household-toggle"><input type="checkbox" name="briefing_weather"> Weather</label>
+                      <label class="household-toggle"><input type="checkbox" name="briefing_bins"> Bins</label>
+                      <label class="household-toggle"><input type="checkbox" name="briefing_calendar"> Calendar</label>
+                      <label class="household-toggle"><input type="checkbox" name="briefing_car"> Car</label>
+                    </fieldset>
+                    <label>Calendars<input name="calendars" type="text" maxlength="600" autocomplete="off" spellcheck="false" placeholder="Empty: all calendars, e.g. calendar.family, calendar.work"></label>
+                    <label>Bin collections<input name="bins" type="text" maxlength="110" autocomplete="off" spellcheck="false" placeholder="calendar.bins or sensor.recycling"></label>
+                    <label class="household-toggle"><input type="checkbox" name="briefing_in_good_morning"> Add the briefing after Good Morning</label>
+                    <button type="submit">Save briefing</button>
+                  </form>
+                  <p class="briefing-status muted" role="status" aria-live="polite"></p>
+                </details>
+                <details class="satellites"><summary>Satellites</summary>
+                  <p class="muted">What each satellite can do. Declan reads this from Home Assistant; change it here if Home Assistant gets it wrong. Features check this list instead of assuming every satellite is the same. "Show pictures" can't be detected, so switch it on for satellites with a screen.</p>
+                  <p class="satellites-status muted" role="status" aria-live="polite"></p>
+                  <div class="fresh-lines-list satellites-list" aria-label="Satellites"></div>
+                </details>
                 <details class="fresh-lines"><summary>Lines Declan wrote</summary>
                   <p class="fresh-lines-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list" aria-label="Lines Declan wrote"></div>
@@ -684,6 +715,12 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
       this.bindPanelEvent('.household-form', 'submit', event => {
         event.preventDefault(); void this.saveHousehold();
+      });
+      this.bindPanelEvent('.house-info-form:not(.briefing-form)', 'submit', event => {
+        event.preventDefault(); void this.saveHouseInfo();
+      });
+      this.bindPanelEvent('.briefing-form', 'submit', event => {
+        event.preventDefault(); void this.saveBriefing();
       });
       this.bindPanelEvent('.theme-satellite-form', 'submit', event => {
         event.preventDefault(); void this.saveThemeSatellite();
@@ -2547,6 +2584,8 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.renderWhereabouts(response.whereabouts);
       this.renderUsuals(response.usuals);
       this.renderThemes(response.themes);
+      this.renderHouseInfo(response.house_info);
+      this.renderSatellites(response.satellites);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
       status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
@@ -2691,6 +2730,102 @@ class DeclanTwoNativePanel extends HTMLElement {
       });
       item.append(name, on, media, save, test);
       list.append(item);
+    }
+  }
+
+  renderHouseInfo(info) {
+    this.renderBriefing(info);
+    const form = this.shadowRoot.querySelector('.house-info-form:not(.briefing-form)');
+    const status = this.shadowRoot.querySelector('.house-info-status');
+    if (!info || !info.settings) { status.textContent = 'Could not read the car settings.'; return; }
+    for (const [key, value] of Object.entries(info.settings)) {
+      const field = form.elements.namedItem(key);
+      if (!field) continue;
+      if (field.type === 'checkbox') field.checked = value === true; else field.value = value;
+    }
+    status.textContent = info.settings.car_battery ? '' : 'No battery sensor yet: Declan can only say whether the car is plugged in and charging.';
+  }
+
+  renderSatellites(rows) {
+    const list = this.shadowRoot.querySelector('.satellites-list');
+    const status = this.shadowRoot.querySelector('.satellites-status');
+    list.replaceChildren();
+    if (!Array.isArray(rows)) { status.textContent = 'Could not ask Home Assistant about the satellites.'; return; }
+    status.textContent = rows.length ? '' : 'No Assist satellites in Home Assistant.';
+    const labels = {audio: 'Play audio', announce: 'Announcements', reply: 'Listen for a reply', screen: 'Show pictures'};
+    for (const row of rows) {
+      const item = document.createElement('form'); item.className = 'fresh-line satellite-row';
+      const name = document.createElement('strong'); name.textContent = row.area || row.name || row.entity_id;
+      item.append(name);
+      const selects = {};
+      for (const [key, label] of Object.entries(labels)) {
+        const wrap = document.createElement('label'); wrap.textContent = label;
+        const select = document.createElement('select');
+        const detected = row.detected[key] ? 'yes' : 'no';
+        for (const [value, text] of [['auto', `Automatic (${detected})`], ['on', 'Yes'], ['off', 'No']]) {
+          const option = document.createElement('option'); option.value = value; option.textContent = text; select.append(option);
+        }
+        select.value = key in row.overrides ? (row.overrides[key] ? 'on' : 'off') : 'auto';
+        selects[key] = select; wrap.append(select); item.append(wrap);
+      }
+      const save = document.createElement('button'); save.type = 'submit'; save.textContent = 'Save';
+      item.append(save);
+      item.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const change = {entity_id: row.entity_id};
+        for (const [key, select] of Object.entries(selects)) change[key] = select.value === 'auto' ? null : select.value === 'on';
+        try {
+          await this._hass.callApi('POST', 'declan_two/household', {save_satellite: change});
+          status.textContent = `Saved ${name.textContent}.`;
+        } catch { status.textContent = `Could not save ${name.textContent}.`; }
+      });
+      list.append(item);
+    }
+  }
+
+  renderBriefing(info) {
+    const form = this.shadowRoot.querySelector('.briefing-form');
+    const status = this.shadowRoot.querySelector('.briefing-status');
+    if (!info || !info.settings || typeof info.settings.briefing !== 'string') { status.textContent = 'Could not read the briefing settings.'; return; }
+    const items = info.settings.briefing.split(',').map(item => item.trim());
+    for (const item of ['weather', 'bins', 'calendar', 'car']) form.elements.namedItem(`briefing_${item}`).checked = items.includes(item);
+    form.elements.namedItem('calendars').value = info.settings.calendars || '';
+    form.elements.namedItem('bins').value = info.settings.bins || '';
+    form.elements.namedItem('briefing_in_good_morning').checked = info.settings.briefing_in_good_morning === true;
+    status.textContent = '';
+  }
+
+  async saveBriefing() {
+    const form = this.shadowRoot.querySelector('.briefing-form');
+    const status = this.shadowRoot.querySelector('.briefing-status');
+    const briefing = ['weather', 'calendar', 'car', 'bins'].filter(item => form.elements.namedItem(`briefing_${item}`).checked).join(',');
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/household', {save_house_info: {
+        briefing, calendars: form.elements.namedItem('calendars').value.trim(),
+        bins: form.elements.namedItem('bins').value.trim(),
+        briefing_in_good_morning: form.elements.namedItem('briefing_in_good_morning').checked}});
+      this.renderHouseInfo(response.house_info);
+      status.textContent = 'Saved.';
+    } catch {
+      status.textContent = 'Could not save that. Calendars must be calendar entities separated by commas; bins a calendar or sensor entity.';
+    }
+  }
+
+  async saveHouseInfo() {
+    const form = this.shadowRoot.querySelector('.house-info-form:not(.briefing-form)');
+    const status = this.shadowRoot.querySelector('.house-info-status');
+    const values = {};
+    for (const key of ['car_name', 'car_battery', 'car_in_sunrise']) {
+      const field = form.elements.namedItem(key);
+      if (field) values[key] = field.type === 'checkbox' ? field.checked : field.value.trim();
+    }
+    if (!values.car_name) values.car_name = 'the car';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/household', {save_house_info: values});
+      this.renderHouseInfo(response.house_info);
+      status.textContent = 'Saved.';
+    } catch {
+      status.textContent = 'Could not save that. Use a name of up to 30 letters, and a sensor entity like sensor.car_battery (or leave it empty).';
     }
   }
 

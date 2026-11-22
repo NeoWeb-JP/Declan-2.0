@@ -4,6 +4,37 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Satellite capability registry (FUT-32, #834).**
+  - Declan knows what each Assist satellite can do: play audio (a media player on its device or in its room), take announcements and listen for a reply (the satellite's ANNOUNCE and START_CONVERSATION features), and show pictures (set in Settings, since HA can't tell).
+  - Settings → Household → Satellites lists them; each capability is Automatic (what HA says), Yes or No.
+  - "What can the satellites do?" / "what can this satellite do?"
+  - The intercom (FUT-25) now skips a satellite that can't take announcements and says so. This is a prerequisite for two-way intercom (FUT-34) and cameras on screens (FUT-36).
+- **Camera questions from Frigate (FUT-41, #834).**
+  - "Was someone at the front door?", "is anyone in the garden?", "is a pet in the garden?", "is there a car on the drive?", "when did a car last arrive?"
+  - Read-only, from the Frigate integration's own entities: `binary_sensor.<camera or zone>_<object>_occupancy` (there now?) and `image.<camera or zone>_<object>` (time of the last detection). No AI, no extra cost.
+  - Answers say which camera and roughly when ("about 25 minutes ago", "yesterday at 18:30"). Unknown people are "someone": no faces or names. "Camera offline" and "nothing seen" get different answers.
+  - Spoken places match cameras and zones loosely ("the door" finds `front_door`). Pets means dogs or cats.
+  - Hidden in Guest mode.
+- **Morning briefing (FUT-29, #834).**
+  - "What's my day look like?", "morning briefing", "brief me": today's weather (high, low, chance of rain), the bins if a collection is today or tomorrow, today's calendar (three events, then "and N more") and the car's charge.
+  - Capped at about 45 words (roughly 15 seconds). A missing, empty or unanswering source is skipped silently.
+  - Added after a successful Good Morning routine (switchable). Never on the first wake word of the day.
+  - Guest mode: weather and bins only.
+  - Settings → Household → Morning briefing: what to include, which calendars (empty means all except the bins), the bin calendar or sensor, and the Good Morning switch.
+- **Find my phone (FUT-33, #834).**
+  - "Ring Edd's phone", "find my phone", "I can't find my phone", "Edd can't find his phone".
+  - The phone comes from the person's device tracker in Home Assistant, and the notification goes through that phone's companion-app notify service (`device_tracker.edd_iphone` → `notify.mobile_app_edd_iphone`).
+  - It's sent loud: the alarm stream on Android, a critical alert on iPhone. For an iPhone, Declan reminds you that critical alerts must be allowed for the Home Assistant app.
+  - "My phone" with more than one phone in the house: Declan asks whose, because voice recognition isn't reliable enough yet.
+- **Car questions and charging (FUT-31, #834).**
+  - "Is the car charged?", "is the car plugged in?", "is the car charging?", from the Pod Point integration (found automatically) and the car's battery sensor.
+  - "Start charging the car" and "stop charging the car" always ask for a spoken yes. Starting turns on the Pod Point's "charging allowed" switch, which overrides its schedule until stopped; stopping hands control back to the schedule. Guests can ask but not change charging.
+  - A sensor that isn't reporting is said plainly; with no battery sensor, Declan answers from the charger alone.
+  - Settings → Household → Car: the car's name ("the Peugeot"), its battery sensor, and whether the sunrise wake-up mentions the car (FUT-45's car line, never in Guest mode).
+- **Spotify and Music Assistant reliability (FUT-67, #834).** New mock-based tests (`tests/test_music_reliability.py`) cover simultaneous requests, timeouts, rate limits, dropped connections and offline players. Two problems found and fixed:
+  - **One dropped poll lost the result.** After sending a play request, Declan polls the player to see whether music started. A single dropped connection while polling ended the whole check, so music that did start was reported as "couldn't verify". A failed poll is now just skipped, within the same time limit, and the play request is still never re-sent.
+  - **Offline speakers sounded unconfigured.** A room whose Music Assistant speaker exists but is offline got "No approved Music Assistant player is configured", which sent you to Settings. It now says "The Music Assistant player in the kitchen is unavailable."
+  - Already safe, now under test: a second simultaneous request gets "busy" and never starts a second stream; a timed-out play request is never sent twice; a rate limit is reported once with no retry; the music lock is released after any error.
 - **Behaviour under request load (FUT-64, #834).** Found by new load tests (`tests/test_request_load.py`):
   - **A burst waited a second.** The backend queued only 5 waiting connections (socketserver's default), so in a burst the rest were dropped and the client retried a second later. It now queues 64. A 20-request burst against 4 busy workers is answered in milliseconds, down from about 1 second.
   - **A slow client could stall everyone.** When all workers were busy, Declan read a refused client's request before answering 503, 0.2 seconds per read with no overall limit. A client dripping bytes could hold up the accept loop for minutes (5 seconds in the test). That's now capped at 0.25 seconds in total.

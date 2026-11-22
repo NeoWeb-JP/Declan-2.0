@@ -61,12 +61,38 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "Who's home?", "is anyone in?", "is everyone home?"
 - Only home or out: Declan never says where someone is. A phone that isn't reporting gets "I can't tell".
 
+**The car** (Pod Point and the car's battery sensor from Settings → Household → Car):
+- "Is the car charged?", "how much charge has the car got?", "is the Peugeot full?"
+- "Is the car plugged in?", "is the car charging?"
+- "Start charging the car" / "stop charging the car": Declan asks you to say yes first. Starting overrides the Pod Point schedule until you stop it; stopping hands control back to the schedule. Guests can ask but can't change charging.
+
+**Find my phone** (the Home Assistant app on each phone, from People):
+- "Ring Edd's phone", "find Jaco's phone", "Edd can't find his phone"
+- "Find my phone", "I can't find my phone": with more than one phone in the house, Declan asks whose (he can't tell voices apart reliably yet)
+- It rings even on silent on Android. An iPhone on silent only rings if critical alerts are allowed for the Home Assistant app (iPhone Settings → Notifications → Home Assistant → Critical Alerts)
+
+**Morning briefing** (Settings → Household → Morning briefing):
+- "What's my day look like?", "morning briefing", "brief me"
+- About 15 seconds: today's weather, the bins if they go out today or tomorrow, today's calendar and the car. Anything missing is skipped
+- Also said after Good Morning (switch it off in Settings). Guests only get the weather and bins
+
+**Cameras** (read from Frigate; nothing is sent to the AI; guests just get cheek):
+- "Was someone at the front door?", "has anyone been at the door today?"
+- "Is anyone in the garden?", "is a pet in the garden?", "is there a car on the drive?"
+- "When did a car last arrive?", "when was the last visitor?"
+- Unknown people are just "someone": no faces or names. If a camera is offline, Declan says so rather than "nobody"
+
+**Satellites** (Settings → Household → Satellites):
+- "What can the satellites do?", "what can this satellite do?", "what can the kitchen satellite do?"
+- Declan reads what each one can do from Home Assistant: play audio, take announcements, listen for a reply. "Show pictures" can't be detected, so switch it on in Settings for satellites with a screen. The intercom skips a satellite that can't take announcements and says so
+
 **Sunrise wake-up** (ask from the bedroom satellite; one per room):
 - "Wake me at 6:30 with the sunrise": the dimmable lights brighten over the 15 minutes before 6:30, warming to daylight, then Declan says good morning and quiet music fades in
 - Add "on weekdays", "at weekends" or "every day"; "... and play Afrikaans" picks the music; "... without music"
 - While it's running: "stop" turns its lights off and pauses the music; "snooze" pauses the music for 9 minutes
 - "When's my sunrise?", "skip tomorrow's sunrise", "cancel the sunrise"
 - If music is already playing in another room, it's left alone and Declan says so. Lights already on are left alone too
+- The good morning includes one line about the car, if the car is set up (switch it off in Settings → Household → Car)
 
 **Intercom** (spoken on the satellites, starting "Message from the lounge: …"; not during quiet hours, 23:00 to 07:00):
 - "Tell the kitchen dinner's ready", "tell the master bedroom that breakfast is ready"

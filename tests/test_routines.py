@@ -16,6 +16,8 @@ from test_home_assistant import HA_ENV
 
 class RoutineTests(TestCase):
     def setUp(self):
+        # The morning briefing (FUT-29) has its own tests; keep these to the routine call.
+        self.enterContext(patch("declan.ha.briefing.for_good_morning", return_value=""))
         self.enterContext(patch.dict(server.os.environ, HA_ENV | {
             "DECLAN_MOVIE_SCRIPT": "script.movie", "DECLAN_MOVIE_REMOTE": "remote.projector",
         }))

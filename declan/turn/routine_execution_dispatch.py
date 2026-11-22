@@ -2,6 +2,7 @@
 import json
 import re
 import sqlite3
+from dataclasses import replace
 from urllib.error import HTTPError
 from declan.core.execution_results import ExecutionResult, Outcome, MovieLaunchStatus
 from declan.ha.script_provider_results import ScriptProviderResult, ScriptReportedOutcome
@@ -77,10 +78,23 @@ def run_routine_result(period, *, action_results=None, movie_action=None, movie_
                     evidence = evidence_factory(movie_app[0], status, remote,
                                                    f"{note} Remote: {remote}. Command: app:{movie_app[1]}.")
                     append_evidence(action_results, evidence)
+            if period == "morning" and outcome is Outcome.REPORTED_SUCCESS:
+                execution = _with_briefing(execution, connection, result)
             return execution, detail
         return ExecutionResult(f"{salutation} Home Assistant did not return a correlated completion result.", Outcome.UNVERIFIED), None
     finally:
         lock.release()
+
+
+def _with_briefing(execution, connection, result):
+    """FUT-29: the morning briefing after Good Morning (switchable in Settings -> Household -> Briefing)."""
+    from declan.ha import briefing
+    guest = not isinstance(result, dict) or result.get("guest_mode") != "off"
+    try:
+        extra = briefing.for_good_morning(connection, guest=guest)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        extra = ""
+    return replace(execution, reply=f"{execution.reply} {extra}") if extra else execution
 
 
 def routine_completion_result(result, request_id, routine_id, period, movie_action, action_results, *, parse_steps, extend_evidence, sass):
