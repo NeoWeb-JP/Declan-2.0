@@ -131,6 +131,7 @@ This file records significant repository changes. Historical releases are availa
   - Every text box, number, date, search box and dropdown in the panel now uses the dark theme. The black native boxes are gone: conversation budget, speaker threshold, voice command style, learned-phrase search.
   - Nothing is wider than its card any more. Long dropdown options and long IDs used to push whole sections off the right edge: the Responses picker, voice command style, Household (guest tone, Christmas mode, entrance themes), and the AI model's "stop using on" date on iPhone.
   - Links in the panel are readable on the dark background.
+- **Declan's self-report (FUT-50, #834).** "How are you, Declan?", "how's it going?", "status report": a rotated in-character opener, how long he's been running, how many of today's requests he didn't catch (counted like the Understanding card), and this month's AI spend against the monthly AI budget ("I've spent $7.12 of my $20.00 pocket money this month."). Guests get the uptime only. Numbers that can't be read are left out.
 
 ## 2.13.1 (20 November 2026)
 
