@@ -971,9 +971,21 @@ def wait_for(connection, player, predicate, *, attempts=4, deadline=None):
             state = request(connection, "/api/states/" + player, timeout=timeout)
         except TimeoutError:
             continue
+        except HTTPError as error:
+            error.close()  # FUT-67: one failed poll isn't the answer; keep watching
+            continue
+        except OSError:
+            continue
         if predicate(state):
             return True
     return False
+
+
+def _room_players_unavailable(inventory, room):
+    """True when a room's registered Music Assistant players exist but are all unavailable."""
+    rows = [row for row in inventory if isinstance(row, dict) and row.get("declan_music_assistant") is True
+            and isinstance(row.get("declan_area"), str) and room_key(row["declan_area"]) == room]
+    return bool(rows) and all(row.get("state") in (None, "unknown", "unavailable") for row in rows)
 
 
 def _play_provider(command, connection, read_inventory, *, origin=None):
@@ -1014,6 +1026,9 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             from declan.music import music_extras
             music_extras.cancel_sleep(destination)  # FUT-28: new music cancels a sleep timer
         if destination is None:
+            if _room_players_unavailable(inventory, room):
+                # FUT-67/FUT-24: the speaker exists but is offline; say that, not "not configured".
+                return ExecutionResult(f"The Music Assistant player {location} is unavailable.", Outcome.UNAVAILABLE)
             return ExecutionResult(f"No approved Music Assistant player is configured for {room}, or its registration is missing.", Outcome.UNRESOLVED)
         if player_availability_result(destination, players.get(destination, {}).get("state")).status is PlayerAvailability.UNAVAILABLE:
             return ExecutionResult(f"The Music Assistant player {location} is unavailable.", Outcome.UNAVAILABLE)
