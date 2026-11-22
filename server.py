@@ -539,6 +539,8 @@ class Handler(BaseHTTPRequestHandler):
         return turn_http_entry.handle_post(self, services=_turn_services())
 
 def main():
+    from declan.turn import self_report
+    self_report.mark_started()  # FUT-50: "how are you, Declan?" reports uptime from here
     return server_lifecycle.main(
         description=__doc__, argv=None, environ=os.environ,
         history_store=history, timer_store=timers,

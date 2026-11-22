@@ -56,6 +56,10 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 
 **Entrance themes** (nothing to say): when someone gets home, their clip plays once on the entrance satellite. Set the satellite and each person's clip in Settings → Household → Entrance themes. Not during quiet hours, Guest mode or while music is playing in that room.
 
+**How's Declan?**
+- "How are you, Declan?", "how's it going?", "status report"
+- How long he's been running, how many of today's requests he didn't catch, and this month's AI spend against the budget ("$7.12 of my $20.00 pocket money"). Guests just get the uptime
+
 **Who's home** (from Home Assistant's People, so it's their phones, not their voices; guests just get cheek):
 - "Is Edd home?", "is Jaco back yet?", "has Edd left?"
 - "Who's home?", "is anyone in?", "is everyone home?"
