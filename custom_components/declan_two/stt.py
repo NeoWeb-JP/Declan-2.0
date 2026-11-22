@@ -19,7 +19,9 @@ _LOGGER = logging.getLogger(__name__)
 ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
 MAX_AUDIO_BYTES = 16_000 * 2 * 60  # one minute of 16 kHz, 16-bit mono PCM
 PROMPT = DEFAULT_PROMPT
-VOCABULARY_SECONDS = 600
+VOCABULARY_SECONDS = 600  # backstop; registry changes clear the cache straight away (FUT-63)
+# A new, renamed or removed room, device or entity changes the names Declan should hear.
+VOCABULARY_EVENTS = ("area_registry_updated", "entity_registry_updated", "device_registry_updated")
 VOCABULARY_DOMAINS = ("light", "switch", "fan", "cover", "media_player", "script", "scene")
 
 
@@ -127,8 +129,26 @@ class DeclanOpenAISTT(stt.SpeechToTextEntity):
                 return await self._fallback(metadata, bytes(raw), level.snapshot())
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
 
+    async def async_added_to_hass(self):
+        """FUT-63: refresh the automatic vocabulary when Home Assistant's rooms or devices change."""
+        parent = getattr(super(), "async_added_to_hass", None)
+        if parent is not None:
+            await parent()
+        from homeassistant.core import callback
+
+        @callback
+        def changed(_event):
+            self._vocabulary_changed()
+
+        for event in VOCABULARY_EVENTS:
+            self.async_on_remove(self.hass.bus.async_listen(event, changed))
+
+    def _vocabulary_changed(self):
+        """Forget the cached names; the next utterance rebuilds them."""
+        self._vocabulary_cache = None
+
     def _automatic_vocabulary(self):
-        """Rooms and Assist-exposed device names, cached for ten minutes."""
+        """Rooms and Assist-exposed device names, cached until a registry changes (at most ten minutes)."""
         now = time.monotonic()
         cached = getattr(self, "_vocabulary_cache", None)
         if cached is not None and now - cached[0] < VOCABULARY_SECONDS:
