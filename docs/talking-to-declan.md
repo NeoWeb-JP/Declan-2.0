@@ -86,6 +86,10 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "What can the satellites do?", "what can this satellite do?", "what can the kitchen satellite do?"
 - Declan reads what each one can do from Home Assistant: play audio, take announcements, listen for a reply. "Show pictures" can't be detected, so switch it on in Settings for satellites with a screen. The intercom skips a satellite that can't take announcements and says so
 
+**Washing weather** (from the weather forecast):
+- "Is it a good day to hang the washing?", "can I put the washing out?", "will the washing dry tomorrow?"
+- No if rain is likely, risky at 30–49%, otherwise yes, with a word about wind, cold or a late start
+
 **Sunrise wake-up** (ask from the bedroom satellite; one per room):
 - "Wake me at 6:30 with the sunrise": the dimmable lights brighten over the 15 minutes before 6:30, warming to daylight, then Declan says good morning and quiet music fades in
 - Add "on weekdays", "at weekends" or "every day"; "... and play Afrikaans" picks the music; "... without music"

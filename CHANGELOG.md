@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Washing weather (FUT-47, #834).** "Is it a good day to hang the washing?", "can I put the washing out?", "will the washing dry tomorrow?" are answered from the daily forecast on `DECLAN_WEATHER_ENTITY`. 50% or more chance of rain, or a rainy, stormy or snowy forecast, is a no; 30–49% is risky; otherwise yes, with a note when it's windy (extra pegs), cold, or late in the day. No forecast is said plainly, never guessed.
 - **Satellite capability registry (FUT-32, #834).**
   - Declan knows what each Assist satellite can do: play audio (a media player on its device or in its room), take announcements and listen for a reply (the satellite's ANNOUNCE and START_CONVERSATION features), and show pictures (set in Settings, since HA can't tell).
   - Settings → Household → Satellites lists them; each capability is Automatic (what HA says), Yes or No.
