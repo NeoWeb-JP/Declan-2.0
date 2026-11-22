@@ -5,6 +5,10 @@ This file records significant repository changes. Historical releases are availa
 ## Unreleased
 
 - **Speech vocabulary follows Home Assistant changes (FUT-63, #834).** With "Use my Home Assistant names as vocabulary" on, adding, renaming or removing a room, device or entity clears the OpenAI transcription's cached names immediately (HA's area, device and entity registry events), so the next utterance uses the new names. The ten-minute cache stays as a backstop, which also covers changes to which entities are exposed to Assist.
+- **Who's home (FUT-30, #834).**
+  - "Is Edd home?", "is Jaco back yet?", "has Edd left?", "who's home?", "is anyone in?", answered from Home Assistant's `person` entities (phones), never from voice recognition.
+  - Only home or out; zone names are never said. A phone that isn't reporting gets "I can't tell", not a guess. A name that isn't a person ("is the washing in?") is left to the rest of Declan.
+  - Guests (or an unreadable Guest mode) get a cheeky refusal and nobody's name.
 - **Entrance themes (FUT-46, #834).**
   - When someone gets home (their phone, from HA's `person` entities), their clip plays once on the entrance satellite: a short media-source:// clip from Home Assistant's Media, announced without the chime, never Spotify.
   - A real arrival means away for at least 10 minutes, with no theme in the last 30 minutes. First sight of a person and HA restarts never count.
