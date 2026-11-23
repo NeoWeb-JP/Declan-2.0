@@ -1077,7 +1077,12 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
         else:
             try:
                 selection: tuple[str | None, str | None, str] | None
-                if ma_search:
+                curated = SPOTIFY_PLAYLIST_FALLBACKS.get(title) if ma_search and not artist else None
+                if curated:
+                    # Routine playlists (Sexy Time, dinner) are fixed links, not searches:
+                    # Music Assistant gets the playlist URL, since a name search misses them.
+                    selection = curated
+                elif ma_search:
                     # Music Assistant resolves the name itself; Declan sends no Spotify URL.
                     selection = (None, music_assistant_media_type(title, artist), title)
                 else:
@@ -1115,7 +1120,7 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
                 stopped = True
                 if source == destination:
                     previous_state = "idle"
-            if ma_search:
+            if ma_search and not uri:
                 data = {"entity_id": destination, "media_id": title, "enqueue": "play"}
                 if kind:
                     data["media_type"] = kind

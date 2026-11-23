@@ -64,10 +64,27 @@ class MusicAssistantSearchTests(music_fixture.MusicFixture):
     def test_works_without_spotify_credentials_and_bypasses_saved_links(self):
         self.players[self.bedroom].update(state="idle", attributes={})
         with patch.dict(music.os.environ, {"DECLAN_SPOTIFY_CLIENT_ID": "", "DECLAN_SPOTIFY_CLIENT_SECRET": "",
-                                           "DECLAN_SPOTIFY_PRESETS": '{"sexy time music": "https://open.spotify.com/playlist/0mQbGXAlmsI3T2Vyfa0IVd"}'}):
-            reply, outcome = self.play_from("play sexy time music in the kitchen", None)
+                                           "DECLAN_SPOTIFY_PRESETS": '{"bedtime songs": "https://open.spotify.com/playlist/0mQbGXAlmsI3T2Vyfa0IVd"}'}):
+            reply, outcome = self.play_from("play bedtime songs in the kitchen", None)
         self.assertEqual(outcome, "confirmed", reply)
-        self.assertEqual(self.play_media_calls()[0]["media_id"], "sexy time music")
+        self.assertEqual(self.play_media_calls()[0]["media_id"], "bedtime songs")
+        self.assertEqual(self.spotify_requests, 0)
+
+    def test_routine_playlists_are_sent_as_their_fixed_link(self):
+        # A name search for "sexy time music" misses the "Sexy Time" playlist.
+        self.players[self.bedroom].update(state="idle", attributes={})
+        for phrase, uri in (
+            ("play sexy time music in the bedroom", "https://open.spotify.com/playlist/0mQbGXAlmsI3T2Vyfa0IVd"),
+            ("play romantic dinner music in the kitchen", "https://open.spotify.com/playlist/37i9dQZF1DXbm6HfkbMtFZ"),
+        ):
+            with self.subTest(phrase=phrase):
+                self.calls.clear()
+                for row in self.players.values():
+                    row.update(state="idle", attributes={})
+                reply, outcome = self.play_from(phrase, None)
+                self.assertEqual(outcome, "confirmed", reply)
+                call = self.play_media_calls()[0]
+                self.assertEqual((call["media_id"], call["media_type"]), (uri, "playlist"))
         self.assertEqual(self.spotify_requests, 0)
 
     def test_playback_from_a_non_spotify_source_still_verifies(self):
