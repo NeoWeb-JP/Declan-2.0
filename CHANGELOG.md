@@ -4,6 +4,12 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Light colours.** "Make the utility room spotlights red", "turn on the spotlights and set them to blue", "set the kitchen lights to warm white", "make it purple" (the lights you last changed), and "set the bedroom to green" for a whole room.
+  - Colours: red, orange, amber, gold, yellow, lime, green, teal, turquoise, cyan, light/sky blue, blue, indigo, purple, violet, magenta, pink, hot pink. Whites use colour temperature: warm/soft white, white, natural/neutral white, cool white, cold white, daylight.
+  - Only lights whose `supported_color_modes` allow it are changed; others are named and left alone. Switches are never used for colour.
+  - The change is confirmed from the light's reported `hs_color` or `color_temp_kelvin`, waiting up to 6 seconds for slower (cloud-bridged) lights; otherwise Declan says it couldn't confirm.
+  - "Turn them on and set them to pink" with no earlier lights in the conversation means the lights in the satellite's room.
+- **Slow lights are checked, not given up on.** When a light's service call takes longer than Declan's 1-second send timeout (template lights driving cloud-bridged devices), Declan now checks the light's state for up to 6 seconds instead of saying "I didn't get a response".
 - **Washing weather (FUT-47, #834).** "Is it a good day to hang the washing?", "can I put the washing out?", "will the washing dry tomorrow?" are answered from the daily forecast on `DECLAN_WEATHER_ENTITY`. 50% or more chance of rain, or a rainy, stormy or snowy forecast, is a no; 30–49% is risky; otherwise yes, with a note when it's windy (extra pegs), cold, or late in the day. No forecast is said plainly, never guessed.
 - **Satellite capability registry (FUT-32, #834).**
   - Declan knows what each Assist satellite can do: play audio (a media player on its device or in its room), take announcements and listen for a reply (the satellite's ANNOUNCE and START_CONVERSATION features), and show pictures (set in Settings, since HA can't tell).

@@ -19,6 +19,49 @@ _BRIGHTNESS_VARIANTS = (
 )
 
 
+# Spoken colour names: ("hs", (hue, saturation)) or ("kelvin", temperature).
+COLOURS: dict[str, tuple[str, int | tuple[int, int]]] = {
+    "red": ("hs", (0, 100)), "orange": ("hs", (30, 100)), "amber": ("hs", (45, 100)),
+    "gold": ("hs", (50, 100)), "yellow": ("hs", (60, 100)), "lime": ("hs", (90, 100)),
+    "green": ("hs", (120, 100)), "teal": ("hs", (170, 100)), "turquoise": ("hs", (175, 80)),
+    "cyan": ("hs", (180, 100)), "light blue": ("hs", (200, 60)), "sky blue": ("hs", (200, 60)),
+    "blue": ("hs", (240, 100)), "indigo": ("hs", (260, 100)), "purple": ("hs", (275, 100)),
+    "violet": ("hs", (280, 80)), "magenta": ("hs", (300, 100)), "pink": ("hs", (330, 60)),
+    "hot pink": ("hs", (330, 100)),
+    "warm white": ("kelvin", 2700), "soft white": ("kelvin", 2700), "white": ("kelvin", 4000),
+    "natural white": ("kelvin", 4000), "neutral white": ("kelvin", 4000),
+    "cool white": ("kelvin", 5000), "cold white": ("kelvin", 6000), "daylight": ("kelvin", 6500),
+}
+_COLOUR = "(?P<colour>" + "|".join(sorted(map(re.escape, COLOURS), key=len, reverse=True)) + ")"
+_COLOUR_TAIL = r"(?:to |in )?(?:the )?(?:colou?r )?" + _COLOUR + r"(?: colou?r)?"
+_COLOUR_VARIANTS = (
+    # "turn on the spotlights and set them to red", "turn the lamp on and make it blue"
+    re.compile(r"(?:turn|switch) on (?:the )?(?P<name>.+?) and (?:set|make|turn|change) (?:them|it) " + _COLOUR_TAIL),
+    re.compile(r"(?:turn|switch) (?:the )?(?P<name>.+?) on and (?:set|make|turn|change) (?:them|it) " + _COLOUR_TAIL),
+    # "set the kitchen lights to red", "make the lamp warm white", "change the spots to the colour blue"
+    re.compile(r"(?:set|make|turn|change|switch) (?:the )?(?P<name>.+?) " + _COLOUR_TAIL),
+    # "utility room spotlights yellow"
+    re.compile(r"(?:the )?(?P<name>.*?\b" + _LIGHT_WORDS + r"\b.*?) (?:to )?" + _COLOUR + r"(?: colou?r)?"),
+)
+
+
+def parse_colour_command(phrase):
+    """Return (light name, colour name) for a colour request, else None."""
+    if not isinstance(phrase, str):
+        return None
+    for pattern in _COLOUR_VARIANTS:
+        match = pattern.fullmatch(phrase)
+        if not match:
+            continue
+        name = match["name"].strip()
+        if not name or re.search(r"\b(?:turn|switch|make|set|change|volume|music|tv|telly)\b", name):
+            return None
+        if re.search(r"\b(?:on|off)\b$", name):
+            return None
+        return name, match["colour"]
+    return None
+
+
 def canonical_brightness(phrase):
     """Rewrite loose percentage wording to "set the <x> to <n> percent"; else unchanged."""
     if not isinstance(phrase, str) or not re.search(r"\d\s*(?:percent|per cent|%)", phrase):
@@ -120,6 +163,21 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
             return ExecutionResult("Please choose a brightness change from 1 to 100 percent.", Outcome.UNRESOLVED)
         command = adjustment[2], "darker" if adjustment[1] == "dim" else "brighter"
     else:
+        colour_command = None if corrected else parse_colour_command(parts[-1])
+        if colour_command is not None:
+            name, colour = colour_command
+            room = None
+            if name in {"it", "them"}:
+                if last_lights:
+                    name = " and ".join(last_lights)
+                elif origin_device is not None:
+                    name, room = "lights", origin_device  # The lights in the speaker's room.
+                else:
+                    return ExecutionResult("Which lights should I change?", Outcome.UNRESOLVED)
+            elif name in {"the lights", "lights", "the lights in here", "lights in here"} and origin_device is not None:
+                name, room = "lights", origin_device
+            return _lighting_result(set_lights(name, "on", colour=colour, preview=bool(preview),
+                                               action_results=action_results, origin_device=room))
         command = parse_light_command(parts[-1])
     if corrected and command is None:
         previous = parse_light_command(parts[0])
@@ -142,6 +200,8 @@ def response_category(phrase, parse_light_command):
     """Classify only recognized lighting wording, never invent a result."""
     if re.search(r"\bon\b", phrase) and re.search(r"\boff\b", phrase):
         return "mixed_lighting"
+    if parse_colour_command(phrase):
+        return "lights_on"
     if re.search(r"\bvery bright\b|\bto 100\s*(?:percent|per cent|%)", phrase):
         return "full_brightness"
     if re.match(r"^(?:set|dim|brighten)\b", phrase) or re.search(r"\b(?:darker|lighter|brighter|very bright)\b", phrase):
@@ -161,6 +221,8 @@ def matches(phrase, parse_light_command):
     candidate = canonical_brightness(phrase[preview.end():] if preview else phrase)
     if re.fullmatch(r"(?:set|dim) (?:the )?volume\b.*", candidate):
         return False  # "set the volume to 30 percent" is music.
+    if parse_colour_command(candidate):
+        return True
     if re.fullmatch(r"make it (?:darker|lighter|brighter|very bright) in .+", candidate):
         return True
     if re.fullmatch(r"turn (?:down|up) (?:the )?(?:all )?lights(?: in .+)?", candidate):
