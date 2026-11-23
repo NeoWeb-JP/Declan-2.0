@@ -48,8 +48,10 @@ class ColourHomeAssistant(FakeHomeAssistant):
                      supported_color_modes=["color_temp", "hs"], hs_color=[0, 0], color_temp_kelvin=4000)
         spot["attributes"]["friendly_name"] = "Utility Room Spotlights"
         self.entities[spot["entity_id"]] = spot
-        self.areas.append(["Utility Room", ["light.utility_room_spotlights"]])
+        # First area: what the fake reports as the speaking satellite's room.
+        self.areas.insert(0, ["Utility Room", ["light.utility_room_spotlights"]])
         self.colour_applies = True
+        self.slow_services = False
 
     def open(self, request, timeout):
         path = urlsplit(request.full_url).path
@@ -63,6 +65,8 @@ class ColourHomeAssistant(FakeHomeAssistant):
                     attributes["hs_color"] = data["hs_color"]
                 if "color_temp_kelvin" in data:
                     attributes["color_temp_kelvin"] = data["color_temp_kelvin"]
+        if self.slow_services and path.startswith("/api/services/light/"):
+            raise TimeoutError("service call still running")
         return response
 
 
@@ -117,3 +121,21 @@ class ColourExecutionTests(TestCase):
         self.assertEqual(self.ha.entities["light.utility_room_spotlights"]["attributes"]["hs_color"], [275, 100])
         reply, _ = self.run_light("make it purple", "unresolved")
         self.assertIn("Which lights", reply)
+
+    def test_them_without_history_means_the_speakers_room(self):
+        self.run_light("Turn them on and set them to pink.", "confirmed", origin_device="satellite")
+        spot = self.ha.entities["light.utility_room_spotlights"]
+        self.assertEqual((spot["state"], spot["attributes"]["hs_color"]), ("on", [330, 60]))
+        self.assertEqual(self.ha.entities["light.study_light"]["state"], "off")
+
+    def test_slow_service_call_is_still_verified(self):
+        self.ha.slow_services = True
+        self.ha.entities["light.utility_room_spotlights"]["state"] = "on"
+        reply, steps = self.run_light("utility room spotlights off", "confirmed")
+        self.assertEqual(self.ha.entities["light.utility_room_spotlights"]["state"], "off")
+        self.assertEqual({step["status"] for step in steps}, {"confirmed"})
+        self.ha.apply = False
+        self.ha.entities["light.utility_room_spotlights"]["state"] = "on"
+        with patch.object(server, "sleep"):
+            reply, _ = self.run_light("utility room spotlights off", "unverified")
+        self.assertIn("couldn't confirm", reply)

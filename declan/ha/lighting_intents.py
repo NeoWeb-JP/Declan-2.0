@@ -166,12 +166,18 @@ def handle_light_request_result(phrase, *, parse_light_command, set_lights, acti
         colour_command = None if corrected else parse_colour_command(parts[-1])
         if colour_command is not None:
             name, colour = colour_command
+            room = None
             if name in {"it", "them"}:
-                if not last_lights:
+                if last_lights:
+                    name = " and ".join(last_lights)
+                elif origin_device is not None:
+                    name, room = "lights", origin_device  # The lights in the speaker's room.
+                else:
                     return ExecutionResult("Which lights should I change?", Outcome.UNRESOLVED)
-                name = " and ".join(last_lights)
+            elif name in {"the lights", "lights", "the lights in here", "lights in here"} and origin_device is not None:
+                name, room = "lights", origin_device
             return _lighting_result(set_lights(name, "on", colour=colour, preview=bool(preview),
-                                               action_results=action_results))
+                                               action_results=action_results, origin_device=room))
         command = parse_light_command(parts[-1])
     if corrected and command is None:
         previous = parse_light_command(parts[0])

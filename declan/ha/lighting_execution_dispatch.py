@@ -354,6 +354,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.INCOMPLETE_CORRECTION)
         return ExecutionResult(f"I left the lights unchanged because I couldn't resolve the full correction.{skipped_details}", Outcome.UNRESOLVED)
     pending = {}
+    slow_dispatch = False
     verified: dict[tuple[str, int | None], list[str]] = {(goal, target_levels[entity]): [] for entity, (_, _, goal) in selected.items()}
 
     def colour_matches(attributes):
@@ -439,16 +440,17 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 record_action(selected[entity][0], direction, LightingActionStatus.FAILED, entity=entity, detail=f"HTTP {failure.code}")
             skipped.append(ExecutionResult(f"Home Assistant returned HTTP {failure.code} for {labels}.", Outcome.ACTION_ERROR))
         elif failure == "no_response":
-            for entity in entity_ids:
-                record_action(selected[entity][0], direction, LightingActionStatus.UNVERIFIED, entity=entity, detail=LightingActionReason.NO_DISPATCH_RESPONSE)
-            skipped.append(ExecutionResult(f"I didn't get a response for {labels}.", Outcome.UNVERIFIED))
+            # Slow lights (template lights over cloud bridges) can hold the service call
+            # open past the dispatch timeout. The command was sent, so check the state.
+            slow_dispatch = True
+            pending.update({entity: direction for entity in entity_ids})
         else:
             pending.update({entity: direction for entity in entity_ids})
 
     diagnostics.record('lights_dispatch', dispatch_started, lights=len(selected), pending=len(pending))
     verify_started = monotonic()
     # Colour changes can be reported back more slowly (e.g. cloud-bridged lights).
-    deadline = clock() + (6 if colour_spec is not None else 3)
+    deadline = clock() + (6 if colour_spec is not None or slow_dispatch else 3)
     last_reported = {}
     def read_state(entity):
         """One bounded state read; None when it could not be made or parsed."""
