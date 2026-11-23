@@ -62,6 +62,34 @@ sequence:
     then:
       - stop: Unknown Sexy Time operation.
         error: true
+  # ---------------- Music first, in the same room ----------------
+  # Lights can be slow (cloud-bridged spotlights), so music never waits for them.
+  - choose:
+      - conditions: "{{ op == 'start' }}"
+        sequence:
+          - if: "{{ player != '' }}"
+            then:
+              - action: media_player.volume_set
+                target:
+                  entity_id: "{{ player }}"
+                data:
+                  volume_level: 0.2
+                continue_on_error: true
+          - alias: Ask Declan for Sexy Time music in this room
+            action: conversation.process
+            data:
+              agent_id: conversation.declan_2_0
+              text: "Play sexy time music in the {{ room | lower }}"
+            response_variable: music_reply
+            continue_on_error: true
+    default:
+      - alias: Ask Declan to stop the music in this room
+        action: conversation.process
+        data:
+          agent_id: conversation.declan_2_0
+          text: "Stop music in the {{ room | lower }}"
+        response_variable: music_stop_reply
+        continue_on_error: true
   - choose:
       # ---------------- Master bedroom: its own hand-picked lights ----------------
       - conditions: "{{ tailored }}"
@@ -148,33 +176,6 @@ sequence:
                   entity_id: "{{ room_lights }}"
                 data:
                   brightness_pct: 50
-  # ---------------- Music, in the same room ----------------
-  - choose:
-      - conditions: "{{ op == 'start' }}"
-        sequence:
-          - if: "{{ player != '' }}"
-            then:
-              - action: media_player.volume_set
-                target:
-                  entity_id: "{{ player }}"
-                data:
-                  volume_level: 0.2
-                continue_on_error: true
-          - alias: Ask Declan for Sexy Time music in this room
-            action: conversation.process
-            data:
-              agent_id: conversation.declan_2_0
-              text: "Play sexy time music in the {{ room | lower }}"
-            response_variable: music_reply
-            continue_on_error: true
-    default:
-      - alias: Ask Declan to stop the music in this room
-        action: conversation.process
-        data:
-          agent_id: conversation.declan_2_0
-          text: "Stop music in the {{ room | lower }}"
-        response_variable: music_stop_reply
-        continue_on_error: true
   - if: "{{ not tailored }}"
     then:
       - wait_template: >-
