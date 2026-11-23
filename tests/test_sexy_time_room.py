@@ -51,6 +51,16 @@ class SexyTimeRoomTests(unittest.TestCase):
                        "scene.turn_on", "'Master Bedroom'", "room: \"{{ room }}\""):
             self.assertIn(needle, text)
 
+    def test_master_bedroom_includes_the_spotlight_mood_zone(self):
+        text = (ROOT / "home_assistant/sexy_time.script.yaml").read_text()
+        start, _, end = text.partition("            default:")
+        for needle in ("light.bedroom_mood_lights", "scene.create", "declan_mood_bedroom_spotlights",
+                       "continue_on_error: true"):
+            self.assertIn(needle, start)
+        self.assertIn("scene.declan_mood_bedroom_spotlights", end)
+        # Slow cloud lights never decide whether Sexy Time counts as started.
+        self.assertNotIn("bedroom_mood_lights", text.split("lighting_ok:", 1)[1])
+
 
 if __name__ == "__main__":
     unittest.main()

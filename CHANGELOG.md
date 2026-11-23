@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Sexy Time uses the bedroom spotlight Mood zone.** In the master bedroom, `light.bedroom_mood_lights` (the three Mood spots) is snapshotted, then set to pink at 30%; on end it is put back as it was, or turned off if there's no snapshot. These spots are cloud-bridged and slow, so they never block the routine or decide whether it counts as started. **Manual step:** paste the updated `home_assistant/sexy_time.script.yaml` into the Sexy Time script in Home Assistant.
 - **Light colours.** "Make the utility room spotlights red", "turn on the spotlights and set them to blue", "set the kitchen lights to warm white", "make it purple" (the lights you last changed), and "set the bedroom to green" for a whole room.
   - Colours: red, orange, amber, gold, yellow, lime, green, teal, turquoise, cyan, light/sky blue, blue, indigo, purple, violet, magenta, pink, hot pink. Whites use colour temperature: warm/soft white, white, natural/neutral white, cool white, cold white, daylight.
   - Only lights whose `supported_color_modes` allow it are changed; others are named and left alone. Switches are never used for colour.

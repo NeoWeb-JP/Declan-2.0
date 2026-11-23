@@ -2,8 +2,9 @@ alias: Declan - Sexy Time Controller
 description: >-
   Set or restore the mood lights in the room where Sexy Time was asked for, set
   the starting volume, and stop that room's music on end. The master bedroom
-  keeps its own lights; any other room gets a generic dim, warm/pink mood that
-  is restored afterwards (FUT-60).
+  keeps its own lights, plus the bedroom spotlight Mood zone (dim pink, put back
+  on end); any other room gets a generic dim, warm/pink mood that is restored
+  afterwards (FUT-60).
 mode: queued
 max: 5
 fields:
@@ -88,6 +89,22 @@ sequence:
                     data:
                       brightness_pct: 50
                       rgb_color: [255, 0, 255]
+                  # Bedroom spotlight Mood zone: snapshot, then dim pink.
+                  # Cloud-bridged and slow, so it never blocks the routine.
+                  - if: "{{ states('light.bedroom_mood_lights') not in ['unknown', 'unavailable'] }}"
+                    then:
+                      - action: scene.create
+                        data:
+                          scene_id: declan_mood_bedroom_spotlights
+                          snapshot_entities: [light.bedroom_mood_lights]
+                        continue_on_error: true
+                      - action: light.turn_on
+                        target:
+                          entity_id: light.bedroom_mood_lights
+                        data:
+                          brightness_pct: 30
+                          rgb_color: [255, 0, 255]
+                        continue_on_error: true
             default:
               - action: light.turn_on
                 target:
@@ -95,6 +112,20 @@ sequence:
                 data:
                   brightness_pct: 50
                   color_temp_kelvin: 3000
+              # Put the Mood zone back as it was (off if there's no snapshot).
+              - if: "{{ states('light.bedroom_mood_lights') not in ['unknown', 'unavailable'] }}"
+                then:
+                  - if: "{{ states('scene.declan_mood_bedroom_spotlights') not in ['unknown', 'unavailable'] }}"
+                    then:
+                      - action: scene.turn_on
+                        target:
+                          entity_id: scene.declan_mood_bedroom_spotlights
+                        continue_on_error: true
+                    else:
+                      - action: light.turn_off
+                        target:
+                          entity_id: light.bedroom_mood_lights
+                        continue_on_error: true
       # Any other room: remember its lights, dim them, then put them back.
       - conditions: "{{ room_lights | count > 0 and op == 'start' }}"
         sequence:
