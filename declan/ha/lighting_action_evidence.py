@@ -17,6 +17,7 @@ class LightingActionReason(StrEnum):
     AMBIGUOUS = "ambiguous"
     UNAVAILABLE = "unavailable"
     BRIGHTNESS_UNSUPPORTED = "brightness unsupported"
+    COLOUR_UNSUPPORTED = "colour unsupported"
     ALREADY_OFF = "already off"
     BRIGHTNESS_UNKNOWN = "current brightness unknown"
     CONFLICTING_DIRECTIONS = "conflicting directions"

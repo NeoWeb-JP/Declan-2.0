@@ -9,6 +9,7 @@ from urllib.error import HTTPError
 from declan.core import diagnostics
 from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha.lighting_action_evidence import LightingActionStatus, LightingActionReason
+from declan.ha.lighting_intents import COLOURS
 
 
 MAX_PARALLEL_REQUESTS = 6
@@ -59,8 +60,18 @@ def near_miss(names, spoken):
 
 
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
-               action_results=None, origin_device=None, connect, inventory_reader, inventory_module, entities, sass, areas_reader, switch_dispatch, intents, evidence_factory, append_evidence, clock, sleeper, request_factory):
+               action_results=None, origin_device=None, colour=None, connect, inventory_reader, inventory_module, entities, sass, areas_reader, switch_dispatch, intents, evidence_factory, append_evidence, clock, sleeper, request_factory):
     """Resolve Home Assistant lights before dispatch and verify their reported states."""
+    colour_spec = COLOURS.get(colour) if colour is not None else None
+    colour_kelvin: int | None = None
+    colour_hs: tuple[int, int] | None = None
+    if colour_spec is not None:
+        if colour_spec[0] == "kelvin" and isinstance(colour_spec[1], int):
+            colour_kelvin = colour_spec[1]
+        elif isinstance(colour_spec[1], tuple):
+            colour_hs = (int(colour_spec[1][0]), int(colour_spec[1][1]))
+    if colour is not None and colour_spec is None:
+        return ExecutionResult(f"I don't know the colour {colour}.", Outcome.UNRESOLVED)
     connection = connect()
     if connection is None:
         return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
@@ -84,19 +95,28 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     names: dict[str, set[str]] = {}
     light_groups = set()
     dimmable = set()
+    colourable = set()
+    tunable_white = set()
     levels = {}
+    attributes_by_entity = {}
     for item in inventory:
         entity_id = item.get("entity_id", "") if isinstance(item, dict) else ""
         if not isinstance(entity_id, str) or not re.fullmatch(r"light\.[a-z0-9_]+", entity_id):
             continue
         attributes = item.get("attributes")
         if isinstance(attributes, dict):
+            attributes_by_entity[entity_id] = attributes
             modes = attributes.get("supported_color_modes")
             level = attributes.get("brightness")
             levels[entity_id] = level
             if (isinstance(level, (int, float))
                     or isinstance(modes, list) and any(mode not in ("onoff", "unknown") for mode in modes)):
                 dimmable.add(entity_id)
+            if isinstance(modes, list):
+                if any(mode in ("hs", "rgb", "rgbw", "rgbww", "xy") for mode in modes):
+                    colourable.add(entity_id)
+                if any(mode in ("color_temp", "rgbww") for mode in modes):
+                    tunable_white.add(entity_id)
         if isinstance(attributes, dict) and isinstance(attributes.get("entity_id"), (list, tuple, str)):
             light_groups.add(entity_id)
         friendly = attributes.get("friendly_name") if isinstance(attributes, dict) else None
@@ -246,7 +266,8 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     def record_action(target, direction, status, *, entity=None, detail=None):
         if action_results is not None and len(action_results) < 200:
             percent = target_levels.get(entity, brightness)
-            action_name = (f"set brightness to {percent}%" if percent is not None
+            action_name = (f"set colour to {colour}" if colour is not None and direction == "on"
+                           else f"set brightness to {percent}%" if percent is not None
                            else direction if direction in ("darker", "brighter", "very bright") else f"turn_{direction}")
             evidence = evidence_factory(target, action_name, status, entity_id=entity, detail=detail)
             append_evidence(action_results, evidence)
@@ -275,6 +296,13 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
                 record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.BRIGHTNESS_UNSUPPORTED)
                 skipped.append(ExecutionResult(f"Home Assistant doesn't report brightness control for {label}.", Outcome.UNAVAILABLE))
                 continue
+            if colour_spec is not None:
+                kind = colour_spec[0]
+                capable = entity in colourable or (kind == "kelvin" and entity in tunable_white)
+                if not capable:
+                    record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.COLOUR_UNSUPPORTED)
+                    skipped.append(ExecutionResult(f"Home Assistant doesn't report colour control for {label}.", Outcome.UNAVAILABLE))
+                    continue
             percent = brightness
             goal = direction
             if direction == "very bright":
@@ -304,7 +332,7 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
 
     skipped_details = "".join(f" {result.reply}" for result in skipped)
     if not selected:
-        if brightness is None and not require_all and len(resolved_targets) == 1:
+        if brightness is None and colour is None and not require_all and len(resolved_targets) == 1:
             switch_result = switch_dispatch(name, desired_state, inventory, connection, preview=preview, action_results=action_results)
             if switch_result is not None:
                 return intents._lighting_result(switch_result)
@@ -316,7 +344,8 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         groups: dict[tuple[str, int | None], list[str]] = {}
         for entity, (label, _, direction) in selected.items():
             groups.setdefault((direction, target_levels[entity]), []).append(label)
-        plan = [f"set {', '.join(labels)} to {percent}%" if percent is not None
+        plan = [f"set {', '.join(labels)} to {colour}" if colour is not None
+                else f"set {', '.join(labels)} to {percent}%" if percent is not None
                 else f"turn {direction} {', '.join(labels)}"
                 for (direction, percent), labels in groups.items()]
         return ExecutionResult(f"Preview: I would {'; '.join(plan)}.{skipped_details}", Outcome.PREVIEW)
@@ -327,16 +356,34 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     pending = {}
     verified: dict[tuple[str, int | None], list[str]] = {(goal, target_levels[entity]): [] for entity, (_, _, goal) in selected.items()}
 
-    def matches_goal(state, direction, level, percent):
+    def colour_matches(attributes):
+        if colour_spec is None:
+            return True
+        if not isinstance(attributes, dict):
+            return False
+        if colour_kelvin is not None:
+            kelvin = attributes.get("color_temp_kelvin")
+            return isinstance(kelvin, (int, float)) and abs(kelvin - colour_kelvin) <= 300
+        reported = attributes.get("hs_color")
+        if colour_hs is None or not (isinstance(reported, (list, tuple)) and len(reported) == 2):
+            return False
+        hue, saturation = reported
+        if not (isinstance(hue, (int, float)) and isinstance(saturation, (int, float))):
+            return False
+        hue_gap = abs(hue - colour_hs[0]) % 360
+        return min(hue_gap, 360 - hue_gap) <= 15 and abs(saturation - colour_hs[1]) <= 20
+
+    def matches_goal(state, direction, level, percent, attributes=None):
         return state == direction and (
             percent is None or (isinstance(level, (int, float))
                                    and abs(level - round(percent * 255 / 100)) <= (0 if percent == 100 else 2))
-        )
+        ) and (direction != "on" or colour_matches(attributes))
 
     already_set = set()
     for entity, (label, state, direction) in selected.items():
         # Reassert an explicit room shutdown even if HA already reports the lights off.
-        if entity not in room_off_entities and matches_goal(state, direction, levels.get(entity), target_levels[entity]):
+        if entity not in room_off_entities and matches_goal(state, direction, levels.get(entity), target_levels[entity],
+                                                           attributes_by_entity.get(entity)):
             already_set.add(entity)
             record_action(label, direction, LightingActionStatus.ALREADY_SET, entity=entity)
     dispatch_started = monotonic()
@@ -353,9 +400,13 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     def send(batch):
         """Send one service call; return None when sent, else the failure kind."""
         direction, percent, entity_ids = batch
-        data: dict[str, str | list[str] | int] = {"entity_id": entity_ids[0] if len(entity_ids) == 1 else entity_ids}
+        data: dict[str, str | list[str] | list[int] | int] = {"entity_id": entity_ids[0] if len(entity_ids) == 1 else entity_ids}
         if percent is not None:
             data["brightness_pct"] = percent
+        if direction == "on" and colour_kelvin is not None:
+            data["color_temp_kelvin"] = colour_kelvin
+        elif direction == "on" and colour_hs is not None:
+            data["hs_color"] = list(colour_hs)
         remaining = dispatch_deadline - clock()
         if remaining <= 0:
             return "time"
@@ -396,7 +447,8 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
 
     diagnostics.record('lights_dispatch', dispatch_started, lights=len(selected), pending=len(pending))
     verify_started = monotonic()
-    deadline = clock() + 3
+    # Colour changes can be reported back more slowly (e.g. cloud-bridged lights).
+    deadline = clock() + (6 if colour_spec is not None else 3)
     last_reported = {}
     def read_state(entity):
         """One bounded state read; None when it could not be made or parsed."""
@@ -408,7 +460,8 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             with opener.open(request, timeout=min(remaining, 0.5)) as response:
                 observed = json.loads(response.read(65536))
                 attributes = observed.get("attributes")
-                return observed["state"], (attributes.get("brightness") if isinstance(attributes, dict) else None)
+                return (observed["state"], (attributes.get("brightness") if isinstance(attributes, dict) else None),
+                        attributes if isinstance(attributes, dict) else None)
         except HTTPError as error:
             error.close()
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
@@ -421,13 +474,13 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         for entity, observed in zip(entities, concurrently(read_state, entities)):
             if observed is None:
                 continue
-            state, level = observed
+            state, level, attributes = observed
             direction = pending[entity]
             percent = target_levels[entity]
             last_reported[entity] = f"{state}, brightness {round(level * 100 / 255)}%" if (
                 percent is not None and isinstance(level, (int, float)) and 0 <= level <= 255
             ) else state
-            if matches_goal(state, direction, level, percent):
+            if matches_goal(state, direction, level, percent, attributes):
                 verified[direction, percent].append(selected[entity][0])
                 record_action(selected[entity][0], direction, LightingActionStatus.CONFIRMED, entity=entity)
                 del pending[entity]
@@ -439,11 +492,12 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         state = last_reported.get(entity, "no state reported")
         record_action(label, direction, LightingActionStatus.UNVERIFIED, entity=entity, detail=str(state))
         percent = target_levels[entity]
-        goal = f"at {percent}%" if percent is not None else direction
+        goal = colour if colour is not None and direction == "on" else f"at {percent}%" if percent is not None else direction
         skipped.append(ExecutionResult(f"I couldn't confirm {label} is {goal} ({state}).", Outcome.UNVERIFIED))
     confirmations = [
         f"{', '.join(labels)} {'is' if len(labels) == 1 else 'are'} "
-        + (f"at {percent}%." if percent is not None else f"{direction}.")
+        + (f"{colour}." if colour is not None and direction == "on"
+           else f"at {percent}%." if percent is not None else f"{direction}.")
         for (direction, percent), labels in verified.items() if labels
     ]
     reply = " ".join(confirmations + [result.reply for result in skipped])

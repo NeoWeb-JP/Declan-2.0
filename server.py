@@ -386,11 +386,11 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
 
 
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
-               action_results=None, origin_device=None):
+               action_results=None, origin_device=None, colour=None):
     return lighting_execution_dispatch.set_lights_result(
         name, desired_state, brightness=brightness, preview=preview,
         require_all=require_all, relative_step=relative_step,
-        action_results=action_results, origin_device=origin_device,
+        action_results=action_results, origin_device=origin_device, colour=colour,
         connect=ha_device_connection, inventory_reader=read_ha_inventory_result,
         inventory_module=ha_inventory, entities=household_entities,
         sass=add_sass, areas_reader=read_ha_areas,
