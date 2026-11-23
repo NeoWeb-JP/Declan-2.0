@@ -53,14 +53,21 @@ class SexyTimeRoomTests(unittest.TestCase):
 
     def test_master_bedroom_includes_the_spotlight_mood_zone(self):
         text = (ROOT / "home_assistant/sexy_time.script.yaml").read_text()
-        start, _, end = text.partition("            default:")
-        for needle in ("light.bedroom_mood_lights", "scene.create", "declan_mood_bedroom_spotlights",
-                       "continue_on_error: true"):
-            self.assertIn(needle, start)
-        self.assertIn("scene.declan_mood_bedroom_spotlights", end)
-        # Slow cloud lights never decide whether Sexy Time counts as started.
-        self.assertNotIn("bedroom_mood_lights", text.split("lighting_ok:", 1)[1])
+        bedroom = text.split("# ---------------- Any other room", 1)[0]
+        for needle in ("light.bedroom_mood_lights", "declan_mood_bedroom_spotlights",
+                       "scene.declan_mood_bedroom_spotlights", "continue_on_error: true"):
+            self.assertIn(needle, bedroom)
+        # Slow spotlights and the faulty main light never decide success.
+        checks = text.split("lighting_ok:", 1)[1].split("music_stopped:", 1)[0]
+        for excluded in ("bedroom_mood_lights", "master_bedroom_main_light"):
+            self.assertNotIn(excluded, checks)
 
+    def test_music_is_requested_from_declan_in_the_same_room(self):
+        text = (ROOT / "home_assistant/sexy_time.script.yaml").read_text()
+        self.assertIn("agent_id: conversation.declan_2_0", text)
+        self.assertIn('text: "Play sexy time music in the {{ room | lower }}"', text)
+        self.assertIn('text: "Stop music in the {{ room | lower }}"', text)
+        self.assertIn("media_player.master_bedroom_declan", text)
 
 if __name__ == "__main__":
     unittest.main()
