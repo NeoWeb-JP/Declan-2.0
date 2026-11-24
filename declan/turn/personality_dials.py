@@ -63,6 +63,7 @@ _INSULT = (
 )
 _SLANG = re.compile(r"\b(?:boet|lekker|eish|ag shame|jislaaik|yoh|ja nee|sharp sharp|now-now|kak|dop|howzit|bru)\b", re.I)
 _MY_BRU = re.compile(r",?\s*\bmy bru\b,?", re.I)
+_SLANG_ADDRESS = re.compile(r",?\s*\b(?:boet|bru)\b,?", re.I)
 _SCRUB = re.compile(r"\b(?:bloody|fucking|effing|sodding|damn|bleeding)\s+", re.I)
 
 
@@ -271,11 +272,18 @@ def shape(line, values):
     return text
 
 
+def fixed(line, values=None):
+    """A fixed sentence (not from a line pool) as the listener's sliders would say it."""
+    if values is None:
+        values = dials(current_audience())
+    return shape(line, {**values, "chattiness": max(values["chattiness"], 4)}) or scrub(line, values)
+
+
 def scrub(line, values):
     """Last resort when every line is ruled out: the tamest line, cleaned where it can be."""
     text = _SCRUB.sub("", line) if values["swearing"] <= 3 else line
     if values["slang"] <= 3:
-        text = _MY_BRU.sub("", text)
+        text = _SLANG_ADDRESS.sub("", _MY_BRU.sub("", text))
     return _tidy(text)
 
 

@@ -155,6 +155,16 @@ class WordingTests(Isolated):
         only = ("Bloody marvellous, my bru.", "Done, you lazy bastard.")
         self.assertEqual(self.run_in_turn(line_freshness.pick, "k2", only, now=2000.0), "Marvellous.")
 
+    def test_fixed_sentences_follow_the_sliders(self):
+        self.assertEqual(personality_dials.fixed("It's Christmas, boet! Zero sleeps.", BASE),
+                         "It's Christmas, boet! Zero sleeps.")
+        self.assertEqual(personality_dials.fixed("It's Christmas, boet! Zero sleeps.", dials(slang=1)),
+                         "It's Christmas! Zero sleeps.")
+        self.save(household=dials(slang=2))
+        from declan.turn import christmas
+        reply = self.run_in_turn(christmas.wifi_answer)
+        self.assertEqual(reply, "Nobody's told me the Wi-Fi password. Ask your host.")
+
     def test_default_sliders_change_nothing(self):
         lines = ("Done, you lazy bastard.", "Bloody marvellous, my bru.")
         said = {self.run_in_turn(line_freshness.pick, "k", lines, now=1000.0 + i) for i in range(2)}
