@@ -96,9 +96,10 @@ def topic_for(*parts):
             return TOPICS[name] + (f" ({action})" if action and name in {"movie", "sexy"} else "")
     return None
 
+_PERSONA = """Declan is a rude, direct, sarcastic butler: roasts, swearing, cheeky innuendo and South African slang
+(for example: my bru, boet, lekker, eish, ag shame, jislaaik, yoh, ja nee, sharp sharp, now-now, kak, dop)."""
 INSTRUCTIONS = """You write one-liners for Declan, a home voice assistant in a UK house owned by South Africans.
-Declan is a rude, direct, sarcastic butler: roasts, swearing, cheeky innuendo and South African slang
-(for example: my bru, boet, lekker, eish, ag shame, jislaaik, yoh, ja nee, sharp sharp, now-now, kak, dop).
+""" + _PERSONA + """
 Rules:
 - Write exactly the number of lines asked for, one per line, no numbering, no quotes, no emoji.
 - Each line is short and punchy: one sentence, at most 18 words.
@@ -140,40 +141,97 @@ def generated(key, *, path=None):
             "SELECT line FROM generated WHERE key = ? ORDER BY created", (key,))]
 
 
+def _persona(polite):
+    """(sliders, fingerprint) for whoever is listening this turn."""
+    from declan.turn import personality_dials
+    try:
+        values = personality_dials.dials(personality_dials.current_audience(fallback_guest=polite))
+    except (OSError, ValueError, KeyError, TypeError):
+        values = dict(personality_dials.BASE)
+    return values, personality_dials.fingerprint(values)
+
+
+def persona_key(key, fingerprint):
+    """Generated lines are stored per slider fingerprint ("" is the original personality)."""
+    return f"{fingerprint}|{key}" if fingerprint else key
+
+
+def key_fingerprint(key):
+    return key.split("|", 1)[0] if isinstance(key, str) and "|" in key else ""
+
+
 def pick(key, lines, *, topic=None, polite=False, random=None, now=None, path=None, start=None):
     """Choose a rested line for ``key`` and record that it was said.
 
     ``lines`` are the built-in or owner-edited lines; generated lines for the
-    same key join them. ``topic`` (plain words) lets a low pool be topped up.
+    same key and personality sliders join them. Lines the sliders rule out
+    (swearing, insults, slang, length) are skipped; if every line is ruled
+    out, the tamest one is cleaned up and used, so Declan never goes silent.
+    ``topic`` (plain words) lets a low pool be topped up.
     """
+    from declan.turn import personality_dials
     random = random or _RANDOM
     choices = tuple(dict.fromkeys(line for line in lines if isinstance(line, str) and line))
     now = time() if now is None else now
     shelve, fresh = _settings()
+    values, fingerprint = _persona(polite)
+    stored = persona_key(key, fingerprint)
     try:
         with _DB_LOCK, closing(_connect(path)) as db, db:
             pool = choices + tuple(line for (line,) in db.execute(
-                "SELECT line FROM generated WHERE key = ?", (key,)) if line not in choices)
+                "SELECT line FROM generated WHERE key = ?", (stored,)) if line not in choices)
             if not pool:
                 return ""
+            shaped = {line: personality_dials.shape(line, values) for line in pool}
+            allowed = [line for line in pool if shaped[line]]
             last = dict(db.execute(
                 f"SELECT line, last_used FROM used WHERE line IN ({','.join('?' * len(pool))})", pool))  # nosec B608 - placeholders only
-            rested = [line for line in pool if now - last.get(line, 0) >= shelve * DAY]
-            if rested:
-                chosen = random.choice(rested)  # nosec B311 - line variety, not security randomness
+            if allowed:
+                rested = [line for line in allowed if now - last.get(line, 0) >= shelve * DAY]
+                if rested:
+                    chosen = random.choice(rested)  # nosec B311 - line variety, not security randomness
+                else:
+                    oldest = min(last.get(line, 0) for line in allowed)
+                    chosen = random.choice([line for line in allowed if last.get(line, 0) == oldest])  # nosec B311 - line variety, not security randomness
+                spoken = shaped[chosen]
             else:
-                oldest = min(last.get(line, 0) for line in pool)
-                chosen = random.choice([line for line in pool if last.get(line, 0) == oldest])  # nosec B311 - line variety, not security randomness
+                rested = []
+                chosen = min(pool, key=lambda line: (personality_dials.excess(line, values), len(line)))
+                spoken = personality_dials.scrub(chosen, values)
             db.execute("INSERT INTO used VALUES (?, ?) ON CONFLICT(line) DO UPDATE SET last_used = ?",
                        (chosen, now, now))
-            _remember(chosen)
+            _remember(spoken)
             low = len(rested) - 1 < LOW_WATER
     except (sqlite3.Error, OSError, ValueError) as error:
         LOGGER.warning("Line freshness unavailable (%s); picking at random", type(error).__name__)
         return random.choice(choices) if choices else ""  # nosec B311 - line variety, not security randomness
     if low and fresh and topic:
-        (start or _start_top_up)(key, topic, pool, polite, path)
-    return chosen
+        (start or _start_top_up)(stored, topic, [shaped[line] for line in allowed] or list(pool), polite, path)
+    return spoken
+
+
+def forget_stale(keep, *, path=None):
+    """Forget generated lines, their resting records and top-up attempts for sliders no longer in use.
+
+    ``keep`` is the set of fingerprints still in use. Returns how many lines went.
+    """
+    keep = set(keep)
+    with _DB_LOCK, closing(_connect(path)) as db, db:
+        rows = db.execute("SELECT key, line FROM generated").fetchall()
+        stale = [(key, line) for key, line in rows if key_fingerprint(key) not in keep]
+        for key, line in stale:
+            db.execute("DELETE FROM generated WHERE key = ? AND line = ?", (key, line))
+        lines = {line for _, line in stale} - {line for key, line in rows if key_fingerprint(key) in keep}
+        for line in lines:
+            db.execute("DELETE FROM used WHERE line = ?", (line,))
+        for (key,) in db.execute("SELECT key FROM attempts").fetchall():
+            if key_fingerprint(key) not in keep:
+                db.execute("DELETE FROM attempts WHERE key = ?", (key,))
+    with _RUNNING_LOCK:
+        _RECENT.clear()
+    if stale:
+        LOGGER.info("Personality changed: forgot %d learned lines", len(stale))
+    return len(stale)
 
 
 def _remember(line):
@@ -216,13 +274,14 @@ def _similar(a, b):
     return bool(left and right) and len(left & right) / len(left | right) >= 0.7
 
 
-def valid_line(line, existing):
+def valid_line(line, existing, *, max_words=MAX_WORDS):
     """A generated line must be short, claim nothing, and be new."""
     if not isinstance(line, str):
         return None
     line = line.strip().strip("\"'“”").strip()
     line = re.sub(r"^(?:[-*•]|\d+[.)])\s*", "", line).strip()
-    if not line or len(line) > MAX_CHARS or len(line.split()) > MAX_WORDS:
+    chars = MAX_CHARS if max_words <= MAX_WORDS else max_words * 8
+    if not line or len(line) > chars or len(line.split()) > max_words:
         return None
     if not _ALLOWED.fullmatch(line) or any(ch.isdigit() for ch in line) or _CLAIMS.search(line):
         return None
@@ -256,11 +315,22 @@ def month_spent(*, path=None, now=None):
     return row[0] if row else 0
 
 
-def request_body(topic, examples, count, *, model, profile, polite):
+def instructions(key, polite):
+    """The writer's brief: the original personality, or one built from the sliders in ``key``."""
+    from declan.turn import personality_dials
+    values = personality_dials.from_fingerprint(key_fingerprint(key))
+    if values is None:
+        return INSTRUCTIONS + ("\n" + POLITE if polite else "")
+    brief = INSTRUCTIONS.replace(_PERSONA, "Declan is a home butler. " + personality_dials.describe(values))
+    brief = brief.replace("at most 18 words", f"at most {personality_dials.line_words(values)} words")
+    return brief + ("\n" + POLITE if polite else "")
+
+
+def request_body(topic, examples, count, *, model, profile, polite, key=""):
     sample = list(examples)[-12:]
     payload = {"topic": topic, "examples": sample, "lines_wanted": count}
     body = {"model": model, "store": False, "max_output_tokens": 600,
-            "instructions": INSTRUCTIONS + ("\n" + POLITE if polite else ""),
+            "instructions": instructions(key, polite),
             "input": json.dumps(payload, ensure_ascii=False)}
     if profile.get("reasoning_effort"):
         body["reasoning"] = {"effort": "low"}
@@ -288,7 +358,8 @@ def top_up(key, topic, examples, *, polite=False, path=None, now=None, config=No
     except general_chat.ModelUnavailable:
         return 0
     wanted = min(BATCH, MAX_GENERATED - count)
-    body = request_body(topic, examples, wanted, model=config["model"], profile=config["profile"], polite=polite)
+    body = request_body(topic, examples, wanted, model=config["model"], profile=config["profile"], polite=polite,
+                        key=key)
     input_rate, output_rate = ai_pricing.rate_pair(config["model"], config["profile"])
     worst = (len(json.dumps(body).encode("utf-8")) * input_rate
              + body["max_output_tokens"] * output_rate + 999999) // 1000000
@@ -327,8 +398,13 @@ def top_up(key, topic, examples, *, polite=False, path=None, now=None, config=No
             return 0
         existing = list(examples) + [line for (line,) in db.execute("SELECT line FROM generated WHERE key = ?", (key,))]
         allowed_placeholders = {token for line in examples for token in PLACEHOLDERS if token in line}
+        from declan.turn import personality_dials
+        values = personality_dials.from_fingerprint(key_fingerprint(key))
+        limit = MAX_WORDS if values is None else max(MAX_WORDS, personality_dials.line_words(values) + 2)
         for raw in text.splitlines():
-            line = valid_line(raw, existing)
+            line = valid_line(raw, existing, max_words=limit)
+            if line is not None and values is not None and personality_dials.shape(line, values) != line:
+                continue
             if line is None or any(token in line and token not in allowed_placeholders for token in PLACEHOLDERS):
                 continue
             db.execute("INSERT OR IGNORE INTO generated VALUES (?, ?, ?)", (key, line, now))

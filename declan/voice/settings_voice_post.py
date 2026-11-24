@@ -73,6 +73,19 @@ def dispatch(handler, body, *, spotify_save, ai_replace_key, ai_save,
                 return
             handler.send_json(200, {"deleted": removed})
             return
+        if isinstance(body, dict) and set(body) == {"save_personality"}:
+            # Personality sliders for the household and guests; a change forgets learned lines.
+            from declan.turn import personality_dials
+            try:
+                saved = personality_dials.save(body["save_personality"])
+            except ValueError as error:
+                handler.send_json(400, {"error": str(error)})
+                return
+            except (OSError, sqlite3.Error):
+                handler.send_json(503, {"error": "Could not save the personality sliders."})
+                return
+            handler.send_json(200, {"saved": True, "personality": saved})
+            return
         if isinstance(body, dict) and set(body) == {"forget_item"} and isinstance(body["forget_item"], str):
             # FUT-42: remove one "where did I put" entry from Settings -> Household.
             from declan.turn import whereabouts

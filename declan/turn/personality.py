@@ -351,6 +351,10 @@ def choose_line(category, guest_mode):
 
 
 def add_sass(reply, category, guest_mode):
+    from declan.turn import personality_dials
+    values = personality_dials.dials(personality_dials.current_audience(fallback_guest=guest_mode != "off"))
+    if not personality_dials.wants_extra_line(values):
+        return reply
     line = choose_line(category, guest_mode)
     if not line:
         return reply
