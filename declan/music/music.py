@@ -862,6 +862,48 @@ def generic_selection(weights):
     return uri.replace("spotify://", "https://open.spotify.com/", 1), "playlist", category.replace("_", " ") + " music"
 
 
+# Routines that play only playlists the owner approved in Settings -> Music
+# playlists: added by hand, pinned, or given a thumbs-up. Auto-discovered
+# playlists in the category are never used. With none approved, Music
+# Assistant gets the fixed link in SPOTIFY_PLAYLIST_FALLBACKS (as before);
+# without Music Assistant search, Spotify is searched by name (as before).
+APPROVED_ONLY = {"sexy time music": ("sexy_time", "Sexy Time")}
+
+
+def approved_playlist(title, *, catalogue=None):
+    """(url, "playlist", name) from the approved list for ``title``, or None.
+
+    Disliked playlists are skipped and the last three played for this
+    routine are avoided while there is anything else to choose.
+    """
+    entry = APPROVED_ONLY.get(title)
+    if entry is None:
+        return None
+    category, name = entry
+    if catalogue is None:
+        from declan.music import spotify_playlists
+        try:
+            catalogue = spotify_playlists.listing()["categories"]
+        except (OSError, ValueError, sqlite3.Error):
+            return None
+    item = catalogue.get(category) or {}
+    with preference_db() as db:
+        weights = dict(db.execute("SELECT uri, weight FROM preferences"))
+        recent = [uri for (uri,) in db.execute(
+            "SELECT uri FROM recent_playlists WHERE category = ? ORDER BY id DESC LIMIT 3", (title,))]
+    chosen = set(item.get("manual") or []) | set(item.get("favourites") or [])
+    approved = [uri for uri in dict.fromkeys([*(item.get("manual") or []), *(item.get("favourites") or []),
+                                              *(item.get("playlists") or []), *(item.get("discovered") or [])])
+                if (uri in chosen or weights.get(media_key(uri), 1) > 1)
+                and weights.get(media_key(uri), 1) > 0 and uri not in (item.get("excluded") or [])]
+    for count in range(len(recent), -1, -1):
+        pool = [uri for uri in approved if media_key(uri) not in recent[:count]]
+        if pool:
+            selected = choices(pool, weights=[max(weights.get(media_key(uri), 1), 1) for uri in pool])[0]  # nosec B311 - playlist variety, not security randomness
+            return selected.replace("spotify://", "https://open.spotify.com/", 1), "playlist", name
+    return None
+
+
 def search_media(connection, destination, title, artist, provider):
     if provider == "spotify":
         with preference_db() as db:
@@ -883,6 +925,9 @@ def search_media(connection, destination, title, artist, provider):
         if category.endswith("_music"):
             category = category[:-6]
         catalogue = spotify_playlists.listing()["categories"] if not artist else {}
+        if title in APPROVED_ONLY:
+            # Approved-only routines never fall back to auto-discovered playlists.
+            catalogue = {}
         if not artist and category in catalogue:
             curated = catalogue[category]["playlists"]
             available = [uri for uri in curated if weights.get(media_key(uri), 1) > 0]
@@ -1078,7 +1123,11 @@ def _play_provider(command, connection, read_inventory, *, origin=None):
             try:
                 selection: tuple[str | None, str | None, str] | None
                 curated = SPOTIFY_PLAYLIST_FALLBACKS.get(title) if ma_search and not artist else None
-                if curated:
+                approved = approved_playlist(title) if provider == "spotify" and not artist else None
+                if approved:
+                    # Sexy Time plays only playlists approved in Settings -> Music playlists.
+                    selection = approved
+                elif curated:
                     # Routine playlists (Sexy Time, dinner) are fixed links, not searches:
                     # Music Assistant gets the playlist URL, since a name search misses them.
                     selection = curated

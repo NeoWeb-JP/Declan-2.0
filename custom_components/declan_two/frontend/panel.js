@@ -1992,6 +1992,13 @@ class DeclanTwoNativePanel extends HTMLElement {
       const label = category.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
       summary.textContent = label + ' (' + playlists.length + '/25)';
       details.append(summary);
+      if (category === 'sexy_time') {
+        const note = document.createElement('p');
+        note.className = 'muted';
+        note.textContent = 'Sexy Time only plays playlists you added here or starred (★ Favourite). '
+          + 'Ones Declan found himself are skipped until you star them. With none approved, it plays the built-in Sexy Time playlist.';
+        details.append(note);
+      }
       const refresh = document.createElement('button');
       refresh.type = 'button';
       refresh.className = 'playlists-refresh';
@@ -2017,6 +2024,13 @@ class DeclanTwoNativePanel extends HTMLElement {
         plays.textContent = 'Plays: ' + (this._playlistPreferences?.play_counts?.[uri] || 0);
         row.append(plays);
         const favourite = (this._playlistPreferences?.favourites || []).includes(uri);
+        if (category === 'sexy_time' && !favourite && !(data.manual || []).includes(uri)
+            && !(data.favourites || []).includes(uri)) {
+          const unapproved = document.createElement('span');
+          unapproved.className = 'muted playlist-unapproved';
+          unapproved.textContent = 'Not approved';
+          row.append(unapproved);
+        }
         const favouriteButton = document.createElement('button');
         favouriteButton.type = 'button';
         favouriteButton.dataset.playlistOperation = favourite ? 'unfavourite' : 'favourite';
