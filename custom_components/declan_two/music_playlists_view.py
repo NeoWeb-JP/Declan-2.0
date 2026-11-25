@@ -5,7 +5,11 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 CATEGORIES = ("country", "braai", "romantic", "sexy_time", "rock", "afrikaans",
-              "80s", "90s", "work_focus", "adhd_focus", "massage")
+              "80s", "90s", "work_focus", "adhd_focus", "massage", "christmas")
+# Every operation the panel sends. Favourite, unfavourite, dislike and restore
+# were missing, so those buttons were rejected here and never reached Declan.
+PLAYLIST_OPERATIONS = ("add", "remove", "delete", "refresh",
+                       "favourite", "unfavourite", "dislike", "restore")
 
 
 class DeclanMusicPlaylistsView(HomeAssistantView):
@@ -32,7 +36,7 @@ class DeclanMusicPlaylistsView(HomeAssistantView):
               and not (set(body) == {"category", "operation"} and body.get("operation") == "refresh")):
             return web.json_response({"status": "invalid_request"}, status=400)
         elif (not isinstance(body["category"], str) or len(body["category"]) > 40
-              or body["operation"] not in ("add", "remove", "delete", "refresh")
+              or body["operation"] not in PLAYLIST_OPERATIONS
               or (body["operation"] != "refresh" and
                   (not isinstance(body["playlist"], str) or len(body["playlist"]) > 256))):
             return web.json_response({"status": "invalid_request"}, status=400)

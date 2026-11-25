@@ -28,13 +28,30 @@ class NativeMusicPlaylistsContractTests(unittest.TestCase):
         for snippet in (
             'set(body) != {"category", "playlist", "operation"}',
             '"add_genre"',
-            '"add", "remove", "delete"',
+            '"add", "remove", "delete", "refresh",',
             'body["operation"]',
             'list(payload["categories"])',
             "max_playlists",
         ):
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, VIEW)
+
+    def test_proxy_accepts_every_operation_the_panel_sends(self):
+        # Favourite, unfavourite, dislike and restore were sent by the panel
+        # but rejected by the HA proxy, so those buttons silently did nothing.
+        import re
+        allowed = next(
+            ast.literal_eval(node.value) for node in ast.parse(VIEW).body
+            if isinstance(node, ast.Assign)
+            and any(getattr(t, "id", None) == "PLAYLIST_OPERATIONS" for t in node.targets)
+        )
+        sent = set(re.findall(r"playlistOperation = '([a-z_]+)'", JS))
+        for ternary in re.findall(r"playlistOperation = [^;]*\? '([a-z_]+)' : '([a-z_]+)'", JS):
+            sent |= set(ternary)
+        self.assertTrue({"favourite", "unfavourite", "dislike", "restore", "remove"} <= sent)
+        for operation in sorted(sent):
+            with self.subTest(operation=operation):
+                self.assertIn(operation, allowed)
 
     def test_native_settings_ui_uses_safe_dom_and_service(self):
         for snippet in (
