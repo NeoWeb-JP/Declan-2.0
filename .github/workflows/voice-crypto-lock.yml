@@ -43,7 +43,7 @@ jobs:
           /tmp/declan-voice-production/bin/python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements-web-voice.txt
           /tmp/declan-voice-production/bin/python -c 'from cryptography.hazmat.primitives.ciphers.aead import AESGCM; import websocket; assert len(AESGCM.generate_key(bit_length=256)) == 32'
       - name: Publish candidate for review (not production activation)
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: voice-dependency-lock-linux-py312
           path: requirements-web-voice.txt.candidate

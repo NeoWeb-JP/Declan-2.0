@@ -187,9 +187,31 @@ def response_schema(permitted):
     }
 
 
-def request_body(payload, permitted, *, model, profile):
+_PERSONA_LINE = "You are Declan, a dry-witted, polite household butler speaking through a smart speaker."
+_LENGTH_RULE = "as short as possible: one sentence where you can, never more than two, under 30 words"
+
+
+def instructions(persona=None):
+    """The agent's brief, with the personality sliders for whoever is listening.
+
+    ``persona`` is a slider set from personality_dials; None keeps the
+    original brief. Sliders only change tone and length, never these rules.
+    """
+    if persona is None:
+        return INSTRUCTIONS
+    from declan.turn import personality_dials
+    character = ("You are Declan, a household butler in a UK house owned by South Africans, speaking through a "
+                 "smart speaker. Personality: " + personality_dials.describe(persona)
+                 + " Whatever the personality, be clear about what you are doing, and no slurs or remarks about "
+                   "race, religion or disability.")
+    brief = (INSTRUCTIONS.replace(_PERSONA_LINE, character)
+             .replace(_LENGTH_RULE, personality_dials.reply_length(persona)))
+    return brief if persona["slang"] <= 3 else brief.replace("Plain spoken British English", "Plain spoken English")
+
+
+def request_body(payload, permitted, *, model, profile, persona=None):
     body: dict[str, Any] = {
-        "model": model, "instructions": INSTRUCTIONS, "input": json.dumps(payload, ensure_ascii=False),
+        "model": model, "instructions": instructions(persona), "input": json.dumps(payload, ensure_ascii=False),
         "max_output_tokens": MAX_OUTPUT_TOKENS, "store": False,
         "text": {"format": {"type": "json_schema", "name": "declan_conversation", "strict": True,
                             "schema": response_schema(permitted)}},

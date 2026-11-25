@@ -68,6 +68,18 @@ def house_context(handler, body, *, origin_device, satellite, services):
     return connection, rows, context
 
 
+def listener_persona(services):
+    """Personality sliders for whoever is listening (household or guests)."""
+    from declan.turn import personality_dials
+    audience = personality_dials.current_audience()
+    if not personality_dials.audience_known():
+        try:
+            audience = personality_dials.audience_for(services.read_guest_mode(), services.read_visitors_present())
+        except (AttributeError, OSError, ValueError, TypeError):
+            audience = "household"
+    return personality_dials.dials(audience)
+
+
 def run(handler, body, *, message, session_id, source, scope, origin_device, satellite,
         action_results, dispatch, services, local_result=None):
     """Return an AgentTurn, or None to continue with the existing behaviour."""
@@ -81,7 +93,8 @@ def run(handler, body, *, message, session_id, source, scope, origin_device, sat
     )
     try:
         decision, permitted = conversation_turn.decide(
-            message, context, session_id=session_id, scope=scope, checks=checks)
+            message, context, session_id=session_id, scope=scope, checks=checks,
+            persona=listener_persona(services))
     except general_chat.ModelUnavailable as error:
         LOGGER.info("Conversation agent unavailable: %s", error)
         return None

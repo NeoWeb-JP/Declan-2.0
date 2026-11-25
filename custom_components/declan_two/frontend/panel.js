@@ -1,4 +1,23 @@
 /* Native Home Assistant panel shell. No direct backend calls or embedded secrets. */
+const PERSONALITY_TRAITS = [
+  ['sass', 'Sass', 'Attitude and sarcasm'],
+  ['rudeness', 'Rudeness', 'Blunt and impatient, no please or thank you'],
+  ['humour', 'Humour', 'How often he adds a joke'],
+  ['slang', 'Saffa-ness', 'South African slang: 1 is plain English, 10 is full boet'],
+  ['chattiness', 'Chattiness', '1 says "Done." and nothing else, 10 gives a running commentary'],
+  ['swearing', 'Swearing', '1 is clean, 5 is "bloody", 10 is anything goes'],
+  ['insults', 'Insults', '1 leaves you alone, 5 is "muppet", 10 gets personal'],
+];
+const PERSONALITY_DEFAULTS = {sass: 8, rudeness: 8, humour: 7, slang: 6, chattiness: 5, swearing: 9, insults: 8};
+
+function personalitySliders(audience) {
+  return PERSONALITY_TRAITS.map(([trait, label, hint]) => `
+                      <label class="personality-slider">${label}
+                        <span class="personality-row"><input type="range" min="1" max="10" step="1" name="${audience}.${trait}" aria-describedby="hint-${audience}-${trait}"><output for="${audience}.${trait}">5</output></span>
+                        <small id="hint-${audience}-${trait}">${hint}</small>
+                      </label>`).join('');
+}
+
 class DeclanTwoNativePanel extends HTMLElement {
   constructor() {
     super();
@@ -277,6 +296,17 @@ class DeclanTwoNativePanel extends HTMLElement {
         .household-form button { justify-self:start; min-height:44px; }
         .household-form .household-toggle { display:flex; align-items:center; gap:10px; }
         .household-form input[type=number] { max-width:8rem; min-height:40px; }
+        .personality-form { display:grid; gap:12px; min-width:0; margin-top:10px; }
+        .personality-columns { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; min-width:0; }
+        .personality-columns fieldset { display:grid; gap:10px; min-width:0; margin:0; padding:10px 12px; border:1px solid rgba(145,227,255,.18); border-radius:10px; }
+        .personality-columns legend { color:#c7e6f3; font-weight:650; padding:0 6px; }
+        .personality-slider { display:grid; gap:4px; min-width:0; color:#c7e6f3; font-weight:600; }
+        .personality-slider small { color:#8fb3c4; font-weight:400; }
+        .personality-row { display:flex; align-items:center; gap:10px; min-width:0; }
+        .personality-row input[type=range] { flex:1; min-width:0; min-height:32px; }
+        .personality-row output { min-width:2ch; text-align:right; font-variant-numeric:tabular-nums; }
+        .personality-buttons { display:flex; flex-wrap:wrap; gap:10px; }
+        .personality-buttons button { min-height:44px; }
         .fresh-lines-list { display:grid; gap:8px; margin-top:10px; min-width:0; }
         .fresh-line { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 10px; border:1px solid rgba(145,227,255,.18); border-radius:10px; }
         .fresh-line small { display:block; color:#8fb3c4; }
@@ -538,7 +568,7 @@ class DeclanTwoNativePanel extends HTMLElement {
               </div>
             </details>
             <details class="settings-section settings-section--household">
-              <summary><span class="settings-section-icon" aria-hidden="true">⌂</span><span class="settings-section-title">Household<small>Guests, fresh sass, Christmas and the guest Wi-Fi</small></span></summary>
+              <summary><span class="settings-section-icon" aria-hidden="true">⌂</span><span class="settings-section-title">Household<small>Personality, guests, fresh sass, Christmas and the guest Wi-Fi</small></span></summary>
               <div class="settings-section-content">
                 <form class="household-form">
                   <label>Guest tone<select name="guest_tone">
@@ -562,6 +592,23 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <button type="submit">Save household settings</button>
                 </form>
                 <p class="household-status muted" role="status" aria-live="polite">Open Settings to load household settings.</p>
+                <details class="personality"><summary>Personality</summary>
+                  <p class="muted">How Declan talks, set separately for the household and for guests. Guests means Guest Mode is on or visitors are present. Saving a change makes Declan forget the lines he wrote for the old settings, so the new personality takes over straight away. Your own edited lines are kept. This only changes his wording: sensitive routines still ask for confirmation and private answers stay private.</p>
+                  <form class="personality-form">
+                    <div class="personality-columns">
+                      <fieldset><legend>Household</legend>${personalitySliders('household')}
+                      </fieldset>
+                      <fieldset><legend>Guests</legend>${personalitySliders('guests')}
+                      </fieldset>
+                    </div>
+                    <div class="personality-buttons">
+                      <button type="submit">Save personality</button>
+                      <button type="button" class="personality-defaults">Back to Declan's defaults</button>
+                      <button type="button" class="personality-copy">Copy household to guests</button>
+                    </div>
+                  </form>
+                  <p class="personality-status muted" role="status" aria-live="polite"></p>
+                </details>
                 <details class="whereabouts"><summary>Where things are</summary>
                   <p class="muted">What people told Declan ("the spare key is in the hall drawer"). Ask "where's the spare key?". Guests can't see or add these.</p>
                   <p class="whereabouts-status muted" role="status" aria-live="polite"></p>
@@ -715,6 +762,22 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.bindPanelEvent('.settings-refresh', 'click', () => this.loadSettingsStatus());
       this.bindPanelEvent('.household-form', 'submit', event => {
         event.preventDefault(); void this.saveHousehold();
+      });
+      this.bindPanelEvent('.personality-form', 'submit', event => {
+        event.preventDefault(); void this.savePersonality();
+      });
+      this.bindPanelEvent('.personality-form', 'input', event => {
+        const output = event.target?.parentElement?.querySelector('output');
+        if (output) output.textContent = event.target.value;
+      });
+      this.bindPanelEvent('.personality-defaults', 'click', () => {
+        this.setPersonality({household: PERSONALITY_DEFAULTS, guests: PERSONALITY_DEFAULTS});
+        this.shadowRoot.querySelector('.personality-status').textContent = 'Defaults filled in. Save to use them.';
+      });
+      this.bindPanelEvent('.personality-copy', 'click', () => {
+        const current = this.readPersonality();
+        this.setPersonality({household: current.household, guests: current.household});
+        this.shadowRoot.querySelector('.personality-status').textContent = 'Guests now match the household. Save to use them.';
       });
       this.bindPanelEvent('.house-info-form:not(.briefing-form)', 'submit', event => {
         event.preventDefault(); void this.saveHouseInfo();
@@ -2600,6 +2663,7 @@ class DeclanTwoNativePanel extends HTMLElement {
       this.renderThemes(response.themes);
       this.renderHouseInfo(response.house_info);
       this.renderSatellites(response.satellites);
+      this.renderPersonality(response.personality);
       this._householdLoaded = true;
       const source = response.sources.guest_tone;
       status.textContent = source === 'saved' ? 'Saved here.' : source === 'environment'
@@ -2628,6 +2692,64 @@ class DeclanTwoNativePanel extends HTMLElement {
       status.textContent = 'Saved. It applies to Declan\'s next reply.';
     } catch {
       status.textContent = 'Could not save household settings.';
+    }
+  }
+
+  renderPersonality(personality) {
+    const status = this.shadowRoot.querySelector('.personality-status');
+    this._personalityLoaded = Boolean(personality && personality.settings);
+    if (!this._personalityLoaded) {
+      status.textContent = 'Could not read the personality sliders. Update the Declan integration if this persists.';
+      return;
+    }
+    this.setPersonality(personality.settings);
+    const saved = Object.values(personality.sources || {}).includes('saved');
+    status.textContent = saved ? 'Saved here.' : 'Default: Declan as he has always been.';
+  }
+
+  setPersonality(settings) {
+    const form = this.shadowRoot.querySelector('.personality-form');
+    for (const audience of ['household', 'guests']) {
+      for (const [trait] of PERSONALITY_TRAITS) {
+        const input = form.elements.namedItem(`${audience}.${trait}`);
+        const value = settings?.[audience]?.[trait] ?? PERSONALITY_DEFAULTS[trait];
+        input.value = String(value);
+        const output = input.parentElement.querySelector('output');
+        if (output) output.textContent = String(value);
+      }
+    }
+  }
+
+  readPersonality() {
+    const form = this.shadowRoot.querySelector('.personality-form');
+    const result = {household: {}, guests: {}};
+    for (const audience of ['household', 'guests']) {
+      for (const [trait] of PERSONALITY_TRAITS) {
+        result[audience][trait] = Number(form.elements.namedItem(`${audience}.${trait}`).value);
+      }
+    }
+    return result;
+  }
+
+  async savePersonality() {
+    const status = this.shadowRoot.querySelector('.personality-status');
+    if (!this._personalityLoaded) { status.textContent = 'Load settings before saving.'; return; }
+    status.textContent = 'Saving…';
+    try {
+      const response = await this._hass.callApi('POST', 'declan_two/household', {save_personality: this.readPersonality()});
+      this.setPersonality(response.personality.settings);
+      const forgotten = response.personality.forgotten;
+      status.textContent = forgotten === null || forgotten === undefined
+        ? 'Saved. Declan couldn\'t clear his old lines this time; they go next time you change the sliders.'
+        : forgotten > 0
+          ? `Saved. Declan forgot ${forgotten} line${forgotten === 1 ? '' : 's'} he wrote for the old settings. It applies to his next reply.`
+          : 'Saved. It applies to Declan\'s next reply.';
+      try {
+        const fresh = await this._hass.callApi('GET', 'declan_two/household');
+        this.renderFreshLines(fresh.generated);
+      } catch { /* the list refreshes next time Settings opens */ }
+    } catch {
+      status.textContent = 'Could not save the personality sliders.';
     }
   }
 
