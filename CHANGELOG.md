@@ -4,6 +4,7 @@ This file records significant repository changes. Historical releases are availa
 
 ## Unreleased
 
+- **Sexy Time plays only approved playlists.** "Sexy time music" (and so the Sexy Time routine) now picks from the Sexy Time category in Settings → Music playlists, but only playlists you added there or starred (★ Favourite). Playlists Declan discovered himself are skipped until you star them, and the panel marks them "Not approved". Disliked playlists never play, and the last three played are rested while there's another to choose. With none approved, the built-in Sexy Time playlist plays as before. Works with Music Assistant search on (the playlist link is sent, not a name search). **Manual step:** update the Declan 2.0 integration in Home Assistant for the panel note.
 - **Personality sliders for the household and for guests.** Settings → Household → Personality has seven 1–10 sliders, set separately for the household and for guests (Guest Mode on or visitors present): Sass, Rudeness, Humour, Saffa-ness, Chattiness, Swearing and Insults.
   - The defaults are Declan as he was, for both sets, so nothing changes until a slider moves.
   - Swearing: 1–3 clean, 4–5 mild ("bloody"), 6–8 strong, 9–10 anything. Insults: 1–3 none, 4–6 mild ("muppet"), 7–10 personal. Saffa-ness 1–3 drops "my bru" and South African slang. Chattiness 1 adds no extra joke; 2–3 keeps lines short. Low Sass, Rudeness and Insults use the gentler guest lines. Sass and Humour set how often a joke is added.
