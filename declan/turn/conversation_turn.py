@@ -152,7 +152,7 @@ def gather(*, connection, inventory_rows, exposed, origin_device, read_areas, mu
 
 
 def decide(message, context, *, session_id, scope, checks, settings=None, config=None,
-           opener=None, database=None):
+           opener=None, database=None, persona=None):
     """Ask the model; return a validated AgentDecision and the permitted entity map."""
     payload, permitted = conversation_agent.build_context(
         message, you_are_in=context["you_are_in"], dialogue=dialogue(session_id, scope),
@@ -160,7 +160,7 @@ def decide(message, context, *, session_id, scope, checks, settings=None, config
         routines=context["routines"])
     config = config or general_chat.model_config()
     body = conversation_agent.request_body(payload, permitted, model=config["model"],
-                                           profile=config["profile"])
+                                           profile=config["profile"], persona=persona)
     general = not payload["devices"] and not payload["routines"] and not payload["conversation"]
     usage: dict = {}
     started = monotonic()

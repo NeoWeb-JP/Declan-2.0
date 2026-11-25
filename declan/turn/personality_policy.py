@@ -304,7 +304,10 @@ def decorate(reply, *, outcome="confirmed", guest=False, visitor_present=False,
         return reply
     # Replies can arrive pre-decorated from a handler. Do not append a second
     # roast, including when the handler used a different personality category.
-    from declan.turn import christmas, line_freshness
+    from declan.turn import christmas, line_freshness, personality_dials
+    if category != "dinner" and not personality_dials.wants_extra_line(personality_dials.dials(
+            personality_dials.current_audience(fallback_guest=guest or visitor_present is not False))):
+        return reply
     if any(household_language.render(line) in reply
            for line in (*_SAVAGE, *_GUEST, *_DINNER_HOME, *_DINNER_GUEST, *line_freshness.recently_picked())):
         return reply

@@ -179,13 +179,14 @@ def sleeps(today=None):
 
 def answer(request, *, today=None, save=None):
     """Spoken reply for a matched Christmas request; save(mode) stores a voice change."""
+    from declan.turn import personality_dials
     kind, value = request
     if kind == "wifi":
         return wifi_answer()
     if kind == "sleeps":
         days = sleeps(today)
         if days == 0:
-            return "It's Christmas, boet! Zero sleeps. Go and open something."
+            return personality_dials.fixed("It's Christmas, boet! Zero sleeps. Go and open something.")
         head = "One sleep till Christmas." if days == 1 else f"{days} sleeps till Christmas."
         return head + (" " + pick("countdown") if active(today) else "")
     if value == "status":
@@ -198,14 +199,14 @@ def answer(request, *, today=None, save=None):
 
 def wifi_answer():
     """The guest Wi-Fi from Settings -> Household; guests are exactly who ask (off until set)."""
-    from declan.turn import household_settings
+    from declan.turn import household_settings, personality_dials
     try:
         settings = household_settings.listing()["settings"]
     except (OSError, ValueError, KeyError, TypeError):
         settings = {}
     name, password = settings.get("wifi_name") or "", settings.get("wifi_password") or ""
     if not password:
-        return "Nobody's told me the Wi-Fi password, boet. Ask your host."
+        return personality_dials.fixed("Nobody's told me the Wi-Fi password, boet. Ask your host.")
     spelled = " ".join(password) if len(password) <= 24 else password
     network = f"The Wi-Fi is {name}. " if name else ""
     return f"{network}The password is {password}. Spelled out: {spelled}."

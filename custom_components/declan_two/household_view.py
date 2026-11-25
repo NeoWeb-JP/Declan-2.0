@@ -1,4 +1,4 @@
-"""Admin-only household settings proxy (FUT-60, FUT-61, FUT-42, FUT-44, FUT-46, FUT-31, FUT-29, FUT-32). Never expose backend tokens to the panel."""
+"""Admin-only household settings proxy (personality sliders, FUT-60, FUT-61, FUT-42, FUT-44, FUT-46, FUT-31, FUT-29, FUT-32). Never expose backend tokens to the panel."""
 import re
 
 import aiohttp
@@ -38,6 +38,35 @@ def valid_delete(body):
 def valid_forget(body):
     return (isinstance(body, dict) and set(body) == {"forget_item"} and isinstance(body["forget_item"], str)
             and 0 < len(body["forget_item"]) <= 80)
+
+
+PERSONALITY_TRAITS = frozenset({"sass", "rudeness", "humour", "slang", "chattiness", "swearing", "insults"})
+PERSONALITY_AUDIENCES = frozenset({"household", "guests"})
+
+
+def _valid_dials(value):
+    return (isinstance(value, dict) and set(value) == PERSONALITY_AUDIENCES
+            and all(isinstance(value[audience], dict) and set(value[audience]) == PERSONALITY_TRAITS
+                    and all(type(level) is int and 1 <= level <= 10 for level in value[audience].values())
+                    for audience in PERSONALITY_AUDIENCES))
+
+
+def valid_personality_change(body):
+    """{"save_personality": {"household": {trait: 1-10}, "guests": {trait: 1-10}}}."""
+    return isinstance(body, dict) and set(body) == {"save_personality"} and _valid_dials(body["save_personality"])
+
+
+def valid_personality(value):
+    """Personality listing from the backend, or None when it couldn't be read."""
+    if value is None:
+        return True
+    return (isinstance(value, dict) and _valid_dials(value.get("settings"))
+            and isinstance(value.get("sources"), dict) and set(value["sources"]) == PERSONALITY_AUDIENCES
+            and set(value["sources"].values()) <= {"saved", "default"}
+            and isinstance(value.get("traits"), list) and set(value["traits"]) == PERSONALITY_TRAITS
+            and isinstance(value.get("labels"), dict) and set(value["labels"]) == PERSONALITY_TRAITS
+            and all(isinstance(label, str) and len(label) <= 40 for label in value["labels"].values())
+            and ("forgotten" not in value or value["forgotten"] is None or type(value["forgotten"]) is int))
 
 
 USUAL_WINDOWS = frozenset({"morning", "afternoon", "evening", "night", "any"})
@@ -226,7 +255,8 @@ class DeclanHouseholdView(HomeAssistantView):
         except (ValueError, TypeError):
             return web.json_response({"error": "Invalid JSON"}, status=400)
         if (valid_delete(body) or valid_forget(body) or valid_usual_change(body) or valid_theme_change(body)
-                or valid_house_info_change(body) or valid_satellite_change(body)):
+                or valid_house_info_change(body) or valid_satellite_change(body)
+                or valid_personality_change(body)):
             return await self._relay(request, body)
         if not isinstance(body, dict) or set(body) != {"settings"} or not valid_settings(body["settings"], complete=False):
             return web.json_response({"error": "Invalid settings"}, status=400)
@@ -279,6 +309,14 @@ class DeclanHouseholdView(HomeAssistantView):
                         raise ValueError("Invalid response")
                     reply = {key: data[key] for key in ("saved", "played", "satellite", "theme") if key in data}
                     return web.json_response(reply, headers={"Cache-Control": "no-store"})
+                if body is not None and "save_personality" in body:
+                    personality = data.get("personality") if isinstance(data, dict) else None
+                    if data.get("saved") is not True or personality is None or not valid_personality(personality):
+                        raise ValueError("Invalid response")
+                    reply = {key: personality[key] for key in ("settings", "sources", "traits", "labels", "forgotten")
+                             if key in personality}
+                    return web.json_response({"saved": True, "personality": reply},
+                                             headers={"Cache-Control": "no-store"})
                 if body is not None and "forget_usual" in body:
                     if not isinstance(data, dict) or type(data.get("forgotten")) is not bool:
                         raise ValueError("Invalid response")
@@ -295,13 +333,17 @@ class DeclanHouseholdView(HomeAssistantView):
                         or not valid_usuals(data.get("usuals"))
                         or not valid_themes(data.get("themes"))
                         or not valid_house_info(data.get("house_info"))
-                        or not valid_satellites(data.get("satellites"))):
+                        or not valid_satellites(data.get("satellites"))
+                        or not valid_personality(data.get("personality"))):
                     raise ValueError("Invalid response")
                 remember(hass, data["settings"])
                 payload = {"settings": data["settings"], "sources": sources}
                 for extra in ("generated", "whereabouts", "usuals", "themes", "house_info", "satellites"):
                     if extra in data:
                         payload[extra] = data[extra]
+                if isinstance(data.get("personality"), dict):
+                    payload["personality"] = {key: data["personality"][key] for key in
+                                              ("settings", "sources", "traits", "labels")}
                 return web.json_response(payload, headers={"Cache-Control": "no-store"})
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError, AttributeError):
             return web.json_response({"error": "Backend unavailable"}, status=502)

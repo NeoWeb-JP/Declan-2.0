@@ -71,6 +71,11 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
             payload["generated"] = line_freshness.listing()
         except (OSError, ValueError, sqlite3.Error):
             payload["generated"] = None
+        from declan.turn import personality_dials
+        try:
+            payload["personality"] = personality_dials.listing()
+        except (OSError, ValueError):
+            payload["personality"] = None
         from declan.turn import whereabouts
         try:
             payload["whereabouts"] = whereabouts.listing()

@@ -120,5 +120,13 @@ def fresh_lines(path=None):
 
 
 def guest_lines(guest):
-    """True only when guest wording is wanted: Guest Mode on and tone polite."""
-    return bool(guest) and guest_tone() == "polite"
+    """True when the gentler (guest) line set is wanted.
+
+    That is Guest Mode on with the polite guest tone, or personality sliders
+    (Settings -> Household -> Personality) turned down low for whoever is
+    listening.
+    """
+    if bool(guest) and guest_tone() == "polite":
+        return True
+    from declan.turn import personality_dials
+    return personality_dials.gentle(personality_dials.dials("guests" if guest else "household"))

@@ -30,6 +30,7 @@ from declan.turn import turn_response_completion as turn_response_completion
 from declan.turn import command_vocabulary
 from declan.turn import turn_http_entry
 from declan.turn import turn_services
+from declan.turn import personality_dials
 from declan.core import domain_boundary_helpers
 import server_runtime_state
 from pathlib import Path as Path
@@ -182,6 +183,10 @@ def configured_guest_mode_entity():
     return ha_household_status.configured_guest_mode_entity(entities=household_entities)
 
 def read_guest_mode():
+    # Personality sliders follow whoever is listening (household or guests).
+    return personality_dials.note_guest_mode(_read_guest_mode())
+
+def _read_guest_mode():
     return ha_household_status.read_guest_mode(
         environ=os.environ, entities=household_entities,
         request_factory=Request, opener_factory=build_opener,
@@ -189,6 +194,9 @@ def read_guest_mode():
     )
 
 def read_visitors_present():
+    return personality_dials.note_visitors(_read_visitors_present())
+
+def _read_visitors_present():
     return ha_household_status.read_visitors_present(
         environ=os.environ, config=configuration,
         visitors_entity=VISITORS_PRESENT_ENTITY,
