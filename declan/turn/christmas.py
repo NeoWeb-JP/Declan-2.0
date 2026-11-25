@@ -103,8 +103,23 @@ CATEGORY_MAP = {"lights_on": "lights_on", "full_brightness": "lights_on", "light
 _MODE = re.compile(r"(?:(?:turn|switch|put) (on|off) )?(?:the )?christmas (?:mode|spirit)(?: (on|off))?|"
                    r"(start|stop|end|cancel) (?:the )?christmas(?: mode)?|"
                    r"(?:is it|are we in) christmas mode|is christmas mode on")
-_WIFI = re.compile(r"(?:what(?:'s| is) )?(?:the )?(?:wi-?fi|wifi|wireless) (?:password|code|details)|"
-                   r"what(?:'s| is) the (?:wi-?fi|wifi|wireless)|how do i (?:get on|join|connect to) the (?:wi-?fi|wifi|wireless)")
+# Guests ask for the Wi-Fi every way imaginable, and speech-to-text drops apostrophes, so any mention of the
+# Wi-Fi with a password/details/join word counts, unless it's a command to change or control the network.
+_WIFI_NET = r"(?:wi-?fi|wi fi|wireless|internet|network)"
+_WIFI_ASK = re.compile(r"\b(?:password|passcode|pass word|code|key|details|login|log in|name)\b|"
+                       r"\b(?:join|connect|get on|get onto|log on|log onto|hook up|access)\b")
+_WIFI_BARE = re.compile(r"(?:what(?:'s|s| is)|which is) (?:the |your )?(?:guest )?(?:wi-?fi|wi fi|wireless)")
+_WIFI_CONTROL = re.compile(r"\b(?:change|reset|update|turn|switch|restart|reboot|disable|enable|block|"
+                           r"kick|pause|forget|delete|remove|speed|slow|down|router)\b")
+_WIFI_NET_RE = re.compile(r"\b" + _WIFI_NET + r"\b")
+
+
+def _is_wifi_question(text):
+    if _WIFI_CONTROL.search(text):
+        return False
+    if _WIFI_BARE.fullmatch(text):
+        return True
+    return bool(_WIFI_NET_RE.search(text) and _WIFI_ASK.search(text))
 _SLEEPS = re.compile(r"(?:how many|how much) (?:sleeps|days|more sleeps|more days) (?:is it |are there |left )?"
                      r"(?:till|until|to|before|left (?:till|until|to|before)) christmas|"
                      r"how long (?:is it |left )?(?:till|until|to|before) christmas|when is christmas")
@@ -164,7 +179,7 @@ def match(phrase):
         return ("mode", "on" if verb in {"on", "start"} else "off")
     if _SLEEPS.fullmatch(text):
         return ("sleeps", None)
-    if _WIFI.fullmatch(text):
+    if _is_wifi_question(text):
         return ("wifi", None)
     return None
 

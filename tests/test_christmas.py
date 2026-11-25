@@ -58,6 +58,23 @@ class ModeTests(Settings):
             with self.subTest(phrase=phrase):
                 self.assertEqual(christmas.match(phrase), expected)
 
+    def test_wifi_questions_are_recognised_however_guests_ask(self):
+        asks = ("what are the wifi details", "What are the Wi-Fi details?", "whats the wifi password",
+                "what's the wi fi password", "can I have the wifi password", "tell me the wifi password please",
+                "what is the guest wifi", "what's the wifi", "what's the internet password",
+                "how do I connect to the wifi", "how do I get on the wifi", "can I join your network",
+                "what's the network name", "wifi code", "do you know the wifi password",
+                "Declan what's the Wi-Fi password", "give me the wireless key")
+        for phrase in asks:
+            with self.subTest(phrase=phrase):
+                self.assertEqual(christmas.match(phrase), ("wifi", None))
+        not_asks = ("turn off the wifi", "restart the router", "change the wifi password", "is the internet down",
+                    "why is the wifi so slow", "play some music", "turn on the network switch",
+                    "what's the weather", "reset the wifi password")
+        for phrase in not_asks:
+            with self.subTest(phrase=phrase):
+                self.assertIsNone(christmas.match(phrase))
+
     def test_voice_mode_change_is_saved_with_a_line(self):
         reply = christmas.answer(("mode", "on"), today=NOV_21)
         self.assertIn(reply, christmas.LINES["mode_on"])
