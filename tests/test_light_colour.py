@@ -138,4 +138,4 @@ class ColourExecutionTests(TestCase):
         self.ha.entities["light.utility_room_spotlights"]["state"] = "on"
         with patch.object(server, "sleep"):
             reply, _ = self.run_light("utility room spotlights off", "unverified")
-        self.assertIn("couldn't confirm", reply)
+        self.assertEqual(reply, "I couldn't turn off Utility Room Spotlights.")

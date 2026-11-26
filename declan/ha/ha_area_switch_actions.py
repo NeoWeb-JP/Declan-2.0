@@ -75,7 +75,7 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
         return ExecutionResult("More than one marked light switch matches. Please use its exact entity ID.", Outcome.UNRESOLVED)
     entity, previous, label = eligible[0]
     if previous not in {"on", "off"}:
-        return ExecutionResult(f"{label} is unavailable in Home Assistant.", Outcome.UNAVAILABLE)
+        return ExecutionResult(f"I couldn't turn {desired_state} {label}.", Outcome.UNAVAILABLE)
     if preview:
         return ExecutionResult(f"Preview: I would turn {desired_state} {label}.", Outcome.PREVIEW)
     if previous == desired_state:
@@ -100,5 +100,5 @@ def set_switch_as_light_result(name, desired_state, inventory, connection, *, pr
                                           LightingActionStatus.CONFIRMED if verified else LightingActionStatus.UNVERIFIED,
                                           entity_id=entity)
         append_evidence(action_results, evidence)
-    return ExecutionResult(f"{label} is {desired_state}." if verified else f"I couldn't verify {label} is {desired_state}.", Outcome.CONFIRMED if verified else Outcome.UNVERIFIED)
+    return ExecutionResult(f"{label} is {desired_state}." if verified else f"I couldn't turn {desired_state} {label}.", Outcome.CONFIRMED if verified else Outcome.UNVERIFIED)
 

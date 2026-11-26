@@ -70,7 +70,8 @@ class LightsParallelTests(unittest.TestCase):
         reply, outcome = self.run_with(ha, "turn on the study light and turn off the fairy lights")
         self.assertEqual(outcome, "partial", reply)
         self.assertEqual(ha.entities["light.fairy_lights"]["state"], "off")
-        self.assertIn("HTTP 503", reply)
+        self.assertIn("I couldn't turn on Study Light.", reply)
+        self.assertNotIn("HTTP", reply)
 
 
 if __name__ == "__main__":

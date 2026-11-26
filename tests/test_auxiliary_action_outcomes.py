@@ -78,7 +78,7 @@ class AuxiliaryActionOutcomeTests(unittest.TestCase):
         self.assertIsNone(legacy_wire.set_switch_as_light("missing", "on", [row], None))
 
     def test_lighting_fallback_bypasses_legacy_switch_provider(self):
-        expected = ExecutionResult("Already on", Outcome.CONFIRMED)
+        expected = ExecutionResult("I couldn't turn on garden light.", Outcome.UNVERIFIED)
         with patch.object(server, "ha_device_connection", return_value=("http://ha", {}, Mock())), \
              patch.object(server, 'read_ha_inventory_result', return_value=([], None)), \
              patch.object(server, "read_ha_areas", return_value={}), \

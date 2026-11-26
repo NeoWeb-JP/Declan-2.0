@@ -97,7 +97,9 @@ def _read_result(connection, *, music=False) -> InventoryResult:
                    "{% endif %}{% endfor %}{% endif %}" if music else "")
                 + "{% set result.rows = result.rows + [dict(entity_id=entity.entity_id, state=entity.state, attributes=attrs.values"
                 + (", declan_area=area_name(entity.entity_id), declan_device=device_id(entity.entity_id), "
-                   "declan_music_assistant=entity.entity_id in ma, declan_source_entities=source.entities" if music else ", declan_area=area_name(entity.entity_id)")
+                   "declan_music_assistant=entity.entity_id in ma, declan_source_entities=source.entities" if music
+                   else ", declan_area=area_name(entity.entity_id), "
+                   "declan_device_name=device_attr(entity.entity_id, 'name_by_user') or device_attr(entity.entity_id, 'name')")
                 + ")] %}{% endfor %}{{ dict(total=entities | count, rows=result.rows) | to_json }}"
             )
             request = Request(url + '/api/template', headers=headers,
