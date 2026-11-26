@@ -589,6 +589,8 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <label>Guest Wi-Fi name<input name="wifi_name" type="text" maxlength="63" autocomplete="off"></label>
                   <label>Guest Wi-Fi password<input name="wifi_password" type="text" maxlength="63" autocomplete="off" spellcheck="false"></label>
                   <p class="muted">When anyone asks "what's the Wi-Fi password?" Declan reads these out (and they appear in History). Use a guest network. Leave empty to keep it secret.</p>
+                  <label>Shopping list<input name="shopping_list" type="text" maxlength="105" autocomplete="off" spellcheck="false" placeholder="todo.shopping_list"></label>
+                  <p class="muted">The Home Assistant to-do list Declan means by "the shopping list", and where the pantry adds things that run low. To use your shared iPhone list, sync it into Home Assistant first (Home Assistant iPhone app → Settings → Reminders Sync), then enter that list's entity ID here, for example todo.shopping. Leave empty to use a list with "shopping" in its name.</p>
                   <button type="submit">Save household settings</button>
                 </form>
                 <p class="household-status muted" role="status" aria-live="polite">Open Settings to load household settings.</p>
@@ -613,6 +615,11 @@ class DeclanTwoNativePanel extends HTMLElement {
                   <p class="muted">What people told Declan ("the spare key is in the hall drawer"). Ask "where's the spare key?". Guests can't see or add these.</p>
                   <p class="whereabouts-status muted" role="status" aria-live="polite"></p>
                   <div class="fresh-lines-list whereabouts-list" aria-label="Where things are"></div>
+                </details>
+                <details class="pantry"><summary>Pantry</summary>
+                  <p class="muted">What's in the cupboard, by voice: "we've got 6 tins of chopped tomatoes", "I've used a tin of tomatoes", "we're out of rice", "keep at least 4 tins of tomatoes", "what's running low?". When something drops below its minimum or runs out, Declan puts it on the shopping list. Say "stop counting rice" to remove an item.</p>
+                  <p class="pantry-status muted" role="status" aria-live="polite"></p>
+                  <div class="fresh-lines-list pantry-list" aria-label="Pantry"></div>
                 </details>
                 <details class="usuals"><summary>The usual</summary>
                   <p class="muted">Say "the usual" and Declan runs that room's usual for the time of day, or its "any time" usual. Each step is something you'd say to Declan, like "lamps to 40%" or "play chill music". You can also say "my usual for the lounge in the evening is lamps to 40% and play chill music". Guests can ask for the usual but not change it.</p>
@@ -2657,8 +2664,10 @@ class DeclanTwoNativePanel extends HTMLElement {
       form.elements.namedItem('christmas').value = response.settings.christmas || 'auto';
       form.elements.namedItem('wifi_name').value = response.settings.wifi_name || '';
       form.elements.namedItem('wifi_password').value = response.settings.wifi_password || '';
+      form.elements.namedItem('shopping_list').value = response.settings.shopping_list || '';
       this.renderFreshLines(response.generated);
       this.renderWhereabouts(response.whereabouts);
+      this.renderPantry(response.pantry);
       this.renderUsuals(response.usuals);
       this.renderThemes(response.themes);
       this.renderHouseInfo(response.house_info);
@@ -2682,12 +2691,15 @@ class DeclanTwoNativePanel extends HTMLElement {
     try {
       const days = Number(form.elements.namedItem('shelve_days').value);
       if (!Number.isInteger(days) || days < 0 || days > 30) { status.textContent = 'Rest days must be a whole number from 0 to 30.'; return; }
+      const shoppingList = form.elements.namedItem('shopping_list').value.trim().toLowerCase();
+      if (shoppingList && !/^todo\.[a-z0-9_]{1,100}$/.test(shoppingList)) { status.textContent = 'The shopping list must be a to-do entity ID like todo.shopping, or empty.'; return; }
       const response = await this._hass.callApi('POST', 'declan_two/household', {settings: {
         guest_tone: form.elements.namedItem('guest_tone').value, shelve_days: days,
         fresh_lines: form.elements.namedItem('fresh_lines').checked,
         christmas: form.elements.namedItem('christmas').value,
         wifi_name: form.elements.namedItem('wifi_name').value.trim(),
-        wifi_password: form.elements.namedItem('wifi_password').value}});
+        wifi_password: form.elements.namedItem('wifi_password').value,
+        shopping_list: shoppingList}});
       form.elements.namedItem('guest_tone').value = response.settings.guest_tone;
       status.textContent = 'Saved. It applies to Declan\'s next reply.';
     } catch {
@@ -2770,6 +2782,26 @@ class DeclanTwoNativePanel extends HTMLElement {
       const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete';
       remove.addEventListener('click', () => { void this.deleteFreshLine(row, item); });
       item.append(text, remove);
+      list.append(item);
+    }
+  }
+
+  renderPantry(rows) {
+    const list = this.shadowRoot.querySelector('.pantry-list');
+    const status = this.shadowRoot.querySelector('.pantry-status');
+    list.replaceChildren();
+    if (!Array.isArray(rows)) { status.textContent = 'Could not read the pantry. Update Declan if this persists.'; return; }
+    const low = rows.filter((row) => row.count === 0 || row.count < row.minimum).length;
+    status.textContent = rows.length ? `${rows.length} things counted${low ? `, ${low} running low` : ''}.` : 'Nothing counted yet.';
+    for (const row of rows) {
+      const item = document.createElement('div'); item.className = 'fresh-line';
+      const text = document.createElement('span');
+      const unit = row.unit ? ` ${row.unit}${row.count === 1 ? '' : 's'}` : '';
+      text.textContent = `${row.item}: ${row.count}${unit}`;
+      const detail = document.createElement('small');
+      detail.textContent = (row.minimum ? `Minimum ${row.minimum}. ` : '') + `Updated ${new Date(row.updated_at * 1000).toLocaleString()}`;
+      text.append(detail);
+      item.append(text);
       list.append(item);
     }
   }

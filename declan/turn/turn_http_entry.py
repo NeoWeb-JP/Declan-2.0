@@ -45,7 +45,11 @@ def handle_post(handler, *, services):
     help_request = local_help.match(effective_message)
     from declan.turn import christmas, whereabouts
     christmas_request = christmas.match(effective_message) if help_request is None else None
-    where_request = whereabouts.match(effective_message) if help_request is None and christmas_request is None else None
+    from declan.turn import pantry
+    # FUT-76: "I put 6 tins of tomatoes in the pantry" is stock, not "where did I put…?".
+    pantry_request = pantry.match(effective_message) if help_request is None and christmas_request is None else None
+    where_request = (whereabouts.match(effective_message)
+                     if help_request is None and christmas_request is None and pantry_request is None else None)
     from declan.turn import usual
     usual_request = usual.match(effective_message) if help_request is None else None
     from declan.turn import braai
@@ -55,9 +59,11 @@ def handle_post(handler, *, services):
     from declan.ha import intercom, todo_lists
     list_request = (todo_lists.match(effective_message)
                     if help_request is None and christmas_request is None and where_request is None else None)
+    if list_request is not None:
+        pantry_request = None  # "add milk to the shopping list" stays a list request
     intercom_request = (intercom.match(effective_message)
                         if help_request is None and christmas_request is None and where_request is None
-                        and list_request is None else None)
+                        and list_request is None and pantry_request is None else None)
     from declan.turn import house_questions
     house_request = (house_questions.match(effective_message)
                      if help_request is None and usual_request is None and braai_request is None
@@ -81,6 +87,9 @@ def handle_post(handler, *, services):
     elif list_request is not None:
         # FUT-27: shopping and to-do lists live in Home Assistant's own to-do lists.
         dispatch_result = _todo(list_request, services)
+    elif pantry_request is not None and (pantry_result := _pantry(pantry_request, services)) is not None:
+        # FUT-76: pantry stock by voice; low or finished items go on the shopping list.
+        dispatch_result = pantry_result
     elif report_request is not None:
         # FUT-50: "how are you, Declan?" gets uptime, today's misses and AI pocket money.
         dispatch_result = _self_report(report_request, services)
@@ -207,6 +216,37 @@ def _todo(request, services):
     from declan.turn import conversation_entry
     result = todo_lists.result(request, services.ha_device_connection())
     return conversation_entry._result_factory(result.reply, result.outcome)
+
+
+def _pantry(request, services):
+    """FUT-76: pantry stock, answered locally; None lets the rest of Declan answer."""
+    from declan.core.execution_results import Outcome
+    from declan.ha import todo_lists
+    from declan.turn import conversation_entry, pantry
+    try:
+        guest = services.read_guest_mode() != "off"
+    except (OSError, ValueError, TypeError, AttributeError):
+        guest = True  # unknown Guest Mode can't change the household's stock
+
+    def add_to_list(item):
+        try:
+            connection = services.ha_device_connection()
+        except (OSError, ValueError, TypeError, AttributeError):
+            return "unavailable"
+        return todo_lists.add_to_shopping(connection, item)
+    try:
+        reply = pantry.answer(request, guest=guest, add_to_list=add_to_list)
+    except ValueError as error:
+        return conversation_entry._result_factory(str(error), Outcome.UNAVAILABLE)
+    except (OSError, sqlite3.Error) as error:
+        LOGGER.warning("Pantry unavailable (%s)", type(error).__name__)
+        return conversation_entry._result_factory("I couldn't check the pantry just now.", Outcome.FAILED)
+    if reply is None:
+        return None
+    from declan.ha import household_language
+    changes = request[0] in {"used", "out", "low", "stock", "add", "minimum", "forget"}
+    outcome = Outcome.CONFIRMED if changes and not reply.startswith(("Nice try", "I wasn't counting")) else Outcome.CHAT_ANSWER
+    return conversation_entry._result_factory(household_language.render(reply), outcome)
 
 
 def _whereabouts(request, services):

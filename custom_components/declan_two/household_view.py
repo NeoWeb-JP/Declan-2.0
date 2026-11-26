@@ -7,7 +7,9 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 CHOICES = {"guest_tone": frozenset({"home", "polite"})}
-KEYS = frozenset({"guest_tone", "shelve_days", "fresh_lines", "christmas", "wifi_name", "wifi_password"})
+KEYS = frozenset({"guest_tone", "shelve_days", "fresh_lines", "christmas", "wifi_name", "wifi_password",
+                  "shopping_list"})
+_TODO_ENTITY = re.compile(r"(?:todo\.[a-z0-9_]{1,100})?")
 SOURCES = frozenset({"saved", "environment", "default"})
 # hass.data key holding the last guest tone read from the backend, for the TTS
 # catalogue fallback. Missing means "home", the owner's default.
@@ -15,10 +17,13 @@ DATA_KEY = "declan_two_household"
 
 
 def valid_settings(settings, *, complete=True):
-    """Every key in a backend reply; a save may leave out the FUT-61 keys."""
+    """Every key in a backend reply; a save may leave out the FUT-61 keys.
+
+    An older backend has no shopping_list yet, so a reply without it is still valid.
+    """
     if not isinstance(settings, dict) or not set(settings) <= KEYS or "guest_tone" not in settings:
         return False
-    if complete and set(settings) != KEYS:
+    if complete and set(settings) | {"shopping_list"} != KEYS:
         return False
     return (settings["guest_tone"] in CHOICES["guest_tone"]
             and ("shelve_days" not in settings or (type(settings["shelve_days"]) is int and 0 <= settings["shelve_days"] <= 30))
@@ -26,7 +31,9 @@ def valid_settings(settings, *, complete=True):
             and ("christmas" not in settings or settings["christmas"] in {"auto", "on", "off"})
             and all(name not in settings or (isinstance(settings[name], str) and len(settings[name]) <= 63
                                              and all(" " <= ch <= "~" for ch in settings[name]))
-                    for name in ("wifi_name", "wifi_password")))
+                    for name in ("wifi_name", "wifi_password"))
+            and ("shopping_list" not in settings or (isinstance(settings["shopping_list"], str)
+                                                     and bool(_TODO_ENTITY.fullmatch(settings["shopping_list"])))))
 
 
 def valid_delete(body):
@@ -203,6 +210,16 @@ def valid_whereabouts(value):
                     and isinstance(row.get("saved_at"), (int, float)) for row in value))
 
 
+def valid_pantry(value):
+    """Pantry stock listing (FUT-76), or None when the backend couldn't read it."""
+    if value is None:
+        return True
+    return (isinstance(value, list) and len(value) <= 300
+            and all(isinstance(row, dict) and isinstance(row.get("item"), str) and isinstance(row.get("unit"), str)
+                    and type(row.get("count")) is int and type(row.get("minimum")) is int
+                    and isinstance(row.get("updated_at"), (int, float)) for row in value))
+
+
 def valid_generated(value):
     """Generated lines listing, or None when the backend couldn't read it."""
     if value is None:
@@ -327,9 +344,10 @@ class DeclanHouseholdView(HomeAssistantView):
                     return web.json_response({"deleted": data["deleted"]}, headers={"Cache-Control": "no-store"})
                 sources = data.get("sources") if isinstance(data, dict) else None
                 if (not valid_settings(data.get("settings")) or not isinstance(sources, dict)
-                        or set(sources) != KEYS or not set(sources.values()) <= SOURCES
+                        or set(sources) | {"shopping_list"} != KEYS or not set(sources.values()) <= SOURCES
                         or not valid_generated(data.get("generated"))
                         or not valid_whereabouts(data.get("whereabouts"))
+                        or not valid_pantry(data.get("pantry"))
                         or not valid_usuals(data.get("usuals"))
                         or not valid_themes(data.get("themes"))
                         or not valid_house_info(data.get("house_info"))
@@ -338,7 +356,7 @@ class DeclanHouseholdView(HomeAssistantView):
                     raise ValueError("Invalid response")
                 remember(hass, data["settings"])
                 payload = {"settings": data["settings"], "sources": sources}
-                for extra in ("generated", "whereabouts", "usuals", "themes", "house_info", "satellites"):
+                for extra in ("generated", "whereabouts", "pantry", "usuals", "themes", "house_info", "satellites"):
                     if extra in data:
                         payload[extra] = data[extra]
                 if isinstance(data.get("personality"), dict):
