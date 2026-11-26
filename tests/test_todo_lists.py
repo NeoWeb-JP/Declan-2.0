@@ -31,7 +31,7 @@ class Response:
         return False
 
     def read(self, limit):
-        return json.dumps(self.body).encode()
+        return json.dumps(self.body).encode()[:limit]  # like a real response: cut off at the limit
 
 
 class Opener(FakeHA):
@@ -40,7 +40,11 @@ class Opener(FakeHA):
         data: dict = json.loads(request.data) if request.data else {}
         self.calls.append((path, data))
         if path == "/api/states":
-            return Response(STATES)
+            # A big house: far more than the 256 KB read limit.
+            return Response(STATES + [{"entity_id": f"sensor.s{n}", "state": "x" * 300} for n in range(1000)])
+        if path == "/api/template":
+            assert "states.todo" in data["template"]
+            return Response([row for row in STATES if str(row["entity_id"]).startswith("todo.")])
         if path.startswith("/api/services/todo/get_items"):
             entity = data["entity_id"]
             return Response({"service_response": {entity: {"items": [
@@ -109,6 +113,20 @@ class ListTests(unittest.TestCase):
         services = SimpleNamespace(ha_device_connection=lambda: ("http://ha", {}, Opener()))
         result = turn_http_entry._todo(todo_lists.match("add milk to the list"), services)
         self.assertEqual(result.outcome, Outcome.CONFIRMED)
+
+
+
+class LargeHouseTests(unittest.TestCase):
+    def test_lists_work_when_all_states_are_bigger_than_the_read_limit(self):
+        # 26 Nov 2026: "add rice to the shopping list" said "I couldn't reach the shopping list"
+        # because /api/states was cut off at 256 KB. Only the to-do lists are asked for now.
+        opener = Opener()
+        request = todo_lists.match("add rice to the shopping list")
+        assert request is not None
+        reply = todo_lists.result(request, ("http://ha", {}, opener)).reply
+        self.assertTrue(reply.startswith("Added rice"), reply)
+        self.assertNotIn("/api/states", [path for path, _ in opener.calls])
+        self.assertEqual(todo_lists.add_to_shopping(("http://ha", {}, opener), "beans"), "added")
 
 
 if __name__ == "__main__":

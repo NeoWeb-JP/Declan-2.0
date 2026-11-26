@@ -137,7 +137,7 @@ class ShoppingListTests(Store):
 
         def call(connection, path, data=None):
             calls.append((path, data))
-            if path == "/api/states":
+            if path == "/api/template":
                 return [{"entity_id": entity, "state": "1", "attributes": {}} for entity in lists]
             if path.startswith("/api/services/todo/get_items"):
                 return {"service_response": {data["entity_id"]: {"items": [{"summary": item} for item in items]}}}
