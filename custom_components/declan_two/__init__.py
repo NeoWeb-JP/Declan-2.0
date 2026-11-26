@@ -32,7 +32,7 @@ from .routine_jobs import DeclanRoutineJobsView
 from .script_sync_view import DeclanScriptSyncView
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["conversation", "stt", "tts"]
+PLATFORMS = ["binary_sensor", "conversation", "stt", "tts"]
 
 
 async def async_setup(hass, config):

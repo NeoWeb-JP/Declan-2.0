@@ -1,0 +1,94 @@
+# Declan down alert: a phone notification when Declan isn't running.
+#
+# Paste into Settings -> Automations & scenes -> Create automation -> ... (top right)
+# -> Edit in YAML, then change BOTH "notify.mobile_app_your_iphone" lines to your
+# phone (in the visual editor, the "Notifications: Send a notification via
+# mobile_app_..." action lists your phones). Needs the Declan 2.0 integration
+# update that adds binary_sensor.declan_2_0_running.
+#
+# - Alerts after Declan has been down for 3 minutes, so a normal update restart
+#   doesn't set it off. Also checks 5 minutes after Home Assistant starts, which
+#   is what catches a power cut where Declan's container never came back.
+# - Reminds you every hour while he's still down, and tells you when he's back.
+# - Uses a phone notification, not a voice announcement: when Declan is down,
+#   his voice (TTS) is down too.
+alias: "Declan - Down alert"
+mode: restart
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.declan_2_0_running
+    to:
+      - "off"
+      - "unavailable"
+    for:
+      minutes: 3
+    id: down
+  - trigger: homeassistant
+    event: start
+    id: started
+  - trigger: state
+    entity_id: binary_sensor.declan_2_0_running
+    from: "off"
+    to: "on"
+    id: back
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: back
+        sequence:
+          # Only after a real outage (3 minutes or more), not every update restart.
+          - condition: template
+            value_template: >-
+              {{ (trigger.to_state.last_changed - trigger.from_state.last_changed).total_seconds() >= 180 }}
+          - action: persistent_notification.dismiss
+            data:
+              notification_id: declan_down
+          - action: notify.mobile_app_your_iphone
+            data:
+              title: "Declan is back"
+              message: >-
+                Declan is running again{{ ' (' ~ state_attr('binary_sensor.declan_2_0_running', 'version') ~ ')'
+                if state_attr('binary_sensor.declan_2_0_running', 'version') else '' }}.
+    default:
+      - if:
+          - condition: trigger
+            id: started
+        then:
+          # Give Proxmox and Declan time to come up after a power cut.
+          - delay:
+              minutes: 5
+      - repeat:
+          while:
+            - condition: not
+              conditions:
+                - condition: state
+                  entity_id: binary_sensor.declan_2_0_running
+                  state: "on"
+          sequence:
+            - variables:
+                problem: >-
+                  {{ state_attr('binary_sensor.declan_2_0_running', 'problem')
+                     or ('The Declan 2.0 integration isn''t loaded'
+                         if states('binary_sensor.declan_2_0_running') in ['unavailable', 'unknown']
+                         else 'No answer from Declan') }}
+            - action: persistent_notification.create
+              data:
+                notification_id: declan_down
+                title: "Declan isn't running"
+                message: >-
+                  {{ problem }}. In Proxmox, check container 108 (declan-2) is started,
+                  or in its console run: systemctl restart declan
+            - action: notify.mobile_app_your_iphone
+              data:
+                title: "Declan isn't running"
+                message: "{{ problem }}. Check container 108 in Proxmox."
+                data:
+                  push:
+                    interruption-level: time-sensitive
+            - wait_for_trigger:
+                - trigger: state
+                  entity_id: binary_sensor.declan_2_0_running
+                  to: "on"
+              timeout:
+                hours: 1
