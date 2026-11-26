@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from declan.ai.action_plan import SERVICES, CandidateAction
+from declan.ha.entity_names import spoken_label
 
 MAX_DEVICES = 100
 MAX_COMMANDS = 4
@@ -141,7 +142,8 @@ def build_context(utterance, *, you_are_in, dialogue, devices, areas, music_room
         permitted[row["entity_id"]] = row
         listed.append({
             "entity_id": row["entity_id"],
-            "name": _clean(attributes.get("friendly_name") or row["entity_id"].split(".", 1)[1].replace("_", " "), 120),
+            "name": _clean(spoken_label(attributes.get("friendly_name"), row.get("declan_device_name"),
+                                        row["entity_id"].split(".", 1)[1].replace("_", " ")), 120),
             "room": _clean(row.get("declan_area"), 80) or None,
             "type": row["entity_id"].split(".", 1)[0],
             "state": _clean(row.get("state"), 40),

@@ -133,7 +133,11 @@ class CommandResponseTests(TestCase):
                 result, outcome = pair_of(server.handle_light_request_result)(phrase)
             self.assertEqual(outcome, "confirmed")
             self.assertIn(expected, result)
-            self.assertRegex(result, r"is (?:on|off)|at 30%")
+            if category == "brightness":
+                self.assertRegex(result, r"at 30%")
+            else:
+                # Owner rule: on/off replies don't repeat what was switched.
+                self.assertEqual(result, expected)
         self.assertEqual(ha.entities["light.study_light"]["state"], "off")
 
     def test_request_history_uses_custom_reply_once_and_failure_never_uses_success(self):

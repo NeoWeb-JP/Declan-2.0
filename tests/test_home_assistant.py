@@ -139,7 +139,7 @@ class LightingTests(TestCase):
                     "turn the lounge and the bedroom lights off", action_results=steps,
                 )
                 self.assertEqual(outcome, "confirmed", reply)
-                self.assertTrue(reply.startswith("Done. "), reply)
+                self.assertTrue(reply, reply)
                 self.assertNotIn("Lounge Lamp", reply)
                 self.assertNotIn("Bedroom Lamp", reply)
                 self.assertEqual({step["status"] for step in steps}, {"confirmed"})

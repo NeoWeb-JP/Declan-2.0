@@ -10,6 +10,7 @@ from declan.core import diagnostics
 from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha.lighting_action_evidence import LightingActionStatus, LightingActionReason
 from declan.ha.lighting_intents import COLOURS
+from declan.ha.entity_names import spoken_label
 
 
 MAX_PARALLEL_REQUESTS = 6
@@ -57,6 +58,11 @@ def near_miss(names, spoken):
     rivals = [candidate for score, candidate in scored[1:] if best[0] - score < 0.05
               and names[candidate] != names[best[1]]]
     return None if rivals else set(names[best[1]])
+
+
+def is_on_off(direction, percent, colour):
+    """A plain on/off change: no brightness or colour asked for."""
+    return direction in ("on", "off") and percent is None and colour is None
 
 
 def set_lights_result(name, desired_state, *, brightness=None, preview=False, require_all=False, relative_step=10,
@@ -121,9 +127,10 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             light_groups.add(entity_id)
         friendly = attributes.get("friendly_name") if isinstance(attributes, dict) else None
         id_name = entity_id.removeprefix("light.").replace("_", " ")
-        label = friendly.strip() if isinstance(friendly, str) and friendly.strip() else id_name
+        full_label = friendly.strip() if isinstance(friendly, str) and friendly.strip() else id_name
+        label = spoken_label(friendly, item.get("declan_device_name"), id_name)
         lights[entity_id] = (label, item.get("state"))
-        for candidate in (entity_id, id_name, " ".join(label.casefold().split())):
+        for candidate in (entity_id, id_name, " ".join(full_label.casefold().split()), " ".join(label.casefold().split())):
             names.setdefault(candidate, set()).add(entity_id)
 
     if desired_state is None:
@@ -289,7 +296,9 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             label, state = lights[entity]
             if state not in ("on", "off"):
                 record_action(label, direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.UNAVAILABLE)
-                skipped.append(ExecutionResult(f"Home Assistant says {label} is unavailable.", Outcome.UNAVAILABLE))
+                skipped.append(ExecutionResult(
+                    f"I couldn't turn {direction} {label}." if is_on_off(direction, brightness, colour)
+                    else f"Home Assistant says {label} is unavailable.", Outcome.UNAVAILABLE))
                 continue
             relative = direction in ("darker", "brighter")
             if (brightness is not None or relative or direction == "very bright") and entity not in dimmable:
@@ -335,6 +344,10 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         if brightness is None and colour is None and not require_all and len(resolved_targets) == 1:
             switch_result = switch_dispatch(name, desired_state, inventory, connection, preview=preview, action_results=action_results)
             if switch_result is not None:
+                if switch_result.outcome is Outcome.CONFIRMED:
+                    already = switch_result.reply.endswith(f"already {desired_state}.")
+                    category = "already_set" if already else "lights_on" if desired_state == "on" else "lights_off"
+                    switch_result = ExecutionResult(sass("", category, guest_mode).strip() or "Done.", Outcome.CONFIRMED)
                 return intents._lighting_result(switch_result)
         return (ExecutionResult(skipped_details.strip(), skipped[0].outcome) if skipped else
                 ExecutionResult("Tell me which lights to switch.", Outcome.UNRESOLVED))
@@ -431,14 +444,17 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
     for batch, failure in zip(batches, concurrently(send, batches)):
         direction, percent, entity_ids = batch
         labels = ", ".join(selected[entity][0] for entity in entity_ids)
+        plain = is_on_off(direction, percent, colour)
         if failure == "time":
             for entity in entity_ids:
                 record_action(selected[entity][0], direction, LightingActionStatus.SKIPPED, entity=entity, detail=LightingActionReason.DISPATCH_TIME_LIMIT)
-            skipped.append(ExecutionResult(f"I ran out of time before sending the command for {labels}.", Outcome.UNVERIFIED))
+            skipped.append(ExecutionResult(f"I couldn't turn {direction} {labels}." if plain
+                                           else f"I ran out of time before sending the command for {labels}.", Outcome.UNVERIFIED))
         elif isinstance(failure, HTTPError):
             for entity in entity_ids:
                 record_action(selected[entity][0], direction, LightingActionStatus.FAILED, entity=entity, detail=f"HTTP {failure.code}")
-            skipped.append(ExecutionResult(f"Home Assistant returned HTTP {failure.code} for {labels}.", Outcome.ACTION_ERROR))
+            skipped.append(ExecutionResult(f"I couldn't turn {direction} {labels}." if plain
+                                           else f"Home Assistant returned HTTP {failure.code} for {labels}.", Outcome.ACTION_ERROR))
         elif failure == "no_response":
             # Slow lights (template lights over cloud bridges) can hold the service call
             # open past the dispatch timeout. The command was sent, so check the state.
@@ -495,21 +511,24 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
         record_action(label, direction, LightingActionStatus.UNVERIFIED, entity=entity, detail=str(state))
         percent = target_levels[entity]
         goal = colour if colour is not None and direction == "on" else f"at {percent}%" if percent is not None else direction
-        skipped.append(ExecutionResult(f"I couldn't confirm {label} is {goal} ({state}).", Outcome.UNVERIFIED))
+        skipped.append(ExecutionResult(f"I couldn't turn {direction} {label}." if is_on_off(direction, percent, colour)
+                                       else f"I couldn't confirm {label} is {goal} ({state}).", Outcome.UNVERIFIED))
     confirmations = [
         f"{', '.join(labels)} {'is' if len(labels) == 1 else 'are'} "
         + (f"{colour}." if colour is not None and direction == "on"
            else f"at {percent}%." if percent is not None else f"{direction}.")
-        for (direction, percent), labels in verified.items() if labels
+        for (direction, percent), labels in verified.items() if labels and not is_on_off(direction, percent, colour)
     ]
     reply = " ".join(confirmations + [result.reply for result in skipped])
-    outcome = (Outcome.PARTIAL if confirmations else skipped[0].outcome) if skipped else Outcome.CONFIRMED
+    succeeded = any(labels for labels in verified.values())
+    outcome = (Outcome.PARTIAL if succeeded else skipped[0].outcome) if skipped else Outcome.CONFIRMED
     if outcome is Outcome.PARTIAL and room_targets:
         reply = sass("I handled part of that. Some lighting changes couldn't be confirmed.",
                          "partial_lighting", guest_mode)
     if outcome is Outcome.CONFIRMED:
         if room_targets:
             reply = "Done."
+        on_off_only = all(is_on_off(direction, percent, colour) for direction, percent in verified)
         directions = {direction for direction, _ in verified}
         percents = {percent for _, percent in verified if percent is not None}
         if len(already_set) == len(selected):
@@ -520,5 +539,9 @@ def set_lights_result(name, desired_state, *, brightness=None, preview=False, re
             category = "full_brightness" if percents == {100} else "brightness"
         else:
             category = "lights_on" if "on" in directions else "lights_off"
-        reply = sass(reply, category, guest_mode)
+        if on_off_only:
+            # Owner rule: don't repeat what was switched; just comment on having to do it.
+            reply = sass("", category, guest_mode).strip() or "Done."
+        else:
+            reply = sass(reply, category, guest_mode)
     return ExecutionResult(reply, outcome)
