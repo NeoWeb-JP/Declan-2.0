@@ -9,13 +9,20 @@ shopping list. Long lists are summarised. Guests may add to and read the
 shopping list too.
 """
 import json
+import logging
 import re
 from urllib.error import HTTPError
 from urllib.request import Request
 
 from declan.core.execution_results import ExecutionResult, Outcome
 
+LOGGER = logging.getLogger(__name__)
 READ_LIMIT = 6
+# Only the to-do lists, not every entity: a big house's /api/states is far larger
+# than the 256 KB read limit, and a cut-off reply can't be parsed (26 Nov 2026).
+_TODO_LISTS = ("{% set ns = namespace(rows=[]) %}{% for s in states.todo %}"
+               "{% set ns.rows = ns.rows + [{'entity_id': s.entity_id, 'state': s.state, "
+               "'attributes': {'friendly_name': s.name}}] %}{% endfor %}{{ ns.rows | to_json }}")
 _LIST = r"(?:the |my |our )?(?P<list>shopping list|shopping|grocery list|groceries|to[- ]?do list|to[- ]?dos?|list)"
 _ADD = re.compile(rf"(?:(?:i|we)(?:'ve)? )?(?:add|added|put|stick|pop) (?P<items>.+?) (?:to|on|onto) {_LIST}")
 _REMOVE = re.compile(rf"(?:remove|delete|take|cross|tick) (?P<items>.+?) (?:off|from|of) {_LIST}|"
@@ -59,6 +66,11 @@ def _call(connection, path, data=None):
                       headers=headers, method="POST" if data is not None else "GET")
     with opener.open(request, timeout=5) as response:
         return json.loads(response.read(262144) or b"null")
+
+
+def _todo_states(connection):
+    rows = _call(connection, "/api/template", {"template": _TODO_LISTS})
+    return rows if isinstance(rows, list) else []
 
 
 def chosen_shopping_list():
@@ -107,8 +119,7 @@ def result(request, connection):
     if connection is None:
         return ExecutionResult("The Home Assistant connection isn't configured.", Outcome.NOT_CONFIGURED)
     try:
-        states = _call(connection, "/api/states")
-        entity = find_list(states if isinstance(states, list) else [], which)
+        entity = find_list(_todo_states(connection), which)
         if entity is None:
             return ExecutionResult(f"I can't find one {label} in Home Assistant. Add a to-do list called "
                                    f"'{label.capitalize()}' there.", Outcome.NOT_CONFIGURED)
@@ -145,7 +156,8 @@ def result(request, connection):
     except HTTPError as error:
         error.close()
         return ExecutionResult(f"Home Assistant didn't accept that change to the {label}.", Outcome.UNAVAILABLE)
-    except (OSError, ValueError, TypeError, AttributeError):
+    except (OSError, ValueError, TypeError, AttributeError) as error:
+        LOGGER.warning("To-do list %s failed (%s)", kind, type(error).__name__)
         return ExecutionResult(f"I couldn't reach the {label} in Home Assistant.", Outcome.UNAVAILABLE)
 
 
@@ -157,8 +169,7 @@ def add_to_shopping(connection, item):
     if connection is None:
         return "unavailable"
     try:
-        states = _call(connection, "/api/states")
-        entity = find_list(states if isinstance(states, list) else [], "shopping")
+        entity = find_list(_todo_states(connection), "shopping")
         if entity is None:
             return "unavailable"
         wanted = item.casefold()
