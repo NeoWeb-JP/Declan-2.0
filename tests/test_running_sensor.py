@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "custom_components/declan_two"
@@ -88,16 +87,13 @@ class WiringTests(unittest.TestCase):
         self.assertIn('PLATFORMS = ["binary_sensor", ', (INTEGRATION / "__init__.py").read_text())
 
     def test_alert_automation(self):
-        automation = yaml.safe_load((ROOT / "home_assistant/declan_down_alert.automation.yaml").read_text())
-        triggers = {trigger["id"]: trigger for trigger in automation["triggers"]}
-        self.assertEqual(triggers["down"]["entity_id"], "binary_sensor.declan_2_0_running")
-        self.assertEqual(triggers["down"]["for"], {"minutes": 3})
-        self.assertEqual(triggers["started"]["event"], "start")
-        self.assertEqual(automation["mode"], "restart")
         text = (ROOT / "home_assistant/declan_down_alert.automation.yaml").read_text()
+        for needle in ("entity_id: binary_sensor.declan_2_0_running", "minutes: 3\n    id: down",
+                       "event: start\n    id: started", "id: back", "mode: restart", "hours: 1"):
+            self.assertIn(needle, text)
         self.assertEqual(text.count("action: notify.mobile_app_your_iphone"), 2)
         self.assertIn("total_seconds() >= 180", text)  # no "back" message after an update restart
-
+        self.assertNotIn("\t", text)
 
 if __name__ == "__main__":
     unittest.main()
