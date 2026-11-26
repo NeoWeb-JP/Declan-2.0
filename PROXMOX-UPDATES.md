@@ -72,3 +72,31 @@ previous=$(readlink -f /opt/declan-deploy/previous) &&
 ```
 
 Testing releases use the same commit verification, state snapshot and startup rollback as stable releases. Selecting a stable release is also possible after testing; code rollback does not reverse shared database migrations. Prerelease numeric identifiers sort numerically (for example `rc.10` after `rc.2`), and a final release sorts above prereleases of the same version. In explicit pinned mode, prerelease suffixes also require the testing option.
+
+## Coming back after a power cut
+
+Declan only comes back on his own if all three of these are set. Check them once.
+
+1. **The Proxmox machine turns itself back on.** In its BIOS/UEFI, set "Restore on AC power loss" (sometimes "After power failure") to **Power On**.
+2. **The containers start at boot.** In the Proxmox web UI: container 108 → **Options** → **Start at boot** → **Yes**. Do the same for 107 (declan-stt) and 106 (jarvis-tts-gpu). Or, in the Proxmox host's **Shell**:
+
+   ```bash
+   pct set 108 --onboot 1
+   pct set 107 --onboot 1
+   pct set 106 --onboot 1
+   pct config 108 | grep onboot
+   ```
+
+   The last line should print `onboot: 1`.
+3. **The Declan service starts when the container does.** In the Proxmox host's Shell:
+
+   ```bash
+   pct enter 108
+   systemctl enable declan
+   systemctl is-enabled declan
+   exit
+   ```
+
+   It should print `enabled`.
+
+**Alert if he still doesn't come back:** the Declan 2.0 integration adds `binary_sensor.declan_2_0_running`, which checks every 30 seconds. Paste `home_assistant/declan_down_alert.automation.yaml` into a new automation (Edit in YAML) and change the two `notify.mobile_app_your_iphone` lines to your phone. You get a phone alert after 3 minutes down (or 5 minutes after Home Assistant starts if Declan isn't up), a reminder every hour, and a "Declan is back" message.
