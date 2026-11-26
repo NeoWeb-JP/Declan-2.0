@@ -20,8 +20,11 @@ class Store(unittest.TestCase):
         self.enterContext(patch.object(household_settings, "PATH", folder / "household.json"))
         self.enterContext(patch.dict(os.environ, {}, clear=True))
         self.listed = []
+        self.list_works = True
 
     def add_to_list(self, item):
+        if not self.list_works:
+            return "unavailable"
         if item in self.listed:
             return "already"
         self.listed.append(item)
@@ -110,7 +113,7 @@ class AnswerTests(Store):
         self.assertIn("not counting anything", self.say("what's running low"))
 
     def test_shopping_list_failure_is_said(self):
-        self.add_to_list = lambda item: "unavailable"
+        self.list_works = False
         self.assertIn("couldn't get it onto the shopping list", self.say("we're out of salt"))
 
     def test_guests_can_use_but_not_change_counts(self):
