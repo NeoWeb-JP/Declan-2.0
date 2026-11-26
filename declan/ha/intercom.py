@@ -17,6 +17,7 @@ from urllib.error import HTTPError
 from urllib.request import Request
 
 from declan.core.execution_results import ExecutionResult, Outcome
+from declan.ha import ha_replies
 
 _ALL = {"everyone", "everybody", "everywhere", "the house", "the whole house", "all rooms", "all the rooms"}
 _ANNOUNCE = re.compile(r"(?:announce|broadcast|shout)(?: (?:to|in|on|for) (?:the )?(?P<target>[a-z][a-z' ]{1,40}?)| (?P<floor>upstairs|downstairs))?"
@@ -58,7 +59,7 @@ def _call(connection, path, data):
     url, headers, opener = connection
     request = Request(url + path, data=json.dumps(data).encode(), headers=headers, method="POST")
     with opener.open(request, timeout=8) as response:
-        return json.loads(response.read(262144) or b"null")
+        return ha_replies.decode(response, path, 262144)
 
 
 def satellites(connection):

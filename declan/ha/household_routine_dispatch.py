@@ -7,6 +7,7 @@ import re
 import sqlite3
 from urllib.error import HTTPError
 from declan.core.execution_results import ExecutionResult, Outcome
+from declan.ha import ha_replies
 
 
 def start_dinner_result(connection, *, approved=False, policy, registry, choose_response, guest_mode, request_factory):
@@ -59,7 +60,7 @@ def guest_assignment_result(operation, connection, *, entities, sass, request_fa
         body = json.dumps(data).encode() if data is not None else None
         try:
             with opener.open(request_factory(url + path, headers=headers, data=body), timeout=1.5) as response:
-                return json.loads(response.read(8192))
+                return ha_replies.decode(response, path, 8192)
         except HTTPError as error:
             error.close()
         except (OSError, ValueError):

@@ -7,6 +7,8 @@ from declan.core.execution_results import Outcome
 from declan.ha import todo_lists
 from declan.turn import turn_http_entry, whereabouts
 
+# What HA sends back after a service call in a busy house: every state that changed meanwhile.
+CHANGED = [{"entity_id": f"sensor.s{n}", "state": "x" * 300} for n in range(1000)]
 STATES = [
     {"entity_id": "todo.shopping_list", "state": "2", "attributes": {"friendly_name": "Shopping List"}},
     {"entity_id": "todo.house_jobs", "state": "1", "attributes": {"friendly_name": "To-do"}},
@@ -47,13 +49,15 @@ class Opener(FakeHA):
             return Response([row for row in STATES if str(row["entity_id"]).startswith("todo.")])
         if path.startswith("/api/services/todo/get_items"):
             entity = data["entity_id"]
-            return Response({"service_response": {entity: {"items": [
+            return Response({"changed_states": CHANGED, "service_response": {entity: {"items": [
                 {"summary": item, "status": "needs_action"} for item in self.items[entity]]}}})
         if path == "/api/services/todo/add_item":
             self.items[data["entity_id"]].append(data["item"])
         elif path == "/api/services/todo/update_item":
             self.items[data["entity_id"]].remove(data["item"])
-        return Response([])
+        else:
+            return Response([])
+        return Response(CHANGED)
 
 
 class ListTests(unittest.TestCase):
@@ -127,6 +131,50 @@ class LargeHouseTests(unittest.TestCase):
         self.assertTrue(reply.startswith("Added rice"), reply)
         self.assertNotIn("/api/states", [path for path, _ in opener.calls])
         self.assertEqual(todo_lists.add_to_shopping(("http://ha", {}, opener), "beans"), "added")
+
+
+
+class CheckTests(unittest.TestCase):
+    def ask(self, phrase, items):
+        request = todo_lists.match(phrase)
+        assert request is not None, phrase
+        return todo_lists.result(request, ("http://ha", {}, Opener(items))).reply
+
+    def test_is_it_on_the_list(self):
+        self.assertEqual(self.ask("do I have rice on the shopping list?", ["Milk", "Rice"]),
+                         "Yes, Rice is on the shopping list.")
+        self.assertEqual(self.ask("is bread on the list", ["Milk"]), "No, bread isn't on the shopping list.")
+        self.assertEqual(self.ask("are milk and eggs on the shopping list", ["Milk"]),
+                         "Milk is on the shopping list, but not eggs.")
+        self.assertEqual(self.ask("did someone add milk to the shopping list", ["Semi-skimmed milk"]),
+                         "Yes, Semi-skimmed milk is on the shopping list.")
+        self.assertEqual(todo_lists.match("is anything on the shopping list"), ("read", "shopping", []))
+
+
+class ServiceReplyTests(unittest.TestCase):
+    def test_a_huge_service_reply_isnt_a_failure(self):
+        # 26 Nov 2026: milk was added, but the reply listed so many changed states
+        # that it was cut off, and Declan said "I couldn't reach the shopping list".
+        from declan.ha import ha_replies
+        huge = json.dumps(CHANGED).encode()
+        self.assertGreater(len(huge), 262144)
+
+        class Body:
+            def read(self, limit):
+                return huge[:limit]
+        self.assertEqual(ha_replies.decode(Body(), "/api/services/todo/add_item", 262144), [])
+        self.assertEqual(ha_replies.decode(Body(), "/api/services/todo/get_items?return_response", 262144), CHANGED)
+        self.assertEqual(ha_replies.decode(Body(), "/api/services/input_boolean/turn_on", 8192), [])
+        with self.assertRaises(ValueError):
+            ha_replies.decode(Body(), "/api/states", 262144)
+
+    def test_every_service_caller_uses_it(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1] / "declan"
+        for module in ("ha/todo_lists.py", "ha/intercom.py", "ha/ha_reads.py", "timers/timers.py",
+                       "ha/household_routine_dispatch.py"):
+            with self.subTest(module=module):
+                self.assertIn("ha_replies.decode(response, path,", (root / module).read_text())
 
 
 if __name__ == "__main__":
