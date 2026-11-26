@@ -6,6 +6,7 @@
 import json
 from urllib.error import HTTPError
 from urllib.request import Request
+from declan.ha import ha_replies
 
 MAX_BYTES = 262144
 
@@ -18,7 +19,7 @@ def call(connection, path, data=None, *, timeout=8):
                       method="GET" if data is None else "POST")
     try:
         with opener.open(request, timeout=timeout) as response:
-            return json.loads(response.read(MAX_BYTES) or b"null")
+            return ha_replies.decode(response, path, MAX_BYTES)
     except HTTPError as error:
         error.close()
         raise OSError(f"Home Assistant returned {error.code}") from None

@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request
 
 from declan.core.execution_results import ExecutionResult, Outcome
+from declan.ha import ha_replies
 
 
 DATABASE = Path(__file__).resolve().parents[2] / ".data" / "timers.sqlite3"
@@ -107,7 +108,7 @@ def ha_json(opener, path, *, data=None, timeout=2):
                       headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
     try:
         with opener.open(request, timeout=timeout) as response:
-            return json.loads(response.read(65536))
+            return ha_replies.decode(response, path, 65536)
     except HTTPError as error:
         error.close()
         raise ValueError("Home Assistant rejected the timer request") from None

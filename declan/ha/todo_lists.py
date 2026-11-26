@@ -15,6 +15,7 @@ from urllib.error import HTTPError
 from urllib.request import Request
 
 from declan.core.execution_results import ExecutionResult, Outcome
+from declan.ha import ha_replies
 
 LOGGER = logging.getLogger(__name__)
 READ_LIMIT = 6
@@ -28,6 +29,9 @@ _ADD = re.compile(rf"(?:(?:i|we)(?:'ve)? )?(?:add|added|put|stick|pop) (?P<items
 _REMOVE = re.compile(rf"(?:remove|delete|take|cross|tick) (?P<items>.+?) (?:off|from|of) {_LIST}|"
                      rf"(?:tick|cross) off (?P<items2>.+?)(?: (?:on|from) {_LIST.replace('?P<list>', '?P<list2>')})?|"
                      rf"(?:i've |we've |i |we )?(?:got|bought) (?P<items3>.+?) (?:off|from) {_LIST.replace('?P<list>', '?P<list3>')}")
+_CHECK = re.compile(rf"(?:is|are) (?:there )?(?P<items>.+?) (?:on|in) {_LIST}|"
+                    rf"(?:do|have|did) (?:i|we|you|someone|anyone) (?:have|got|put|added|add|already (?:have|got|put|added)) "
+                    rf"(?P<items2>.+?) (?:on|in|to) {_LIST.replace('?P<list>', '?P<list2>')}(?: already)?")
 _READ = re.compile(rf"(?:what(?:'s| is) on|read(?: me)?|what do (?:i|we) need (?:from|on)|check) {_LIST}|"
                    rf"what do (?:i|we) need(?: to buy| from the shops)?")
 
@@ -55,6 +59,11 @@ def match(phrase):
         items = found["items"] or found["items2"] or found["items3"]
         name = found["list"] or found["list2"] or found["list3"]
         return ("remove", _kind(name), _split(items))
+    if found := _CHECK.fullmatch(text):
+        items = _split(found["items"] or found["items2"])
+        if items and not set(item.casefold() for item in items) <= {"anything", "something", "much", "a lot"}:
+            return ("check", _kind(found["list"] or found["list2"]), items)
+        return ("read", _kind(found["list"] or found["list2"]), [])
     if found := _READ.fullmatch(text):
         return ("read", _kind(found.groupdict().get("list")), [])
     return None
@@ -65,7 +74,7 @@ def _call(connection, path, data=None):
     request = Request(url + path, data=json.dumps(data).encode() if data is not None else None,
                       headers=headers, method="POST" if data is not None else "GET")
     with opener.open(request, timeout=5) as response:
-        return json.loads(response.read(262144) or b"null")
+        return ha_replies.decode(response, path, 262144)
 
 
 def _todo_states(connection):
@@ -130,6 +139,22 @@ def result(request, connection):
             more = f", and {len(current) - READ_LIMIT} more" if len(current) > READ_LIMIT else ""
             count = f"{len(current)} things" if len(current) > 1 else "One thing"
             return ExecutionResult(f"{count} on the {label}: {_names(current[:READ_LIMIT])}{more}.", Outcome.CHAT_ANSWER)
+        if kind == "check":
+            current = _items(connection, entity)
+
+            def listed(item):
+                return next((value for value in current if item.casefold() in value.casefold()), None)
+
+            def verb(values, yes):
+                return ("is" if yes else "isn't") if len(values) == 1 else ("are" if yes else "aren't")
+            on = [value for value in (listed(item) for item in items) if value]
+            off = [item for item in items if listed(item) is None]
+            if not off:
+                return ExecutionResult(f"Yes, {_names(on)} {verb(on, True)} on the {label}.", Outcome.CHAT_ANSWER)
+            if not on:
+                return ExecutionResult(f"No, {_names(off)} {verb(off, False)} on the {label}.", Outcome.CHAT_ANSWER)
+            return ExecutionResult(f"{_names(on).capitalize()} {verb(on, True)} on the {label}, but not {_names(off)}.",
+                                   Outcome.CHAT_ANSWER)
         if not items:
             return ExecutionResult(f"What should I {'add to' if kind == 'add' else 'take off'} the {label}?", Outcome.UNRESOLVED)
         if kind == "add":
