@@ -30,9 +30,10 @@ class SettingsTests(TemporarySettings):
     def test_default_is_home_then_environment_then_saved(self):
         self.assertEqual(household_settings.listing(),
                          {"settings": {"guest_tone": "home", "shelve_days": 3, "fresh_lines": True,
-                                       "christmas": "auto", "wifi_name": "", "wifi_password": ""},
+                                       "christmas": "auto", "wifi_name": "", "wifi_password": "",
+                                       "shopping_list": ""},
                           "sources": dict.fromkeys(("guest_tone", "shelve_days", "fresh_lines", "christmas",
-                                                    "wifi_name", "wifi_password"), "default")})
+                                                    "wifi_name", "wifi_password", "shopping_list"), "default")})
         with patch.dict(os.environ, {"DECLAN_GUEST_TONE": " Polite "}):
             self.assertEqual(household_settings.guest_tone(), "polite")
             self.assertEqual(household_settings.listing()["sources"]["guest_tone"], "environment")

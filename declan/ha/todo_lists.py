@@ -61,10 +61,22 @@ def _call(connection, path, data=None):
         return json.loads(response.read(262144) or b"null")
 
 
+def chosen_shopping_list():
+    """The to-do entity picked in Settings -> Household, or "" to find one by name."""
+    try:
+        from declan.turn import household_settings
+        return household_settings.listing()["settings"].get("shopping_list") or ""
+    except (OSError, ValueError, KeyError, TypeError):
+        return ""
+
+
 def find_list(states, kind):
     """The todo entity for "shopping" or "todo", or None."""
     lists = [row for row in states if isinstance(row, dict) and str(row.get("entity_id", "")).startswith("todo.")
              and row.get("state") not in ("unavailable", "unknown")]
+    if kind == "shopping" and (chosen := chosen_shopping_list()):
+        # The shared iPhone list, synced into HA, may not have "shopping" in its name.
+        return chosen if any(row["entity_id"] == chosen for row in lists) else None
 
     def name(row):
         return f"{row['entity_id']} {(row.get('attributes') or {}).get('friendly_name', '')}".casefold()
@@ -135,3 +147,27 @@ def result(request, connection):
         return ExecutionResult(f"Home Assistant didn't accept that change to the {label}.", Outcome.UNAVAILABLE)
     except (OSError, ValueError, TypeError, AttributeError):
         return ExecutionResult(f"I couldn't reach the {label} in Home Assistant.", Outcome.UNAVAILABLE)
+
+
+def add_to_shopping(connection, item):
+    """Put one item on the shopping list unless it's already there (FUT-76 pantry).
+
+    Returns "added", "already" or "unavailable".
+    """
+    if connection is None:
+        return "unavailable"
+    try:
+        states = _call(connection, "/api/states")
+        entity = find_list(states if isinstance(states, list) else [], "shopping")
+        if entity is None:
+            return "unavailable"
+        wanted = item.casefold()
+        if any(wanted == value.casefold() or wanted in value.casefold() for value in _items(connection, entity)):
+            return "already"
+        _call(connection, "/api/services/todo/add_item", {"entity_id": entity, "item": item[:1].upper() + item[1:]})
+        return "added"
+    except HTTPError as error:
+        error.close()
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return "unavailable"

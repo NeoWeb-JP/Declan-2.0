@@ -118,6 +118,12 @@ Fair warning: Declan is rude and South African, guests included. If he doesn't u
 - "Take milk off the list", "tick off eggs"
 - "Add call the plumber to my to-do list", "read me the to-do list"
 
+**Pantry** (local and free; low or finished things go on the shopping list):
+- "We've got 6 tins of chopped tomatoes", "I bought 2 bags of rice"
+- "I've used a tin of tomatoes", "used the last bag of rice", "we're out of coffee", "we're running low on milk"
+- "Do we have pasta?", "how many tins of tomatoes have we got?", "what's running low?"
+- "Keep at least 4 tins of tomatoes", "stop counting rice"
+
 **Where did I put…?** (local and free; guests just get cheek):
 - "The spare car key is in the hall drawer", "I put the passports in the safe", "I've moved the passports to the safe"
 - "Where's the spare car key?", "where did I leave my glasses?", "have you seen my phone?"

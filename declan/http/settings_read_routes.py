@@ -81,6 +81,11 @@ def dispatch(handler, *, voicepipeline, voice_profiles, diagnostics, history,
             payload["whereabouts"] = whereabouts.listing()
         except (OSError, sqlite3.Error):
             payload["whereabouts"] = None
+        from declan.turn import pantry
+        try:
+            payload["pantry"] = pantry.listing()
+        except (OSError, sqlite3.Error):
+            payload["pantry"] = None
         from declan.turn import usual
         try:
             payload["usuals"] = usual.listing()
