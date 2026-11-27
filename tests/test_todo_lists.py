@@ -113,6 +113,18 @@ class ListTests(unittest.TestCase):
         self.assertEqual(self.run_phrase("add milk to the list", Broken()).outcome, Outcome.UNAVAILABLE)
         self.assertEqual(todo_lists.result(("read", "shopping", []), None).outcome, Outcome.NOT_CONFIGURED)
 
+    def test_polite_requests(self):
+        # 27 Nov 2026: the satellite heard this and it went to the AI agent.
+        self.assertEqual(todo_lists.match("Can you add shampoo and conditioner to our shopping list, please?"),
+                         ("add", "shopping", ["shampoo", "conditioner"]))
+        self.assertEqual(todo_lists.match("please put milk on the list thanks"), ("add", "shopping", ["milk"]))
+        self.assertEqual(todo_lists.match("could you read me the shopping list"), ("read", "shopping", []))
+        self.assertEqual(todo_lists.match("would you take eggs off the shopping list please")[0], "remove")
+        opener = Opener()
+        self.assertEqual(self.run_phrase("Can you add shampoo and conditioner to our shopping list, please?",
+                                         opener).outcome, Outcome.CONFIRMED)
+        self.assertIn("Conditioner", opener.items["todo.shopping_list"])
+
     def test_a_slow_add_that_landed_counts_as_added(self):
         # iCloud-synced lists can be slower than the timeout; HA still adds the item (27 Nov 2026).
         class Slow(Opener):

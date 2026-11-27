@@ -16,6 +16,7 @@ from urllib.request import Request
 
 from declan.core.execution_results import ExecutionResult, Outcome
 from declan.ha import ha_replies
+from declan.turn.intent_preprocessing import strip_polite_request
 
 LOGGER = logging.getLogger(__name__)
 READ_LIMIT = 6
@@ -58,6 +59,8 @@ def match(phrase):
     if not isinstance(phrase, str):
         return None
     text = " ".join(phrase.casefold().replace("’", "'").split()).strip(" ?.!")
+    # "Can you add shampoo to our shopping list, please?" (27 Nov 2026: went to the AI agent).
+    text = strip_polite_request(text)
     if found := _ADD.fullmatch(text):
         return ("add", _kind(found["list"]), _split(found["items"]))
     if found := _REMOVE.fullmatch(text):
