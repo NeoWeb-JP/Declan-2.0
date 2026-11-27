@@ -164,5 +164,30 @@ class WeatherForecastEnvironmentDefaultsTests(unittest.TestCase):
             read.assert_not_called()
 
 
+class SlowHomeAssistantTests(unittest.TestCase):
+    """27 Nov 2026: 1-2 s waits made a busy HA look like no forecast for home."""
+
+    def test_home_forecast_reads_wait_long_enough(self):
+        timeouts = []
+
+        def fake_read(_opener, url, _headers=None, timeout=3, **_kwargs):
+            timeouts.append(timeout)
+            return {}
+        with patch.dict(os.environ, {"DECLAN_HA_URL": "http://ha.local", "DECLAN_HA_TOKEN": "t"}, clear=True), \
+                patch.object(conditions, "read_json", side_effect=fake_read):
+            conditions.home_forecast(None)
+        self.assertTrue(timeouts)
+        self.assertTrue(all(value >= conditions.HA_TIMEOUT >= 5 for value in timeouts), timeouts)
+
+    def test_failed_lookups_are_logged(self):
+        class Slow:
+            def open(self, request, timeout=None):
+                raise TimeoutError("timed out")
+        with self.assertLogs("declan.core.conditions", "WARNING") as logs:
+            self.assertEqual(conditions.read_json(Slow(), "http://ha.local/api/config", {}, timeout=5), {})
+        self.assertIn("/api/config", logs.output[0])
+        self.assertIn("TimeoutError", logs.output[0])
+
+
 if __name__ == "__main__":
     unittest.main()

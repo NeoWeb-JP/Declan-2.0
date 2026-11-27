@@ -135,7 +135,7 @@ class ShoppingListTests(Store):
     def connection(self, items=(), lists=("todo.shopping_list",)):
         calls = []
 
-        def call(connection, path, data=None):
+        def call(connection, path, data=None, timeout=None):
             calls.append((path, data))
             if path == "/api/template":
                 return [{"entity_id": entity, "state": "1", "attributes": {}} for entity in lists]

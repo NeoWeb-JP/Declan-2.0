@@ -19,6 +19,11 @@ from declan.ha import ha_replies
 
 LOGGER = logging.getLogger(__name__)
 READ_LIMIT = 6
+# Reads are quick; writes to a list synced from iCloud (the shared iPhone list) can
+# take well over 5 s, and timing out early made Declan say "couldn't" after HA had
+# already added the item (27 Nov 2026).
+READ_TIMEOUT = 5
+WRITE_TIMEOUT = 15
 # Only the to-do lists, not every entity: a big house's /api/states is far larger
 # than the 256 KB read limit, and a cut-off reply can't be parsed (26 Nov 2026).
 _TODO_LISTS = ("{% set ns = namespace(rows=[]) %}{% for s in states.todo %}"
@@ -69,12 +74,29 @@ def match(phrase):
     return None
 
 
-def _call(connection, path, data=None):
+def _call(connection, path, data=None, timeout=READ_TIMEOUT):
     url, headers, opener = connection
     request = Request(url + path, data=json.dumps(data).encode() if data is not None else None,
                       headers=headers, method="POST" if data is not None else "GET")
-    with opener.open(request, timeout=5) as response:
+    with opener.open(request, timeout=timeout) as response:
         return ha_replies.decode(response, path, 262144)
+
+
+def _timed_out(error):
+    return isinstance(error, TimeoutError) or isinstance(getattr(error, "reason", None), TimeoutError)
+
+
+def _add(connection, entity, item):
+    """Add one item; if HA is too slow to answer, check the list before calling it a failure."""
+    name = item[:1].upper() + item[1:]
+    try:
+        _call(connection, "/api/services/todo/add_item", {"entity_id": entity, "item": name}, WRITE_TIMEOUT)
+    except OSError as error:
+        if not _timed_out(error):
+            raise
+        LOGGER.warning("To-do add timed out; checking whether %s landed anyway", entity)
+        if not any(value.casefold() == name.casefold() for value in _items(connection, entity)):
+            raise
 
 
 def _todo_states(connection):
@@ -159,7 +181,7 @@ def result(request, connection):
             return ExecutionResult(f"What should I {'add to' if kind == 'add' else 'take off'} the {label}?", Outcome.UNRESOLVED)
         if kind == "add":
             for item in items:
-                _call(connection, "/api/services/todo/add_item", {"entity_id": entity, "item": item[:1].upper() + item[1:]})
+                _add(connection, entity, item)
             return ExecutionResult(f"Added {_names(items)} to the {label}.", Outcome.CONFIRMED)
         current = _items(connection, entity)
         lookup = {value.casefold(): value for value in current}
@@ -171,7 +193,7 @@ def result(request, connection):
                 missing.append(item)
                 continue
             _call(connection, "/api/services/todo/update_item",
-                  {"entity_id": entity, "item": match_name, "status": "completed"})
+                  {"entity_id": entity, "item": match_name, "status": "completed"}, WRITE_TIMEOUT)
             removed.append(match_name)
         if not removed:
             return ExecutionResult(f"{_names(missing).capitalize()} isn't on the {label}.", Outcome.UNRESOLVED)
@@ -200,7 +222,7 @@ def add_to_shopping(connection, item):
         wanted = item.casefold()
         if any(wanted == value.casefold() or wanted in value.casefold() for value in _items(connection, entity)):
             return "already"
-        _call(connection, "/api/services/todo/add_item", {"entity_id": entity, "item": item[:1].upper() + item[1:]})
+        _add(connection, entity, item)
         return "added"
     except HTTPError as error:
         error.close()

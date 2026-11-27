@@ -113,6 +113,29 @@ class ListTests(unittest.TestCase):
         self.assertEqual(self.run_phrase("add milk to the list", Broken()).outcome, Outcome.UNAVAILABLE)
         self.assertEqual(todo_lists.result(("read", "shopping", []), None).outcome, Outcome.NOT_CONFIGURED)
 
+    def test_a_slow_add_that_landed_counts_as_added(self):
+        # iCloud-synced lists can be slower than the timeout; HA still adds the item (27 Nov 2026).
+        class Slow(Opener):
+            def open(self, request, timeout=None):
+                if request.full_url.endswith("/api/services/todo/add_item"):
+                    assert timeout == todo_lists.WRITE_TIMEOUT
+                    super().open(request, timeout)
+                    raise TimeoutError("timed out")
+                return super().open(request, timeout)
+        opener = Slow()
+        result = self.run_phrase("add milk to the shopping list", opener)
+        self.assertEqual(result.outcome, Outcome.CONFIRMED)
+        self.assertIn("Milk", opener.items["todo.shopping_list"])
+        self.assertEqual(todo_lists.add_to_shopping(("http://ha", {}, Slow()), "eggs"), "added")
+
+    def test_a_slow_add_that_didnt_land_is_still_a_failure(self):
+        class Lost(Opener):
+            def open(self, request, timeout=None):
+                if request.full_url.endswith("/api/services/todo/add_item"):
+                    raise TimeoutError("timed out")
+                return super().open(request, timeout)
+        self.assertEqual(self.run_phrase("add milk to the shopping list", Lost()).outcome, Outcome.UNAVAILABLE)
+
     def test_answered_in_the_request_flow(self):
         services = SimpleNamespace(ha_device_connection=lambda: ("http://ha", {}, Opener()))
         result = turn_http_entry._todo(todo_lists.match("add milk to the list"), services)

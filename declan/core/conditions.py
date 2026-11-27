@@ -3,6 +3,7 @@
 from declan.core.execution_results import ExecutionResult, Outcome
 from declan.turn.information_result import InformationResult, InformationCategory
 import json
+import logging
 import math
 import os
 import re
@@ -12,6 +13,10 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+LOGGER = logging.getLogger(__name__)
+# Home Assistant can take a few seconds to answer when it's busy; at 1-2 s Declan
+# said "I couldn't verify the forecast for home" while HA was fine (27 Nov 2026).
+HA_TIMEOUT = 5
 
 HOME_WEATHER = re.compile(
     r"(?:what(?:'s| is) (?:the )?|how(?:'s| is) (?:the )?)"
@@ -68,8 +73,9 @@ def read_json(opener, url, headers=None, timeout=3, *, data=None):
         return payload if isinstance(payload, dict) else {}
     except HTTPError as error:
         error.close()
-    except (OSError, ValueError):
-        pass
+        LOGGER.warning("Weather lookup %s failed (HTTP %s)", urlsplit(url).path, error.code)
+    except (OSError, ValueError) as error:
+        LOGGER.warning("Weather lookup %s failed (%s)", urlsplit(url).path, type(error).__name__)
     return {}
 
 
@@ -105,7 +111,7 @@ def home_temperatures_result(opener, *, indoors_only=False, outdoors_only=False,
     def state(entity, pattern):
         if not re.fullmatch(pattern, entity):
             return {}
-        result = read_json(opener, f"{url}/api/states/{entity}", headers, timeout=2)
+        result = read_json(opener, f"{url}/api/states/{entity}", headers, timeout=HA_TIMEOUT)
         return (result if result.get("state") not in (None, "unknown", "unavailable") else {})
 
     outside_state = state(weather, r"weather\.[a-z0-9_]+") if not indoors_only else {}
@@ -154,7 +160,7 @@ def nearest_place(opener, candidates):
     connection = ha_connection()
     if connection:
         url, headers = connection
-        home = place_coordinates(read_json(opener, f"{url}/api/config", headers, timeout=1))
+        home = place_coordinates(read_json(opener, f"{url}/api/config", headers, timeout=HA_TIMEOUT))
         if home:
             home_lat, home_lon = map(math.radians, home)
             distances = []
@@ -261,21 +267,22 @@ def home_forecast(opener):
     if not connection or not re.fullmatch(r"weather\.[a-z0-9_]+", entity):
         return {}, None, None
     url, headers = connection
-    config = read_json(opener, f"{url}/api/config", headers, timeout=2)
+    config = read_json(opener, f"{url}/api/config", headers, timeout=HA_TIMEOUT)
     zone = config.get("time_zone")
     units = config.get("unit_system")
     unit = units.get("temperature") if isinstance(units, dict) else None
     try:
         timezone = ZoneInfo(zone)
     except (TypeError, ValueError, ZoneInfoNotFoundError):
+        LOGGER.warning("Home forecast: no usable time zone from Home Assistant (%r)", zone)
         return {}, None, unit
-    state = read_json(opener, f"{url}/api/states/{entity}", headers, timeout=1)
+    state = read_json(opener, f"{url}/api/states/{entity}", headers, timeout=HA_TIMEOUT)
     attrs = state.get("attributes")
     if isinstance(attrs, dict):
         unit = attrs.get("temperature_unit") or unit
     data = read_json(
         opener, f"{url}/api/services/weather/get_forecasts?return_response",
-        {**headers, "Content-Type": "application/json"}, timeout=2,
+        {**headers, "Content-Type": "application/json"}, timeout=HA_TIMEOUT,
         data=json.dumps({"entity_id": entity, "type": "daily"}).encode(),
     )
     payload = data.get("service_response")
