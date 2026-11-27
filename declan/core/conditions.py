@@ -18,8 +18,11 @@ LOGGER = logging.getLogger(__name__)
 # said "I couldn't verify the forecast for home" while HA was fine (27 Nov 2026).
 HA_TIMEOUT = 5
 
+# The lead-in is optional: satellites often hear just "the weather" or "weather today"
+# (27 Nov 2026: "The weather today." went to the AI agent, which can't check it).
+LEAD_IN = r"(?:(?:what(?:'s| is)|how(?:'s| is)|give me|show me|tell me|check) )?(?:the )?"
 HOME_WEATHER = re.compile(
-    r"(?:what(?:'s| is) (?:the )?|how(?:'s| is) (?:the )?)"
+    LEAD_IN +
     r"(?P<kind>weather(?: like)?|(?:current )?temperature)"
     r"(?: (?P<where>outside|outdoors|at home))?"
 )
@@ -33,7 +36,7 @@ INSIDE = {"what's the temperature inside", "what is the temperature inside",
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 PERIOD = r"today|tomorrow|this weekend|(?:on )?(?:" + "|".join(WEEKDAYS) + r")"
 FORECAST = re.compile(
-    r"(?P<kind>(?:(?:what(?:'s| is| will be)|how(?:'s| is)|give me|show me) (?:the )?)?"
+    r"(?P<kind>(?:(?:what(?:'s| is| will be)|how(?:'s| is)|give me|show me|tell me|check) )?(?:the )?"
     r"(?:weather forecast|forecast|weather(?: like)?|temperature)|"
     r"what will the (?:weather|temperature) be(?: like)?|will it rain)"
     rf"(?: (?:(?:for |at home |outside )?(?P<first>{PERIOD})(?: in (?P<after>.+))?|"

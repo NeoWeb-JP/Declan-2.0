@@ -74,6 +74,24 @@ class WeatherTests(TestCase):
             self.assertIn(part, reply)
         return reply
 
+    def test_short_weather_questions(self):
+        # 27 Nov 2026: a satellite heard "The weather today." and it went to the AI agent.
+        for phrase in ("the weather today", "weather today"):
+            with self.subTest(phrase=phrase):
+                self.assertTrue(conditions.matches(phrase))
+                self.assertTrue(conditions.forecast_question(phrase)["first"] == "today")
+        for phrase in ("weather tomorrow", "the weather tomorrow", "tell me the forecast for tomorrow"):
+            with self.subTest(phrase=phrase):
+                self.assertTrue(conditions.matches(phrase))
+                self.check(phrase, "confirmed", "For home", "rain")
+        for phrase in ("the weather", "weather", "check the weather"):
+            with self.subTest(phrase=phrase):
+                self.assertTrue(conditions.matches(phrase))
+                self.check(phrase, "confirmed", "raining", "8 degrees")
+        for phrase in ("turn on the weather lights", "the weather is rubbish", "set the temperature to 20"):
+            with self.subTest(phrase=phrase):
+                self.assertFalse(conditions.matches(phrase))
+
     def test_current_weather_and_temperature(self):
         self.check("what's the weather like outside", "confirmed", "raining", "8 degrees", "19 degrees")
         reply = self.check("what's the temperature outside", "confirmed", "8 degrees")
